@@ -14,6 +14,7 @@ internal static class Program
     {
         try
         {
+            RunEngineCapabilityScenario();
             RunPartialBatchRetryScenario();
             RunRequestTypeFallbackScenario();
             Console.WriteLine("Plugin regression passed: retry and fallback scenarios behaved as expected.");
@@ -24,6 +25,18 @@ internal static class Program
             Console.Error.WriteLine(error);
             return 1;
         }
+    }
+
+    private static void RunEngineCapabilityScenario()
+    {
+        var engine = new MemoQAIHubEngine(
+            "eng",
+            "fra",
+            new MemoQAIHubOptions(new MemoQAIHubGeneralSettings(), new MemoQAIHubSecureSettings())
+        );
+
+        Assert(engine.SupportsFuzzyCorrection, "Expected plugin engine to expose fuzzy correction capability.");
+        Assert(engine.MaxDegreeOfParallelism == 8, "Expected plugin engine parallelism to remain unchanged.");
     }
 
     private static void RunPartialBatchRetryScenario()

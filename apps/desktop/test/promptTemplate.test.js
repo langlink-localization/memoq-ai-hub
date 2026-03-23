@@ -5,7 +5,8 @@ const {
   getSupportedPlaceholders,
   renderTemplate,
   validateProfileTemplates,
-  validateTemplate
+  validateTemplate,
+  SYSTEM_PROMPT_FORBIDDEN_PLACEHOLDERS
 } = require('../src/shared/promptTemplate');
 
 test('prompt template exposes supported placeholders', () => {
@@ -92,5 +93,16 @@ test('prompt template rejects unsupported placeholders', () => {
   assert.throws(
     () => validateProfileTemplates({ systemPrompt: 'Hi', userPrompt: '{{unknown-placeholder}}' }),
     /unsupported placeholder/i
+  );
+});
+
+test('prompt template rejects volatile tm and terminology placeholders in system prompts', () => {
+  assert.throws(
+    () => validateTemplate('Use {{glossary-text}} and {{tm-target-text}}', {
+      fieldLabel: 'System prompt',
+      fieldName: 'systemPrompt',
+      disallowedTokens: SYSTEM_PROMPT_FORBIDDEN_PLACEHOLDERS
+    }),
+    /cannot use \{\{glossary-text\}\}/i
   );
 });

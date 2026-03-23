@@ -18,7 +18,7 @@ namespace MemoQAIHubPlugin
 
         public override int MaxDegreeOfParallelism => 8;
 
-        public override bool SupportsFuzzyCorrection => false;
+        public override bool SupportsFuzzyCorrection => true;
 
         public override Image SmallIcon => MemoQAIHubPluginDirector.CreateDisplayIconCopy();
 

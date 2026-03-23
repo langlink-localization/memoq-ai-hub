@@ -50,16 +50,16 @@ const PLACEHOLDER_DEFINITIONS = [
   {
     token: 'glossary-text',
     label: 'Glossary text',
-    description: 'The bound glossary content for the active profile when available.',
-    scope: 'request',
+    description: 'Matched terminology instructions for the current segment when available.',
+    scope: 'segment',
     allowsRequired: true,
     allowsWrapper: true
   },
   {
     token: 'tb-metadata-text',
     label: 'TB metadata text',
-    description: 'Matched TB metadata, including language pair and relevant entry details, when available.',
-    scope: 'request',
+    description: 'Matched TB metadata for the current segment, including language pair and relevant entry details.',
+    scope: 'segment',
     allowsRequired: true,
     allowsWrapper: true
   },
@@ -155,6 +155,14 @@ const PLACEHOLDER_DEFINITIONS = [
 
 const PLACEHOLDER_MAP = new Map(PLACEHOLDER_DEFINITIONS.map((item) => [item.token, item]));
 const TEMPLATE_PATTERN = /(\[(?<before>[^\]]*)\])?{{\s*(?<token>[a-z-]+)(?<required>!)?\s*}}(\[(?<after>[^\]]*)\])?/g;
+const SYSTEM_PROMPT_FORBIDDEN_PLACEHOLDERS = new Set([
+  'glossary-text',
+  'tb-metadata-text',
+  'tm-source-text',
+  'tm-target-text',
+  'custom-tm-source-text',
+  'custom-tm-target-text'
+]);
 
 class PromptTemplateError extends Error {
   constructor(message, code, details = {}) {
@@ -218,6 +226,7 @@ function listTemplatePlaceholders(template) {
 function validateTemplate(template, options = {}) {
   const normalizedTemplate = normalizeTemplate(template);
   const fieldLabel = String(options.fieldLabel || 'Prompt template');
+  const disallowedTokens = new Set(options.disallowedTokens || []);
 
   if (!normalizedTemplate) {
     return [];
@@ -236,6 +245,12 @@ function validateTemplate(template, options = {}) {
     const definition = PLACEHOLDER_MAP.get(match.token);
     if (!definition) {
       throw new PromptTemplateError(`${fieldLabel} uses an unsupported placeholder: {{${match.token}}}.`, 'PROMPT_TEMPLATE_UNKNOWN_PLACEHOLDER', {
+        field: options.fieldName || '',
+        token: match.token
+      });
+    }
+    if (disallowedTokens.has(match.token)) {
+      throw new PromptTemplateError(`${fieldLabel} cannot use {{${match.token}}}. Put TM hints and terminology in the user prompt or segment payload instead.`, 'PROMPT_TEMPLATE_DISALLOWED_PLACEHOLDER', {
         field: options.fieldName || '',
         token: match.token
       });
@@ -281,17 +296,29 @@ function renderTemplate(template, context = {}, options = {}) {
 }
 
 function validateProfileTemplates(profile = {}) {
-  validateTemplate(profile.systemPrompt, { fieldLabel: 'System prompt', fieldName: 'systemPrompt' });
+  validateTemplate(profile.systemPrompt, {
+    fieldLabel: 'System prompt',
+    fieldName: 'systemPrompt',
+    disallowedTokens: SYSTEM_PROMPT_FORBIDDEN_PLACEHOLDERS
+  });
   validateTemplate(profile.userPrompt, { fieldLabel: 'User prompt', fieldName: 'userPrompt' });
 
   const promptTemplates = profile?.promptTemplates || {};
   if (promptTemplates?.single) {
-    validateTemplate(promptTemplates.single.systemPrompt, { fieldLabel: 'Single processing system prompt', fieldName: 'promptTemplates.single.systemPrompt' });
+    validateTemplate(promptTemplates.single.systemPrompt, {
+      fieldLabel: 'Single processing system prompt',
+      fieldName: 'promptTemplates.single.systemPrompt',
+      disallowedTokens: SYSTEM_PROMPT_FORBIDDEN_PLACEHOLDERS
+    });
     validateTemplate(promptTemplates.single.userPrompt, { fieldLabel: 'Single processing user prompt', fieldName: 'promptTemplates.single.userPrompt' });
   }
 
   if (promptTemplates?.batch) {
-    validateTemplate(promptTemplates.batch.systemPrompt, { fieldLabel: 'Batch processing system prompt', fieldName: 'promptTemplates.batch.systemPrompt' });
+    validateTemplate(promptTemplates.batch.systemPrompt, {
+      fieldLabel: 'Batch processing system prompt',
+      fieldName: 'promptTemplates.batch.systemPrompt',
+      disallowedTokens: SYSTEM_PROMPT_FORBIDDEN_PLACEHOLDERS
+    });
     validateTemplate(promptTemplates.batch.userPrompt, { fieldLabel: 'Batch processing user prompt', fieldName: 'promptTemplates.batch.userPrompt' });
   }
 }
@@ -303,5 +330,6 @@ module.exports = {
   listTemplatePlaceholders,
   renderTemplate,
   validateProfileTemplates,
-  validateTemplate
+  validateTemplate,
+  SYSTEM_PROMPT_FORBIDDEN_PLACEHOLDERS
 };

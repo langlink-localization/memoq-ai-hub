@@ -50,6 +50,13 @@ The design choice is simple: memoQ plugins are good host adapters, but not a goo
 
 See `docs/repository-structure.md` for repository structure and extension rules.
 
+## User Guide
+
+- English user guide: [docs/user-guide.md](docs/user-guide.md)
+- 简体中文用户指南：[docs/user-guide.zh-CN.md](docs/user-guide.zh-CN.md)
+
+If you are setting up the desktop app, installing the memoQ plugin, or configuring providers and profiles for the first time, start with the user guide before diving into the engineering docs.
+
 ## Local Development
 
 ```powershell

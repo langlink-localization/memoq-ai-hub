@@ -50,6 +50,13 @@
 
 结构约定与扩展规则见 `docs/repository-structure.md`。
 
+## 用户操作指南
+
+- English user guide: [docs/user-guide.md](docs/user-guide.md)
+- 简体中文用户指南：[docs/user-guide.zh-CN.md](docs/user-guide.zh-CN.md)
+
+如果你是第一次安装桌面端、部署 memoQ 插件或配置 Provider / Profile，建议先阅读用户操作指南，再查阅工程说明文档。
+
 ## 本地开发
 
 ```powershell

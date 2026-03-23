@@ -6,25 +6,20 @@ const {
 } = require('../shared/memoqMetadataNormalizer');
 const {
   createTemplateContext,
-  renderTemplate
+  renderTemplate,
+  SYSTEM_PROMPT_FORBIDDEN_PLACEHOLDERS
 } = require('../shared/promptTemplate');
 
-const DEFAULT_PROFILE_SYSTEM_PROMPT = 'You are a professional translator working from {{source-language}} to {{target-language}}. Preserve placeholders, tags, and formatting. Follow required terminology and project instructions whenever they are provided.';
+const DEFAULT_PROFILE_SYSTEM_PROMPT = 'You are a professional translator working from {{source-language}} to {{target-language}}. Preserve placeholders, tags, formatting, and protected content. Follow the structured segment payload for terminology, TM hints, and document context.';
 const DEFAULT_PROFILE_USER_PROMPT = [
-  'Translate the following segment and return only the translation.',
+  'Translate the segment below and return only the translation.',
+  'Use the segment payload fields for matched terminology, TM hints, and neighboring context whenever they are present.',
   '',
   'Source segment:',
   '{{source-text}}',
   '',
   '[Current target text:',
   ']{{target-text}}[',
-  ']',
-  '[Required terminology:',
-  ']{{glossary-text}}[',
-  ']',
-  '[Best memoQ TM match:',
-  'Source: {{tm-source-text}}',
-  'Target: {{tm-target-text}}[',
   ']',
   '[Above source context:',
   ']{{above-source-text}}[',
@@ -33,20 +28,13 @@ const DEFAULT_PROFILE_USER_PROMPT = [
   ']{{below-source-text}}[',
   ']'
 ].join('\n');
-const DEFAULT_BATCH_SYSTEM_PROMPT = 'You are translating a batch from {{source-language}} to {{target-language}}. Keep terminology, placeholders, and formatting consistent across every segment. Use provided glossary, memoQ TM hints, and shared document context whenever available.';
+const DEFAULT_BATCH_SYSTEM_PROMPT = 'You are translating a batch from {{source-language}} to {{target-language}}. Keep terminology, placeholders, and formatting consistent across every segment. Use each segment payload for matched terminology, TM hints, and document context.';
 const DEFAULT_BATCH_USER_PROMPT = [
   'Translate the segment below and return only the translation for that segment.',
+  'Use the segment payload fields for matched terminology and TM hints whenever they are present.',
   '',
   'Source segment:',
-  '{{source-text}}',
-  '',
-  '[Required terminology:',
-  ']{{glossary-text}}[',
-  ']',
-  '[Best memoQ TM match:',
-  'Source: {{tm-source-text}}',
-  'Target: {{tm-target-text}}[',
-  ']'
+  '{{source-text}}'
 ].join('\n');
 const STRUCTURED_PROMPT_SCHEMA_VERSION = 'structured-v2';
 
@@ -363,15 +351,28 @@ function buildSegmentPayload({
   profile,
   profileInstructions = ''
 }) {
+  const tmSourceText = String(segment.tmSource || '');
+  const tmTargetText = String(segment.tmTarget || '');
+  const matchedTerms = Array.isArray(segment?.tbContext?.termHits) ? segment.tbContext.termHits : [];
+  const terminologyInstructions = String(segment?.tbContext?.glossaryText || '');
+  const tbMetadataText = String(segment?.tbContext?.tbMetadataText || '');
+
   return {
     index: Number(segment.index),
     sourceText: String(segment.sourceText || ''),
     sourcePlainText: String(segment?.tbContext?.sourcePlainText || segment.plainText || segment.sourceText || ''),
-    matchedTerms: Array.isArray(segment?.tbContext?.termHits) ? segment.tbContext.termHits : [],
+    matchedTerms,
     neighborContext: buildNeighborContext(segment),
     tmHints: {
-      sourceText: String(segment.tmSource || ''),
-      targetText: String(segment.tmTarget || '')
+      sourceText: tmSourceText,
+      targetText: tmTargetText,
+      available: Boolean(tmSourceText || tmTargetText)
+    },
+    terminology: {
+      instructions: terminologyInstructions,
+      tbMetadataText,
+      matches: matchedTerms,
+      available: Boolean(terminologyInstructions || tbMetadataText || matchedTerms.length)
     },
     segmentMetadata: profile?.useMetadata === false
       ? null
@@ -411,7 +412,8 @@ function buildStableSystemPrompt({
   const templatePair = resolveProfilePromptTemplate(profile, mode);
   const renderedSystemPrompt = renderTemplate(templatePair.systemPrompt, templateContext, {
     fieldLabel: 'System prompt',
-    fieldName: 'systemPrompt'
+    fieldName: 'systemPrompt',
+    disallowedTokens: SYSTEM_PROMPT_FORBIDDEN_PLACEHOLDERS
   });
   const documentContext = buildDocumentContext({ metadata, previewContext, profile, includeSummary: true });
   const lines = ['# Translation Request'];

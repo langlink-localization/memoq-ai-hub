@@ -451,6 +451,50 @@ test('provider registry renders per-segment TB instructions in batch mode', asyn
   assert.match(calls.responses[0].request.input, /Preferences\\" => \\"偏好设置/);
 });
 
+test('provider registry emits tm hints and terminology as structured per-segment payload data', async () => {
+  const { MockOpenAI, calls } = createMockOpenAI({
+    responsesCreate: async () => ({
+      output_parsed: { translation: 'Bonjour' },
+      output_text: 'Bonjour'
+    })
+  });
+
+  await withMockedModules({ openai: MockOpenAI }, async () => {
+    const { createProviderRegistry: loadRegistry } = require(providerRegistryModulePath);
+    const registry = loadRegistry();
+
+    await registry.translateSegment({
+      provider: { type: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', models: [] },
+      apiKey: 'test',
+      modelName: 'gpt-4.1-mini',
+      sourceLanguage: 'EN',
+      targetLanguage: 'FR',
+      sourceText: 'Restart workspace',
+      tmSource: 'Restart workspace',
+      tmTarget: 'Redemarrer l’espace de travail',
+      metadata: {},
+      profile: {
+        userPrompt: '{{source-text}}'
+      },
+      tbContext: {
+        glossaryText: 'Required terminology:\n- "workspace" => "espace de travail"',
+        tbMetadataText: 'TB language pair: EN -> FR',
+        termHits: [
+          { entryId: 'tb-1', sourceTerm: 'workspace', targetTerm: 'espace de travail', forbidden: false }
+        ]
+      },
+      requestType: 'Plaintext'
+    });
+  });
+
+  assert.match(calls.responses[0].request.input, /"tmHints":\s*\{\s*"sourceText":\s*"Restart workspace"/);
+  assert.match(calls.responses[0].request.input, /"tmHints":\s*\{[\s\S]*"targetText":\s*"Redemarrer l’espace de travail"/);
+  assert.match(calls.responses[0].request.input, /"terminology":\s*\{\s*"instructions":\s*"Required terminology:/);
+  assert.match(calls.responses[0].request.input, /"matches":\s*\[[\s\S]*"sourceTerm":\s*"workspace"/);
+  assert.doesNotMatch(calls.responses[0].request.instructions, /Required terminology:/);
+  assert.doesNotMatch(calls.responses[0].request.instructions, /Redemarrer l’espace de travail/);
+});
+
 test('provider registry removes wrapped glossary and brief sections when empty', async () => {
   const { MockOpenAI, calls } = createMockOpenAI({
     responsesCreate: async () => ({

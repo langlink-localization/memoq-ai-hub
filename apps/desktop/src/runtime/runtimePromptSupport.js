@@ -8,7 +8,8 @@ const {
 } = require('../asset/assetTerminology');
 const {
   createTemplateContext,
-  renderTemplate
+  renderTemplate,
+  SYSTEM_PROMPT_FORBIDDEN_PLACEHOLDERS
 } = require('../shared/promptTemplate');
 const {
   isSharedOnlyPreviewRequest
@@ -148,7 +149,11 @@ function validateRuntimePromptTemplates({
     renderTemplate(
       templatePair.systemPrompt,
       templateContext,
-      { fieldLabel: 'System prompt', fieldName: 'systemPrompt' }
+      {
+        fieldLabel: 'System prompt',
+        fieldName: 'systemPrompt',
+        disallowedTokens: SYSTEM_PROMPT_FORBIDDEN_PLACEHOLDERS
+      }
     );
     renderTemplate(
       templatePair.userPrompt,

@@ -1,7 +1,7 @@
 {
   "name": "memoq-ai-hub",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "packageManager": "pnpm@10.6.2",
   "license": "MIT",
   "description": "memoQ AI Hub monorepo with Electron desktop app and minimal memoQ plugin.",

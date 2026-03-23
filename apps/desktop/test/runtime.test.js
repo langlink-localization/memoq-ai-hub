@@ -509,7 +509,7 @@ test('runtime writes real translation history using configured provider route', 
     assert.equal(state.historyExplorer.items.length, 1);
     assert.equal(state.historyExplorer.items[0].providerName, 'OpenAI');
     assert.equal(state.historyExplorer.items[0].segmentCount, 1);
-    assert.equal(state.historyExplorer.items[0].runtime.desktopVersion, '1.0.0');
+    assert.equal(state.historyExplorer.items[0].runtime.desktopVersion, '1.0.1');
     assert.equal(state.historyExplorer.items[0].runtime.processId, process.pid);
     assert.equal(state.historyExplorer.items[0].runtime.execPath, process.execPath);
     assert.ok(state.historyExplorer.items[0].runtime.runtimeStartedAt);
@@ -995,8 +995,8 @@ test('runtime exposes runtime identity in desktop version payload', async () => 
     });
 
     const payload = runtime.getDesktopVersionPayload();
-    assert.equal(payload.desktopVersion, '1.0.0');
-    assert.equal(payload.runtime.desktopVersion, '1.0.0');
+    assert.equal(payload.desktopVersion, '1.0.1');
+    assert.equal(payload.runtime.desktopVersion, '1.0.1');
     assert.equal(payload.runtime.processId, process.pid);
     assert.equal(payload.runtime.execPath, process.execPath);
     assert.ok(payload.runtime.runtimeStartedAt);

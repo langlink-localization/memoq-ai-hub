@@ -11,22 +11,16 @@ const {
 } = require('../provider/providerRegistry');
 const { createInitialState } = require('./runtimePersistence');
 
-const DEFAULT_PROFILE_SYSTEM_PROMPT = 'You are a professional translator working from {{source-language}} to {{target-language}}. Preserve placeholders, tags, and formatting. Follow required terminology and project instructions whenever they are provided.';
+const DEFAULT_PROFILE_SYSTEM_PROMPT = 'You are a professional translator working from {{source-language}} to {{target-language}}. Preserve placeholders, tags, formatting, and protected content. Follow the structured segment payload for terminology, TM hints, and document context.';
 const DEFAULT_PROFILE_USER_PROMPT = [
-  'Translate the following segment and return only the translation.',
+  'Translate the segment below and return only the translation.',
+  'Use the segment payload fields for matched terminology, TM hints, and neighboring context whenever they are present.',
   '',
   'Source segment:',
   '{{source-text}}',
   '',
   '[Current target text:',
   ']{{target-text}}[',
-  ']',
-  '[Required terminology:',
-  ']{{glossary-text}}[',
-  ']',
-  '[Best memoQ TM match:',
-  'Source: {{tm-source-text}}',
-  'Target: {{tm-target-text}}[',
   ']',
   '[Above source context:',
   ']{{above-source-text}}[',
@@ -35,20 +29,13 @@ const DEFAULT_PROFILE_USER_PROMPT = [
   ']{{below-source-text}}[',
   ']'
 ].join('\n');
-const DEFAULT_BATCH_SYSTEM_PROMPT = 'You are translating a batch from {{source-language}} to {{target-language}}. Keep terminology, placeholders, and formatting consistent across every segment. Use provided glossary, memoQ TM hints, and shared document context whenever available.';
+const DEFAULT_BATCH_SYSTEM_PROMPT = 'You are translating a batch from {{source-language}} to {{target-language}}. Keep terminology, placeholders, and formatting consistent across every segment. Use each segment payload for matched terminology, TM hints, and document context.';
 const DEFAULT_BATCH_USER_PROMPT = [
   'Translate the segment below and return only the translation for that segment.',
+  'Use the segment payload fields for matched terminology and TM hints whenever they are present.',
   '',
   'Source segment:',
-  '{{source-text}}',
-  '',
-  '[Required terminology:',
-  ']{{glossary-text}}[',
-  ']',
-  '[Best memoQ TM match:',
-  'Source: {{tm-source-text}}',
-  'Target: {{tm-target-text}}[',
-  ']'
+  '{{source-text}}'
 ].join('\n');
 
 function createId(prefix) {

@@ -48,18 +48,21 @@ test('buildDefaultPresetProfile enables advanced context toggles with source-fir
   assert.equal('userPrompt' in profile, false);
 });
 
-test('default prompt templates prioritize terminology before TM and keep neighbor context last', () => {
+test('default prompt templates keep volatile terminology and TM details out of freeform prompt text', () => {
   const single = DEFAULT_PRESET_SINGLE_USER_PROMPT;
   const batch = DEFAULT_PRESET_BATCH_USER_PROMPT;
 
   assert.ok(single.indexOf('Source segment:') < single.indexOf('[Current target text:'));
-  assert.ok(single.indexOf('[Current target text:') < single.indexOf('[Required terminology:'));
-  assert.ok(single.indexOf('[Required terminology:') < single.indexOf('[Best memoQ TM match:'));
-  assert.ok(single.indexOf('[Best memoQ TM match:') < single.indexOf('[Above source context:'));
+  assert.ok(single.indexOf('[Current target text:') < single.indexOf('[Above source context:'));
   assert.ok(single.indexOf('[Above source context:') < single.indexOf('[Below source context:'));
 
-  assert.ok(batch.indexOf('Source segment:') < batch.indexOf('[Required terminology:'));
-  assert.ok(batch.indexOf('[Required terminology:') < batch.indexOf('[Best memoQ TM match:'));
+  assert.match(single, /segment payload fields for matched terminology, TM hints, and neighboring context/i);
+  assert.match(batch, /segment payload fields for matched terminology and TM hints/i);
+  assert.ok(batch.indexOf('Source segment:') >= 0);
+  assert.equal(single.includes('[Required terminology:'), false);
+  assert.equal(single.includes('[Best memoQ TM match:'), false);
+  assert.equal(batch.includes('[Required terminology:'), false);
+  assert.equal(batch.includes('[Best memoQ TM match:'), false);
   assert.doesNotMatch(single, /\[memoQ TM match:/);
   assert.doesNotMatch(single, /\[Uploaded custom TM:/);
   assert.doesNotMatch(single, /\[Terminology rules:/);
