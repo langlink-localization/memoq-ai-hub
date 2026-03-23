@@ -1,0 +1,36 @@
+node_modules/
+apps/desktop/node_modules/
+apps/desktop/package-lock.json
+
+# Electron/Vite generated output
+apps/desktop/.vite/
+apps/desktop/out/
+apps/desktop/make/
+apps/desktop/test-output/
+
+# Generated desktop release staging artifacts
+apps/desktop/build-resources/memoq-integration/
+apps/desktop/helper/
+
+# Local agent/worktree scratch files
+.dotnet-home/
+.tmp/
+.worktrees/
+artifacts/
+native/plugin/**/artifacts/
+
+# .NET plugin build output
+native/plugin/**/bin/
+native/plugin/**/obj/
+native/preview-helper/**/bin/
+native/preview-helper/**/obj/
+native/preview-helper/**/obj-*/
+native/preview-helper/**/preview-helper/
+.vs/
+*.user
+*.suo
+pnpm-lock.yaml
+
+# OS-generated files
+.DS_Store
+Thumbs.db

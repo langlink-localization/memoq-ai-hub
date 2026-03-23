@@ -1,0 +1,18 @@
+{
+  "name": "memoq-ai-hub",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.6.2",
+  "license": "MIT",
+  "description": "memoQ AI Hub monorepo with Electron desktop app and minimal memoQ plugin.",
+  "scripts": {
+    "install:desktop": "pnpm --dir apps/desktop install",
+    "build:plugin": "powershell -ExecutionPolicy Bypass -File .\\tooling\\scripts\\build-windows.ps1 -Configuration Release",
+    "prepare:release": "powershell -ExecutionPolicy Bypass -File .\\tooling\\build\\prepare-desktop-release.ps1 -Configuration Release",
+    "test:repo": "node --test tests/repo/*.test.mjs",
+    "test:desktop": "pnpm --dir apps/desktop run test",
+    "package:desktop": "pnpm --dir apps/desktop run package",
+    "zip:desktop": "pnpm --dir apps/desktop run zip:win-unpacked",
+    "package:windows": "powershell -ExecutionPolicy Bypass -File .\\tooling\\scripts\\package-windows.ps1 -Configuration Release"
+  }
+}

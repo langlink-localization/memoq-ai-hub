@@ -1,0 +1,58 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.6.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/desktop/package.json
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install workspace dependencies
+        run: pnpm install
+
+      - name: Resolve release version
+        id: release_meta
+        shell: pwsh
+        run: |
+          $version = node ./tooling/scripts/release-metadata.mjs version
+          node ./tooling/scripts/release-metadata.mjs check-tag "${{ github.ref_name }}" | Out-Null
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Build Windows release bundle
+        shell: pwsh
+        run: ./tooling/scripts/package-windows.ps1 -Configuration Release
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: memoQ AI Hub ${{ steps.release_meta.outputs.tag }}
+          tag_name: ${{ steps.release_meta.outputs.tag }}
+          files: |
+            apps/desktop/out/**/*.zip

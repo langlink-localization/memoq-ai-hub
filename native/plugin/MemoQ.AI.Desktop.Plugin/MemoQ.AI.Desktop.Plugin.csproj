@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AssemblyName>MemoQ.AI.Hub.Plugin</AssemblyName>
+    <RootNamespace>MemoQAIHubPlugin</RootNamespace>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="obj\**\*.cs" />
+    <EmbeddedResource Include="Icon.bmp">
+      <LogicalName>MemoQAIHubPlugin.Icon.bmp</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="MemoQ.Addins.Common">
+      <HintPath>..\References\MemoQ.Addins.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="MemoQ.MTInterfaces">
+      <HintPath>..\References\MemoQ.MTInterfaces.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Web.Extensions" />
+  </ItemGroup>
+
+</Project>

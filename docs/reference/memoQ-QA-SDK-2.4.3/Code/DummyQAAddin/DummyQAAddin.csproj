@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net48</TargetFrameworks>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Remove="icon.bmp" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Include="icon.bmp" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="MemoQ.Addins.Common">
+			<HintPath>..\References\MemoQ.Addins.Common.dll</HintPath>
+		</Reference>
+		<Reference Include="MemoQ.QAInterfaces">
+			<HintPath>..\References\MemoQ.QAInterfaces.dll</HintPath>
+		</Reference>
+		<Reference Include="System.Windows.Forms" />
+	</ItemGroup>
+
+</Project>

@@ -1,0 +1,48 @@
+{
+  "name": "memoq-ai-hub-app",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.6.2",
+  "license": "MIT",
+  "author": "LangLink Localization",
+  "description": "memoQ AI Hub Electron application with local gateway and operator console.",
+  "main": ".vite/build/main.js",
+  "files": [
+    ".vite/**/*",
+    "helper/**/*",
+    "node_modules/**/*",
+    "package.json"
+  ],
+  "scripts": {
+    "start": "electron-forge start",
+    "start:server": "node src/serverStandalone.js",
+    "smoke:health": "node src/smokeHealthCheck.js",
+    "test": "node --test \"test/*.test.js\"",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "zip:win-unpacked": "powershell -ExecutionPolicy Bypass -File ..\\..\\tooling\\build\\zip-win-unpacked.ps1"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.1.0",
+    "antd": "^5.27.6",
+    "body-parser": "^1.20.3",
+    "electron-store": "^8.2.0",
+    "express": "^4.21.2",
+    "fast-xml-parser": "^5.5.7",
+    "openai": "^6.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sql.js": "^1.13.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^7.8.1",
+    "@electron-forge/maker-squirrel": "^7.8.1",
+    "@electron-forge/maker-zip": "^7.8.1",
+    "@electron-forge/plugin-vite": "^7.8.1",
+    "@vitejs/plugin-react": "^5.1.0",
+    "concurrently": "^9.2.1",
+    "electron": "^30.5.1",
+    "vite": "^7.1.3"
+  }
+}

@@ -1,0 +1,67 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  windows-build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.6.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/desktop/package.json
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install workspace dependencies
+        run: pnpm install
+
+      - name: Build plugin
+        shell: pwsh
+        run: ./tooling/scripts/build-windows.ps1 -Configuration Release
+
+      - name: Prepare desktop release resources
+        shell: pwsh
+        run: ./tooling/build/prepare-desktop-release.ps1 -Configuration Release
+
+      - name: Run desktop tests
+        working-directory: apps/desktop
+        run: pnpm test
+
+      - name: Smoke test desktop gateway health endpoint
+        working-directory: apps/desktop
+        shell: pwsh
+        run: pnpm exec concurrently -k -s first "pnpm run start:server" "pnpm run smoke:health"
+
+      - name: Package Windows desktop app
+        working-directory: apps/desktop
+        run: pnpm run package
+
+      - name: Create packaged desktop zip
+        working-directory: apps/desktop
+        run: pnpm run zip:win-unpacked
+
+      - name: Upload desktop artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: memoq-ai-hub-windows
+          path: |
+            apps/desktop/out/**/*.zip

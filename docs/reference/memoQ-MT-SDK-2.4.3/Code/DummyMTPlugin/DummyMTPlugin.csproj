@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net48</TargetFrameworks>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Remove="Icon.bmp" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Include="Icon.bmp" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\DummyMTInterface\DummyMTInterface.csproj"/>
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="MemoQ.Addins.Common">
+			<HintPath>..\References\MemoQ.Addins.Common.dll</HintPath>
+		</Reference>
+		<Reference Include="MemoQ.MTInterfaces">
+			<HintPath>..\References\MemoQ.MTInterfaces.dll</HintPath>
+		</Reference>
+		<Reference Include="System.Windows.Forms" />
+	</ItemGroup>
+
+</Project>

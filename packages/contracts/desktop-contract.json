@@ -1,0 +1,39 @@
+{
+  "productName": "memoQ AI Hub",
+  "contractVersion": "1",
+  "defaultHost": "127.0.0.1",
+  "defaultPort": 5271,
+  "routes": {
+    "health": "/health",
+    "desktopVersion": "/desktop/version",
+    "integrationStatus": "/desktop/integration/status",
+    "integrationInstall": "/desktop/integration/install",
+    "mtTranslate": "/mt/translate",
+    "mtStoreTranslations": "/mt/store-translations"
+  },
+  "preview": {
+    "serviceBaseUrl": "http://localhost:8088/MQPreviewService",
+    "protocolVersion": "V1",
+    "reconnectIntervalMs": 15000,
+    "previewToolId": "67e65cf9-5b0f-4e68-af4c-a2d8716cc7eb",
+    "previewToolName": "memoQ AI Hub Preview Bridge",
+    "previewToolDescription": "memoQ AI Hub desktop preview context bridge"
+  },
+  "integration": {
+    "pluginDllName": "MemoQ.AI.Hub.Plugin.dll",
+    "clientDevConfigName": "ClientDevConfig.xml",
+    "clientDevConfigVendorDir": "Kilgray",
+    "clientDevConfigRootDir": "MemoQ"
+  },
+  "errorCodes": {
+    "desktopUnavailable": "DESKTOP_UNAVAILABLE",
+    "contractVersionMismatch": "CONTRACT_VERSION_MISMATCH",
+    "integrationNotInstalled": "INTEGRATION_NOT_INSTALLED",
+    "installRequiresElevation": "INSTALL_REQUIRES_ELEVATION",
+    "providerNotConfigured": "PROVIDER_NOT_CONFIGURED",
+    "promptTemplateInvalid": "PROMPT_TEMPLATE_INVALID",
+    "requestNotEligible": "REQUEST_NOT_ELIGIBLE",
+    "translationFailed": "TRANSLATION_FAILED",
+    "translationTimeout": "TRANSLATION_TIMEOUT"
+  }
+}

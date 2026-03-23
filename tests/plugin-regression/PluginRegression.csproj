@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\native\plugin\MemoQ.AI.Desktop.Plugin\MemoQ.AI.Desktop.Plugin.csproj" />
+    <Reference Include="MemoQ.Addins.Common">
+      <HintPath>..\..\native\plugin\References\MemoQ.Addins.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="MemoQ.MTInterfaces">
+      <HintPath>..\..\native\plugin\References\MemoQ.MTInterfaces.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Net.Http" />
+  </ItemGroup>
+
+</Project>
