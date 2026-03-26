@@ -141,6 +141,26 @@ function createFallbackAppState() {
           sourceDocumentGuid: ''
         }
       },
+      updateCenter: {
+        currentVersion: '',
+        releaseChannel: 'stable',
+        packagingMode: 'portable',
+        updateStatus: 'idle',
+        latestVersion: '',
+        releaseNotes: '',
+        releaseNotesUrl: '',
+        publishedAt: '',
+        downloadedArtifactPath: '',
+        preparedDirectory: '',
+        lastCheckedAt: '',
+        lastError: '',
+        manifestUrl: '',
+        pluginReinstallRecommended: true,
+        availableAssets: {
+          portable: null,
+          installer: null
+        }
+      },
       notices: []
     },
     integration: {
@@ -165,10 +185,37 @@ function createFallbackAppState() {
       sourceDocumentName: '',
       sourceDocumentGuid: ''
     },
-    contextBuilder: { profiles: [], defaultProfileId: '', assets: [], supportedPlaceholders: [], assetImportRules: {} },
+    contextBuilder: {
+      profiles: [],
+      defaultProfileId: '',
+      assets: [],
+      supportedPlaceholders: [],
+      assetImportRules: {},
+      translationCacheBypassProfileIds: []
+    },
     memoqMetadataMapping: { rules: [] },
     providerHub: { providers: [], summary: { enabled: 0, healthy: 0 } },
-    historyExplorer: { items: [] }
+    historyExplorer: { items: [] },
+    updateCenter: {
+      currentVersion: '',
+      releaseChannel: 'stable',
+      packagingMode: 'portable',
+      updateStatus: 'idle',
+      latestVersion: '',
+      releaseNotes: '',
+      releaseNotesUrl: '',
+      publishedAt: '',
+      downloadedArtifactPath: '',
+      preparedDirectory: '',
+      lastCheckedAt: '',
+      lastError: '',
+      manifestUrl: '',
+      pluginReinstallRecommended: true,
+      availableAssets: {
+        portable: null,
+        installer: null
+      }
+    }
   };
 }
 
@@ -195,6 +242,10 @@ function normalizeAppStatePayload(data = {}) {
           ...fallback.dashboard.runtimeStatus.previewStatus,
           ...(nextState.dashboard?.runtimeStatus?.previewStatus || {})
         }
+      },
+      updateCenter: {
+        ...fallback.dashboard.updateCenter,
+        ...(nextState.dashboard?.updateCenter || {})
       }
     },
     integration: {
@@ -215,6 +266,9 @@ function normalizeAppStatePayload(data = {}) {
       supportedPlaceholders: Array.isArray(nextState.contextBuilder?.supportedPlaceholders)
         ? nextState.contextBuilder.supportedPlaceholders
         : fallback.contextBuilder.supportedPlaceholders,
+      translationCacheBypassProfileIds: Array.isArray(nextState.contextBuilder?.translationCacheBypassProfileIds)
+        ? nextState.contextBuilder.translationCacheBypassProfileIds.map((item) => String(item || '')).filter(Boolean)
+        : fallback.contextBuilder.translationCacheBypassProfileIds,
       assetImportRules: nextState.contextBuilder?.assetImportRules && typeof nextState.contextBuilder.assetImportRules === 'object'
         ? nextState.contextBuilder.assetImportRules
         : fallback.contextBuilder.assetImportRules
@@ -237,6 +291,10 @@ function normalizeAppStatePayload(data = {}) {
       ...fallback.historyExplorer,
       ...(nextState.historyExplorer || {}),
       items: Array.isArray(nextState.historyExplorer?.items) ? nextState.historyExplorer.items : fallback.historyExplorer.items
+    },
+    updateCenter: {
+      ...fallback.updateCenter,
+      ...(nextState.updateCenter || {})
     }
   };
 }
@@ -330,6 +388,28 @@ function getRuntimeConnectionLabel(status, t) {
   if (normalized === 'idle' || normalized === 'missing' || normalized === 'disconnected') return t('dashboard.connectionDisconnected');
   if (normalized === 'disconnected') return t('dashboard.connectionDisconnected');
   return t('dashboard.connectionUnknown');
+}
+
+function translateWithFallback(t, key, fallback, values) {
+  const translated = t(key, values);
+  return translated && translated !== key ? translated : fallback;
+}
+
+function getUpdateStatusLabel(status, t) {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === 'checking') return translateWithFallback(t, 'dashboard.updateStatusChecking', 'Checking');
+  if (normalized === 'available') return translateWithFallback(t, 'dashboard.updateStatusAvailable', 'Available');
+  if (normalized === 'downloading') return translateWithFallback(t, 'dashboard.updateStatusDownloading', 'Downloading');
+  if (normalized === 'prepared') return translateWithFallback(t, 'dashboard.updateStatusPrepared', 'Prepared');
+  if (normalized === 'up-to-date') return translateWithFallback(t, 'dashboard.updateStatusUpToDate', 'Up to date');
+  if (normalized === 'error') return translateWithFallback(t, 'dashboard.updateStatusError', 'Error');
+  return translateWithFallback(t, 'dashboard.updateStatusIdle', 'Idle');
+}
+
+function getPackagingModeLabel(mode, t) {
+  return String(mode || '').trim().toLowerCase() === 'installed'
+    ? translateWithFallback(t, 'dashboard.packagingInstalled', 'Installed')
+    : translateWithFallback(t, 'dashboard.packagingPortable', 'Portable');
 }
 
 function normalizeProviderStatus(status) {
@@ -1039,6 +1119,8 @@ export default function App() {
   const [error, setError] = useState('');
   const [installing, setInstalling] = useState(false);
   const [handshaking, setHandshaking] = useState(false);
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [updateActionLoading, setUpdateActionLoading] = useState(false);
   const [savingProvider, setSavingProvider] = useState(false);
   const [testingProvider, setTestingProvider] = useState(false);
   const [discoveringProviderModels, setDiscoveringProviderModels] = useState(false);
@@ -1068,6 +1150,7 @@ export default function App() {
   const [assetPreviewSaving, setAssetPreviewSaving] = useState(false);
   const providerDraftsRef = useRef(providerDraftsById);
   const profileDraftsRef = useRef(profileDraftsById);
+  const autoUpdateCheckStartedRef = useRef(false);
 
   providerDraftsRef.current = providerDraftsById;
   profileDraftsRef.current = profileDraftsById;
@@ -1166,6 +1249,27 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [state?.startup?.status, activePage]);
 
+  useEffect(() => {
+    if (state?.startup?.status !== 'ready' || autoUpdateCheckStartedRef.current || typeof api?.checkForUpdates !== 'function') {
+      return;
+    }
+
+    autoUpdateCheckStartedRef.current = true;
+    void api.checkForUpdates({ manual: false })
+      .then((updateState) => {
+        setState((current) => current ? normalizeAppStatePayload({
+          ...current,
+          updateCenter: updateState,
+          dashboard: {
+            ...(current.dashboard || {}),
+            updateCenter: updateState
+          }
+        }) : current);
+      })
+      .catch(() => {
+      });
+  }, [api, state?.startup?.status]);
+
   const profileItems = useMemo(
     () => getResolvedRecords(state?.contextBuilder?.profiles || [], profileDraftsById),
     [state?.contextBuilder?.profiles, profileDraftsById],
@@ -1179,6 +1283,13 @@ export default function App() {
     () => profileItems.find((item) => item.id === resolveSelectedRecordId(profileItems, profileId, defaultProfileId)) || null,
     [defaultProfileId, profileItems, profileId],
   );
+  const translationCacheBypassProfileIds = useMemo(
+    () => new Set(state?.contextBuilder?.translationCacheBypassProfileIds || []),
+    [state?.contextBuilder?.translationCacheBypassProfileIds],
+  );
+  const currentProfileTranslationCacheBypassPending = currentProfile
+    ? translationCacheBypassProfileIds.has(currentProfile.id)
+    : false;
   const supportedPlaceholders = state?.contextBuilder?.supportedPlaceholders || [];
   const assetImportRules = state?.contextBuilder?.assetImportRules || {};
   const assets = state?.contextBuilder?.assets || [];
@@ -1425,6 +1536,42 @@ export default function App() {
     } catch (setDefaultError) {
       notifyError(setDefaultError);
     }
+  }
+
+  async function bypassTranslationCacheForCurrentProfileOnce() {
+    if (!currentProfile || typeof api?.bypassTranslationCacheOnce !== 'function') {
+      return;
+    }
+
+    try {
+      await api.bypassTranslationCacheOnce(currentProfile.id);
+      message.success(t('context.translationCacheBypassArmed'));
+      await refresh();
+    } catch (bypassError) {
+      notifyError(bypassError);
+    }
+  }
+
+  function confirmClearTranslationCache() {
+    if (typeof api?.clearTranslationCache !== 'function') {
+      return;
+    }
+
+    Modal.confirm({
+      title: t('context.clearTranslationCacheTitle'),
+      content: t('context.clearTranslationCacheConfirm'),
+      okText: t('context.clearTranslationCacheAction'),
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const result = await api.clearTranslationCache();
+          message.success(t('context.clearTranslationCacheSuccess', { count: Number(result?.clearedCount || 0) }));
+          await refresh();
+        } catch (clearError) {
+          notifyError(clearError);
+        }
+      }
+    });
   }
 
   async function importAsset(type) {
@@ -1710,11 +1857,118 @@ export default function App() {
     }
   }
 
+  async function runUpdateAction(action, successMessage = '') {
+    setUpdateActionLoading(true);
+    try {
+      const result = await action();
+      if (successMessage) {
+        message.success(successMessage);
+      }
+      await refresh(historyFilters);
+      return result;
+    } catch (updateError) {
+      notifyError(updateError);
+      return null;
+    } finally {
+      setUpdateActionLoading(false);
+    }
+  }
+
+  async function checkForUpdates(manual = true) {
+    if (typeof api?.checkForUpdates !== 'function') {
+      return;
+    }
+
+    setCheckingUpdates(true);
+    try {
+      const result = await api.checkForUpdates({ manual });
+      setState((current) => current ? normalizeAppStatePayload({
+        ...current,
+        updateCenter: result,
+        dashboard: {
+          ...(current.dashboard || {}),
+          updateCenter: result
+        }
+      }) : current);
+
+      if (manual) {
+        if (result?.updateStatus === 'error') {
+          message.error(result?.lastError || translateWithFallback(t, 'dashboard.updateStatusError', 'Error'));
+        } else {
+          message.success(
+            result?.updateStatus === 'available'
+              ? translateWithFallback(t, 'dashboard.updateAvailableSuccess', `Update ${result?.latestVersion || '-'} is available.`, { version: result?.latestVersion || '-' })
+              : translateWithFallback(t, 'dashboard.updateUpToDateSuccess', 'You are already on the latest version.')
+          );
+        }
+      }
+    } catch (updateError) {
+      notifyError(updateError);
+    } finally {
+      setCheckingUpdates(false);
+    }
+  }
+
+  async function downloadPortableUpdate() {
+    await runUpdateAction(
+      () => api.downloadPortableUpdate(updateCenter.latestVersion || ''),
+      translateWithFallback(t, 'dashboard.updateDownloadStarted', 'Update downloaded successfully.')
+    );
+  }
+
+  async function downloadInstallerUpdate() {
+    await runUpdateAction(
+      () => api.downloadInstallerUpdate(updateCenter.latestVersion || ''),
+      translateWithFallback(t, 'dashboard.updateDownloadStarted', 'Update downloaded successfully.')
+    );
+  }
+
+  async function preparePortableUpdate() {
+    await runUpdateAction(
+      () => api.preparePortableUpdate(updateCenter.downloadedArtifactPath || '', ''),
+      translateWithFallback(t, 'dashboard.updatePrepareSuccess', 'Portable update is prepared and ready to open.')
+    );
+  }
+
+  async function openPreparedUpdate() {
+    if (!updateCenter.preparedDirectory || typeof api?.openPath !== 'function') {
+      return;
+    }
+    await runUpdateAction(() => api.openPath(updateCenter.preparedDirectory));
+  }
+
+  async function revealDownloadedUpdate() {
+    if (!updateCenter.downloadedArtifactPath || typeof api?.showItemInFolder !== 'function') {
+      return;
+    }
+    await runUpdateAction(() => api.showItemInFolder(updateCenter.downloadedArtifactPath));
+  }
+
+  async function openUpdateReleaseNotes() {
+    if (!updateCenter.releaseNotesUrl || typeof api?.openExternalUrl !== 'function') {
+      return;
+    }
+    await runUpdateAction(() => api.openExternalUrl(updateCenter.releaseNotesUrl));
+  }
+
+  async function launchDownloadedInstallerUpdate() {
+    if (!updateCenter.downloadedArtifactPath || typeof api?.launchDownloadedInstallerUpdate !== 'function') {
+      return;
+    }
+    await runUpdateAction(
+      () => api.launchDownloadedInstallerUpdate(updateCenter.downloadedArtifactPath),
+      translateWithFallback(t, 'dashboard.updateInstallerLaunchSuccess', 'Installer launched. The app will close to continue the update.')
+    );
+  }
+
   const runtimeConnectionStatus = state?.dashboard?.runtimeStatus?.connectionStatus || '';
   const connectionStatusLabel = getRuntimeConnectionLabel(runtimeConnectionStatus, t);
   const connectionStatusColor = getRuntimeConnectionColor(runtimeConnectionStatus);
   const previewBridgeStatus = state?.dashboard?.runtimeStatus?.previewStatus || {};
   const previewBridgeStatusLabel = getRuntimeConnectionLabel(previewBridgeStatus.status, t);
+  const updateCenter = state?.updateCenter || state?.dashboard?.updateCenter || createFallbackAppState().updateCenter;
+  const updateStatusLabel = getUpdateStatusLabel(updateCenter.updateStatus, t);
+  const packagingModeLabel = getPackagingModeLabel(updateCenter.packagingMode, t);
   const selectedInstallVersionOptions = installOptions.map((option) => ({
     label: option.label || `memoQ ${option.version}`,
     value: option.version,
@@ -2240,6 +2494,74 @@ export default function App() {
                   </Card>
                 </Col>
               </Row>
+              <Card className="page-card" title={translateWithFallback(t, 'dashboard.updatesTitle', 'Updates')}>
+                <Space direction="vertical" size={16} style={{ display: 'flex' }}>
+                  <Descriptions column={1}>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.currentVersion', 'Current version')}>{updateCenter.currentVersion || '-'}</Descriptions.Item>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.packagingMode', 'Packaging mode')}>{packagingModeLabel}</Descriptions.Item>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateState', 'Update state')}>{updateStatusLabel}</Descriptions.Item>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.latestVersion', 'Latest version')}>{updateCenter.latestVersion || '-'}</Descriptions.Item>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updatePublishedAt', 'Published at')}>{formatLocalTimestamp(updateCenter.publishedAt)}</Descriptions.Item>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updatePreparedDirectory', 'Prepared directory')}>{updateCenter.preparedDirectory || '-'}</Descriptions.Item>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateDownloadedArtifact', 'Downloaded artifact')}>{updateCenter.downloadedArtifactPath || '-'}</Descriptions.Item>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateLastError', 'Update error')}>{updateCenter.lastError || '-'}</Descriptions.Item>
+                  </Descriptions>
+                  <Alert
+                    type="info"
+                    showIcon
+                    message={translateWithFallback(
+                      t,
+                      updateCenter.packagingMode === 'installed'
+                        ? 'dashboard.updateInstalledHint'
+                        : 'dashboard.updatePortableHint',
+                      updateCenter.packagingMode === 'installed'
+                        ? 'Installed builds download the Windows installer and let you restart into the update.'
+                        : 'Portable builds download and prepare a new folder. The running app does not overwrite itself.'
+                    )}
+                    description={translateWithFallback(t, 'dashboard.updatePluginHint', 'If this release changes the memoQ plugin or preview helper, run Install / Reinstall once after upgrading.')}
+                  />
+                  <Space wrap>
+                    <Button loading={checkingUpdates} onClick={() => void checkForUpdates(true)}>
+                      {translateWithFallback(t, 'dashboard.checkForUpdates', 'Check for updates')}
+                    </Button>
+                    {updateCenter.packagingMode === 'portable' && updateCenter.updateStatus === 'available' ? (
+                      <Button type="primary" loading={updateActionLoading} onClick={() => void downloadPortableUpdate()}>
+                        {translateWithFallback(t, 'dashboard.downloadPortableUpdate', 'Download portable update')}
+                      </Button>
+                    ) : null}
+                    {updateCenter.packagingMode === 'portable' && updateCenter.downloadedArtifactPath && !updateCenter.preparedDirectory ? (
+                      <Button type="primary" loading={updateActionLoading} onClick={() => void preparePortableUpdate()}>
+                        {translateWithFallback(t, 'dashboard.preparePortableUpdate', 'Prepare portable update')}
+                      </Button>
+                    ) : null}
+                    {updateCenter.packagingMode === 'portable' && updateCenter.preparedDirectory ? (
+                      <Button loading={updateActionLoading} onClick={() => void openPreparedUpdate()}>
+                        {translateWithFallback(t, 'dashboard.openPreparedUpdate', 'Open prepared folder')}
+                      </Button>
+                    ) : null}
+                    {updateCenter.packagingMode === 'installed' && updateCenter.updateStatus === 'available' ? (
+                      <Button type="primary" loading={updateActionLoading} onClick={() => void downloadInstallerUpdate()}>
+                        {translateWithFallback(t, 'dashboard.downloadAndInstallUpdate', 'Download installer update')}
+                      </Button>
+                    ) : null}
+                    {updateCenter.packagingMode === 'installed' && updateCenter.downloadedArtifactPath ? (
+                      <Button danger loading={updateActionLoading} onClick={() => void launchDownloadedInstallerUpdate()}>
+                        {translateWithFallback(t, 'dashboard.restartAndInstallUpdate', 'Restart and install update')}
+                      </Button>
+                    ) : null}
+                    {updateCenter.downloadedArtifactPath ? (
+                      <Button loading={updateActionLoading} onClick={() => void revealDownloadedUpdate()}>
+                        {translateWithFallback(t, 'dashboard.revealDownloadedUpdate', 'Show downloaded file')}
+                      </Button>
+                    ) : null}
+                    {updateCenter.releaseNotesUrl ? (
+                      <Button loading={updateActionLoading} onClick={() => void openUpdateReleaseNotes()}>
+                        {translateWithFallback(t, 'dashboard.viewReleaseNotes', 'View release notes')}
+                      </Button>
+                    ) : null}
+                  </Space>
+                </Space>
+              </Card>
               <Card className="page-card" title={t('dashboard.notices')}>
                 {visibleDashboardNotices.length ? (
                   <List size="small" dataSource={visibleDashboardNotices} renderItem={(item) => <List.Item>{item}</List.Item>} />
@@ -2265,6 +2587,9 @@ export default function App() {
               onChangeProfile={patchCurrentProfile}
               onSaveProfile={saveCurrentProfile}
               onSetDefaultProfile={setCurrentProfileAsDefault}
+              onBypassTranslationCacheOnce={bypassTranslationCacheForCurrentProfileOnce}
+              onClearTranslationCache={confirmClearTranslationCache}
+              translationCacheBypassPending={currentProfileTranslationCacheBypassPending}
               onDiscardProfile={discardCurrentProfileChanges}
               onDuplicateProfile={duplicateCurrentProfile}
               onDeleteProfile={confirmDeleteProfile}

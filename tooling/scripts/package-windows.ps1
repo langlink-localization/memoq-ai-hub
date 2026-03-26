@@ -8,6 +8,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $desktopDir = Join-Path $repoRoot "apps\desktop"
 $desktopOutDir = Join-Path $desktopDir "out"
+$updateManifestPath = Join-Path $desktopOutDir "memoq-ai-hub-updates-stable.json"
 $dotnetDefaultPath = Join-Path ${env:ProgramFiles} "dotnet"
 
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
@@ -83,6 +84,14 @@ function Get-UnpackedAppDir() {
     return @(Get-ChildItem -Path $desktopOutDir -Directory -Filter "*win32-x64" -ErrorAction SilentlyContinue | Select-Object -First 1)
 }
 
+function Get-SquirrelOutputDir() {
+    if (-not (Test-Path $desktopOutDir)) {
+        throw "apps/desktop/out was not created. Packaging did not produce output."
+    }
+
+    return @(Get-ChildItem -Path $desktopOutDir -Directory -Recurse -Filter "squirrel.windows" -ErrorAction SilentlyContinue | Select-Object -First 1)
+}
+
 Write-Step "Validating toolchain"
 Ensure-Dotnet | Out-Null
 Ensure-Command "node" "Install Node.js 22.x and ensure it is available in PATH." | Out-Null
@@ -114,12 +123,24 @@ try {
 
     Write-Step "Creating packaged desktop zip"
     Invoke-NativeStep "pnpm run zip:win-unpacked" { pnpm run zip:win-unpacked }
+
+    Write-Step "Creating installer release artifacts"
+    Invoke-NativeStep "pnpm run make" { pnpm run make }
 } finally {
     Pop-Location
 }
 
+Write-Step "Writing update manifest"
+& node (Join-Path $repoRoot "tooling\scripts\release-metadata.mjs") write-manifest $updateManifestPath (Get-Date).ToUniversalTime().ToString("o")
+if ($LASTEXITCODE -ne 0) {
+    throw "Unable to write update manifest."
+}
+
 $unpackedAppDir = @(Get-UnpackedAppDir)
+$squirrelOutputDir = @(Get-SquirrelOutputDir)
 $portableExe = @(Get-ArtifactFiles "*.exe" | Where-Object { $_.DirectoryName -like "*win32-x64*" -and $_.Name -notlike "*Setup*.exe" } | Select-Object -First 1)
+$installerExe = @(Get-ArtifactFiles "*Setup*.exe" | Select-Object -First 1)
+$squirrelReleaseFile = @(Get-ArtifactFiles "RELEASES" | Select-Object -First 1)
 $expectedZipPath = Join-Path $desktopOutDir "memoq-ai-hub-win32-x64.zip"
 $zipFiles = @()
 if (Test-Path $expectedZipPath) {
@@ -138,12 +159,31 @@ if (-not $zipFiles.Count) {
     throw "ZIP artifact was not produced at $expectedZipPath."
 }
 
+if (-not $squirrelOutputDir) {
+    throw "Squirrel.Windows output directory was not produced under $desktopOutDir."
+}
+
+if (-not $installerExe) {
+    throw "Installer EXE was not produced under $desktopOutDir."
+}
+
+if (-not $squirrelReleaseFile) {
+    throw "Squirrel RELEASES file was not produced under $desktopOutDir."
+}
+
+if (-not (Test-Path $updateManifestPath)) {
+    throw "Update manifest was not produced at $updateManifestPath."
+}
+
 Write-Host ""
 Write-Host "Windows packaging completed successfully." -ForegroundColor Green
 Write-Host "Version     : $desktopVersion"
 Write-Host "Output root : $desktopOutDir"
 Write-Host "App dir     : $($unpackedAppDir[0].FullName)"
 Write-Host "Portable EXE: $($portableExe[0].FullName)"
+Write-Host "Installer   : $($installerExe[0].FullName)"
+Write-Host "RELEASES    : $($squirrelReleaseFile[0].FullName)"
+Write-Host "Manifest    : $updateManifestPath"
 Write-Host "ZIP files   :"
 foreach ($zipFile in $zipFiles) {
     Write-Host "  - $($zipFile.FullName)"

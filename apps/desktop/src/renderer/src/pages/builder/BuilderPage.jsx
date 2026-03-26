@@ -383,6 +383,9 @@ function BuilderEditor({
   onDuplicate,
   onDelete,
   onSetDefault,
+  onBypassTranslationCacheOnce,
+  onClearTranslationCache,
+  translationCacheBypassPending,
   isDefaultProfile
 }) {
   const { t } = useI18n();
@@ -548,6 +551,30 @@ function BuilderEditor({
                           ))}
                         </Row>
 
+                        {profile?.cacheEnabled !== false && (
+                          <Card size="small" className="builder-subcard" title={t('context.cacheMaintenanceTitle')}>
+                            <Space direction="vertical" size={10} style={{ display: 'flex' }}>
+                              <Text type="secondary">{t('context.cacheMaintenanceHint')}</Text>
+                              <Space wrap>
+                                <Button
+                                  onClick={onBypassTranslationCacheOnce}
+                                  disabled={translationCacheBypassPending === true}
+                                >
+                                  {translationCacheBypassPending === true
+                                    ? t('context.translationCacheBypassPending')
+                                    : t('context.translationCacheBypassAction')}
+                                </Button>
+                                <Button danger onClick={onClearTranslationCache}>
+                                  {t('context.clearTranslationCacheAction')}
+                                </Button>
+                              </Space>
+                              {translationCacheBypassPending === true && (
+                                <Tag color="orange">{t('context.translationCacheBypassPendingHint')}</Tag>
+                              )}
+                            </Space>
+                          </Card>
+                        )}
+
                         {profile?.usePreviewContext === true && profile?.usePreviewAboveBelow === true && (
                           <Space direction="vertical" size={14} style={{ display: 'flex' }}>
                             <Text type="secondary">{t('context.previewContextHint')}</Text>
@@ -620,6 +647,9 @@ export default function BuilderPage({
   onChangeProfile,
   onSaveProfile,
   onSetDefaultProfile,
+  onBypassTranslationCacheOnce,
+  onClearTranslationCache,
+  translationCacheBypassPending = false,
   onDiscardProfile,
   onDuplicateProfile,
   onDeleteProfile
@@ -657,6 +687,9 @@ export default function BuilderPage({
               onChange={onChangeProfile}
               onSave={onSaveProfile}
               onSetDefault={onSetDefaultProfile}
+              onBypassTranslationCacheOnce={onBypassTranslationCacheOnce}
+              onClearTranslationCache={onClearTranslationCache}
+              translationCacheBypassPending={translationCacheBypassPending}
               isDefaultProfile={currentProfile?.id === defaultProfileId}
               onDiscard={onDiscardProfile}
               onDuplicate={onDuplicateProfile}

@@ -25,5 +25,16 @@ contextBridge.exposeInMainWorld('memoqDesktop', {
   saveAssetTbConfig: (assetId, payload) => ipcRenderer.invoke('desktop:save-asset-tb-config', { assetId, ...(payload || {}) }),
   deleteAsset: (assetId) => ipcRenderer.invoke('desktop:delete-asset', assetId),
   exportHistory: (options) => ipcRenderer.invoke('desktop:export-history', options),
+  bypassTranslationCacheOnce: (profileId) => ipcRenderer.invoke('desktop:bypass-translation-cache-once', profileId),
+  clearTranslationCache: () => ipcRenderer.invoke('desktop:clear-translation-cache'),
+  getUpdateStatus: () => ipcRenderer.invoke('desktop:get-update-status'),
+  checkForUpdates: (options) => ipcRenderer.invoke('desktop:check-for-updates', options),
+  downloadPortableUpdate: (versionOrAssetId) => ipcRenderer.invoke('desktop:download-portable-update', { versionOrAssetId }),
+  downloadInstallerUpdate: (versionOrAssetId) => ipcRenderer.invoke('desktop:download-installer-update', { versionOrAssetId }),
+  preparePortableUpdate: (downloadedFile, targetDir) => ipcRenderer.invoke('desktop:prepare-portable-update', { downloadedFile, targetDir }),
+  openPath: (targetPath) => ipcRenderer.invoke('desktop:open-path', targetPath),
+  showItemInFolder: (targetPath) => ipcRenderer.invoke('desktop:show-item-in-folder', targetPath),
+  openExternalUrl: (url) => ipcRenderer.invoke('desktop:open-external-url', url),
+  launchDownloadedInstallerUpdate: (installerPath) => ipcRenderer.invoke('desktop:launch-downloaded-installer-update', installerPath),
   testHandshake: () => ipcRenderer.invoke('desktop:test-handshake')
 });

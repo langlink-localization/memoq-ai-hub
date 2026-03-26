@@ -355,7 +355,11 @@ async function createRuntimeHarness(tempRoot, options = {}) {
 
   try {
     const runtime = await createRuntime({
-      providerRegistry: options.providerRegistry || {}
+      providerRegistry: options.providerRegistry || {},
+      fetch: options.fetch,
+      manifestUrl: options.manifestUrl,
+      packagingMode: options.packagingMode,
+      extractArchive: options.extractArchive
     });
     runtime.markGatewayReady(true);
 
@@ -527,6 +531,100 @@ test('background worker proxies parsed asset previews', async (t) => {
   assert.equal(preview.type, 'glossary');
   assert.equal(preview.rowCount, 1);
   assert.equal(preview.rows[0].sourceTerm, 'workspace');
+});
+
+test('background worker runtime harness exposes translation cache bypass and clear controls', async (t) => {
+  const tempRoot = createTempAppRoot();
+  const harness = await createRuntimeHarness(tempRoot, {
+    providerRegistry: {
+      testConnection: async () => ({ ok: true, latencyMs: 5, message: 'ok' }),
+      translateSegment: async ({ sourceText }) => ({ text: `${sourceText} -> ZH`, latencyMs: 8 })
+    }
+  });
+  const { runtime } = harness;
+
+  t.after(() => {
+    harness.dispose();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  const provider = runtime.saveProvider({
+    name: 'OpenAI',
+    type: 'openai',
+    baseUrl: 'https://api.openai.com/v1',
+    apiKey: 'test-key',
+    models: [{ modelName: 'gpt-4.1-mini', enabled: true }]
+  });
+
+  const profile = runtime.saveProfile({
+    name: 'Default',
+    providerId: provider.id,
+    cacheEnabled: true
+  });
+
+  const bypassResult = runtime.bypassTranslationCacheOnce(profile.id);
+  const stateWithBypass = runtime.getAppState({});
+  const clearResult = runtime.clearTranslationCache();
+
+  assert.equal(bypassResult.bypassPending, true);
+  assert.deepEqual(stateWithBypass.contextBuilder.translationCacheBypassProfileIds, [profile.id]);
+  assert.equal(clearResult.clearedCount, 0);
+});
+
+test('background worker runtime harness exposes update controls', async (t) => {
+  const tempRoot = createTempAppRoot();
+  const manifestUrl = 'https://example.com/latest.json';
+  const portableUrl = 'https://example.com/memoq-ai-hub-win32-x64.zip';
+  const harness = await createRuntimeHarness(tempRoot, {
+    fetch: async (url) => {
+      if (url === manifestUrl) {
+        return {
+          ok: true,
+          status: 200,
+          async json() {
+            return {
+              version: '1.0.4',
+              assets: {
+                portable: {
+                  name: 'memoq-ai-hub-win32-x64.zip',
+                  url: portableUrl
+                }
+              }
+            };
+          }
+        };
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        async arrayBuffer() {
+          return Buffer.from('portable bytes');
+        }
+      };
+    },
+    manifestUrl,
+    packagingMode: 'portable',
+    extractArchive: async (sourcePath, targetDir) => {
+      fs.mkdirSync(targetDir, { recursive: true });
+      fs.writeFileSync(path.join(targetDir, 'MemoQ AI Hub.exe'), 'binary');
+    }
+  });
+  const { runtime } = harness;
+
+  t.after(() => {
+    harness.dispose();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  const available = await runtime.checkForUpdates({ manual: true });
+  const downloaded = await runtime.downloadPortableUpdate();
+  const prepared = await runtime.preparePortableUpdate(downloaded.downloadedArtifactPath);
+
+  assert.equal(runtime.getUpdateStatus().latestVersion, '1.0.4');
+  assert.equal(available.updateStatus, 'available');
+  assert.equal(fs.existsSync(downloaded.downloadedArtifactPath), true);
+  assert.equal(prepared.updateStatus, 'prepared');
 });
 
 test('background worker entrypoint stays parseable for packaging builds', () => {

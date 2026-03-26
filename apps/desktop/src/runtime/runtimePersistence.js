@@ -255,6 +255,12 @@ function writeCacheEntry(db, tableName, key, text, updatedAt, limit) {
   return nextEntry;
 }
 
+function clearCacheTable(db, tableName) {
+  const clearedCount = getTableCount(db, tableName);
+  db.run(`DELETE FROM ${tableName}`);
+  return { clearedCount };
+}
+
 function normalizeLegacyHistoryEntries(entries = []) {
   const seen = new Set();
   const nextEntries = [];
@@ -414,6 +420,9 @@ function createRuntimePersistence(db, { nowIso, normalizeState }) {
     },
     writeTranslationCache(key, text, updatedAt = nowIso()) {
       return writeCacheEntry(db, 'translation_cache', key, text, updatedAt, TRANSLATION_CACHE_LIMIT);
+    },
+    clearTranslationCache() {
+      return clearCacheTable(db, 'translation_cache');
     },
     readPromptResponseCache(key) {
       return readCacheEntry(db, 'prompt_response_cache', key);

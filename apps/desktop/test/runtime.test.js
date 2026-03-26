@@ -273,6 +273,10 @@ function createMockDatabaseModule(options = {}) {
         store.translationCacheRows.delete(params.$key);
         return 1;
       }
+      if (text.includes('DELETE FROM translation_cache')) {
+        store.translationCacheRows.clear();
+        return 1;
+      }
       if (text.includes('DELETE FROM prompt_response_cache WHERE cache_key = $key')) {
         store.promptResponseCacheRows.delete(params.$key);
         return 1;
@@ -1286,6 +1290,260 @@ test('runtime stores confirmed translations and reuses them through adaptive cac
     assert.equal(history.attempts[0].routeKind, 'adaptive-cache');
     assert.equal(history.attempts[0].providerName, 'Adaptive Cache');
     assert.equal(history.attempts[0].cacheKind, 'adaptive');
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime can bypass translation cache once for the next profile translation and then return to normal caching', async () => {
+  const tempRoot = createTempAppRoot();
+  let providerCalls = 0;
+
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      providerRegistry: {
+        testConnection: async () => ({ ok: true, latencyMs: 12, message: 'ok' }),
+        translateSegment: async ({ sourceText }) => {
+          providerCalls += 1;
+          return { text: `${sourceText} -> FR fresh ${providerCalls}`, latencyMs: 25 };
+        }
+      }
+    });
+
+    const provider = await runtime.saveProvider({
+      name: 'OpenAI',
+      type: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'test-key',
+      models: [{ modelName: 'gpt-4.1-mini', enabled: true }]
+    });
+
+    const profile = await runtime.saveProfile({
+      name: 'Bypass Cache Profile',
+      providerId: provider.id,
+      interactiveProviderId: provider.id,
+      interactiveModelId: provider.models[0].id,
+      cacheEnabled: true,
+      translationStyle: 'formal'
+    });
+
+    await runtime.storeTranslations({
+      requestId: 'STORE-BYPASS-1',
+      traceId: 'TRACE-STORE-BYPASS-1',
+      sourceLanguage: 'EN',
+      targetLanguage: 'FR',
+      requestType: 'Plaintext',
+      translations: [
+        { index: 0, sourceText: 'Restart service', targetText: 'Redemarrez le service' }
+      ]
+    });
+
+    const armed = runtime.bypassTranslationCacheOnce(profile.id);
+    assert.equal(armed.bypassPending, true);
+    assert.deepEqual(runtime.getAppState().contextBuilder.translationCacheBypassProfileIds, [profile.id]);
+
+    const bypassed = await runtime.translate({
+      requestId: 'REQ-BYPASS-1',
+      traceId: 'TRACE-BYPASS-1',
+      contractVersion: '1',
+      sourceLanguage: 'EN',
+      targetLanguage: 'FR',
+      requestType: 'Plaintext',
+      profileResolution: { profileId: profile.id, useCase: 'interactive' },
+      metadata: {},
+      segments: [{ index: 0, text: 'Restart service', plainText: 'Restart service', tmSource: '', tmTarget: '' }]
+    });
+
+    assert.equal(bypassed.statusCode, 200);
+    assert.equal(bypassed.body.translations[0].text, 'Restart service -> FR fresh 1');
+    assert.equal(providerCalls, 1);
+    assert.deepEqual(runtime.getAppState().contextBuilder.translationCacheBypassProfileIds, []);
+
+    const historyAfterBypass = runtime.getAppState().historyExplorer.items[0];
+    assert.equal(historyAfterBypass.attempts.at(-1).cacheKind, 'bypassed');
+
+    const cached = await runtime.translate({
+      requestId: 'REQ-BYPASS-2',
+      traceId: 'TRACE-BYPASS-2',
+      contractVersion: '1',
+      sourceLanguage: 'EN',
+      targetLanguage: 'FR',
+      requestType: 'Plaintext',
+      profileResolution: { profileId: profile.id, useCase: 'interactive' },
+      metadata: {},
+      segments: [{ index: 0, text: 'Restart service', plainText: 'Restart service', tmSource: '', tmTarget: '' }]
+    });
+
+    assert.equal(cached.statusCode, 200);
+    assert.equal(cached.body.translations[0].text, 'Restart service -> FR fresh 1');
+    assert.equal(providerCalls, 1);
+    assert.equal(runtime.getAppState().historyExplorer.items[0].attempts[0].cacheKind, 'exact');
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime respects request-level translation cache bypass payload without changing persistent profile cache settings', async () => {
+  const tempRoot = createTempAppRoot();
+  let providerCalls = 0;
+
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      providerRegistry: {
+        testConnection: async () => ({ ok: true, latencyMs: 12, message: 'ok' }),
+        translateSegment: async ({ sourceText }) => {
+          providerCalls += 1;
+          return { text: `${sourceText} -> DE fresh ${providerCalls}`, latencyMs: 20 };
+        }
+      }
+    });
+
+    const provider = await runtime.saveProvider({
+      name: 'OpenAI',
+      type: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'test-key',
+      models: [{ modelName: 'gpt-4.1-mini', enabled: true }]
+    });
+
+    const profile = await runtime.saveProfile({
+      name: 'Payload Bypass Profile',
+      providerId: provider.id,
+      cacheEnabled: true
+    });
+
+    await runtime.storeTranslations({
+      requestId: 'STORE-PAYLOAD-BYPASS',
+      traceId: 'TRACE-STORE-PAYLOAD-BYPASS',
+      sourceLanguage: 'EN',
+      targetLanguage: 'DE',
+      requestType: 'Plaintext',
+      translations: [
+        { index: 0, sourceText: 'Restart service', targetText: 'Dienst neu starten' }
+      ]
+    });
+
+    const result = await runtime.translate({
+      requestId: 'REQ-PAYLOAD-BYPASS',
+      traceId: 'TRACE-PAYLOAD-BYPASS',
+      contractVersion: '1',
+      sourceLanguage: 'EN',
+      targetLanguage: 'DE',
+      requestType: 'Plaintext',
+      bypassTranslationCache: true,
+      profileResolution: { profileId: profile.id, useCase: 'interactive' },
+      metadata: {},
+      segments: [{ index: 0, text: 'Restart service', plainText: 'Restart service', tmSource: '', tmTarget: '' }]
+    });
+
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.body.translations[0].text, 'Restart service -> DE fresh 1');
+    assert.equal(providerCalls, 1);
+    assert.equal(runtime.getAppState().contextBuilder.profiles.find((item) => item.id === profile.id)?.cacheEnabled, true);
+    assert.equal(runtime.getAppState().historyExplorer.items[0].attempts.at(-1).cacheKind, 'bypassed');
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime clearTranslationCache removes only translation cache entries', async () => {
+  const tempRoot = createTempAppRoot();
+  const databaseCapture = {};
+
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      __databaseCapture: databaseCapture
+    });
+
+    const now = new Date().toISOString();
+    databaseCapture.store.translationCacheRows.set('translation-key', {
+      cache_key: 'translation-key',
+      text_value: 'Translated text',
+      updated_at: now
+    });
+    databaseCapture.store.promptResponseCacheRows.set('prompt-key', {
+      cache_key: 'prompt-key',
+      text_value: 'Prompt response',
+      updated_at: now
+    });
+    databaseCapture.store.documentSummaryCacheRows.set('summary-key', {
+      cache_key: 'summary-key',
+      text_value: 'Summary response',
+      updated_at: now
+    });
+
+    const result = runtime.clearTranslationCache();
+
+    assert.deepEqual(result, { clearedCount: 1 });
+    assert.equal(databaseCapture.store.translationCacheRows.size, 0);
+    assert.equal(databaseCapture.store.promptResponseCacheRows.size, 1);
+    assert.equal(databaseCapture.store.documentSummaryCacheRows.size, 1);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime exposes update status and portable prepare flow through app state', async () => {
+  const tempRoot = createTempAppRoot();
+  const manifestUrl = 'https://example.com/latest.json';
+  const portableUrl = 'https://example.com/memoq-ai-hub-win32-x64.zip';
+
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      manifestUrl,
+      packagingMode: 'portable',
+      fetch: async (url) => {
+        if (url === manifestUrl) {
+          return {
+            ok: true,
+            status: 200,
+            async json() {
+              return {
+                version: '1.0.4',
+                publishedAt: '2026-03-26T00:00:00.000Z',
+                assets: {
+                  portable: {
+                    name: 'memoq-ai-hub-win32-x64.zip',
+                    url: portableUrl
+                  }
+                }
+              };
+            }
+          };
+        }
+
+        return {
+          ok: true,
+          status: 200,
+          async arrayBuffer() {
+            return Buffer.from('portable bytes');
+          }
+        };
+      },
+      extractArchive: async (sourcePath, targetDir) => {
+        fs.mkdirSync(targetDir, { recursive: true });
+        fs.writeFileSync(path.join(targetDir, 'MemoQ AI Hub.exe'), 'binary');
+      }
+    });
+
+    const initialState = runtime.getAppState();
+    assert.equal(initialState.updateCenter.packagingMode, 'portable');
+    assert.equal(initialState.dashboard.updateCenter.packagingMode, 'portable');
+
+    const available = await runtime.checkForUpdates({ manual: true });
+    const downloaded = await runtime.downloadPortableUpdate();
+    const prepared = await runtime.preparePortableUpdate(downloaded.downloadedArtifactPath);
+    const finalState = runtime.getAppState();
+
+    assert.equal(available.latestVersion, '1.0.4');
+    assert.equal(fs.existsSync(downloaded.downloadedArtifactPath), true);
+    assert.equal(prepared.updateStatus, 'prepared');
+    assert.equal(finalState.updateCenter.updateStatus, 'prepared');
+    assert.equal(fs.existsSync(path.join(finalState.updateCenter.preparedDirectory, 'MemoQ AI Hub.exe')), true);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

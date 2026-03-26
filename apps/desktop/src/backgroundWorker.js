@@ -186,6 +186,27 @@ const requestHandlers = {
   exportHistory(payload) {
     return requireRuntime().exportHistory(payload || {});
   },
+  bypassTranslationCacheOnce(payload) {
+    return requireRuntime().bypassTranslationCacheOnce(payload?.profileId);
+  },
+  clearTranslationCache() {
+    return requireRuntime().clearTranslationCache();
+  },
+  getUpdateStatus() {
+    return requireRuntime().getUpdateStatus();
+  },
+  checkForUpdates(payload) {
+    return requireRuntime().checkForUpdates(payload || {});
+  },
+  downloadPortableUpdate(payload) {
+    return requireRuntime().downloadPortableUpdate(payload?.versionOrAssetId);
+  },
+  downloadInstallerUpdate(payload) {
+    return requireRuntime().downloadInstallerUpdate(payload?.versionOrAssetId);
+  },
+  preparePortableUpdate(payload) {
+    return requireRuntime().preparePortableUpdate(payload?.downloadedFile, payload?.targetDir);
+  },
   testHandshake() {
     return requireRuntime().testHandshake();
   },

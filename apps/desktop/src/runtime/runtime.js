@@ -116,6 +116,9 @@ const {
     resolveProfilePromptTemplate
   }
 } = require('./runtimeState');
+const {
+  createUpdateService
+} = require('../update/updateService');
 
 function nowIso() {
   return new Date().toISOString();
@@ -201,11 +204,23 @@ async function createRuntime(options = {}) {
   const parsedAssetCache = new Map();
   const providerSlotMap = new Map();
   const providerRateLimitMap = new Map();
+  const bypassTranslationCacheProfileIds = new Set();
   let gatewayReady = false;
   createSchema(db);
   const persistence = createRuntimePersistence(db, {
     nowIso,
     normalizeState
+  });
+  const updateService = options.updateService || createUpdateService({
+    paths,
+    currentVersion: runtimeIdentity.desktopVersion,
+    fetch: options.fetch,
+    packagingMode: options.packagingMode,
+    extractArchive: options.extractArchive,
+    releaseRepository: options.releaseRepository,
+    manifestUrl: options.manifestUrl,
+    updateStatePath: options.updateStatePath,
+    argv: options.argv
   });
   persistence.migrateLegacyState();
   previewContextClient?.start?.();
@@ -216,6 +231,39 @@ async function createRuntime(options = {}) {
 
   function saveState(state) {
     return persistence.saveConfigState(state);
+  }
+
+  function normalizeProfileId(value) {
+    return String(value || '').trim();
+  }
+
+  function armTranslationCacheBypass(profileId) {
+    const normalizedProfileId = normalizeProfileId(profileId);
+    if (!normalizedProfileId) {
+      throw new Error('Profile ID is required to bypass translation cache.');
+    }
+
+    const state = loadState();
+    if (!state.profiles.some((profile) => profile.id === normalizedProfileId)) {
+      throw new Error(`Profile ${normalizedProfileId} not found`);
+    }
+
+    bypassTranslationCacheProfileIds.add(normalizedProfileId);
+    return {
+      ok: true,
+      profileId: normalizedProfileId,
+      bypassPending: true
+    };
+  }
+
+  function consumeTranslationCacheBypass(profileId) {
+    const normalizedProfileId = normalizeProfileId(profileId);
+    if (!normalizedProfileId || !bypassTranslationCacheProfileIds.has(normalizedProfileId)) {
+      return false;
+    }
+
+    bypassTranslationCacheProfileIds.delete(normalizedProfileId);
+    return true;
   }
 
   function loadHistoryEntries() {
@@ -413,7 +461,7 @@ async function createRuntime(options = {}) {
     ];
   }
 
-  function buildNotices(state, providers, history, integration) {
+  function buildNotices(state, providers, history, integration, updateStatus) {
     const notices = [];
     if (!integration.installations.length) notices.push('No memoQ installation directory was detected.');
     if (!providers.length) notices.push('No provider has been configured yet.');
@@ -427,6 +475,14 @@ async function createRuntime(options = {}) {
       notices.push(`Preview bridge connected: ${previewState.activePreviewPartIds.length || 0} active part(s), ${previewState.previewPartsById.size || 0} cached part(s).`);
     } else if (previewStatus === 'error' && previewState.lastError) {
       notices.push(`Preview bridge unavailable: ${previewState.lastError}`);
+    }
+
+    if (updateStatus?.updateStatus === 'available' && updateStatus?.latestVersion) {
+      notices.push(`Update available: ${updateStatus.latestVersion}.`);
+    } else if (updateStatus?.updateStatus === 'prepared' && updateStatus?.preparedDirectory) {
+      notices.push(`A prepared update is ready at ${updateStatus.preparedDirectory}.`);
+    } else if (updateStatus?.updateStatus === 'error' && updateStatus?.lastError) {
+      notices.push(`Update check failed: ${updateStatus.lastError}`);
     }
 
     if (!notices.length) notices.push('The app is ready for first-time configuration.');
@@ -1469,6 +1525,7 @@ async function createRuntime(options = {}) {
     const history = filterHistoryEntries(historyEntries, filters);
     const providers = enrichProviders(state, historyEntries);
     const previewStatus = syncPreviewBridgeStatusFromClient();
+    const updateStatus = updateService.getStatus();
     return {
       productName: PRODUCT_NAME,
       contractVersion: CONTRACT_VERSION,
@@ -1481,16 +1538,19 @@ async function createRuntime(options = {}) {
           connectionStatus: gatewayReady ? 'Connected' : 'Disconnected',
           previewStatus
         },
-        notices: buildNotices(state, providers, history, integration)
+        updateCenter: updateStatus,
+        notices: buildNotices(state, providers, history, integration, updateStatus)
       },
       integration,
       previewBridge: previewStatus,
+      updateCenter: updateStatus,
       contextBuilder: {
         profiles: state.profiles,
         defaultProfileId: state.defaultProfileId,
         assets: state.assets,
         supportedPlaceholders: getFirstReleaseVisiblePlaceholders(getSupportedPlaceholders()),
-        assetImportRules: getAssetImportRules()
+        assetImportRules: getAssetImportRules(),
+        translationCacheBypassProfileIds: Array.from(bypassTranslationCacheProfileIds)
       },
       memoqMetadataMapping: {
         rules: [...state.mappingRules]
@@ -1954,6 +2014,9 @@ async function createRuntime(options = {}) {
       };
     }
 
+    const requestBypassTranslationCache = payload?.bypassTranslationCache === true
+      || consumeTranslationCacheBypass(profile.id);
+
     const routes = await resolveProviderRoute(state, profile);
     if (!routes.length) {
       return {
@@ -2125,10 +2188,9 @@ async function createRuntime(options = {}) {
         break;
       }
 
-      if (profile.cacheEnabled) {
-        const unresolved = [];
-        for (const segment of remainingSegments) {
-          const cacheKey = createTranslationCacheKey({
+      for (const segment of remainingSegments) {
+        if (!segment.cacheKey) {
+          segment.cacheKey = createTranslationCacheKey({
             providerId: route.provider.id,
             modelName: route.model.modelName,
             sourceLanguage: payload.sourceLanguage,
@@ -2147,16 +2209,22 @@ async function createRuntime(options = {}) {
             previewCacheContext: requestPreviewDebug,
             segmentPreviewCacheContext: segment.previewDebugContext
           });
-          segment.cacheKey = cacheKey;
-          const exactCachedText = persistence.readTranslationCache(cacheKey);
-          const adaptiveCacheKey = createAdaptiveTranslationCacheKey({
+        }
+        if (!segment.adaptiveCacheKey) {
+          segment.adaptiveCacheKey = createAdaptiveTranslationCacheKey({
             sourceLanguage: payload.sourceLanguage,
             targetLanguage: payload.targetLanguage,
             requestType: payload.requestType,
             sourceText: segment.sourceText
           });
-          segment.adaptiveCacheKey = adaptiveCacheKey;
-          const cachedText = exactCachedText || persistence.readTranslationCache(adaptiveCacheKey);
+        }
+      }
+
+      if (profile.cacheEnabled && !requestBypassTranslationCache) {
+        const unresolved = [];
+        for (const segment of remainingSegments) {
+          const exactCachedText = persistence.readTranslationCache(segment.cacheKey);
+          const cachedText = exactCachedText || persistence.readTranslationCache(segment.adaptiveCacheKey);
           if (cachedText) {
             translatedByIndex.set(segment.index, { index: segment.index, text: cachedText, fromCache: true });
             attempts.push({
@@ -2229,6 +2297,16 @@ async function createRuntime(options = {}) {
       });
 
       totalLatencyMs += routeResult.latencyMs;
+      const cacheKindForRouteAttempts = requestBypassTranslationCache
+        ? 'bypassed'
+        : (profile.cacheEnabled ? 'miss' : '');
+      if (cacheKindForRouteAttempts) {
+        routeResult.attempts.forEach((attempt) => {
+          if (!attempt.cacheKind) {
+            attempt.cacheKind = cacheKindForRouteAttempts;
+          }
+        });
+      }
       attempts.push(...routeResult.attempts);
 
       for (const translation of routeResult.translations) {
@@ -2513,6 +2591,21 @@ async function createRuntime(options = {}) {
     getAppState(filters = {}) {
       return getState(filters);
     },
+    getUpdateStatus() {
+      return updateService.getStatus();
+    },
+    async checkForUpdates(options = {}) {
+      return updateService.checkForUpdates(options || {});
+    },
+    async downloadPortableUpdate(versionOrAssetId) {
+      return updateService.downloadPortableUpdate(versionOrAssetId);
+    },
+    async downloadInstallerUpdate(versionOrAssetId) {
+      return updateService.downloadInstallerUpdate(versionOrAssetId);
+    },
+    async preparePortableUpdate(downloadedFile, targetDir) {
+      return updateService.preparePortableUpdate(downloadedFile, targetDir);
+    },
     saveProfile(profile) {
       const state = loadState();
       const blockedTokens = collectFirstReleaseProfilePlaceholderViolations(profile);
@@ -2556,6 +2649,7 @@ async function createRuntime(options = {}) {
       }
 
       state.profiles = state.profiles.filter((item) => item.id !== profileId);
+      bypassTranslationCacheProfileIds.delete(normalizeProfileId(profileId));
       if (state.defaultProfileId === profileId) {
         state.defaultProfileId = '';
       }
@@ -2739,7 +2833,14 @@ async function createRuntime(options = {}) {
       return { ok: result.ok, status: provider.status, message: result.message, latencyMs: result.latencyMs, testedAt: result.testedAt };
     },
     async translate(payload) {
-      return performTranslation(payload);
+      const nextPayload = payload && typeof payload === 'object'
+        ? { ...payload }
+        : {};
+      const explicitProfileId = normalizeProfileId(nextPayload?.profileResolution?.profileId);
+      if (nextPayload.bypassTranslationCache !== true && explicitProfileId && consumeTranslationCacheBypass(explicitProfileId)) {
+        nextPayload.bypassTranslationCache = true;
+      }
+      return performTranslation(nextPayload);
     },
     async storeTranslations(payload) {
       const requestId = payload.requestId || createId('store');
@@ -2827,6 +2928,12 @@ async function createRuntime(options = {}) {
         XLSX.writeFile(workbook, outputPath);
       }
       return { path: outputPath, count: rows.length };
+    },
+    bypassTranslationCacheOnce(profileId) {
+      return armTranslationCacheBypass(profileId);
+    },
+    clearTranslationCache() {
+      return persistence.clearTranslationCache();
     },
     getAssetPreview(assetId, options = {}) {
       return getAssetPreview(assetId, options);

@@ -1,11 +1,12 @@
 const path = require('path');
 const { fork } = require('child_process');
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const { createAppPaths } = require('./shared/paths');
 const { getIntegrationStatus } = require('./integration/integrationService');
 const { DEFAULT_HOST, DEFAULT_PORT, PRODUCT_NAME, CONTRACT_VERSION } = require('./shared/desktopContract');
 const { getAssetImportRules } = require('./asset/assetRules');
 const { getSupportedPlaceholders } = require('./shared/promptTemplate');
+const { readDesktopPackageMetadata } = require('./shared/desktopMetadata');
 
 let mainWindow;
 let backgroundWorker;
@@ -35,6 +36,7 @@ function getConnectionStatusLabel() {
 
 function buildPlaceholderAppState() {
   const paths = createAppPaths();
+  const versionMetadata = readDesktopPackageMetadata(path.join(__dirname, '..'));
   const integration = getIntegrationStatus(paths, { memoqVersion: '11' });
   const connectionStatus = getConnectionStatusLabel();
   const previewPlaceholderStatus = startupState.status === 'starting' ? 'starting' : 'disconnected';
@@ -82,6 +84,26 @@ function buildPlaceholderAppState() {
           sourceDocumentGuid: ''
         }
       },
+      updateCenter: {
+        currentVersion: versionMetadata.desktopVersion,
+        releaseChannel: 'stable',
+        packagingMode: 'portable',
+        updateStatus: 'idle',
+        latestVersion: '',
+        releaseNotes: '',
+        releaseNotesUrl: '',
+        publishedAt: '',
+        downloadedArtifactPath: '',
+        preparedDirectory: '',
+        lastCheckedAt: '',
+        lastError: '',
+        manifestUrl: '',
+        pluginReinstallRecommended: true,
+        availableAssets: {
+          portable: null,
+          installer: null
+        }
+      },
       notices
     },
     integration,
@@ -109,7 +131,27 @@ function buildPlaceholderAppState() {
     },
     memoqMetadataMapping: { rules: [] },
     providerHub: { providers: [], summary: { enabled: 0, healthy: 0 } },
-    historyExplorer: { items: [] }
+    historyExplorer: { items: [] },
+    updateCenter: {
+      currentVersion: versionMetadata.desktopVersion,
+      releaseChannel: 'stable',
+      packagingMode: 'portable',
+      updateStatus: 'idle',
+      latestVersion: '',
+      releaseNotes: '',
+      releaseNotesUrl: '',
+      publishedAt: '',
+      downloadedArtifactPath: '',
+      preparedDirectory: '',
+      lastCheckedAt: '',
+      lastError: '',
+      manifestUrl: '',
+      pluginReinstallRecommended: true,
+      availableAssets: {
+        portable: null,
+        installer: null
+      }
+    }
   };
 }
 
@@ -420,9 +462,80 @@ function registerIpcHandlers() {
     requireWorkerReady();
     return invokeWorker('exportHistory', options || {});
   });
+  ipcMain.handle('desktop:bypass-translation-cache-once', (_event, profileId) => {
+    requireWorkerReady();
+    return invokeWorker('bypassTranslationCacheOnce', { profileId });
+  });
+  ipcMain.handle('desktop:clear-translation-cache', () => {
+    requireWorkerReady();
+    return invokeWorker('clearTranslationCache');
+  });
+  ipcMain.handle('desktop:get-update-status', () => {
+    requireWorkerReady();
+    return invokeWorker('getUpdateStatus');
+  });
+  ipcMain.handle('desktop:check-for-updates', (_event, payload) => {
+    requireWorkerReady();
+    return invokeWorker('checkForUpdates', payload || {});
+  });
+  ipcMain.handle('desktop:download-portable-update', (_event, payload) => {
+    requireWorkerReady();
+    return invokeWorker('downloadPortableUpdate', payload || {});
+  });
+  ipcMain.handle('desktop:download-installer-update', (_event, payload) => {
+    requireWorkerReady();
+    return invokeWorker('downloadInstallerUpdate', payload || {});
+  });
+  ipcMain.handle('desktop:prepare-portable-update', (_event, payload) => {
+    requireWorkerReady();
+    return invokeWorker('preparePortableUpdate', payload || {});
+  });
   ipcMain.handle('desktop:test-handshake', () => {
     requireWorkerReady();
     return invokeWorker('testHandshake');
+  });
+  ipcMain.handle('desktop:open-path', async (_event, targetPath) => {
+    const normalizedPath = String(targetPath || '').trim();
+    if (!normalizedPath) {
+      return { ok: false, opened: false };
+    }
+    const openError = await shell.openPath(normalizedPath);
+    if (openError) {
+      throw new Error(openError);
+    }
+    return { ok: true, opened: true, targetPath: normalizedPath };
+  });
+  ipcMain.handle('desktop:show-item-in-folder', (_event, targetPath) => {
+    const normalizedPath = String(targetPath || '').trim();
+    if (!normalizedPath) {
+      return { ok: false, revealed: false };
+    }
+    shell.showItemInFolder(normalizedPath);
+    return { ok: true, revealed: true, targetPath: normalizedPath };
+  });
+  ipcMain.handle('desktop:open-external-url', async (_event, url) => {
+    const normalizedUrl = String(url || '').trim();
+    if (!normalizedUrl) {
+      return { ok: false, opened: false };
+    }
+    await shell.openExternal(normalizedUrl);
+    return { ok: true, opened: true, url: normalizedUrl };
+  });
+  ipcMain.handle('desktop:launch-downloaded-installer-update', async (_event, installerPath) => {
+    const normalizedPath = String(installerPath || '').trim();
+    if (!normalizedPath) {
+      throw new Error('Installer path is required.');
+    }
+
+    const openError = await shell.openPath(normalizedPath);
+    if (openError) {
+      throw new Error(openError);
+    }
+
+    setImmediate(() => {
+      app.quit();
+    });
+    return { ok: true, launched: true, installerPath: normalizedPath };
   });
   ipcMain.handle('desktop:pick-directory', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {

@@ -17,18 +17,29 @@ function createAppPaths(options = {}) {
   const assetsDir = path.join(appDataRoot, 'assets');
   const exportsDir = path.join(appDataRoot, 'exports');
   const tempDir = path.join(appDataRoot, 'temp');
+  const updatesDir = path.join(appDataRoot, 'updates');
+  const updateDownloadsDir = path.join(updatesDir, 'downloads');
+  const preparedUpdatesDir = path.join(updatesDir, 'prepared');
+  const updateStatePath = path.join(updatesDir, 'update-state.json');
   const dbPath = path.join(appDataRoot, 'memoq-ai-hub.db');
 
   ensureDir(appDataRoot);
   ensureDir(assetsDir);
   ensureDir(exportsDir);
   ensureDir(tempDir);
+  ensureDir(updatesDir);
+  ensureDir(updateDownloadsDir);
+  ensureDir(preparedUpdatesDir);
 
   return {
     appDataRoot,
     assetsDir,
     exportsDir,
     tempDir,
+    updatesDir,
+    updateDownloadsDir,
+    preparedUpdatesDir,
+    updateStatePath,
     dbPath,
     repoRoot: path.resolve(__dirname, '..', '..', '..')
   };

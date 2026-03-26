@@ -2,6 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+export const DEFAULT_RELEASE_REPOSITORY = 'langlink-localization/memoq-ai-hub';
+export const STABLE_UPDATE_MANIFEST_NAME = 'memoq-ai-hub-updates-stable.json';
+export const PORTABLE_WINDOWS_ARTIFACT_NAME = 'memoq-ai-hub-win32-x64.zip';
+export const INSTALLER_WINDOWS_ARTIFACT_NAME = 'memoQ-AI-Hub-Setup.exe';
+
 function getRepoRoot() {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 }
@@ -41,8 +46,60 @@ export function validateReleaseTag(tagName, repoRoot = getRepoRoot()) {
   };
 }
 
+export function buildStableUpdateManifest({
+  version = getDesktopPackageVersion(),
+  repository = DEFAULT_RELEASE_REPOSITORY,
+  publishedAt = '',
+  releaseNotes = ''
+} = {}) {
+  const normalizedVersion = String(version || '').trim().replace(/^v/i, '');
+  if (!normalizedVersion) {
+    throw new Error('A release version is required to build the update manifest.');
+  }
+
+  const normalizedRepository = String(repository || DEFAULT_RELEASE_REPOSITORY).trim() || DEFAULT_RELEASE_REPOSITORY;
+  const tag = `v${normalizedVersion}`;
+  const releaseBaseUrl = `https://github.com/${normalizedRepository}/releases`;
+  const downloadBaseUrl = `${releaseBaseUrl}/download/${tag}`;
+
+  return {
+    version: normalizedVersion,
+    tag,
+    channel: 'stable',
+    publishedAt: String(publishedAt || '').trim(),
+    releaseNotes: String(releaseNotes || '').trim(),
+    releaseNotesUrl: `${releaseBaseUrl}/tag/${tag}`,
+    assets: {
+      portable: {
+        name: PORTABLE_WINDOWS_ARTIFACT_NAME,
+        url: `${downloadBaseUrl}/${PORTABLE_WINDOWS_ARTIFACT_NAME}`
+      },
+      installer: {
+        name: INSTALLER_WINDOWS_ARTIFACT_NAME,
+        url: `${downloadBaseUrl}/${INSTALLER_WINDOWS_ARTIFACT_NAME}`
+      }
+    }
+  };
+}
+
+export function writeStableUpdateManifest(outputPath, options = {}) {
+  const manifest = buildStableUpdateManifest(options);
+  const resolvedOutputPath = path.resolve(String(outputPath || ''));
+
+  if (!resolvedOutputPath) {
+    throw new Error('An output path is required to write the update manifest.');
+  }
+
+  fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
+  fs.writeFileSync(resolvedOutputPath, JSON.stringify(manifest, null, 2), 'utf8');
+  return {
+    outputPath: resolvedOutputPath,
+    manifest
+  };
+}
+
 function printUsage() {
-  console.error('Usage: node tooling/scripts/release-metadata.mjs <version|check-tag> [tag]');
+  console.error('Usage: node tooling/scripts/release-metadata.mjs <version|check-tag|write-manifest> [args]');
 }
 
 function main(argv = process.argv.slice(2)) {
@@ -55,6 +112,18 @@ function main(argv = process.argv.slice(2)) {
 
   if (command === 'check-tag') {
     const result = validateReleaseTag(value);
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    return;
+  }
+
+  if (command === 'write-manifest') {
+    const outputPath = value;
+    const publishedAt = argv[2] || '';
+    const repository = argv[3] || DEFAULT_RELEASE_REPOSITORY;
+    const result = writeStableUpdateManifest(outputPath, {
+      publishedAt,
+      repository
+    });
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }
