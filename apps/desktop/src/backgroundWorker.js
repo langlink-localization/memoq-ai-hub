@@ -57,7 +57,7 @@ async function startRuntimeAndGateway() {
       createGatewayServer,
       host: DEFAULT_HOST,
       port: DEFAULT_PORT
-    });
+    }));
     sendStatus('ready');
     setTimeout(() => {
       if (!shuttingDown && startupState.status === 'ready') {

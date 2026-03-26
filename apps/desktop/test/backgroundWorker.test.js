@@ -5,6 +5,7 @@ const net = require('net');
 const os = require('os');
 const path = require('path');
 const { fork } = require('child_process');
+const { spawnSync } = require('child_process');
 const { createRuntime } = require('../src/runtime/runtime');
 
 function createTempAppRoot() {
@@ -526,4 +527,13 @@ test('background worker proxies parsed asset previews', async (t) => {
   assert.equal(preview.type, 'glossary');
   assert.equal(preview.rowCount, 1);
   assert.equal(preview.rows[0].sourceTerm, 'workspace');
+});
+
+test('background worker entrypoint stays parseable for packaging builds', () => {
+  const entryPath = path.join(__dirname, '..', 'src', 'backgroundWorker.js');
+  const result = spawnSync(process.execPath, ['--check', entryPath], {
+    encoding: 'utf8'
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout || 'backgroundWorker.js failed syntax check');
 });
