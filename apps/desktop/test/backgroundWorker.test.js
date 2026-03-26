@@ -583,7 +583,7 @@ test('background worker runtime harness exposes update controls', async (t) => {
           status: 200,
           async json() {
             return {
-              version: '1.0.4',
+              version: '1.0.5',
               assets: {
                 portable: {
                   name: 'memoq-ai-hub-win32-x64.zip',
@@ -621,7 +621,7 @@ test('background worker runtime harness exposes update controls', async (t) => {
   const downloaded = await runtime.downloadPortableUpdate();
   const prepared = await runtime.preparePortableUpdate(downloaded.downloadedArtifactPath);
 
-  assert.equal(runtime.getUpdateStatus().latestVersion, '1.0.4');
+  assert.equal(runtime.getUpdateStatus().latestVersion, '1.0.5');
   assert.equal(available.updateStatus, 'available');
   assert.equal(fs.existsSync(downloaded.downloadedArtifactPath), true);
   assert.equal(prepared.updateStatus, 'prepared');
