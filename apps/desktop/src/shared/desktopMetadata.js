@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULT_DESKTOP_VERSION = '1.0.1';
+const DEFAULT_DESKTOP_VERSION = '1.0.2';
 
 function safeStatMtimeIso(filePath) {
   try {
