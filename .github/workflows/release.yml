@@ -56,7 +56,4 @@ jobs:
           tag_name: ${{ steps.release_meta.outputs.tag }}
           files: |
             apps/desktop/out/**/*.zip
-            apps/desktop/out/make/squirrel.windows/**/RELEASES
-            apps/desktop/out/make/squirrel.windows/**/*.nupkg
-            apps/desktop/out/make/squirrel.windows/**/*.exe
             apps/desktop/out/memoq-ai-hub-updates-stable.json

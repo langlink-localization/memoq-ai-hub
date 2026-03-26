@@ -6,8 +6,7 @@ import {
   validateReleaseTag,
   buildStableUpdateManifest,
   STABLE_UPDATE_MANIFEST_NAME,
-  PORTABLE_WINDOWS_ARTIFACT_NAME,
-  INSTALLER_WINDOWS_ARTIFACT_NAME
+  PORTABLE_WINDOWS_ARTIFACT_NAME
 } from '../../tooling/scripts/release-metadata.mjs';
 
 test('release metadata reads desktop package version as the release source of truth', () => {
@@ -46,10 +45,6 @@ test('release metadata builds the public stable update manifest', () => {
       portable: {
         name: PORTABLE_WINDOWS_ARTIFACT_NAME,
         url: 'https://github.com/langlink-localization/memoq-ai-hub/releases/download/v1.0.4/memoq-ai-hub-win32-x64.zip'
-      },
-      installer: {
-        name: INSTALLER_WINDOWS_ARTIFACT_NAME,
-        url: 'https://github.com/langlink-localization/memoq-ai-hub/releases/download/v1.0.4/memoQ-AI-Hub-Setup.exe'
       }
     }
   });

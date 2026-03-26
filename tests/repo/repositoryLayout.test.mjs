@@ -107,9 +107,7 @@ test('path-sensitive entrypoints use the monorepo topology', () => {
   assert.match(releaseWorkflow, /tooling\/scripts\/release-metadata\.mjs/);
   assert.match(releaseWorkflow, /tooling\/scripts\/package-windows\.ps1/);
   assert.match(releaseWorkflow, /apps\/desktop\/out\/\*\*\/\*\.zip/);
-  assert.match(releaseWorkflow, /apps\/desktop\/out\/make\/squirrel\.windows\/\*\*\/RELEASES/);
-  assert.match(releaseWorkflow, /apps\/desktop\/out\/make\/squirrel\.windows\/\*\*\/\*\.nupkg/);
-  assert.match(releaseWorkflow, /apps\/desktop\/out\/make\/squirrel\.windows\/\*\*\/\*\.exe/);
+  assert.doesNotMatch(releaseWorkflow, /apps\/desktop\/out\/make\/squirrel\.windows/);
   assert.match(releaseWorkflow, /apps\/desktop\/out\/memoq-ai-hub-updates-stable\.json/);
 
   assert.match(rootPackage, /tooling\\\\scripts\\\\build-windows\.ps1/);
@@ -129,6 +127,5 @@ test('path-sensitive entrypoints use the monorepo topology', () => {
   assert.match(integrationService, /docs', 'reference', INTEGRATION\.clientDevConfigName/);
   assert.doesNotMatch(integrationService, /'doc'/);
 });
-
 
 
