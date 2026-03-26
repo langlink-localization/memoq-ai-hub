@@ -1,6 +1,7 @@
 const path = require('path');
 const { createRuntime } = require('./runtime/runtime');
 const { createGatewayServer } = require('./server');
+const { startGatewayLifecycle, stopGatewayLifecycle } = require('./gatewayLifecycle');
 const { DEFAULT_HOST, DEFAULT_PORT } = require('./shared/desktopContract');
 
 let runtime = null;
@@ -51,13 +52,12 @@ async function startRuntimeAndGateway() {
       ...loadProviderRegistryOverride()
     });
 
-    const gateway = createGatewayServer(runtime);
-    server = await new Promise((resolve, reject) => {
-      const listeningServer = gateway.app.listen(DEFAULT_PORT, DEFAULT_HOST, () => resolve(listeningServer));
-      listeningServer.once('error', reject);
+    ({ server } = await startGatewayLifecycle({
+      runtime,
+      createGatewayServer,
+      host: DEFAULT_HOST,
+      port: DEFAULT_PORT
     });
-
-    runtime.markGatewayReady(true);
     sendStatus('ready');
     setTimeout(() => {
       if (!shuttingDown && startupState.status === 'ready') {
@@ -68,9 +68,15 @@ async function startRuntimeAndGateway() {
       }
     }, 50);
   } catch (error) {
-    if (runtime) {
-      runtime.markGatewayReady(false);
+    try {
+      await stopGatewayLifecycle({ runtime, server });
+    } catch {
     }
+    if (runtime) {
+      runtime.dispose?.();
+      runtime = null;
+    }
+    server = null;
 
     sendStatus('error', error?.message || 'Desktop services failed to start.');
   }
@@ -84,16 +90,12 @@ async function stopRuntimeAndGateway(exitCode = 0) {
   shuttingDown = true;
 
   try {
-    if (runtime) {
-      runtime.markGatewayReady(false);
-      runtime.dispose?.();
-    }
+    await stopGatewayLifecycle({ runtime, server });
+    server = null;
 
-    if (server) {
-      await new Promise((resolve) => {
-        server.close(() => resolve());
-      });
-      server = null;
+    if (runtime) {
+      runtime.dispose?.();
+      runtime = null;
     }
 
     sendStatus('stopped');
@@ -171,6 +173,9 @@ const requestHandlers = {
   },
   getAssetPreview(payload) {
     return requireRuntime().getAssetPreview(payload?.assetId, payload || {});
+  },
+  applyAssetTbStructure(payload) {
+    return requireRuntime().applyAssetTbStructure(payload?.assetId, payload || {});
   },
   saveAssetTbConfig(payload) {
     return requireRuntime().saveAssetTbConfig(payload?.assetId, payload || {});

@@ -3,6 +3,23 @@ const bodyParser = require('body-parser');
 const { PRODUCT_NAME, CONTRACT_VERSION, DEFAULT_HOST, DEFAULT_PORT, ROUTES } = require('./shared/desktopContract');
 const { readDesktopVersionFromPayload } = require('./shared/desktopMetadata');
 
+function createRuntimeRoute(runtimeMethod, defaultCode) {
+  return async (req, res) => {
+    try {
+      const result = await runtimeMethod(req.body || {});
+      res.status(result?.statusCode || 200).json(result?.body ?? result);
+    } catch (error) {
+      res.status(error?.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error?.code || defaultCode,
+          message: error?.message || 'Unexpected runtime failure.'
+        }
+      });
+    }
+  };
+}
+
 function createGatewayServer(runtime) {
   const app = express();
   app.use(bodyParser.json({ limit: '10mb' }));
@@ -39,29 +56,9 @@ function createGatewayServer(runtime) {
     res.json(runtime.getIntegrationStatus());
   });
 
-  app.post(ROUTES.integrationInstall, (req, res) => {
-    try {
-      res.json(runtime.installIntegration(req.body || {}));
-    } catch (error) {
-      res.status(error.statusCode || 500).json({
-        success: false,
-        error: {
-          code: error.code || 'INTEGRATION_FAILED',
-          message: error.message
-        }
-      });
-    }
-  });
-
-  app.post(ROUTES.mtTranslate, async (req, res) => {
-    const result = await runtime.translate(req.body || {});
-    res.status(result.statusCode).json(result.body);
-  });
-
-  app.post(ROUTES.mtStoreTranslations, async (req, res) => {
-    const result = await runtime.storeTranslations(req.body || {});
-    res.status(result.statusCode).json(result.body);
-  });
+  app.post(ROUTES.integrationInstall, createRuntimeRoute((payload) => runtime.installIntegration(payload), 'INTEGRATION_FAILED'));
+  app.post(ROUTES.mtTranslate, createRuntimeRoute((payload) => runtime.translate(payload), 'TRANSLATION_FAILED'));
+  app.post(ROUTES.mtStoreTranslations, createRuntimeRoute((payload) => runtime.storeTranslations(payload), 'TRANSLATION_FAILED'));
 
   return { app };
 }

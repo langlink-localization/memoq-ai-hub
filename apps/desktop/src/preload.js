@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('memoqDesktop', {
   pickDirectory: () => ipcRenderer.invoke('desktop:pick-directory'),
   importAsset: (assetType) => ipcRenderer.invoke('desktop:import-asset', assetType),
   getAssetPreview: (assetId, options) => ipcRenderer.invoke('desktop:get-asset-preview', { assetId, ...(options || {}) }),
+  applyAssetTbStructure: (assetId, payload) => ipcRenderer.invoke('desktop:apply-asset-tb-structure', { assetId, ...(payload || {}) }),
   saveAssetTbConfig: (assetId, payload) => ipcRenderer.invoke('desktop:save-asset-tb-config', { assetId, ...(payload || {}) }),
   deleteAsset: (assetId) => ipcRenderer.invoke('desktop:delete-asset', assetId),
   exportHistory: (options) => ipcRenderer.invoke('desktop:export-history', options),

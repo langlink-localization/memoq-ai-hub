@@ -1122,14 +1122,14 @@ test('provider registry translateSegment prefers structured openai responses bef
   });
 });
 
-test('provider registry translateSegment falls back to plain text when structured output fails', async () => {
+test('provider registry translateSegment falls back to plain text when structured output is unsupported', async () => {
   const { MockOpenAI, calls } = createMockOpenAI({
     responsesCreate: async () => {
-      throw new Error('structured output unavailable');
+      throw new Error('response_format json_schema unsupported');
     },
     chatCreate: async (request) => {
       if (request.response_format) {
-        throw new Error('chat structured output unavailable');
+        throw new Error('response_format json_schema unsupported');
       }
       return {
         choices: [
@@ -1167,6 +1167,91 @@ test('provider registry translateSegment falls back to plain text when structure
     assert.ok(calls.chats.length >= 2);
     assert.ok(calls.chats[0].request.response_format);
     assert.equal(calls.chats[calls.chats.length - 1].request.response_format, undefined);
+  });
+});
+
+test('provider registry translateSegment falls back to plain text when structured output parsing fails', async () => {
+  const { MockOpenAI, calls } = createMockOpenAI({
+    responsesCreate: async () => ({
+      output_text: 'not json at all'
+    })
+  });
+
+  await withMockedModules({ openai: MockOpenAI }, async () => {
+    const { createProviderRegistry: loadRegistry } = require(providerRegistryModulePath);
+    const registry = loadRegistry();
+
+    const result = await registry.translateSegment({
+      provider: { type: 'openai', baseUrl: 'https://api.openai.com/v1' },
+      apiKey: 'test',
+      modelName: 'gpt-4.1-mini',
+      sourceText: 'Hello',
+      tmSource: '',
+      tmTarget: '',
+      metadata: {},
+      profile: {},
+      requestType: 'Plaintext'
+    });
+
+    assert.equal(result.text, 'not json at all');
+    assert.equal(calls.responses.length, 2);
+    assert.equal(calls.chats.length, 0);
+  });
+});
+
+test('provider registry translateSegment does not retry as plain text on auth failures', async () => {
+  const { MockOpenAI, calls } = createMockOpenAI({
+    responsesCreate: async () => {
+      throw new Error('401 unauthorized');
+    }
+  });
+
+  await withMockedModules({ openai: MockOpenAI }, async () => {
+    const { createProviderRegistry: loadRegistry } = require(providerRegistryModulePath);
+    const registry = loadRegistry();
+
+    await assert.rejects(() => registry.translateSegment({
+      provider: { type: 'openai', baseUrl: 'https://api.openai.com/v1' },
+      apiKey: 'test',
+      modelName: 'gpt-4.1-mini',
+      sourceText: 'Hello',
+      tmSource: '',
+      tmTarget: '',
+      metadata: {},
+      profile: {},
+      requestType: 'Plaintext'
+    }), /401 unauthorized/i);
+
+    assert.equal(calls.responses.length, 1);
+    assert.equal(calls.chats.length, 0);
+  });
+});
+
+test('provider registry translateSegment does not retry as plain text on timeout failures', async () => {
+  const { MockOpenAI, calls } = createMockOpenAI({
+    responsesCreate: async () => {
+      throw new Error('request timed out');
+    }
+  });
+
+  await withMockedModules({ openai: MockOpenAI }, async () => {
+    const { createProviderRegistry: loadRegistry } = require(providerRegistryModulePath);
+    const registry = loadRegistry();
+
+    await assert.rejects(() => registry.translateSegment({
+      provider: { type: 'openai', baseUrl: 'https://api.openai.com/v1' },
+      apiKey: 'test',
+      modelName: 'gpt-4.1-mini',
+      sourceText: 'Hello',
+      tmSource: '',
+      tmTarget: '',
+      metadata: {},
+      profile: {},
+      requestType: 'Plaintext'
+    }), /timed out/i);
+
+    assert.equal(calls.responses.length, 1);
+    assert.equal(calls.chats.length, 0);
   });
 });
 
@@ -1212,10 +1297,10 @@ test('provider registry translateBatch prefers structured openai responses befor
   });
 });
 
-test('provider registry translateBatch falls back to compatible chat completions when structured output fails', async () => {
+test('provider registry translateBatch falls back to compatible chat completions when structured output is unsupported', async () => {
   const { MockOpenAI, calls } = createMockOpenAI({
     responsesCreate: async () => {
-      throw new Error('404 not found');
+      throw new Error('response_format json_schema unsupported');
     },
     chatCreate: async () => ({
       choices: [
@@ -1255,6 +1340,72 @@ test('provider registry translateBatch falls back to compatible chat completions
     ]);
     assert.equal(calls.responses.length, 0);
     assert.ok(calls.chats.length >= 1);
+  });
+});
+
+test('provider registry translateBatch does not retry as plain text on rate limit failures', async () => {
+  const { MockOpenAI, calls } = createMockOpenAI({
+    chatCreate: async () => {
+      throw new Error('429 rate limit exceeded');
+    }
+  });
+
+  await withMockedModules({ openai: MockOpenAI }, async () => {
+    const { createProviderRegistry: loadRegistry } = require(providerRegistryModulePath);
+    const registry = loadRegistry();
+
+    await assert.rejects(() => registry.translateBatch({
+      provider: {
+        type: 'openai-compatible',
+        baseUrl: 'https://api.example.com/v1',
+        requestPath: '/chat/completions'
+      },
+      apiKey: 'test',
+      modelName: 'gpt-4.1-mini',
+      profile: {},
+      requestType: 'Plaintext',
+      metadata: {},
+      segments: [
+        { index: 0, sourceText: 'Hello', tmSource: '', tmTarget: '', segmentMetadata: { segmentIndex: 0 } },
+        { index: 1, sourceText: 'World', tmSource: '', tmTarget: '', segmentMetadata: { segmentIndex: 1 } }
+      ]
+    }), /429 rate limit exceeded/i);
+
+    assert.equal(calls.chats.length, 1);
+    assert.equal(calls.responses.length, 0);
+  });
+});
+
+test('provider registry translateBatch does not retry as plain text on network failures', async () => {
+  const { MockOpenAI, calls } = createMockOpenAI({
+    chatCreate: async () => {
+      throw new Error('network fetch failed');
+    }
+  });
+
+  await withMockedModules({ openai: MockOpenAI }, async () => {
+    const { createProviderRegistry: loadRegistry } = require(providerRegistryModulePath);
+    const registry = loadRegistry();
+
+    await assert.rejects(() => registry.translateBatch({
+      provider: {
+        type: 'openai-compatible',
+        baseUrl: 'https://api.example.com/v1',
+        requestPath: '/chat/completions'
+      },
+      apiKey: 'test',
+      modelName: 'gpt-4.1-mini',
+      profile: {},
+      requestType: 'Plaintext',
+      metadata: {},
+      segments: [
+        { index: 0, sourceText: 'Hello', tmSource: '', tmTarget: '', segmentMetadata: { segmentIndex: 0 } },
+        { index: 1, sourceText: 'World', tmSource: '', tmTarget: '', segmentMetadata: { segmentIndex: 1 } }
+      ]
+    }), /network fetch failed/i);
+
+    assert.equal(calls.chats.length, 1);
+    assert.equal(calls.responses.length, 0);
   });
 });
 

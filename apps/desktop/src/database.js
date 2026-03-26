@@ -27,25 +27,43 @@ async function createDatabase(paths) {
   const db = fs.existsSync(paths.dbPath)
     ? new SQL.Database(fs.readFileSync(paths.dbPath))
     : new SQL.Database();
+  let closed = false;
+  let transactionDepth = 0;
+
+  function assertOpen() {
+    if (closed) {
+      throw new Error('Database is already closed.');
+    }
+  }
 
   function persist() {
+    assertOpen();
     fs.writeFileSync(paths.dbPath, Buffer.from(db.export()));
   }
 
+  function persistIfNeeded() {
+    if (transactionDepth === 0) {
+      persist();
+    }
+  }
+
   function exec(sql) {
+    assertOpen();
     db.exec(sql);
-    persist();
+    persistIfNeeded();
   }
 
   function run(sql, params = {}) {
+    assertOpen();
     const stmt = db.prepare(sql);
     stmt.run(params);
     stmt.free();
-    persist();
+    persistIfNeeded();
     return db.getRowsModified();
   }
 
   function all(sql, params = {}) {
+    assertOpen();
     const stmt = db.prepare(sql);
     stmt.bind(params);
     const rows = [];
@@ -61,15 +79,34 @@ async function createDatabase(paths) {
   }
 
   function transaction(callback) {
+    assertOpen();
+    if (transactionDepth > 0) {
+      return callback();
+    }
+
     db.exec('BEGIN');
+    transactionDepth += 1;
     try {
-      callback();
+      const result = callback();
+      transactionDepth -= 1;
       db.exec('COMMIT');
       persist();
+      return result;
     } catch (error) {
+      transactionDepth = Math.max(0, transactionDepth - 1);
       db.exec('ROLLBACK');
+      persist();
       throw error;
     }
+  }
+
+  function close() {
+    if (closed) {
+      return;
+    }
+    persist();
+    db.close();
+    closed = true;
   }
 
   return {
@@ -79,7 +116,8 @@ async function createDatabase(paths) {
     all,
     get,
     persist,
-    transaction
+    transaction,
+    close
   };
 }
 

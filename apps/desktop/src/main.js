@@ -456,6 +456,10 @@ function registerIpcHandlers() {
     requireWorkerReady();
     return invokeWorker('getAssetPreview', payload || {});
   });
+  ipcMain.handle('desktop:apply-asset-tb-structure', (_event, payload) => {
+    requireWorkerReady();
+    return invokeWorker('applyAssetTbStructure', payload || {});
+  });
   ipcMain.handle('desktop:save-asset-tb-config', (_event, payload) => {
     requireWorkerReady();
     return invokeWorker('saveAssetTbConfig', payload || {});

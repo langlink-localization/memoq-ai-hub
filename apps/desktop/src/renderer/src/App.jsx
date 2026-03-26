@@ -768,6 +768,12 @@ function hasTbStructurePreview(preview = {}) {
   return preview?.assetType === 'glossary' && preview?.tbStructureAvailable === true;
 }
 
+function canApplyTbStructurePreview(preview = {}) {
+  return hasTbStructurePreview(preview)
+    && preview?.tbStructureApplied !== true
+    && String(preview?.tbStructuringMode || '').trim() !== 'manual_mapping';
+}
+
 function getLocalizedPlaceholderText(t, item, kind) {
   const key = `context.placeholder${kind}.${item.token}`;
   const localized = t(key);
@@ -1504,6 +1510,31 @@ export default function App() {
           source: assetPreviewManualDraft.sourceLanguage,
           target: assetPreviewManualDraft.targetLanguage
         }
+      });
+      message.success(t('feedback.actionSucceeded'));
+      await refresh();
+      await openAssetPreview(assetPreviewRecord.id, { fallbackAsset: assetPreviewRecord });
+    } catch (saveError) {
+      notifyError(saveError);
+    } finally {
+      setAssetPreviewSaving(false);
+    }
+  }
+
+  async function applyDetectedAssetPreviewTbStructure() {
+    if (!assetPreviewRecord?.id || typeof api?.applyAssetTbStructure !== 'function' || !assetPreviewData?.tbStructure) {
+      return;
+    }
+
+    setAssetPreviewSaving(true);
+    try {
+      await api.applyAssetTbStructure(assetPreviewRecord.id, {
+        tbStructure: assetPreviewData.tbStructure,
+        tbStructureFingerprint: assetPreviewData.tbStructureFingerprint,
+        tbStructureSummary: assetPreviewData.tbStructureSummary,
+        tbStructureSource: assetPreviewData.tbStructureSource,
+        languagePair: assetPreviewData.languagePair,
+        tbStructureConfidence: assetPreviewData.tbStructureConfidence
       });
       message.success(t('feedback.actionSucceeded'));
       await refresh();
@@ -2678,7 +2709,24 @@ export default function App() {
               <Descriptions.Item label={t('context.assetPreviewTbStructureFingerprint')}>
                 {assetPreviewData?.tbStructureFingerprint || '-'}
               </Descriptions.Item>
+              <Descriptions.Item label={t('context.assetPreviewTbStructureApplied')}>
+                {assetPreviewData?.tbStructureApplied === true ? t('common.enabled') : t('common.disabled')}
+              </Descriptions.Item>
             </Descriptions>
+          ) : null}
+          {canApplyTbStructurePreview(assetPreviewData) ? (
+            <Card size="small" title={t('context.assetPreviewApplyDetectedTitle')}>
+              <Space direction="vertical" size={12} style={{ display: 'flex' }}>
+                <Text type="secondary">{t('context.assetPreviewApplyDetectedDescription')}</Text>
+                <Button
+                  type="primary"
+                  loading={assetPreviewSaving}
+                  onClick={() => void applyDetectedAssetPreviewTbStructure()}
+                >
+                  {t('context.assetPreviewApplyDetectedAction')}
+                </Button>
+              </Space>
+            </Card>
           ) : null}
           {formatAssetPreviewMapping(assetPreviewData?.detectedMapping).length ? (
             <Descriptions bordered column={1} size="small" title={t('context.assetPreviewDetectedMapping')}>

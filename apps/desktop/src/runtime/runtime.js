@@ -25,10 +25,6 @@ const {
   validateCompatibleRequestPath,
   validateProviderRequestInput
 } = require('../provider/providerRegistry');
-const {
-  buildPrompt: buildProviderPrompt,
-  buildBatchPrompt: buildProviderBatchPrompt
-} = require('../provider/providerPromptBuilder');
 const { summarizeRuleConditions } = require('../shared/memoqMetadata');
 const { normalizeMemoQMetadata, normalizeSegmentMetadataItem } = require('../shared/memoqMetadataNormalizer');
 const { createPreviewContextClient } = require('../preview/previewContextClient');
@@ -74,6 +70,9 @@ const {
   filterHistoryEntries
 } = require('./runtimeHistory');
 const {
+  createSingleRequestMetadata,
+  createBatchRequestMetadata,
+  buildHistoryPromptViewFromAttempts,
   buildHistoryEntry: buildRuntimeHistoryEntry
 } = require('./runtimeHistoryBuilder');
 const {
@@ -97,18 +96,12 @@ const {
   buildProfileReferenceMessage,
   createTranslationCacheKey,
   createAdaptiveTranslationCacheKey,
-  readTranslationCache,
-  writeTranslationCache,
   createDocumentSummaryCacheKey,
-  readDocumentSummaryCache,
-  writeDocumentSummaryCache,
-  truncateSummarySourceText,
-  readPromptResponseCache,
-  writePromptResponseCache
+  truncateSummarySourceText
 } = require('./runtimeTranslationSupport');
 const {
   createSchema,
-  createInitialState
+  createRuntimePersistence
 } = require('./runtimePersistence');
 const {
   ensureProfile,
@@ -173,20 +166,6 @@ function hasSmartTbParsingCapability(state = {}) {
   });
 }
 
-function assetNeedsTbStructure(asset = {}) {
-  if (String(asset.type || '').trim() !== 'glossary') {
-    return false;
-  }
-  const extension = path.extname(String(asset.fileName || asset.name || '')).trim().toLowerCase();
-  if (!['.csv', '.tsv', '.txt', '.xlsx'].includes(extension)) {
-    return false;
-  }
-  if (asset.tbManualMapping?.srcColumn && asset.tbManualMapping?.tgtColumn && asset.tbLanguagePair?.source && asset.tbLanguagePair?.target) {
-    return !asset.tbStructure || String(asset.tbStructure.derivedFromSha256 || '') !== String(asset.sha256 || '');
-  }
-  return !asset.tbStructure || String(asset.tbStructure.derivedFromSha256 || '') !== String(asset.sha256 || '');
-}
-
 function assertSupportedProviderDraft(provider = {}) {
   if (!isSupportedProviderType(provider?.type)) {
     throw new Error('Only OpenAI and OpenAI-compatible providers are supported.');
@@ -195,187 +174,6 @@ function assertSupportedProviderDraft(provider = {}) {
   if (String(provider?.type || '').trim().toLowerCase() === 'openai-compatible') {
     validateCompatibleRequestPath(provider.requestPath || getDefaultRequestPath('openai-compatible'));
   }
-}
-
-function buildHistoryPromptViewSingle({
-  payload,
-  profile,
-  assetContext,
-  previewContext,
-  segment,
-  translatedText
-}) {
-  const rendered = buildProviderPrompt({
-    sourceLanguage: payload?.sourceLanguage || '',
-    targetLanguage: payload?.targetLanguage || '',
-    sourceText: segment?.sourceText || '',
-    tmSource: segment?.tmSource || '',
-    tmTarget: segment?.tmTarget || '',
-    metadata: payload?.metadata || {},
-    previewContext,
-    segmentPreviewContext: segment?.previewContext || null,
-    profile,
-    requestType: payload?.requestType || 'Plaintext',
-    assetContext,
-    tbContext: segment?.tbContext || null,
-    segmentMetadata: segment?.segmentMetadata || null,
-    neighborContext: segment?.neighborContext || null
-  });
-
-  return {
-    systemPrompt: rendered.systemPrompt,
-    userPrompt: rendered.prompt,
-    sourceText: String(segment?.sourceText || ''),
-    targetText: String(translatedText || '')
-  };
-}
-
-function createSingleRequestMetadata({
-  payload,
-  profile,
-  assetContext,
-  previewContext,
-  segment,
-  translatedText
-}) {
-  const single = buildHistoryPromptViewSingle({
-    payload,
-    profile,
-    assetContext,
-    previewContext,
-    segment,
-    translatedText
-  });
-
-  return {
-    mode: 'single',
-    requestKind: 'single',
-    segmentIndexes: [Number(segment?.index)],
-    systemPrompt: single.systemPrompt,
-    userPrompt: single.userPrompt,
-    sourceText: single.sourceText,
-    targetText: single.targetText
-  };
-}
-
-function buildHistoryPromptViewBatch({
-  payload,
-  profile,
-  assetContext,
-  previewContext,
-  segments,
-  translations
-}) {
-  const rendered = buildProviderBatchPrompt({
-    sourceLanguage: payload?.sourceLanguage || '',
-    targetLanguage: payload?.targetLanguage || '',
-    segments,
-    metadata: payload?.metadata || {},
-    previewContext,
-    profile,
-    requestType: payload?.requestType || 'Plaintext',
-    assetContext
-  });
-  const translationByIndex = new Map((translations || []).map((item) => [Number(item.index), String(item.text || '')]));
-
-  return {
-    systemPrompt: rendered.systemPrompt,
-    userPrompt: rendered.prompt,
-    items: (segments || []).map((segment) => {
-      const renderedItem = rendered.renderedBatchInstructions.find((item) => Number(item?.index) === Number(segment?.index));
-
-      return {
-        index: Number(segment?.index),
-        itemKind: 'batch_item',
-        userPrompt: renderedItem ? JSON.stringify(renderedItem, null, 2) : '',
-        sourceText: String(segment?.sourceText || ''),
-        targetText: translationByIndex.get(Number(segment?.index)) || ''
-      };
-    })
-  };
-}
-
-function createBatchRequestMetadata({
-  payload,
-  profile,
-  assetContext,
-  previewContext,
-  segments,
-  translations,
-  requestMetadata = {}
-}) {
-  const translationByIndex = new Map((translations || []).map((item) => [Number(item.index), String(item.text || '')]));
-  const rendered = buildHistoryPromptViewBatch({
-    payload,
-    profile,
-    assetContext,
-    previewContext,
-    segments,
-    translations
-  });
-  const normalizedItems = Array.isArray(requestMetadata.items) && requestMetadata.items.length
-    ? requestMetadata.items.map((item) => ({
-      index: Number(item.index),
-      itemKind: 'batch_item',
-      userPrompt: String(item.promptInstructions || item.userPrompt || ''),
-      sourceText: String(item.sourceText || ''),
-      targetText: translationByIndex.get(Number(item.index)) || ''
-    }))
-    : rendered.items;
-
-  return {
-    mode: 'batch',
-    requestKind: 'batch',
-    batchIndexes: Array.isArray(requestMetadata.batchIndexes) && requestMetadata.batchIndexes.length
-      ? requestMetadata.batchIndexes.map((value) => Number(value))
-      : normalizedItems.map((item) => Number(item.index)),
-    segmentCount: Number.isFinite(Number(requestMetadata.segmentCount))
-      ? Number(requestMetadata.segmentCount)
-      : normalizedItems.length,
-    systemPrompt: String(requestMetadata.systemPrompt || rendered.systemPrompt || ''),
-    userPrompt: String(requestMetadata.userPrompt || rendered.userPrompt || ''),
-    promptPreview: String(requestMetadata.promptPreview || ''),
-    items: normalizedItems
-  };
-}
-
-function buildHistoryPromptViewFromAttempts(attempts = []) {
-  const sourceAttempts = attempts.filter((attempt) => attempt?.requestMetadata && attempt.providerId !== 'cache' && attempt.providerId !== 'adaptive-cache');
-  const successfulAttempts = sourceAttempts.filter((attempt) => attempt.success);
-  const preferredAttempts = successfulAttempts.length ? successfulAttempts : sourceAttempts;
-  const batchRequests = preferredAttempts
-    .map((attempt) => attempt.requestMetadata)
-    .filter((metadata) => metadata?.mode === 'batch');
-
-  if (batchRequests.length) {
-    const activeRequest = batchRequests.at(-1);
-    return {
-      batch: {
-        mode: 'batch',
-        requestCount: batchRequests.length,
-        requests: batchRequests,
-        systemPrompt: activeRequest.systemPrompt,
-        items: activeRequest.items
-      }
-    };
-  }
-
-  const singleRequests = preferredAttempts
-    .map((attempt) => attempt.requestMetadata)
-    .filter((metadata) => metadata?.mode === 'single');
-
-  if (singleRequests.length) {
-    const activeRequest = singleRequests.at(-1);
-    return {
-      single: {
-        ...activeRequest,
-        requestCount: singleRequests.length,
-        requests: singleRequests
-      }
-    };
-  }
-
-  return {};
 }
 
 async function createRuntime(options = {}) {
@@ -405,87 +203,149 @@ async function createRuntime(options = {}) {
   const providerRateLimitMap = new Map();
   let gatewayReady = false;
   createSchema(db);
+  const persistence = createRuntimePersistence(db, {
+    nowIso,
+    normalizeState
+  });
+  persistence.migrateLegacyState();
   previewContextClient?.start?.();
 
   function loadState() {
-    const row = db.get('SELECT data_json FROM app_state WHERE id = $id', { $id: 'global' });
-    if (!row) {
-      const initialState = createInitialState();
-      saveState(initialState);
-      return normalizeState(initialState);
-    }
-    const normalized = normalizeState(JSON.parse(row.data_json));
-    const normalizedPayload = JSON.stringify(normalized);
-    if (normalizedPayload !== row.data_json) {
-      db.run('UPDATE app_state SET data_json = $data, updated_at = $updatedAt WHERE id = $id', {
-        $id: 'global',
-        $data: normalizedPayload,
-        $updatedAt: nowIso()
-      });
-    }
-    return normalized;
+    return persistence.loadConfigState();
   }
 
   function saveState(state) {
-    const normalized = normalizeState(state);
-    const payload = JSON.stringify(normalized);
-    const existing = db.get('SELECT id FROM app_state WHERE id = $id', { $id: 'global' });
-    if (existing) {
-      db.run('UPDATE app_state SET data_json = $data, updated_at = $updatedAt WHERE id = $id', { $id: 'global', $data: payload, $updatedAt: nowIso() });
-    } else {
-      db.run('INSERT INTO app_state (id, data_json, updated_at) VALUES ($id, $data, $updatedAt)', { $id: 'global', $data: payload, $updatedAt: nowIso() });
-    }
-    return normalized;
+    return persistence.saveConfigState(state);
   }
 
-  function persistTbStructureFromPreview(state, assetId, preview) {
-    if (!preview?.tbStructure || !preview?.tbStructureFingerprint) {
-      return null;
-    }
-    const asset = state.assets.find((item) => item.id === assetId);
-    if (!asset) {
-      return null;
-    }
-    asset.tbStructure = {
-      ...preview.tbStructure,
-      derivedFromSha256: String(preview.tbStructure.derivedFromSha256 || asset.sha256 || ''),
-      fingerprint: String(preview.tbStructure.fingerprint || preview.tbStructureFingerprint || ''),
-      summary: String(preview.tbStructure.summary || preview.tbStructureSummary || '')
+  function loadHistoryEntries() {
+    return persistence.listHistory();
+  }
+
+  function normalizeManualMapping(value = {}) {
+    return {
+      srcColumn: String(value?.srcColumn || '').trim(),
+      tgtColumn: String(value?.tgtColumn || '').trim()
     };
-    asset.tbLanguagePair = preview.languagePair && typeof preview.languagePair === 'object'
-      ? {
-        source: String(preview.languagePair.source || '').trim(),
-        target: String(preview.languagePair.target || '').trim()
-      }
-      : asset.tbLanguagePair || { source: '', target: '' };
-    asset.tbStructureConfidence = preview.tbStructureConfidence && typeof preview.tbStructureConfidence === 'object'
-      ? preview.tbStructureConfidence
-      : asset.tbStructureConfidence || null;
-    asset.tbStructureSource = String(preview.tbStructureSource || asset.tbStructureSource || '').trim();
-    parsedAssetCache.clear();
-    saveState(state);
-    return asset;
   }
 
-  function saveAssetTbConfig(assetId, payload = {}) {
-    const state = loadState();
-    const asset = state.assets.find((item) => item.id === String(assetId || '').trim());
+  function normalizeLanguagePair(value = {}) {
+    return {
+      source: String(value?.source || '').trim(),
+      target: String(value?.target || '').trim()
+    };
+  }
+
+  function findAssetById(state, assetId) {
+    return state.assets.find((item) => item.id === String(assetId || '').trim()) || null;
+  }
+
+  function updateAssetTbState(state, assetId, nextTbState = {}) {
+    const asset = findAssetById(state, assetId);
     if (!asset) {
       throw new Error(`Asset "${assetId || 'unknown'}" was not found.`);
     }
 
-    const manualMapping = payload?.manualMapping && typeof payload.manualMapping === 'object'
+    for (const [key, value] of Object.entries(nextTbState)) {
+      asset[key] = value;
+    }
+
+    parsedAssetCache.clear();
+    saveState(state);
+    return ensureAsset(asset);
+  }
+
+  function createDetectedTbState(asset, preview = {}) {
+    if (!preview?.tbStructure || !preview?.tbStructureFingerprint) {
+      return null;
+    }
+
+    return {
+      tbStructure: {
+        ...preview.tbStructure,
+        derivedFromSha256: String(preview.tbStructure.derivedFromSha256 || asset.sha256 || ''),
+        fingerprint: String(preview.tbStructure.fingerprint || preview.tbStructureFingerprint || ''),
+        summary: String(preview.tbStructure.summary || preview.tbStructureSummary || '')
+      },
+      tbLanguagePair: normalizeLanguagePair(preview.languagePair || asset.tbLanguagePair || {}),
+      tbStructureConfidence: preview.tbStructureConfidence && typeof preview.tbStructureConfidence === 'object'
+        ? preview.tbStructureConfidence
+        : asset.tbStructureConfidence || null,
+      tbStructureSource: String(preview.tbStructureSource || asset.tbStructureSource || '').trim()
+    };
+  }
+
+  function isAppliedTbStructurePreview(asset, preview = {}) {
+    if (!preview?.tbStructureAvailable) {
+      return false;
+    }
+
+    if (String(preview.tbStructuringMode || '').trim() === 'manual_mapping') {
+      return true;
+    }
+
+    const previewFingerprint = String(preview.tbStructureFingerprint || '').trim();
+    return Boolean(previewFingerprint && previewFingerprint === String(asset?.tbStructure?.fingerprint || '').trim());
+  }
+
+  function buildAssetPreviewResponse(state, asset, options = {}) {
+    const preview = buildAssetPreview(asset, parsedAssetCache, {
+      maxRows: options.maxRows || DEFAULT_ASSET_PREVIEW_MAX_ROWS,
+      maxCharacters: options.maxCharacters || DEFAULT_ASSET_PREVIEW_MAX_CHARACTERS,
+      smartParsingAvailable: hasSmartTbParsingCapability(state)
+    });
+
+    return {
+      assetId: asset.id,
+      assetName: asset.name,
+      assetType: asset.type,
+      parseStatus: 'ok',
+      tbStructureApplied: isAppliedTbStructurePreview(asset, preview),
+      ...preview
+    };
+  }
+
+  function applyAssetTbStructure(assetId, payload = {}) {
+    const state = loadState();
+    const normalizedAssetId = String(assetId || '').trim();
+    const asset = findAssetById(state, normalizedAssetId);
+    if (!asset) {
+      throw new Error(`Asset "${normalizedAssetId || 'unknown'}" was not found.`);
+    }
+
+    const preview = payload?.tbStructure && typeof payload.tbStructure === 'object'
       ? {
-        srcColumn: String(payload.manualMapping.srcColumn || '').trim(),
-        tgtColumn: String(payload.manualMapping.tgtColumn || '').trim()
+        tbStructure: payload.tbStructure,
+        tbStructureFingerprint: String(payload.tbStructureFingerprint || payload.tbStructure?.fingerprint || '').trim(),
+        tbStructureSummary: String(payload.tbStructureSummary || payload.tbStructure?.summary || '').trim(),
+        tbStructureSource: String(payload.tbStructureSource || payload.tbStructure?.sourceOfTruth || '').trim(),
+        languagePair: normalizeLanguagePair(payload.languagePair || payload.tbStructure?.languagePair || asset.tbLanguagePair || {}),
+        tbStructureConfidence: payload.tbStructureConfidence && typeof payload.tbStructureConfidence === 'object'
+          ? payload.tbStructureConfidence
+          : payload.tbStructure?.confidence || asset.tbStructureConfidence || null
       }
-      : { srcColumn: '', tgtColumn: '' };
-    const languagePair = payload?.languagePair && typeof payload.languagePair === 'object'
-      ? {
-        source: String(payload.languagePair.source || '').trim(),
-        target: String(payload.languagePair.target || '').trim()
-      }
-      : { source: '', target: '' };
+      : buildAssetPreview(asset, parsedAssetCache, {
+        maxRows: DEFAULT_ASSET_PREVIEW_MAX_ROWS,
+        maxCharacters: DEFAULT_ASSET_PREVIEW_MAX_CHARACTERS,
+        smartParsingAvailable: hasSmartTbParsingCapability(state)
+      });
+    const detectedTbState = createDetectedTbState(asset, preview);
+    if (!detectedTbState) {
+      throw new Error('No detected TB structure is available for this asset.');
+    }
+
+    return updateAssetTbState(state, normalizedAssetId, detectedTbState);
+  }
+
+  function saveAssetTbConfig(assetId, payload = {}) {
+    const state = loadState();
+    const asset = findAssetById(state, assetId);
+    if (!asset) {
+      throw new Error(`Asset "${assetId || 'unknown'}" was not found.`);
+    }
+
+    const manualMapping = normalizeManualMapping(payload?.manualMapping);
+    const languagePair = normalizeLanguagePair(payload?.languagePair);
     if (!manualMapping.srcColumn || !manualMapping.tgtColumn) {
       throw new Error('Manual TB mapping requires both source and target columns.');
     }
@@ -493,27 +353,13 @@ async function createRuntime(options = {}) {
       throw new Error('TB language pair requires both source and target values.');
     }
 
-    asset.tbManualMapping = manualMapping;
-    asset.tbLanguagePair = languagePair;
-    asset.tbStructure = null;
-    asset.tbStructureConfidence = { level: 'high', score: 1 };
-    asset.tbStructureSource = 'manual_mapping';
-    parsedAssetCache.clear();
-    saveState(state);
-    return ensureAsset(asset);
-  }
-
-  function ensureAssetTbStructureInState(state, asset) {
-    if (!hasSmartTbParsingCapability(state) || !assetNeedsTbStructure(asset)) {
-      return asset;
-    }
-
-    const preview = buildAssetPreview(asset, parsedAssetCache, {
-      maxRows: DEFAULT_ASSET_PREVIEW_MAX_ROWS,
-      maxCharacters: DEFAULT_ASSET_PREVIEW_MAX_CHARACTERS,
-      smartParsingAvailable: true
+    return updateAssetTbState(state, asset.id, {
+      tbManualMapping: manualMapping,
+      tbLanguagePair: languagePair,
+      tbStructure: null,
+      tbStructureConfidence: { level: 'high', score: 1 },
+      tbStructureSource: 'manual_mapping'
     });
-    return persistTbStructureFromPreview(state, asset.id, preview) || asset;
   }
 
   function markGatewayReady(ready) {
@@ -537,9 +383,9 @@ async function createRuntime(options = {}) {
     return { matchedRule: match.rule, profile: state.profiles.find((item) => item.id === match.rule.profileId) || null };
   }
 
-  function enrichProviders(state) {
+  function enrichProviders(state, historyEntries = []) {
     return state.providers.map((provider) => {
-      const metrics = buildHistoryMetrics(state.history, provider.id);
+      const metrics = buildHistoryMetrics(historyEntries, provider.id);
       return { ...provider, hasSecret: secretStore.has(provider.secretRef), successRate24h: metrics.successRate24h, avgLatencyMs: metrics.avgLatencyMs };
     });
   }
@@ -1380,7 +1226,7 @@ async function createRuntime(options = {}) {
         summaryDebug.routeProviderName = String(summarizationRoute.provider.name || '');
         summaryDebug.routeModel = String(summarizationRoute.model.modelName || '');
 
-        let summary = normalizeDocumentSummaryText(readDocumentSummaryCache(state, summaryCacheKey));
+        let summary = normalizeDocumentSummaryText(persistence.readDocumentSummaryCache(summaryCacheKey));
         summaryDebug.cacheHit = Boolean(summary);
         if (!summary) {
           try {
@@ -1400,7 +1246,7 @@ async function createRuntime(options = {}) {
           }
 
           if (summary) {
-            writeDocumentSummaryCache(state, summaryCacheKey, summary, nowIso);
+            persistence.writeDocumentSummaryCache(summaryCacheKey, summary, nowIso());
           }
         }
 
@@ -1618,9 +1464,10 @@ async function createRuntime(options = {}) {
 
   function getState(filters = {}) {
     const state = loadState();
+    const historyEntries = loadHistoryEntries();
     const integration = getIntegrationStatus(paths, buildIntegrationConfig(state));
-      const history = filterHistoryEntries(state.history || [], filters);
-    const providers = enrichProviders(state);
+    const history = filterHistoryEntries(historyEntries, filters);
+    const providers = enrichProviders(state, historyEntries);
     const previewStatus = syncPreviewBridgeStatusFromClient();
     return {
       productName: PRODUCT_NAME,
@@ -1669,25 +1516,11 @@ async function createRuntime(options = {}) {
   function getAssetPreview(assetId, options = {}) {
     const state = loadState();
     const normalizedAssetId = String(assetId || '').trim();
-    let asset = state.assets.find((item) => item.id === normalizedAssetId);
+    const asset = findAssetById(state, normalizedAssetId);
     if (!asset) {
       throw new Error(`Asset "${normalizedAssetId || 'unknown'}" was not found.`);
     }
-    asset = ensureAssetTbStructureInState(state, asset);
-
-    const preview = buildAssetPreview(asset, parsedAssetCache, {
-      maxRows: options.maxRows || DEFAULT_ASSET_PREVIEW_MAX_ROWS,
-      maxCharacters: options.maxCharacters || DEFAULT_ASSET_PREVIEW_MAX_CHARACTERS,
-      smartParsingAvailable: hasSmartTbParsingCapability(state)
-    });
-
-    return {
-      assetId: asset.id,
-      assetName: asset.name,
-      assetType: asset.type,
-      parseStatus: 'ok',
-      ...preview
-    };
+    return buildAssetPreviewResponse(state, asset, options);
   }
 
   async function resolveProviderRoute(state, profile) {
@@ -1772,8 +1605,8 @@ async function createRuntime(options = {}) {
         assetContext,
         requestOptions: {
           localPromptCacheEnabled: true,
-          readPromptCache: (key) => readPromptResponseCache(state, key),
-          writePromptCache: (key, text) => writePromptResponseCache(state, key, text, nowIso),
+          readPromptCache: (key) => persistence.readPromptResponseCache(key),
+          writePromptCache: (key, text) => persistence.writePromptResponseCache(key, text, nowIso()),
           providerPromptCacheEnabled: route.model.promptCacheEnabled === true,
           promptCacheTtlHint: route.model.promptCacheTtlHint || ''
         }
@@ -1860,8 +1693,8 @@ async function createRuntime(options = {}) {
             neighborContext: segment.neighborContext || null,
             requestOptions: {
               localPromptCacheEnabled: true,
-              readPromptCache: (key) => readPromptResponseCache(state, key),
-              writePromptCache: (key, text) => writePromptResponseCache(state, key, text, nowIso),
+              readPromptCache: (key) => persistence.readPromptResponseCache(key),
+              writePromptCache: (key, text) => persistence.writePromptResponseCache(key, text, nowIso()),
               providerPromptCacheEnabled: route.model.promptCacheEnabled === true,
               promptCacheTtlHint: route.model.promptCacheTtlHint || ''
             }
@@ -2142,11 +1975,6 @@ async function createRuntime(options = {}) {
     let terminalError = null;
     let assetContext = createEmptyAssetContext();
     const smartTbParsingAvailable = hasSmartTbParsingCapability(state);
-    if (smartTbParsingAvailable) {
-      for (const asset of state.assets) {
-        ensureAssetTbStructureInState(state, asset);
-      }
-    }
     try {
       assetContext = buildAssetContext({
         assets: state.assets,
@@ -2320,7 +2148,7 @@ async function createRuntime(options = {}) {
             segmentPreviewCacheContext: segment.previewDebugContext
           });
           segment.cacheKey = cacheKey;
-          const exactCachedText = readTranslationCache(state, cacheKey);
+          const exactCachedText = persistence.readTranslationCache(cacheKey);
           const adaptiveCacheKey = createAdaptiveTranslationCacheKey({
             sourceLanguage: payload.sourceLanguage,
             targetLanguage: payload.targetLanguage,
@@ -2328,7 +2156,7 @@ async function createRuntime(options = {}) {
             sourceText: segment.sourceText
           });
           segment.adaptiveCacheKey = adaptiveCacheKey;
-          const cachedText = exactCachedText || readTranslationCache(state, adaptiveCacheKey);
+          const cachedText = exactCachedText || persistence.readTranslationCache(adaptiveCacheKey);
           if (cachedText) {
             translatedByIndex.set(segment.index, { index: segment.index, text: cachedText, fromCache: true });
             attempts.push({
@@ -2407,7 +2235,7 @@ async function createRuntime(options = {}) {
         translatedByIndex.set(translation.index, translation);
         const originalSegment = remainingSegments.find((segment) => segment.index === translation.index);
         if (profile.cacheEnabled && originalSegment?.cacheKey) {
-          writeTranslationCache(state, originalSegment.cacheKey, translation.text, nowIso);
+          persistence.writeTranslationCache(originalSegment.cacheKey, translation.text, nowIso());
         }
       }
 
@@ -2587,10 +2415,7 @@ async function createRuntime(options = {}) {
       }
     }
 
-    state.history.unshift(historyEntry);
-    if (state.history.length > 500) {
-      state.history = state.history.slice(0, 500);
-    }
+    persistence.appendHistoryEntry(historyEntry);
 
     if (winningRoute) {
       const provider = state.providers.find((item) => item.id === winningRoute.provider.id);
@@ -2845,7 +2670,7 @@ async function createRuntime(options = {}) {
       if (index >= 0) state.providers[index] = nextProvider;
       else state.providers.push(nextProvider);
       saveState(state);
-      const metrics = buildHistoryMetrics(state.history, nextProvider.id);
+      const metrics = buildHistoryMetrics(loadHistoryEntries(), nextProvider.id);
       return { ...nextProvider, hasSecret: secretStore.has(nextProvider.secretRef), successRate24h: metrics.successRate24h, avgLatencyMs: metrics.avgLatencyMs };
     },
     async testProviderDraft(providerDraft) {
@@ -2917,7 +2742,6 @@ async function createRuntime(options = {}) {
       return performTranslation(payload);
     },
     async storeTranslations(payload) {
-      const state = loadState();
       const requestId = payload.requestId || createId('store');
       const traceId = payload.traceId || createId('trace');
       const sourceLanguage = String(payload.sourceLanguage || '').trim();
@@ -2954,11 +2778,10 @@ async function createRuntime(options = {}) {
           requestType,
           sourceText
         });
-        writeTranslationCache(state, adaptiveCacheKey, targetText, nowIso);
+        persistence.writeTranslationCache(adaptiveCacheKey, targetText, nowIso());
         storedCount += 1;
       }
 
-      saveState(state);
       return {
         statusCode: 200,
         body: {
@@ -2970,10 +2793,10 @@ async function createRuntime(options = {}) {
       };
     },
     exportHistory(options = {}) {
-      const state = loadState();
+      const entriesSource = loadHistoryEntries();
       const entries = options.scope === 'selected'
-        ? state.history.filter((item) => (options.selectedIds || []).includes(item.id))
-        : filterHistoryEntries(state.history, options.filters || {});
+        ? entriesSource.filter((item) => (options.selectedIds || []).includes(item.id))
+        : filterHistoryEntries(entriesSource, options.filters || {});
       const rows = entries.flatMap((entry) => entry.segments.map((segment) => ({
         requestId: entry.requestId,
         projectId: entry.projectId,
@@ -3007,6 +2830,9 @@ async function createRuntime(options = {}) {
     },
     getAssetPreview(assetId, options = {}) {
       return getAssetPreview(assetId, options);
+    },
+    applyAssetTbStructure(assetId, payload = {}) {
+      return applyAssetTbStructure(assetId, payload || {});
     },
     saveAssetTbConfig(assetId, payload = {}) {
       return saveAssetTbConfig(assetId, payload || {});

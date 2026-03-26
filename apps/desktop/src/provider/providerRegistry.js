@@ -36,6 +36,9 @@ const {
   parseSingleTranslation,
   stripCodeFences
 } = require('./providerResponseUtils');
+const {
+  shouldRetryProviderError
+} = require('./providerGovernance');
 
 const BATCH_TRANSLATIONS_SCHEMA = {
   type: 'object',
@@ -94,6 +97,47 @@ function createStructuredOutputFormat(schema, name, description) {
     schema,
     strict: true
   };
+}
+
+function looksLikeStructuredParseFailure(message) {
+  const normalized = String(message || '').toLowerCase();
+  return normalized.includes('translation response is not valid json')
+    || normalized.includes('did not include a translation string')
+    || normalized.includes('did not include valid translations')
+    || normalized.includes('contains an invalid index')
+    || normalized.includes('contains duplicate index')
+    || normalized.includes('unexpected token')
+    || normalized.includes('is not valid json');
+}
+
+function looksLikeStructuredCapabilityFailure(message) {
+  const normalized = String(message || '').toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  const mentionsStructuredOutput = normalized.includes('json_schema')
+    || normalized.includes('response_format')
+    || normalized.includes('structured output')
+    || normalized.includes('schema');
+  const indicatesIncompatibility = normalized.includes('unsupported')
+    || normalized.includes('not support')
+    || normalized.includes('invalid')
+    || normalized.includes('unknown parameter')
+    || normalized.includes('invalid schema')
+    || normalized.includes('not allowed');
+
+  return mentionsStructuredOutput && indicatesIncompatibility;
+}
+
+function shouldFallbackFromStructuredError(error) {
+  const mapped = mapProviderError(error);
+  if (shouldRetryProviderError(mapped) || ['PROVIDER_AUTH_FAILED', 'PROVIDER_CONFIG_INVALID'].includes(mapped.code)) {
+    return false;
+  }
+
+  const message = String(error?.message || mapped.message || '');
+  return looksLikeStructuredParseFailure(message) || looksLikeStructuredCapabilityFailure(message);
 }
 
 function buildStreamingRequest(client, requestPath, request) {
@@ -627,7 +671,10 @@ function createProviderRegistry(options = {}) {
           hit: Number(result.providerMetadata?.cachedPromptTokens || 0) > 0
         }
       };
-    } catch {
+    } catch (error) {
+      if (!shouldFallbackFromStructuredError(error)) {
+        throw error;
+      }
       const result = await callTextModel({
         provider,
         apiKey,
@@ -869,6 +916,9 @@ function createProviderRegistry(options = {}) {
         requestMetadata
       };
     } catch (error) {
+      if (!shouldFallbackFromStructuredError(error)) {
+        throw error;
+      }
       const result = await callTextModel({
         provider,
         apiKey,

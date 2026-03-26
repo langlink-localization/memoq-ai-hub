@@ -52,42 +52,264 @@ function formatLocalDateFilter(value) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+function createMockDatabaseModule(options = {}) {
+  function buildCacheMap(rows = []) {
+    return new Map((Array.isArray(rows) ? rows : []).map((row) => [
+      String(row?.cache_key || row?.key || ''),
+      {
+        cache_key: String(row?.cache_key || row?.key || ''),
+        text_value: String(row?.text_value || row?.text || ''),
+        updated_at: String(row?.updated_at || row?.updatedAt || '')
+      }
+    ]).filter(([key]) => key));
+  }
+
+  const store = {
+    appStateRow: options.appState
+      ? {
+        id: 'global',
+        data_json: typeof options.appState === 'string' ? options.appState : JSON.stringify(options.appState),
+        updated_at: String(options.updatedAt || '2026-03-26T00:00:00.000Z')
+      }
+      : null,
+    historyRows: new Map((Array.isArray(options.historyRows) ? options.historyRows : []).map((row) => [
+      String(row?.id || ''),
+      {
+        id: String(row?.id || ''),
+        request_id: String(row?.request_id || row?.requestId || ''),
+        project_id: String(row?.project_id || row?.projectId || ''),
+        subject: String(row?.subject || ''),
+        provider_id: String(row?.provider_id || row?.providerId || ''),
+        provider_name: String(row?.provider_name || row?.providerName || ''),
+        model_name: String(row?.model_name || row?.model || ''),
+        status: String(row?.status || ''),
+        submitted_at: String(row?.submitted_at || row?.submittedAt || ''),
+        completed_at: String(row?.completed_at || row?.completedAt || ''),
+        entry_json: typeof row?.entry_json === 'string' ? row.entry_json : JSON.stringify(row?.entry_json || row?.payload || {})
+      }
+    ]).filter(([id]) => id)),
+    historySegmentRows: new Map((Array.isArray(options.historySegmentRows) ? options.historySegmentRows : []).map((row) => [
+      String(row?.id || ''),
+      {
+        id: String(row?.id || ''),
+        history_id: String(row?.history_id || row?.historyId || ''),
+        segment_index: Number.isFinite(Number(row?.segment_index ?? row?.segmentIndex)) ? Number(row.segment_index ?? row.segmentIndex) : 0,
+        source_text: String(row?.source_text || row?.sourceText || ''),
+        target_text: String(row?.target_text || row?.targetText || ''),
+        segment_json: typeof row?.segment_json === 'string' ? row.segment_json : JSON.stringify(row?.segment_json || row?.payload || {})
+      }
+    ]).filter(([id]) => id)),
+    translationCacheRows: buildCacheMap(options.translationCacheRows),
+    promptResponseCacheRows: buildCacheMap(options.promptResponseCacheRows),
+    documentSummaryCacheRows: buildCacheMap(options.documentSummaryCacheRows),
+    closeCalls: 0,
+    runCalls: [],
+    execCalls: []
+  };
+
+  function sortHistoryRows() {
+    return Array.from(store.historyRows.values()).sort((left, right) => (
+      String(right.submitted_at || '').localeCompare(String(left.submitted_at || ''))
+      || String(right.completed_at || '').localeCompare(String(left.completed_at || ''))
+      || String(right.id || '').localeCompare(String(left.id || ''))
+    ));
+  }
+
+  function getCacheRows(tableName) {
+    if (tableName === 'translation_cache') {
+      return store.translationCacheRows;
+    }
+    if (tableName === 'prompt_response_cache') {
+      return store.promptResponseCacheRows;
+    }
+    if (tableName === 'document_summary_cache') {
+      return store.documentSummaryCacheRows;
+    }
+    return new Map();
+  }
+
+  function sortCacheRows(tableName) {
+    return Array.from(getCacheRows(tableName).values()).sort((left, right) => (
+      String(right.updated_at || '').localeCompare(String(left.updated_at || ''))
+      || String(right.cache_key || '').localeCompare(String(left.cache_key || ''))
+    ));
+  }
+
+  const database = {
+    exec(sql) {
+      store.execCalls.push(String(sql || ''));
+    },
+    all(sql) {
+      const text = String(sql || '');
+      if (text.includes('PRAGMA table_info(')) {
+        return [];
+      }
+      if (text.includes('SELECT entry_json') && text.includes('FROM translation_history')) {
+        return sortHistoryRows().map((row) => ({ entry_json: row.entry_json }));
+      }
+      if (text.includes('SELECT id') && text.includes('FROM translation_history')) {
+        return sortHistoryRows().map((row) => ({ id: row.id }));
+      }
+      if (text.includes('SELECT cache_key') && text.includes('FROM translation_cache')) {
+        return sortCacheRows('translation_cache').map((row) => ({ cache_key: row.cache_key }));
+      }
+      if (text.includes('SELECT cache_key') && text.includes('FROM prompt_response_cache')) {
+        return sortCacheRows('prompt_response_cache').map((row) => ({ cache_key: row.cache_key }));
+      }
+      if (text.includes('SELECT cache_key') && text.includes('FROM document_summary_cache')) {
+        return sortCacheRows('document_summary_cache').map((row) => ({ cache_key: row.cache_key }));
+      }
+      return [];
+    },
+    get(sql, params = {}) {
+      const text = String(sql || '');
+      if (text.includes('SELECT data_json FROM app_state')) {
+        return store.appStateRow ? { data_json: store.appStateRow.data_json } : null;
+      }
+      if (text.includes('SELECT id FROM app_state')) {
+        return store.appStateRow && store.appStateRow.id === params.$id ? { id: store.appStateRow.id } : null;
+      }
+      if (text.includes('SELECT COUNT(*) AS row_count FROM translation_history')) {
+        return { row_count: store.historyRows.size };
+      }
+      if (text.includes('SELECT COUNT(*) AS row_count FROM translation_cache')) {
+        return { row_count: store.translationCacheRows.size };
+      }
+      if (text.includes('SELECT COUNT(*) AS row_count FROM prompt_response_cache')) {
+        return { row_count: store.promptResponseCacheRows.size };
+      }
+      if (text.includes('SELECT COUNT(*) AS row_count FROM document_summary_cache')) {
+        return { row_count: store.documentSummaryCacheRows.size };
+      }
+      if (text.includes('SELECT text_value FROM translation_cache')) {
+        const row = store.translationCacheRows.get(params.$key);
+        return row ? { text_value: row.text_value } : null;
+      }
+      if (text.includes('SELECT text_value FROM prompt_response_cache')) {
+        const row = store.promptResponseCacheRows.get(params.$key);
+        return row ? { text_value: row.text_value } : null;
+      }
+      if (text.includes('SELECT text_value FROM document_summary_cache')) {
+        const row = store.documentSummaryCacheRows.get(params.$key);
+        return row ? { text_value: row.text_value } : null;
+      }
+      return null;
+    },
+    run(sql, params = {}) {
+      const text = String(sql || '');
+      store.runCalls.push({ sql: text, params });
+      if (text.includes('INSERT INTO app_state') || text.includes('UPDATE app_state SET data_json')) {
+        store.appStateRow = {
+          id: params.$id,
+          data_json: params.$data,
+          updated_at: params.$updatedAt
+        };
+        return 1;
+      }
+      if (text.includes('DELETE FROM translation_history_segments WHERE history_id = $historyId')) {
+        for (const [id, row] of Array.from(store.historySegmentRows.entries())) {
+          if (row.history_id === params.$historyId) {
+            store.historySegmentRows.delete(id);
+          }
+        }
+        return 1;
+      }
+      if (text.includes('INSERT OR REPLACE INTO translation_history_segments')) {
+        store.historySegmentRows.set(params.$id, {
+          id: params.$id,
+          history_id: params.$historyId,
+          segment_index: params.$segmentIndex,
+          source_text: params.$sourceText,
+          target_text: params.$targetText,
+          segment_json: params.$segmentJson
+        });
+        return 1;
+      }
+      if (text.includes('INSERT OR REPLACE INTO translation_history')) {
+        store.historyRows.set(params.$id, {
+          id: params.$id,
+          request_id: params.$requestId,
+          project_id: params.$projectId,
+          subject: params.$subject,
+          provider_id: params.$providerId,
+          provider_name: params.$providerName,
+          model_name: params.$modelName,
+          status: params.$status,
+          submitted_at: params.$submittedAt,
+          completed_at: params.$completedAt,
+          entry_json: params.$entryJson
+        });
+        return 1;
+      }
+      if (text.includes('DELETE FROM translation_history WHERE id = $id')) {
+        store.historyRows.delete(params.$id);
+        return 1;
+      }
+      if (text.includes('INSERT OR REPLACE INTO translation_cache')) {
+        store.translationCacheRows.set(params.$key, {
+          cache_key: params.$key,
+          text_value: params.$text,
+          updated_at: params.$updatedAt
+        });
+        return 1;
+      }
+      if (text.includes('INSERT OR REPLACE INTO prompt_response_cache')) {
+        store.promptResponseCacheRows.set(params.$key, {
+          cache_key: params.$key,
+          text_value: params.$text,
+          updated_at: params.$updatedAt
+        });
+        return 1;
+      }
+      if (text.includes('INSERT OR REPLACE INTO document_summary_cache')) {
+        store.documentSummaryCacheRows.set(params.$key, {
+          cache_key: params.$key,
+          text_value: params.$text,
+          updated_at: params.$updatedAt
+        });
+        return 1;
+      }
+      if (text.includes('DELETE FROM translation_cache WHERE cache_key = $key')) {
+        store.translationCacheRows.delete(params.$key);
+        return 1;
+      }
+      if (text.includes('DELETE FROM prompt_response_cache WHERE cache_key = $key')) {
+        store.promptResponseCacheRows.delete(params.$key);
+        return 1;
+      }
+      if (text.includes('DELETE FROM document_summary_cache WHERE cache_key = $key')) {
+        store.documentSummaryCacheRows.delete(params.$key);
+        return 1;
+      }
+      return 1;
+    },
+    transaction(callback) {
+      return callback();
+    },
+    close() {
+      store.closeCalls += 1;
+    }
+  };
+
+  return {
+    __store: store,
+    createDatabase: async () => database
+  };
+}
+
 function createRuntime(options = {}) {
   const originalLoad = Module._load;
+  const databaseModule = createMockDatabaseModule(options.__databaseState || {});
+  if (options.__databaseCapture && typeof options.__databaseCapture === 'object') {
+    options.__databaseCapture.store = databaseModule.__store;
+  }
   delete require.cache[runtimeModulePath];
   Module._load = function patchedLoad(request, parent, isMain) {
     if (request === 'openai') {
       return DefaultOpenAI;
     }
     if (request === './database' || request === '../database') {
-      return {
-        createDatabase: async () => {
-          let appStateRow = null;
-          return {
-            exec() {},
-            get(sql, params = {}) {
-              if (String(sql).includes('SELECT data_json FROM app_state')) {
-                return appStateRow ? { data_json: appStateRow.data_json } : null;
-              }
-              if (String(sql).includes('SELECT id FROM app_state')) {
-                return appStateRow && appStateRow.id === params.$id ? { id: appStateRow.id } : null;
-              }
-              return null;
-            },
-            run(sql, params = {}) {
-              if (String(sql).includes('INSERT INTO app_state') || String(sql).includes('UPDATE app_state')) {
-                appStateRow = {
-                  id: params.$id,
-                  data_json: params.$data,
-                  updated_at: params.$updatedAt
-                };
-              }
-              return 1;
-            },
-            close() {}
-          };
-        }
-      };
+      return databaseModule;
     }
     if (request === './secretStore' || request === '../secretStore') {
       return {
@@ -152,42 +374,19 @@ function createRuntime(options = {}) {
   }
 }
 
-function loadRuntimeModule() {
+function loadRuntimeModule(options = {}) {
   const originalLoad = Module._load;
+  const databaseModule = createMockDatabaseModule(options.__databaseState || {});
+  if (options.__databaseCapture && typeof options.__databaseCapture === 'object') {
+    options.__databaseCapture.store = databaseModule.__store;
+  }
   delete require.cache[runtimeModulePath];
   Module._load = function patchedLoad(request, parent, isMain) {
     if (request === 'openai') {
       return DefaultOpenAI;
     }
     if (request === './database' || request === '../database') {
-      return {
-        createDatabase: async () => {
-          let appStateRow = null;
-          return {
-            exec() {},
-            get(sql, params = {}) {
-              if (String(sql).includes('SELECT data_json FROM app_state')) {
-                return appStateRow ? { data_json: appStateRow.data_json } : null;
-              }
-              if (String(sql).includes('SELECT id FROM app_state')) {
-                return appStateRow && appStateRow.id === params.$id ? { id: appStateRow.id } : null;
-              }
-              return null;
-            },
-            run(sql, params = {}) {
-              if (String(sql).includes('INSERT INTO app_state') || String(sql).includes('UPDATE app_state')) {
-                appStateRow = {
-                  id: params.$id,
-                  data_json: params.$data,
-                  updated_at: params.$updatedAt
-                };
-              }
-              return 1;
-            },
-            close() {}
-          };
-        }
-      };
+      return databaseModule;
     }
     if (request === './secretStore' || request === '../secretStore') {
       return {
@@ -270,6 +469,168 @@ test('runtime starts from empty real state', async () => {
     assert.equal(state.contextBuilder.profiles.length, 0);
     assert.equal(state.providerHub.providers.length, 0);
     assert.equal(state.historyExplorer.items.length, 0);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime migrates legacy blob history and caches into repo-backed tables on startup', async () => {
+  const tempRoot = createTempAppRoot();
+  const databaseCapture = {};
+  const legacyHistoryEntry = {
+    id: 'hist_legacy',
+    requestId: 'req-legacy',
+    providerId: 'provider-1',
+    providerName: 'OpenAI',
+    model: 'gpt-4.1-mini',
+    status: 'success',
+    submittedAt: '2026-03-20T00:00:00.000Z',
+    completedAt: '2026-03-20T00:00:01.000Z',
+    latencyMs: 100,
+    attempts: [],
+    segments: [
+      {
+        index: 0,
+        sourceText: 'Hello',
+        targetText: 'Bonjour',
+        tmSource: '',
+        tmTarget: ''
+      }
+    ]
+  };
+
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      __databaseState: {
+        appState: {
+          profiles: [],
+          defaultProfileId: '',
+          assets: [],
+          mappingRules: [],
+          providers: [],
+          history: [legacyHistoryEntry],
+          translationCache: [{ key: 'translation-key', text: 'Bonjour', updatedAt: '2026-03-20T00:00:02.000Z' }],
+          promptResponseCache: [{ key: 'prompt-key', text: 'cached prompt', updatedAt: '2026-03-20T00:00:03.000Z' }],
+          documentSummaryCache: [{ key: 'summary-key', text: 'cached summary', updatedAt: '2026-03-20T00:00:04.000Z' }],
+          integrationPreferences: {
+            memoqVersion: '11',
+            customInstallDir: '',
+            selectedInstallDir: ''
+          }
+        }
+      },
+      __databaseCapture: databaseCapture
+    });
+
+    const state = runtime.getAppState();
+    const persistedState = JSON.parse(databaseCapture.store.appStateRow.data_json);
+
+    assert.equal(state.historyExplorer.items.length, 1);
+    assert.equal(state.historyExplorer.items[0].requestId, 'req-legacy');
+    assert.equal(databaseCapture.store.historyRows.size, 1);
+    assert.equal(databaseCapture.store.translationCacheRows.size, 1);
+    assert.equal(databaseCapture.store.promptResponseCacheRows.size, 1);
+    assert.equal(databaseCapture.store.documentSummaryCacheRows.size, 1);
+    assert.equal('history' in persistedState, false);
+    assert.equal('translationCache' in persistedState, false);
+    assert.equal('promptResponseCache' in persistedState, false);
+    assert.equal('documentSummaryCache' in persistedState, false);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime startup migration is idempotent when history and caches already exist in repo-backed tables', async () => {
+  const tempRoot = createTempAppRoot();
+  const databaseCapture = {};
+  const legacyHistoryEntry = {
+    id: 'hist_existing',
+    requestId: 'req-existing',
+    providerId: 'provider-1',
+    providerName: 'OpenAI',
+    model: 'gpt-4.1-mini',
+    status: 'success',
+    submittedAt: '2026-03-21T00:00:00.000Z',
+    completedAt: '2026-03-21T00:00:01.000Z',
+    latencyMs: 50,
+    attempts: [],
+    segments: [
+      {
+        index: 0,
+        sourceText: 'World',
+        targetText: 'Monde',
+        tmSource: '',
+        tmTarget: ''
+      }
+    ]
+  };
+
+  try {
+    await createRuntime({
+      appDataRoot: tempRoot,
+      __databaseState: {
+        appState: {
+          profiles: [],
+          defaultProfileId: '',
+          assets: [],
+          mappingRules: [],
+          providers: [],
+          history: [legacyHistoryEntry],
+          translationCache: [{ key: 'translation-key', text: 'Monde', updatedAt: '2026-03-21T00:00:02.000Z' }],
+          promptResponseCache: [{ key: 'prompt-key', text: 'cached prompt', updatedAt: '2026-03-21T00:00:03.000Z' }],
+          documentSummaryCache: [{ key: 'summary-key', text: 'cached summary', updatedAt: '2026-03-21T00:00:04.000Z' }],
+          integrationPreferences: {
+            memoqVersion: '11',
+            customInstallDir: '',
+            selectedInstallDir: ''
+          }
+        },
+        historyRows: [{
+          id: legacyHistoryEntry.id,
+          requestId: legacyHistoryEntry.requestId,
+          providerId: legacyHistoryEntry.providerId,
+          providerName: legacyHistoryEntry.providerName,
+          model: legacyHistoryEntry.model,
+          status: legacyHistoryEntry.status,
+          submittedAt: legacyHistoryEntry.submittedAt,
+          completedAt: legacyHistoryEntry.completedAt,
+          payload: legacyHistoryEntry
+        }],
+        translationCacheRows: [{ key: 'translation-key', text: 'Monde', updatedAt: '2026-03-21T00:00:02.000Z' }],
+        promptResponseCacheRows: [{ key: 'prompt-key', text: 'cached prompt', updatedAt: '2026-03-21T00:00:03.000Z' }],
+        documentSummaryCacheRows: [{ key: 'summary-key', text: 'cached summary', updatedAt: '2026-03-21T00:00:04.000Z' }]
+      },
+      __databaseCapture: databaseCapture
+    });
+
+    const persistedState = JSON.parse(databaseCapture.store.appStateRow.data_json);
+
+    assert.equal(databaseCapture.store.historyRows.size, 1);
+    assert.equal(databaseCapture.store.translationCacheRows.size, 1);
+    assert.equal(databaseCapture.store.promptResponseCacheRows.size, 1);
+    assert.equal(databaseCapture.store.documentSummaryCacheRows.size, 1);
+    assert.equal('history' in persistedState, false);
+    assert.equal('translationCache' in persistedState, false);
+    assert.equal('promptResponseCache' in persistedState, false);
+    assert.equal('documentSummaryCache' in persistedState, false);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime dispose closes the underlying database handle', async () => {
+  const tempRoot = createTempAppRoot();
+  const databaseCapture = {};
+
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      __databaseCapture: databaseCapture
+    });
+
+    runtime.dispose();
+    assert.equal(databaseCapture.store.closeCalls, 1);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -3245,6 +3606,50 @@ test('runtime saveProfile keeps glossary role selections and drops hidden first-
   }
 });
 
+test('runtime keeps app state and asset preview reads side-effect free', async () => {
+  const tempRoot = createTempAppRoot();
+  const databaseCapture = {};
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      __databaseCapture: databaseCapture
+    });
+
+    await runtime.saveProvider({
+      name: 'OpenAI',
+      type: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'test-key',
+      models: [{ modelName: 'gpt-4.1-mini', enabled: true }]
+    });
+
+    const glossarySourcePath = path.join(tempRoot, 'preview-side-effect-free-glossary.csv');
+    fs.writeFileSync(
+      glossarySourcePath,
+      [
+        'Entry_ID,Entry_Subject,Chinese_PRC,Entry_Note',
+        '0,Grand & 4X,大战略与4X,genre',
+        '1,power,力量,ui'
+      ].join('\n'),
+      'utf8'
+    );
+
+    const glossaryAsset = runtime.importAssetFromPath('glossary', glossarySourcePath);
+    databaseCapture.store.runCalls.length = 0;
+
+    const state = runtime.getAppState({});
+    assert.equal(state.contextBuilder.assets.length, 1);
+    assert.equal(databaseCapture.store.runCalls.length, 0);
+
+    const preview = runtime.getAssetPreview(glossaryAsset.id);
+    assert.equal(preview.tbStructureAvailable, true);
+    assert.equal(preview.tbStructureApplied, false);
+    assert.equal(databaseCapture.store.runCalls.length, 0);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('runtime exposes parsed asset previews without reparsing in the renderer', async () => {
   const tempRoot = createTempAppRoot();
   try {
@@ -3362,6 +3767,97 @@ test('runtime persists ai-assisted tb structure metadata in preview for non-stan
     assert.match(preview.tbStructureSummary, /entry_subject/i);
     assert.equal(typeof preview.tbStructureFingerprint, 'string');
     assert.ok(preview.tbStructureFingerprint.length > 10);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime applies detected tb structure explicitly after preview and persists it for later use', async () => {
+  const tempRoot = createTempAppRoot();
+  const providerCalls = [];
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      providerRegistry: {
+        testConnection: async () => ({ ok: true, latencyMs: 12, message: 'ok' }),
+        translateSegment: async (payload) => {
+          providerCalls.push(payload);
+          return { text: 'translated', latencyMs: 20 };
+        }
+      }
+    });
+
+    const glossarySourcePath = path.join(tempRoot, 'apply-structured-glossary.csv');
+    fs.writeFileSync(
+      glossarySourcePath,
+      [
+        'Entry_ID,Entry_Subject,Chinese_PRC,Entry_Note',
+        '0,Grand & 4X,大战略与4X,genre',
+        '1,power,力量,ui'
+      ].join('\n'),
+      'utf8'
+    );
+
+    const provider = await runtime.saveProvider({
+      name: 'OpenAI',
+      type: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'test-key',
+      models: [{ modelName: 'gpt-4.1-mini', enabled: true }]
+    });
+
+    const glossaryAsset = runtime.importAssetFromPath('glossary', glossarySourcePath);
+    const previewBefore = runtime.getAssetPreview(glossaryAsset.id);
+    assert.equal(previewBefore.tbStructureAvailable, true);
+    assert.equal(previewBefore.tbStructureApplied, false);
+
+    const assetBefore = runtime.getAppState({}).contextBuilder.assets.find((item) => item.id === glossaryAsset.id);
+    assert.equal(assetBefore.tbStructure, null);
+
+    const appliedAsset = runtime.applyAssetTbStructure(glossaryAsset.id, {
+      tbStructure: previewBefore.tbStructure,
+      tbStructureFingerprint: previewBefore.tbStructureFingerprint,
+      tbStructureSummary: previewBefore.tbStructureSummary,
+      tbStructureSource: previewBefore.tbStructureSource,
+      languagePair: previewBefore.languagePair,
+      tbStructureConfidence: previewBefore.tbStructureConfidence
+    });
+
+    assert.equal(appliedAsset.tbStructure.fingerprint, previewBefore.tbStructureFingerprint);
+
+    const previewAfter = runtime.getAssetPreview(glossaryAsset.id);
+    assert.equal(previewAfter.tbStructureApplied, true);
+
+    const assetAfter = runtime.getAppState({}).contextBuilder.assets.find((item) => item.id === glossaryAsset.id);
+    assert.equal(assetAfter.tbStructure.fingerprint, previewBefore.tbStructureFingerprint);
+    assert.equal(assetAfter.tbStructure.summary, previewBefore.tbStructureSummary);
+
+    const profile = await runtime.saveProfile({
+      name: 'Applied TB Profile',
+      providerId: provider.id,
+      interactiveProviderId: provider.id,
+      interactiveModelId: provider.models[0].id,
+      fallbackProviderId: provider.id,
+      fallbackModelId: provider.models[0].id,
+      userPrompt: '{{glossary-text}}\n{{source-text}}',
+      assetBindings: [{ assetId: glossaryAsset.id, purpose: 'glossary' }]
+    });
+
+    const result = await runtime.translate({
+      requestId: 'REQ-TB-APPLY',
+      traceId: 'TRACE-TB-APPLY',
+      contractVersion: '1',
+      sourceLanguage: 'EN',
+      targetLanguage: 'ZH',
+      requestType: 'Plaintext',
+      profileResolution: { profileId: profile.id, useCase: 'interactive' },
+      metadata: {},
+      segments: [{ index: 0, text: 'power', plainText: 'power', tmSource: '', tmTarget: '' }]
+    });
+
+    assert.equal(result.statusCode, 200);
+    assert.equal(providerCalls.length, 1);
+    assert.equal(providerCalls[0].assetContext.tb.structureFingerprint, previewBefore.tbStructureFingerprint);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
