@@ -1730,15 +1730,7 @@ test('runtime exportHistory formats timestamps using local presentation while ke
 
     const historyEntry = runtime.getAppState().historyExplorer.items[0];
     assert.match(historyEntry.submittedAt, /T/);
-    const expectedSubmittedAt = new Intl.DateTimeFormat(undefined, {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    }).format(new Date(historyEntry.submittedAt));
+    const expectedSubmittedAt = formatTimestampForLocalDisplay(historyEntry.submittedAt);
 
     const exported = runtime.exportHistory({ format: 'csv', scope: 'filtered', filters: {} });
     const csv = fs.readFileSync(exported.path, 'utf8');
