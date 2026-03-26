@@ -13,8 +13,8 @@ const DEFAULT_BASE_URLS = {
 };
 
 const DEFAULT_MODELS = {
-  openai: 'gpt-4.1-mini',
-  'openai-compatible': 'gpt-4.1-mini'
+  openai: 'gpt-5.4-mini',
+  'openai-compatible': 'gpt-5.4-mini'
 };
 
 const DEFAULT_PROVIDER_NAMES = {

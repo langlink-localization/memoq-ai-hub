@@ -503,8 +503,8 @@ test('background worker keeps a default model when saving a provider without exp
   const state = runtime.getAppState({});
 
   assert.equal(provider.models.length, 1);
-  assert.equal(provider.models[0].modelName, 'gpt-4.1-mini');
-  assert.equal(state.providerHub.providers[0].models[0].modelName, 'gpt-4.1-mini');
+  assert.equal(provider.models[0].modelName, 'gpt-5.4-mini');
+  assert.equal(state.providerHub.providers[0].models[0].modelName, 'gpt-5.4-mini');
 });
 
 test('background worker proxies parsed asset previews', async (t) => {

@@ -1083,7 +1083,7 @@ test('provider registry testConnection falls back to the provider default model 
 
     assert.equal(result.ok, true);
     assert.equal(calls.chats.length, 1);
-    assert.equal(calls.chats[0].request.model, 'gpt-4.1-mini');
+    assert.equal(calls.chats[0].request.model, 'gpt-5.4-mini');
   });
 });
 

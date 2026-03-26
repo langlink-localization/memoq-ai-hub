@@ -296,14 +296,14 @@ function createProviderDraft(type) {
       name: 'OpenAI',
       type: 'openai',
       baseUrl: 'https://api.openai.com/v1',
-      models: [createDraftProviderModel('gpt-4.1-mini')]
+      models: [createDraftProviderModel('gpt-5.4-mini')]
     },
     'openai-compatible': {
       name: 'OpenAI Compatible',
       type: 'openai-compatible',
       baseUrl: 'https://api.example.com/v1',
       requestPath: '/responses',
-      models: [createDraftProviderModel('gpt-4.1-mini')]
+      models: [createDraftProviderModel('gpt-5.4-mini')]
     }
   };
 
@@ -432,10 +432,10 @@ function createDraftModelId() {
   return `draft_model_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function createDraftProviderModel(modelName = 'gpt-4.1-mini') {
+function createDraftProviderModel(modelName = 'gpt-5.4-mini') {
   return {
     id: createDraftModelId(),
-    modelName: String(modelName || 'gpt-4.1-mini').trim() || 'gpt-4.1-mini',
+    modelName: String(modelName || 'gpt-5.4-mini').trim() || 'gpt-5.4-mini',
     enabled: true,
     concurrencyLimit: 1,
     rateLimitHint: '',
@@ -1807,7 +1807,7 @@ export default function App() {
 
   function addModelToCurrentProvider(modelName = '') {
     if (!currentProvider) return;
-    const normalizedModelName = String(modelName || '').trim() || createProviderDraft(currentProvider.type).models[0]?.modelName || 'gpt-4.1-mini';
+    const normalizedModelName = String(modelName || '').trim() || createProviderDraft(currentProvider.type).models[0]?.modelName || 'gpt-5.4-mini';
 
     updateCurrentProviderDraft((provider) => {
       const existingModel = (provider.models || []).find((model) => String(model.modelName || '').trim().toLowerCase() === normalizedModelName.toLowerCase());

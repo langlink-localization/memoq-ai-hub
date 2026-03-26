@@ -1646,11 +1646,11 @@ test('runtime saves a default model when a provider is created without explicit 
     });
 
     assert.equal(provider.models.length, 1);
-    assert.equal(provider.models[0].modelName, 'gpt-4.1-mini');
+    assert.equal(provider.models[0].modelName, 'gpt-5.4-mini');
     assert.equal(provider.models[0].enabled, true);
 
     const state = runtime.getAppState();
-    assert.equal(state.providerHub.providers[0].models[0].modelName, 'gpt-4.1-mini');
+    assert.equal(state.providerHub.providers[0].models[0].modelName, 'gpt-5.4-mini');
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -1683,11 +1683,11 @@ test('runtime tests provider drafts with the default model when no model list is
 
     assert.equal(result.ok, true);
     assert.equal(result.status, 'connected');
-    assert.match(result.message, /gpt-4.1-mini/);
+    assert.match(result.message, /gpt-5.4-mini/);
     assert.deepEqual(seen, [
       {
         type: 'openai-compatible',
-        modelName: 'gpt-4.1-mini',
+        modelName: 'gpt-5.4-mini',
         requestPath: '/chat/completions'
       }
     ]);
