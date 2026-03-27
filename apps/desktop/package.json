@@ -1,7 +1,7 @@
 {
   "name": "memoq-ai-hub-app",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.0.8",
   "packageManager": "pnpm@10.6.2",
   "license": "MIT",
   "author": "LangLink Localization",
@@ -10,7 +10,6 @@
   "files": [
     ".vite/**/*",
     "helper/**/*",
-    "node_modules/**/*",
     "package.json"
   ],
   "scripts": {

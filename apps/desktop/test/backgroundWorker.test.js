@@ -571,9 +571,10 @@ test('background worker runtime harness exposes translation cache bypass and cle
   assert.equal(clearResult.clearedCount, 0);
 });
 
-test('background worker runtime harness exposes update controls', async (t) => {
+test('background worker runtime harness exposes portable update metadata without in-app portable download flow', async (t) => {
   const tempRoot = createTempAppRoot();
   const manifestUrl = 'https://example.com/latest.json';
+  const releaseNotesUrl = 'https://example.com/release';
   const portableUrl = 'https://example.com/memoq-ai-hub-win32-x64.zip';
   const harness = await createRuntimeHarness(tempRoot, {
     fetch: async (url) => {
@@ -583,7 +584,8 @@ test('background worker runtime harness exposes update controls', async (t) => {
           status: 200,
           async json() {
             return {
-              version: '1.0.8',
+              version: '1.0.9',
+              releaseNotesUrl,
               assets: {
                 portable: {
                   name: 'memoq-ai-hub-win32-x64.zip',
@@ -594,21 +596,9 @@ test('background worker runtime harness exposes update controls', async (t) => {
           }
         };
       }
-
-      return {
-        ok: true,
-        status: 200,
-        async arrayBuffer() {
-          return Buffer.from('portable bytes');
-        }
-      };
     },
     manifestUrl,
-    packagingMode: 'portable',
-    extractArchive: async (sourcePath, targetDir) => {
-      fs.mkdirSync(targetDir, { recursive: true });
-      fs.writeFileSync(path.join(targetDir, 'MemoQ AI Hub.exe'), 'binary');
-    }
+    packagingMode: 'portable'
   });
   const { runtime } = harness;
 
@@ -618,13 +608,12 @@ test('background worker runtime harness exposes update controls', async (t) => {
   });
 
   const available = await runtime.checkForUpdates({ manual: true });
-  const downloaded = await runtime.downloadPortableUpdate();
-  const prepared = await runtime.preparePortableUpdate(downloaded.downloadedArtifactPath);
 
-  assert.equal(runtime.getUpdateStatus().latestVersion, '1.0.8');
+  assert.equal(runtime.getUpdateStatus().latestVersion, '1.0.9');
   assert.equal(available.updateStatus, 'available');
-  assert.equal(fs.existsSync(downloaded.downloadedArtifactPath), true);
-  assert.equal(prepared.updateStatus, 'prepared');
+  assert.equal(available.portableDownloadUrl, releaseNotesUrl);
+  await assert.rejects(() => runtime.downloadPortableUpdate(), /browser download page/i);
+  await assert.rejects(() => runtime.preparePortableUpdate(path.join(tempRoot, 'memoq-ai-hub-win32-x64.zip')), /browser download page/i);
 });
 
 test('background worker entrypoint stays parseable for packaging builds', () => {

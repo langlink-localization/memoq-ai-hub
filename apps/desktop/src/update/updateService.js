@@ -9,6 +9,7 @@ const DEFAULT_RELEASE_REPOSITORY = 'langlink-localization/memoq-ai-hub';
 const STABLE_RELEASE_CHANNEL = 'stable';
 const STABLE_UPDATE_MANIFEST_NAME = 'memoq-ai-hub-updates-stable.json';
 const DEFAULT_UPDATE_STATUS = 'idle';
+const PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE = 'Portable builds use a browser download page instead of downloading updates inside the app.';
 
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) {
@@ -54,6 +55,7 @@ function createDefaultUpdateState({ currentVersion, packagingMode, manifestUrl }
     publishedAt: '',
     releaseNotes: '',
     releaseNotesUrl: '',
+    portableDownloadUrl: '',
     downloadedArtifactPath: '',
     preparedDirectory: '',
     lastCheckedAt: '',
@@ -315,14 +317,18 @@ function createUpdateService(options = {}) {
       try {
         const manifest = await fetchManifest();
         const hasUpdate = compareVersions(manifest.version, currentVersion) > 0;
+        const portableDownloadUrl = manifest.releaseNotesUrl || manifest.assets?.portable?.url || '';
         return setState({
           updateStatus: hasUpdate ? 'available' : 'up-to-date',
           latestVersion: manifest.version,
           publishedAt: manifest.publishedAt,
           releaseNotes: manifest.releaseNotes,
           releaseNotesUrl: manifest.releaseNotesUrl,
+          portableDownloadUrl,
           lastCheckedAt: nowIso(),
           lastError: '',
+          downloadedArtifactPath: packagingMode === 'portable' ? '' : state.downloadedArtifactPath,
+          preparedDirectory: packagingMode === 'portable' ? '' : state.preparedDirectory,
           availableAssets: manifest.assets
         });
       } catch (error) {
@@ -337,7 +343,7 @@ function createUpdateService(options = {}) {
       if (packagingMode !== 'portable') {
         throw new Error('Portable update download is only available in portable mode.');
       }
-      return downloadAsset('portable');
+      throw new Error(PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE);
     },
     async downloadInstallerUpdate() {
       if (packagingMode !== 'installed') {
@@ -346,6 +352,9 @@ function createUpdateService(options = {}) {
       return downloadAsset('installer');
     },
     async preparePortableUpdate(downloadedFile, targetDir) {
+      if (packagingMode === 'portable') {
+        throw new Error(PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE);
+      }
       const sourcePath = String(downloadedFile || state.downloadedArtifactPath || '').trim();
       if (!sourcePath) {
         throw new Error('A downloaded portable archive is required before preparing an update.');
@@ -384,5 +393,6 @@ module.exports = {
   createUpdateService,
   getDefaultManifestUrl,
   normalizeManifest,
+  PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE,
   resolvePackagingMode
 };
