@@ -874,7 +874,7 @@ test('runtime writes real translation history using configured provider route', 
     assert.equal(state.historyExplorer.items.length, 1);
     assert.equal(state.historyExplorer.items[0].providerName, 'OpenAI');
     assert.equal(state.historyExplorer.items[0].segmentCount, 1);
-    assert.equal(state.historyExplorer.items[0].runtime.desktopVersion, '1.0.7');
+    assert.equal(state.historyExplorer.items[0].runtime.desktopVersion, '1.0.8');
     assert.equal(state.historyExplorer.items[0].runtime.processId, process.pid);
     assert.equal(state.historyExplorer.items[0].runtime.execPath, process.execPath);
     assert.ok(state.historyExplorer.items[0].runtime.runtimeStartedAt);
@@ -1506,7 +1506,7 @@ test('runtime saveProfile preserves cacheEnabled false across save and reload', 
   }
 });
 
-test('runtime exposes update status and portable prepare flow through app state', async () => {
+test('runtime exposes update status and portable download-page flow through app state', async () => {
   const tempRoot = createTempAppRoot();
   const manifestUrl = 'https://example.com/latest.json';
   const portableUrl = 'https://example.com/memoq-ai-hub-win32-x64.zip';
@@ -1523,8 +1523,9 @@ test('runtime exposes update status and portable prepare flow through app state'
             status: 200,
             async json() {
               return {
-                version: '1.0.7',
+                version: '1.0.9',
                 publishedAt: '2026-03-26T00:00:00.000Z',
+                releaseNotesUrl: 'https://example.com/release',
                 assets: {
                   portable: {
                     name: 'memoq-ai-hub-win32-x64.zip',
@@ -1536,17 +1537,7 @@ test('runtime exposes update status and portable prepare flow through app state'
           };
         }
 
-        return {
-          ok: true,
-          status: 200,
-          async arrayBuffer() {
-            return Buffer.from('portable bytes');
-          }
-        };
-      },
-      extractArchive: async (sourcePath, targetDir) => {
-        fs.mkdirSync(targetDir, { recursive: true });
-        fs.writeFileSync(path.join(targetDir, 'MemoQ AI Hub.exe'), 'binary');
+        return { ok: false, status: 404 };
       }
     });
 
@@ -1555,15 +1546,13 @@ test('runtime exposes update status and portable prepare flow through app state'
     assert.equal(initialState.dashboard.updateCenter.packagingMode, 'portable');
 
     const available = await runtime.checkForUpdates({ manual: true });
-    const downloaded = await runtime.downloadPortableUpdate();
-    const prepared = await runtime.preparePortableUpdate(downloaded.downloadedArtifactPath);
     const finalState = runtime.getAppState();
 
-    assert.equal(available.latestVersion, '1.0.7');
-    assert.equal(fs.existsSync(downloaded.downloadedArtifactPath), true);
-    assert.equal(prepared.updateStatus, 'prepared');
-    assert.equal(finalState.updateCenter.updateStatus, 'prepared');
-    assert.equal(fs.existsSync(path.join(finalState.updateCenter.preparedDirectory, 'MemoQ AI Hub.exe')), true);
+    assert.equal(available.latestVersion, '1.0.9');
+    assert.equal(available.portableDownloadUrl, 'https://example.com/release');
+    assert.equal(finalState.updateCenter.updateStatus, 'available');
+    await assert.rejects(() => runtime.downloadPortableUpdate(), /browser download page/i);
+    await assert.rejects(() => runtime.preparePortableUpdate(path.join(tempRoot, 'memoq-ai-hub-win32-x64.zip')), /browser download page/i);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -1634,8 +1623,8 @@ test('runtime exposes runtime identity in desktop version payload', async () => 
     });
 
     const payload = runtime.getDesktopVersionPayload();
-    assert.equal(payload.desktopVersion, '1.0.7');
-    assert.equal(payload.runtime.desktopVersion, '1.0.7');
+    assert.equal(payload.desktopVersion, '1.0.8');
+    assert.equal(payload.runtime.desktopVersion, '1.0.8');
     assert.equal(payload.runtime.processId, process.pid);
     assert.equal(payload.runtime.execPath, process.execPath);
     assert.ok(payload.runtime.runtimeStartedAt);

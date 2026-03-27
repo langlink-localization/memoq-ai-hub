@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { builtinModules, createRequire } = require('module');
 
 const desktopNodeModulesPath = path.join(__dirname, 'node_modules');
 const workspaceNodeModulesPath = path.join(__dirname, '..', '..', 'node_modules');
@@ -21,27 +22,116 @@ const packagedOutputPath = path.join(__dirname, 'out');
 const desktopContractPath = path.join(__dirname, '..', '..', 'packages', 'contracts', 'desktop-contract.json');
 const sourceRuntimeDir = path.join(__dirname, 'src');
 const packagedRuntimeDirRelative = path.join('.vite', 'build');
+const buildRequire = createRequire(__filename);
+const requiredElectronLocales = new Set(['en-US.pak', 'zh-CN.pak']);
+const builtinModuleSet = new Set([
+  ...builtinModules,
+  ...builtinModules.map((moduleName) => `node:${moduleName}`)
+]);
+const packageRequirePattern = /require\((['"])([^'"]+)\1\)/g;
 
-function copyRuntimeNodeModules(targetNodeModulesPath) {
-  if (!fs.existsSync(sourceNodeModulesPath)) {
-    throw new Error(`Node modules directory not found for packaging: ${sourceNodeModulesPath}`);
+function safeRemoveDirectory(targetPath) {
+  if (!fs.existsSync(targetPath)) {
+    return;
   }
 
-  if (fs.existsSync(targetNodeModulesPath)) {
-    fs.rmSync(targetNodeModulesPath, {
-      recursive: true,
-      force: true,
-      maxRetries: 10,
-      retryDelay: 200
-    });
+  fs.rmSync(targetPath, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 200
+  });
+}
+
+function normalizePackageName(specifier) {
+  if (!specifier || specifier.startsWith('.') || specifier.startsWith('/') || specifier.startsWith('node:')) {
+    return '';
   }
 
-  fs.cpSync(sourceNodeModulesPath, targetNodeModulesPath, {
+  if (builtinModuleSet.has(specifier)) {
+    return '';
+  }
+
+  if (specifier.startsWith('@')) {
+    const segments = specifier.split('/');
+    return segments.length >= 2 ? `${segments[0]}/${segments[1]}` : '';
+  }
+
+  return specifier.split('/')[0];
+}
+
+function getJavaScriptFiles(rootDir) {
+  if (!fs.existsSync(rootDir)) {
+    return [];
+  }
+
+  const results = [];
+
+  for (const entry of fs.readdirSync(rootDir, { withFileTypes: true })) {
+    const entryPath = path.join(rootDir, entry.name);
+
+    if (entry.isDirectory()) {
+      results.push(...getJavaScriptFiles(entryPath));
+      continue;
+    }
+
+    if (entry.isFile() && path.extname(entry.name) === '.js') {
+      results.push(entryPath);
+    }
+  }
+
+  return results;
+}
+
+function findRuntimePackageNames(buildPath) {
+  const runtimeFiles = getJavaScriptFiles(path.join(buildPath, packagedRuntimeDirRelative));
+
+  const packageNames = new Set();
+
+  for (const runtimeFile of runtimeFiles) {
+    const fileContent = fs.readFileSync(runtimeFile, 'utf8');
+    packageRequirePattern.lastIndex = 0;
+
+    for (const match of fileContent.matchAll(packageRequirePattern)) {
+      const packageName = normalizePackageName(match[2]);
+      if (packageName) {
+        packageNames.add(packageName);
+      }
+    }
+  }
+
+  return Array.from(packageNames).sort();
+}
+
+function resolvePackageDirectory(packageName) {
+  const resolvedEntryPath = buildRequire.resolve(packageName, {
+    paths: [__dirname, sourceNodeModulesPath]
+  });
+
+  let currentDir = path.dirname(resolvedEntryPath);
+
+  while (currentDir && currentDir !== path.dirname(currentDir)) {
+    const packageJsonPath = path.join(currentDir, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+      if (packageJson.name === packageName) {
+        return currentDir;
+      }
+    }
+
+    currentDir = path.dirname(currentDir);
+  }
+
+  throw new Error(`Unable to locate package root for runtime dependency: ${packageName}`);
+}
+
+function copyPackageDirectory(sourceDir, targetDir) {
+  fs.cpSync(sourceDir, targetDir, {
     recursive: true,
     dereference: true,
     force: true,
     filter: (source) => {
-      const relativePath = path.relative(sourceNodeModulesPath, source);
+      const relativePath = path.relative(sourceDir, source);
       if (!relativePath) {
         return true;
       }
@@ -50,6 +140,48 @@ function copyRuntimeNodeModules(targetNodeModulesPath) {
       return !segments.includes('.bin') && !segments.includes('.vite-temp');
     }
   });
+}
+
+function copyRuntimeNodeModules(buildPath) {
+  if (!fs.existsSync(sourceNodeModulesPath)) {
+    throw new Error(`Node modules directory not found for packaging: ${sourceNodeModulesPath}`);
+  }
+
+  const targetNodeModulesPath = path.join(buildPath, 'node_modules');
+  const runtimePackageNames = findRuntimePackageNames(buildPath);
+
+  safeRemoveDirectory(targetNodeModulesPath);
+  fs.mkdirSync(targetNodeModulesPath, { recursive: true });
+
+  for (const packageName of runtimePackageNames) {
+    const sourcePackageDir = resolvePackageDirectory(packageName);
+    const targetPackageDir = path.join(targetNodeModulesPath, packageName);
+    fs.mkdirSync(path.dirname(targetPackageDir), { recursive: true });
+    copyPackageDirectory(sourcePackageDir, targetPackageDir);
+  }
+}
+
+function prunePackagedLocales(buildPath) {
+  const localesDir = path.join(buildPath, 'locales');
+  if (!fs.existsSync(localesDir)) {
+    return;
+  }
+
+  for (const entry of fs.readdirSync(localesDir, { withFileTypes: true })) {
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    if (!requiredElectronLocales.has(entry.name)) {
+      fs.rmSync(path.join(localesDir, entry.name), { force: true });
+    }
+  }
+}
+
+function prunePackagedLocalesFromOutputs(outputPaths = []) {
+  for (const outputPath of outputPaths) {
+    prunePackagedLocales(outputPath);
+  }
 }
 
 function copyMissingRuntimeModules(sourceDir, targetDir) {
@@ -88,6 +220,7 @@ module.exports = {
     name: 'memoQ AI Hub',
     executableName: 'memoQ AI Hub',
     appBundleId: 'com.memoq.ai.desktop',
+    asar: true,
     derefSymlinks: true,
     extraResource: [
       previewHelperStagingDir,
@@ -101,12 +234,7 @@ module.exports = {
     prePackage: async () => {
       if (fs.existsSync(packagedOutputPath)) {
         try {
-          fs.rmSync(packagedOutputPath, {
-            recursive: true,
-            force: true,
-            maxRetries: 10,
-            retryDelay: 200
-          });
+          safeRemoveDirectory(packagedOutputPath);
         } catch (error) {
           if (!error || (error.code !== 'EBUSY' && error.code !== 'EPERM')) {
             throw error;
@@ -148,8 +276,11 @@ module.exports = {
       }
     },
     packageAfterCopy: async (_forgeConfig, buildPath) => {
-      copyRuntimeNodeModules(path.join(buildPath, 'node_modules'));
+      copyRuntimeNodeModules(buildPath);
       ensurePackagedRuntimeModules(buildPath);
+    },
+    postPackage: async (_forgeConfig, options) => {
+      prunePackagedLocalesFromOutputs(options?.outputPaths);
     }
   },
   makers: [

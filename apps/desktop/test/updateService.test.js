@@ -7,6 +7,7 @@ const test = require('node:test');
 const {
   compareVersions,
   createUpdateService,
+  PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE,
   resolvePackagingMode
 } = require('../src/update/updateService');
 const { createAppPaths } = require('../src/shared/paths');
@@ -65,13 +66,13 @@ test('update service resolves installed packaging when Update.exe is present', (
   }
 });
 
-test('update service checks, downloads, and prepares portable updates', async () => {
+test('update service exposes portable download page and disables in-app portable update flow', async () => {
   const tempRoot = createTempRoot();
   try {
     const paths = createAppPaths({ appDataRoot: tempRoot });
     const manifestUrl = 'https://example.com/latest.json';
+    const releaseNotesUrl = 'https://example.com/release';
     const portableUrl = 'https://example.com/memoq-ai-hub-win32-x64.zip';
-    const extractCalls = [];
     const service = createUpdateService({
       paths,
       currentVersion: '1.0.0',
@@ -83,7 +84,7 @@ test('update service checks, downloads, and prepares portable updates', async ()
             version: '1.0.1',
             tag: 'v1.0.1',
             publishedAt: '2026-03-26T00:00:00.000Z',
-            releaseNotesUrl: 'https://example.com/release',
+            releaseNotesUrl,
             assets: {
               portable: {
                 name: 'memoq-ai-hub-win32-x64.zip',
@@ -91,29 +92,16 @@ test('update service checks, downloads, and prepares portable updates', async ()
               }
             }
           }
-        }],
-        [portableUrl, {
-          buffer: 'portable zip bytes'
         }]
-      ])),
-      extractArchive: async (sourcePath, targetDir) => {
-        extractCalls.push({ sourcePath, targetDir });
-        fs.mkdirSync(targetDir, { recursive: true });
-        fs.writeFileSync(path.join(targetDir, 'MemoQ AI Hub.exe'), 'binary');
-      }
+      ]))
     });
 
     const available = await service.checkForUpdates({ manual: true });
     assert.equal(available.updateStatus, 'available');
     assert.equal(available.latestVersion, '1.0.1');
-
-    const downloaded = await service.downloadPortableUpdate();
-    assert.equal(fs.existsSync(downloaded.downloadedArtifactPath), true);
-
-    const prepared = await service.preparePortableUpdate(downloaded.downloadedArtifactPath);
-    assert.equal(prepared.updateStatus, 'prepared');
-    assert.equal(fs.existsSync(path.join(prepared.preparedDirectory, 'MemoQ AI Hub.exe')), true);
-    assert.equal(extractCalls.length, 1);
+    assert.equal(available.portableDownloadUrl, releaseNotesUrl);
+    await assert.rejects(() => service.downloadPortableUpdate(), new RegExp(PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    await assert.rejects(() => service.preparePortableUpdate(path.join(tempRoot, 'memoq-ai-hub-win32-x64.zip')), new RegExp(PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

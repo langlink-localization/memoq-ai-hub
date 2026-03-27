@@ -148,6 +148,7 @@ function createFallbackAppState() {
         latestVersion: '',
         releaseNotes: '',
         releaseNotesUrl: '',
+        portableDownloadUrl: '',
         publishedAt: '',
         downloadedArtifactPath: '',
         preparedDirectory: '',
@@ -203,6 +204,7 @@ function createFallbackAppState() {
       latestVersion: '',
       releaseNotes: '',
       releaseNotesUrl: '',
+      portableDownloadUrl: '',
       publishedAt: '',
       downloadedArtifactPath: '',
       preparedDirectory: '',
@@ -1875,13 +1877,6 @@ export default function App() {
     }
   }
 
-  async function downloadPortableUpdate() {
-    await runUpdateAction(
-      () => api.downloadPortableUpdate(updateCenter.latestVersion || ''),
-      translateWithFallback(t, 'dashboard.updateDownloadStarted', 'Update downloaded successfully.')
-    );
-  }
-
   async function downloadInstallerUpdate() {
     await runUpdateAction(
       () => api.downloadInstallerUpdate(updateCenter.latestVersion || ''),
@@ -1889,25 +1884,12 @@ export default function App() {
     );
   }
 
-  async function preparePortableUpdate() {
-    await runUpdateAction(
-      () => api.preparePortableUpdate(updateCenter.downloadedArtifactPath || '', ''),
-      translateWithFallback(t, 'dashboard.updatePrepareSuccess', 'Portable update is prepared and ready to open.')
-    );
-  }
-
-  async function openPreparedUpdate() {
-    if (!updateCenter.preparedDirectory || typeof api?.openPath !== 'function') {
+  async function openPortableDownloadPage() {
+    const portableDownloadUrl = updateCenter.portableDownloadUrl || updateCenter.releaseNotesUrl || updateCenter.availableAssets?.portable?.url || '';
+    if (!portableDownloadUrl || typeof api?.openExternalUrl !== 'function') {
       return;
     }
-    await runUpdateAction(() => api.openPath(updateCenter.preparedDirectory));
-  }
-
-  async function revealDownloadedUpdate() {
-    if (!updateCenter.downloadedArtifactPath || typeof api?.showItemInFolder !== 'function') {
-      return;
-    }
-    await runUpdateAction(() => api.showItemInFolder(updateCenter.downloadedArtifactPath));
+    await runUpdateAction(() => api.openExternalUrl(portableDownloadUrl));
   }
 
   async function openUpdateReleaseNotes() {
@@ -2462,8 +2444,14 @@ export default function App() {
                     <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateState', 'Update state')}>{updateStatusLabel}</Descriptions.Item>
                     <Descriptions.Item label={translateWithFallback(t, 'dashboard.latestVersion', 'Latest version')}>{updateCenter.latestVersion || '-'}</Descriptions.Item>
                     <Descriptions.Item label={translateWithFallback(t, 'dashboard.updatePublishedAt', 'Published at')}>{formatLocalTimestamp(updateCenter.publishedAt)}</Descriptions.Item>
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updatePreparedDirectory', 'Prepared directory')}>{updateCenter.preparedDirectory || '-'}</Descriptions.Item>
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateDownloadedArtifact', 'Downloaded artifact')}>{updateCenter.downloadedArtifactPath || '-'}</Descriptions.Item>
+                    {updateCenter.packagingMode === 'portable' ? (
+                      <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateDownloadPage', 'Download page')}>{updateCenter.portableDownloadUrl || updateCenter.releaseNotesUrl || '-'}</Descriptions.Item>
+                    ) : (
+                      <>
+                        <Descriptions.Item label={translateWithFallback(t, 'dashboard.updatePreparedDirectory', 'Prepared directory')}>{updateCenter.preparedDirectory || '-'}</Descriptions.Item>
+                        <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateDownloadedArtifact', 'Downloaded artifact')}>{updateCenter.downloadedArtifactPath || '-'}</Descriptions.Item>
+                      </>
+                    )}
                     <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateLastError', 'Update error')}>{updateCenter.lastError || '-'}</Descriptions.Item>
                   </Descriptions>
                   <Alert
@@ -2476,7 +2464,7 @@ export default function App() {
                         : 'dashboard.updatePortableHint',
                       updateCenter.packagingMode === 'installed'
                         ? 'Installed builds download the Windows installer and let you restart into the update.'
-                        : 'Portable builds download and prepare a new folder. The running app does not overwrite itself.'
+                        : 'Portable builds open the release download page in your browser. This avoids in-app self-update steps and provides a clearer, safer upgrade flow.'
                     )}
                     description={translateWithFallback(t, 'dashboard.updatePluginHint', 'If this release changes the memoQ plugin or preview helper, run Install / Reinstall once after upgrading.')}
                   />
@@ -2485,18 +2473,8 @@ export default function App() {
                       {translateWithFallback(t, 'dashboard.checkForUpdates', 'Check for updates')}
                     </Button>
                     {updateCenter.packagingMode === 'portable' && updateCenter.updateStatus === 'available' ? (
-                      <Button type="primary" loading={updateActionLoading} onClick={() => void downloadPortableUpdate()}>
-                        {translateWithFallback(t, 'dashboard.downloadPortableUpdate', 'Download portable update')}
-                      </Button>
-                    ) : null}
-                    {updateCenter.packagingMode === 'portable' && updateCenter.downloadedArtifactPath && !updateCenter.preparedDirectory ? (
-                      <Button type="primary" loading={updateActionLoading} onClick={() => void preparePortableUpdate()}>
-                        {translateWithFallback(t, 'dashboard.preparePortableUpdate', 'Prepare portable update')}
-                      </Button>
-                    ) : null}
-                    {updateCenter.packagingMode === 'portable' && updateCenter.preparedDirectory ? (
-                      <Button loading={updateActionLoading} onClick={() => void openPreparedUpdate()}>
-                        {translateWithFallback(t, 'dashboard.openPreparedUpdate', 'Open prepared folder')}
+                      <Button type="primary" loading={updateActionLoading} onClick={() => void openPortableDownloadPage()}>
+                        {translateWithFallback(t, 'dashboard.openPortableDownloadPage', 'Open download page')}
                       </Button>
                     ) : null}
                     {updateCenter.packagingMode === 'installed' && updateCenter.updateStatus === 'available' ? (
@@ -2509,8 +2487,8 @@ export default function App() {
                         {translateWithFallback(t, 'dashboard.restartAndInstallUpdate', 'Restart and install update')}
                       </Button>
                     ) : null}
-                    {updateCenter.downloadedArtifactPath ? (
-                      <Button loading={updateActionLoading} onClick={() => void revealDownloadedUpdate()}>
+                    {updateCenter.packagingMode === 'installed' && updateCenter.downloadedArtifactPath ? (
+                      <Button loading={updateActionLoading} onClick={() => void runUpdateAction(() => api.showItemInFolder(updateCenter.downloadedArtifactPath))}>
                         {translateWithFallback(t, 'dashboard.revealDownloadedUpdate', 'Show downloaded file')}
                       </Button>
                     ) : null}
