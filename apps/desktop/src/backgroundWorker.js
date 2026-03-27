@@ -186,6 +186,9 @@ const requestHandlers = {
   exportHistory(payload) {
     return requireRuntime().exportHistory(payload || {});
   },
+  deleteHistoryEntries(payload) {
+    return requireRuntime().deleteHistoryEntries(payload?.entryIds || []);
+  },
   bypassTranslationCacheOnce(payload) {
     return requireRuntime().bypassTranslationCacheOnce(payload?.profileId);
   },

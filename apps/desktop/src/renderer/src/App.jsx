@@ -383,6 +383,17 @@ function translateWithFallback(t, key, fallback, values) {
   return translated && translated !== key ? translated : fallback;
 }
 
+function HoverText({ value, fallback = '-', className = '' }) {
+  const normalized = String(value ?? '').trim();
+  const displayValue = normalized || fallback;
+
+  return (
+    <Tooltip title={displayValue}>
+      <span className={`hover-text ${className}`.trim()}>{displayValue}</span>
+    </Tooltip>
+  );
+}
+
 function getUpdateStatusLabel(status, t) {
   const normalized = String(status || '').trim().toLowerCase();
   if (normalized === 'checking') return translateWithFallback(t, 'dashboard.updateStatusChecking', 'Checking');
@@ -1170,6 +1181,7 @@ export default function App() {
         remoteData?.contextBuilder?.defaultProfileId || ''
       ));
       setProviderId((current) => resolvedProviders.some((item) => item.id === current) ? current : (resolvedProviders[0]?.id || ''));
+      setSelectedHistoryIds((current) => current.filter((entryId) => remoteData?.historyExplorer?.items?.some((item) => item.id === entryId)));
       setSelectedHistoryId((current) => remoteData?.historyExplorer?.items?.some((item) => item.id === current) ? current : '');
 
       if (providerRebase.removedIds.length) {
@@ -2152,17 +2164,68 @@ export default function App() {
       return;
     }
 
-    if (key === 'context-builder') {
-      setActivePage('builder');
-      return;
-    }
-
     if (key === 'provider-hub') {
       setActivePage('providers');
       return;
     }
 
+    if (key === 'context-builder') {
+      setActivePage('builder');
+      return;
+    }
+
     setActivePage('history');
+  }
+
+  async function deleteHistoryEntries(entryIds = []) {
+    const normalizedEntryIds = Array.from(new Set((Array.isArray(entryIds) ? entryIds : []).filter(Boolean)));
+    if (!normalizedEntryIds.length || !api?.deleteHistoryEntries) {
+      return;
+    }
+
+    try {
+      const result = await api.deleteHistoryEntries(normalizedEntryIds);
+      setSelectedHistoryIds((current) => current.filter((entryId) => !normalizedEntryIds.includes(entryId)));
+      setSelectedHistoryId((current) => (normalizedEntryIds.includes(current) ? '' : current));
+      message.success(t('history.deleteSuccess', { count: Number(result?.deletedCount || normalizedEntryIds.length) }));
+      await refresh(historyFilters);
+    } catch (deleteError) {
+      notifyError(deleteError);
+    }
+  }
+
+  function confirmDeleteSelectedHistoryEntries() {
+    if (!selectedHistoryIds.length) {
+      return;
+    }
+
+    Modal.confirm({
+      title: t('history.deleteSelected'),
+      content: t('history.confirmDeleteSelected', { count: selectedHistoryIds.length }),
+      okText: t('common.delete'),
+      cancelText: t('common.cancel'),
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        await deleteHistoryEntries(selectedHistoryIds);
+      }
+    });
+  }
+
+  function confirmDeleteCurrentHistoryEntry() {
+    if (!currentHistoryRecord) {
+      return;
+    }
+
+    Modal.confirm({
+      title: t('history.deleteEntry'),
+      content: t('history.confirmDeleteEntry', { id: currentHistoryRecord.requestId || currentHistoryRecord.id || '-' }),
+      okText: t('common.delete'),
+      cancelText: t('common.cancel'),
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        await deleteHistoryEntries([currentHistoryRecord.id]);
+      }
+    });
   }
 
   function confirmDeleteProfile() {
@@ -2347,11 +2410,11 @@ export default function App() {
                 <Col span={12}>
                   <Card className="page-card" title={t('dashboard.runtimeStatus')}>
                     <Descriptions column={1}>
-                      <Descriptions.Item label={t('dashboard.memoqPath')}>{state.dashboard.runtimeStatus.memoqInstallPath}</Descriptions.Item>
-                      <Descriptions.Item label={t('dashboard.pluginStatus')}>{state.dashboard.runtimeStatus.pluginStatus}</Descriptions.Item>
-                      <Descriptions.Item label={t('dashboard.connectionStatus')}>{connectionStatusLabel}</Descriptions.Item>
-                      <Descriptions.Item label={t('dashboard.previewStatus')}>{previewBridgeStatusLabel}</Descriptions.Item>
-                      <Descriptions.Item label={t('dashboard.previewLastError')}>{previewBridgeStatus.lastError || '-'}</Descriptions.Item>
+                      <Descriptions.Item label={t('dashboard.memoqPath')}><HoverText value={state.dashboard.runtimeStatus.memoqInstallPath} /></Descriptions.Item>
+                      <Descriptions.Item label={t('dashboard.pluginStatus')}><HoverText value={state.dashboard.runtimeStatus.pluginStatus} /></Descriptions.Item>
+                      <Descriptions.Item label={t('dashboard.connectionStatus')}><HoverText value={connectionStatusLabel} /></Descriptions.Item>
+                      <Descriptions.Item label={t('dashboard.previewStatus')}><HoverText value={previewBridgeStatusLabel} /></Descriptions.Item>
+                      <Descriptions.Item label={t('dashboard.previewLastError')}><HoverText value={previewBridgeStatus.lastError} /></Descriptions.Item>
                     </Descriptions>
                     <Space style={{ marginTop: 16 }}>
                       <Button loading={handshaking} onClick={testHandshake} disabled={state?.startup?.status !== 'ready'}>{t('dashboard.testConnection')}</Button>
@@ -2439,20 +2502,20 @@ export default function App() {
               <Card className="page-card" title={translateWithFallback(t, 'dashboard.updatesTitle', 'Updates')}>
                 <Space direction="vertical" size={16} style={{ display: 'flex' }}>
                   <Descriptions column={1}>
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.currentVersion', 'Current version')}>{updateCenter.currentVersion || '-'}</Descriptions.Item>
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.packagingMode', 'Packaging mode')}>{packagingModeLabel}</Descriptions.Item>
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateState', 'Update state')}>{updateStatusLabel}</Descriptions.Item>
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.latestVersion', 'Latest version')}>{updateCenter.latestVersion || '-'}</Descriptions.Item>
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updatePublishedAt', 'Published at')}>{formatLocalTimestamp(updateCenter.publishedAt)}</Descriptions.Item>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.currentVersion', 'Current version')}><HoverText value={updateCenter.currentVersion} /></Descriptions.Item>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.packagingMode', 'Packaging mode')}><HoverText value={packagingModeLabel} /></Descriptions.Item>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateState', 'Update state')}><HoverText value={updateStatusLabel} /></Descriptions.Item>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.latestVersion', 'Latest version')}><HoverText value={updateCenter.latestVersion} /></Descriptions.Item>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updatePublishedAt', 'Published at')}><HoverText value={formatLocalTimestamp(updateCenter.publishedAt)} /></Descriptions.Item>
                     {updateCenter.packagingMode === 'portable' ? (
-                      <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateDownloadPage', 'Download page')}>{updateCenter.portableDownloadUrl || updateCenter.releaseNotesUrl || '-'}</Descriptions.Item>
+                      <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateDownloadPage', 'Download page')}><HoverText value={updateCenter.portableDownloadUrl || updateCenter.releaseNotesUrl} /></Descriptions.Item>
                     ) : (
                       <>
-                        <Descriptions.Item label={translateWithFallback(t, 'dashboard.updatePreparedDirectory', 'Prepared directory')}>{updateCenter.preparedDirectory || '-'}</Descriptions.Item>
-                        <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateDownloadedArtifact', 'Downloaded artifact')}>{updateCenter.downloadedArtifactPath || '-'}</Descriptions.Item>
+                        <Descriptions.Item label={translateWithFallback(t, 'dashboard.updatePreparedDirectory', 'Prepared directory')}><HoverText value={updateCenter.preparedDirectory} /></Descriptions.Item>
+                        <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateDownloadedArtifact', 'Downloaded artifact')}><HoverText value={updateCenter.downloadedArtifactPath} /></Descriptions.Item>
                       </>
                     )}
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateLastError', 'Update error')}>{updateCenter.lastError || '-'}</Descriptions.Item>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateLastError', 'Update error')}><HoverText value={updateCenter.lastError} /></Descriptions.Item>
                   </Descriptions>
                   <Alert
                     type="info"
@@ -2599,7 +2662,15 @@ export default function App() {
               <Card
                 className="page-card"
                 title={t('history.title')}
-                extra={<Space><Button onClick={() => exportHistory('csv', 'selected')}>{t('history.exportCsv')}</Button><Button onClick={() => exportHistory('xlsx', 'filtered')}>{t('history.exportXlsx')}</Button></Space>}
+                extra={(
+                  <Space wrap>
+                    <Button danger disabled={!selectedHistoryIds.length} onClick={confirmDeleteSelectedHistoryEntries}>
+                      {t('history.deleteSelected')}
+                    </Button>
+                    <Button onClick={() => exportHistory('csv', 'selected')}>{t('history.exportCsv')}</Button>
+                    <Button onClick={() => exportHistory('xlsx', 'filtered')}>{t('history.exportXlsx')}</Button>
+                  </Space>
+                )}
               >
                 <Space direction="vertical" size={16} style={{ display: 'flex', marginBottom: 16 }}>
                   <Row gutter={12}>
@@ -2718,9 +2789,24 @@ export default function App() {
                     style: { cursor: 'pointer' }
                   })}
                   columns={[
-                    { title: t('history.submittedId'), dataIndex: 'requestId' },
-                    { title: t('common.provider'), dataIndex: 'providerName' },
-                    { title: t('history.model'), dataIndex: 'model' },
+                    {
+                      title: t('history.submittedId'),
+                      dataIndex: 'requestId',
+                      width: 220,
+                      render: (value) => <HoverText value={value} className="table-cell-ellipsis" />
+                    },
+                    {
+                      title: t('common.provider'),
+                      dataIndex: 'providerName',
+                      width: 180,
+                      render: (value) => <HoverText value={value} className="table-cell-ellipsis" />
+                    },
+                    {
+                      title: t('history.model'),
+                      dataIndex: 'model',
+                      width: 180,
+                      render: (value) => <HoverText value={value} className="table-cell-ellipsis" />
+                    },
                     { title: t('history.segmentCount'), dataIndex: 'segmentCount', width: 120 },
                     {
                       title: t('history.status'),
@@ -2731,7 +2817,33 @@ export default function App() {
                     {
                       title: t('history.submittedAt'),
                       dataIndex: 'submittedAt',
-                      render: (value) => formatLocalTimestamp(value)
+                      width: 180,
+                      render: (value) => <HoverText value={formatLocalTimestamp(value)} className="table-cell-ellipsis" />
+                    },
+                    {
+                      title: t('common.actions'),
+                      width: 120,
+                      render: (_, record) => (
+                        <Button
+                          danger
+                          type="link"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            Modal.confirm({
+                              title: t('history.deleteEntry'),
+                              content: t('history.confirmDeleteEntry', { id: record.requestId || record.id || '-' }),
+                              okText: t('common.delete'),
+                              cancelText: t('common.cancel'),
+                              okButtonProps: { danger: true },
+                              onOk: async () => {
+                                await deleteHistoryEntries([record.id]);
+                              }
+                            });
+                          }}
+                        >
+                          {t('common.delete')}
+                        </Button>
+                      )
                     }
                   ]}
                 />
@@ -2743,6 +2855,7 @@ export default function App() {
 
       <Drawer
         title={t('history.details')}
+        extra={currentHistoryRecord ? <Button danger onClick={confirmDeleteCurrentHistoryEntry}>{t('common.delete')}</Button> : null}
         open={Boolean(currentHistoryRecord)}
         onClose={() => setSelectedHistoryId('')}
         width={WIDE_SIDE_DRAWER_WIDTH}
@@ -2751,19 +2864,19 @@ export default function App() {
         {currentHistoryRecord ? (
           <Space direction="vertical" size={16} style={{ display: 'flex' }}>
             <Descriptions bordered column={1} size="small">
-              <Descriptions.Item label={t('history.submittedId')}>{currentHistoryRecord.requestId || '-'}</Descriptions.Item>
-              <Descriptions.Item label={t('history.projectId')}>{currentHistoryRecord.projectId || '-'}</Descriptions.Item>
-              <Descriptions.Item label={t('history.client')}>{currentHistoryRecord.client || currentHistoryRecord.metadata?.client || '-'}</Descriptions.Item>
-              <Descriptions.Item label={t('history.domain')}>{currentHistoryRecord.domain || currentHistoryRecord.metadata?.domain || '-'}</Descriptions.Item>
-              <Descriptions.Item label={t('history.subject')}>{currentHistoryRecord.subject || '-'}</Descriptions.Item>
-              <Descriptions.Item label={t('history.documentId')}>{currentHistoryRecord.documentId || currentHistoryRecord.metadata?.documentId || '-'}</Descriptions.Item>
-              <Descriptions.Item label={t('history.projectGuid')}>{currentHistoryRecord.projectGuid || currentHistoryRecord.metadata?.projectGuid || '-'}</Descriptions.Item>
-              <Descriptions.Item label={t('history.model')}>{currentHistoryRecord.model || '-'}</Descriptions.Item>
-              <Descriptions.Item label={t('common.provider')}>{currentHistoryRecord.providerName || '-'}</Descriptions.Item>
-              <Descriptions.Item label={t('history.submittedAt')}>{formatLocalTimestamp(currentHistoryRecord.submittedAt)}</Descriptions.Item>
-              <Descriptions.Item label={t('history.completedAt')}>{formatLocalTimestamp(currentHistoryRecord.completedAt)}</Descriptions.Item>
-              <Descriptions.Item label={t('history.segmentCount')}>{currentHistoryRecord.segmentCount ?? buildHistorySegments(currentHistoryRecord).length}</Descriptions.Item>
-              <Descriptions.Item label={t('history.segmentSummary')}>{currentHistoryRecord.segmentSummary || '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('history.submittedId')}><HoverText value={currentHistoryRecord.requestId} /></Descriptions.Item>
+              <Descriptions.Item label={t('history.projectId')}><HoverText value={currentHistoryRecord.projectId} /></Descriptions.Item>
+              <Descriptions.Item label={t('history.client')}><HoverText value={currentHistoryRecord.client || currentHistoryRecord.metadata?.client} /></Descriptions.Item>
+              <Descriptions.Item label={t('history.domain')}><HoverText value={currentHistoryRecord.domain || currentHistoryRecord.metadata?.domain} /></Descriptions.Item>
+              <Descriptions.Item label={t('history.subject')}><HoverText value={currentHistoryRecord.subject} /></Descriptions.Item>
+              <Descriptions.Item label={t('history.documentId')}><HoverText value={currentHistoryRecord.documentId || currentHistoryRecord.metadata?.documentId} /></Descriptions.Item>
+              <Descriptions.Item label={t('history.projectGuid')}><HoverText value={currentHistoryRecord.projectGuid || currentHistoryRecord.metadata?.projectGuid} /></Descriptions.Item>
+              <Descriptions.Item label={t('history.model')}><HoverText value={currentHistoryRecord.model} /></Descriptions.Item>
+              <Descriptions.Item label={t('common.provider')}><HoverText value={currentHistoryRecord.providerName} /></Descriptions.Item>
+              <Descriptions.Item label={t('history.submittedAt')}><HoverText value={formatLocalTimestamp(currentHistoryRecord.submittedAt)} /></Descriptions.Item>
+              <Descriptions.Item label={t('history.completedAt')}><HoverText value={formatLocalTimestamp(currentHistoryRecord.completedAt)} /></Descriptions.Item>
+              <Descriptions.Item label={t('history.segmentCount')}><HoverText value={currentHistoryRecord.segmentCount ?? buildHistorySegments(currentHistoryRecord).length} /></Descriptions.Item>
+              <Descriptions.Item label={t('history.segmentSummary')}><HoverText value={currentHistoryRecord.segmentSummary} /></Descriptions.Item>
             </Descriptions>
             <Card size="small" title={t('history.promptViewTitle')}>
               <Space direction="vertical" size={12} style={{ display: 'flex' }}>
@@ -2790,25 +2903,25 @@ export default function App() {
             <Card size="small" title={t('history.contextSourcesTitle')}>
               <Descriptions bordered column={1} size="small">
                 <Descriptions.Item label={t('history.contextSourceTranslationStyle')}>
-                  {getHistoryContextSources(currentHistoryRecord).translationStyle || '-'}
+                  <HoverText value={getHistoryContextSources(currentHistoryRecord).translationStyle} />
                 </Descriptions.Item>
                 <Descriptions.Item label={t('history.contextSourceDocumentSummary')}>
-                  {getHistoryContextSources(currentHistoryRecord).documentSummary || '-'}
+                  <HoverText value={getHistoryContextSources(currentHistoryRecord).documentSummary} />
                 </Descriptions.Item>
                 <Descriptions.Item label={t('history.contextSourceTerminology')}>
-                  {getHistoryContextSources(currentHistoryRecord).terminology || '-'}
+                  <HoverText value={getHistoryContextSources(currentHistoryRecord).terminology} />
                 </Descriptions.Item>
                 <Descriptions.Item label={t('history.contextSourceTmHints')}>
-                  {getHistoryContextSources(currentHistoryRecord).tmHints || '-'}
+                  <HoverText value={getHistoryContextSources(currentHistoryRecord).tmHints} />
                 </Descriptions.Item>
                 <Descriptions.Item label={t('history.contextSourceTmDiagnostics')}>
-                  {getHistoryContextSources(currentHistoryRecord).tmDiagnostics || '-'}
+                  <HoverText value={getHistoryContextSources(currentHistoryRecord).tmDiagnostics} />
                 </Descriptions.Item>
                 <Descriptions.Item label={t('history.contextSourceProjectMetadata')}>
-                  {getHistoryContextSources(currentHistoryRecord).projectMetadata || '-'}
+                  <HoverText value={getHistoryContextSources(currentHistoryRecord).projectMetadata} />
                 </Descriptions.Item>
                 <Descriptions.Item label={t('history.contextSourcePreviewContext')}>
-                  {getHistoryContextSources(currentHistoryRecord).previewContext || '-'}
+                  <HoverText value={getHistoryContextSources(currentHistoryRecord).previewContext} />
                 </Descriptions.Item>
               </Descriptions>
             </Card>

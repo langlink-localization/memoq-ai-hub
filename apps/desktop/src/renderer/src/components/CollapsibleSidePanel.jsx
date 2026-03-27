@@ -92,7 +92,9 @@ export function ProfileListRow({ entry, compact, onClick }) {
       className={entry.isSelected ? `side-panel-row side-panel-row-active ${compact ? 'side-panel-row-compact' : ''}`.trim() : `side-panel-row ${compact ? 'side-panel-row-compact' : ''}`.trim()}
     >
       <div className="side-panel-row-content">
-        <Text ellipsis>{entry.label}</Text>
+        <Tooltip title={entry.label}>
+          <Text ellipsis>{entry.label}</Text>
+        </Tooltip>
         {Array.isArray(entry.tags) && entry.tags.length ? (
           <Space wrap size={[6, 6]} className="side-panel-row-tags">
             {entry.tags.map((tag) => (

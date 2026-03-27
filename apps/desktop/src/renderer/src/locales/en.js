@@ -34,6 +34,7 @@ const en = {
     success: 'Success',
     error: 'Error',
     export: 'Export',
+    actions: 'Actions',
     provider: 'Provider',
     requestId: 'Request ID',
     expandSidebar: 'Expand sidebar',
@@ -592,7 +593,12 @@ const en = {
     tmTarget: 'TM Target',
     exportCsv: 'CSV',
     exportXlsx: 'XLSX',
-    exportSuccess: 'Exported {{count}} row(s) to {{path}}'
+    exportSuccess: 'Exported {{count}} row(s) to {{path}}',
+    deleteEntry: 'Delete History Entry',
+    deleteSelected: 'Delete Selected',
+    confirmDeleteEntry: 'Delete history entry "{{id}}"?',
+    confirmDeleteSelected: 'Delete {{count}} selected history entries?',
+    deleteSuccess: 'Deleted {{count}} history entries.'
   },
   feedback: {
     blockedDelete: 'Delete blocked',

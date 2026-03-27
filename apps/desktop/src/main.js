@@ -60,8 +60,8 @@ function buildPlaceholderAppState() {
     dashboard: {
       checklist: [
         { key: 'install-plugin', title: '1. Install plugin', subtitle: integration.status === 'installed' ? 'dll installed' : 'dll not installed', actionLabel: 'Install' },
-        { key: 'context-builder', title: '2. Build context', subtitle: 'No profile yet', actionLabel: 'Configure' },
-        { key: 'provider-hub', title: '3. Connect AI', subtitle: 'No provider yet', actionLabel: 'Configure' },
+        { key: 'provider-hub', title: '2. Configure provider', subtitle: 'No provider yet', actionLabel: 'Configure' },
+        { key: 'context-builder', title: '3. Build context', subtitle: 'No profile yet', actionLabel: 'Build' },
         { key: 'history', title: '4. Verify run', subtitle: 'No history yet', actionLabel: 'Review' }
       ],
       runtimeStatus: {
@@ -461,6 +461,10 @@ function registerIpcHandlers() {
   ipcMain.handle('desktop:export-history', (_event, options) => {
     requireWorkerReady();
     return invokeWorker('exportHistory', options || {});
+  });
+  ipcMain.handle('desktop:delete-history-entries', (_event, entryIds) => {
+    requireWorkerReady();
+    return invokeWorker('deleteHistoryEntries', { entryIds: Array.isArray(entryIds) ? entryIds : [] });
   });
   ipcMain.handle('desktop:bypass-translation-cache-once', (_event, profileId) => {
     requireWorkerReady();

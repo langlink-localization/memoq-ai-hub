@@ -332,9 +332,26 @@ body,
 }
 
 .provider-list-subtitle {
-  word-break: break-all;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   line-height: 1.4;
   font-size: 12px;
+}
+
+.hover-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.table-cell-ellipsis {
+  width: 100%;
 }
 
 .provider-inspector-shell {

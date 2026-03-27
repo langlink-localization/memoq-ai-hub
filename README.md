@@ -4,92 +4,109 @@
 
 ## Overview
 
-`memoQ AI Hub` is a local AI translation console for memoQ. The core idea is inspired by [JuchiaLu/Multi-Supplier-MT-Plugin](https://github.com/JuchiaLu/Multi-Supplier-MT-Plugin).
+`memoQ AI Hub` is a local desktop gateway for memoQ AI translation workflows.
 
-Instead of keeping all translation logic inside one memoQ plugin DLL, this project uses a "thin DLL + local desktop app" architecture. The memoQ plugin stays focused on SDK integration, segment conversion, and local communication, while the desktop app handles provider configuration, prompt orchestration, asset management, history, cache, and installation diagnostics.
+The project uses a thin memoQ plugin DLL plus a local Electron app:
 
-## What It Does
+- The memoQ plugin DLL stays focused on memoQ SDK integration and local request forwarding.
+- The desktop app handles provider setup, profile building, terminology assets, history, cache, install diagnostics, and packaging.
 
-- Routes memoQ MT plugin requests through a local desktop gateway, then calls OpenAI or OpenAI-compatible services from one place.
-- Centralizes provider, model, API key, prompt strategy, and runtime settings in the desktop app.
-- Builds translation context from language metadata, neighboring segments, terminology assets, briefs, TM data, and preview-derived context.
-- Records translation history, success rate, latency, and operational signals for troubleshooting and tuning.
-- Supports `StoreTranslation` write-back so confirmed translations become reusable adaptive cache entries.
-- Packages the memoQ plugin DLL, `ClientDevConfig.xml`, and desktop-side integration assets together.
+This keeps fast-changing AI logic out of the memoQ plugin itself and makes local debugging and release packaging much easier.
 
-## Core Approach
+## What Is Actually Enabled Today
 
-The runtime is split into four layers:
+The current desktop app exposes these operator-facing modules:
 
-- `native/plugin/`: the thinnest possible memoQ plugin layer, implementing the memoQ MT SDK surface, converting segments, forwarding metadata and TM data, and calling the local HTTP gateway.
-- `apps/desktop/`: the Electron desktop app, responsible for provider orchestration, context building, history, cache, local services, and install diagnostics.
-- `native/preview-helper/`: preview support used to supply document-level context and preview-related data to the desktop runtime.
-- `packages/contracts/`: the shared HTTP contract between the DLL and the desktop app.
+- `Dashboard`: install or reinstall the memoQ integration, check runtime status, and review update state.
+- `Providers`: configure OpenAI or OpenAI-compatible providers, test connectivity, and manage enabled models.
+- `Builder`: create translation profiles, choose provider routes, bind a TB asset, and adjust the limited v1 advanced switches.
+- `Assets`: import and preview glossary or TB assets.
+- `History`: inspect translation runs and export or delete history records.
 
-The design choice is simple: memoQ plugins are good host adapters, but not a good place for fast-changing AI logic. Moving the complex behavior into a desktop runtime makes debugging, extension, packaging, release, and future UI work much easier.
+The repository contains runtime code for more advanced capabilities, but not every internal/runtime concept is exposed as a dedicated top-level UI page in the current build. The README and user flow below describe the shipped surface, not every internal module.
+
+## Runtime Layout
+
+- `native/plugin/`: memoQ MT plugin implementation and packaging assets.
+- `apps/desktop/`: Electron desktop app, local worker, renderer UI, and local gateway.
+- `native/preview-helper/`: preview helper used for richer document context.
+- `packages/contracts/`: shared desktop/plugin contract metadata.
 
 ## Request Flow
 
 1. memoQ calls the local plugin DLL.
-2. The plugin converts segments, language pair, request type, and TM or metadata fields into a normalized request and sends it to the local gateway at `http://127.0.0.1:5271`.
-3. The desktop runtime reads the active profile and provider configuration to choose the model and parameters.
-4. The desktop runtime assembles prompts and context, including terminology, briefs, preview context, adjacent text, and history-driven policy.
-5. The provider registry calls an OpenAI or compatible API and normalizes the result.
-6. The result is written back into history, metrics, and cache. Adaptive cache hits can short-circuit later requests.
-7. The plugin converts the returned text back into a memoQ-compatible result and hands it back to memoQ.
+2. The DLL normalizes the request and forwards it to the local desktop gateway at `http://127.0.0.1:5271`.
+3. The desktop runtime resolves the active profile and provider route.
+4. The runtime assembles context from profile settings, metadata, TB assets, preview context, TM hints, and cache policy.
+5. The provider registry calls an OpenAI or OpenAI-compatible API.
+6. The result is written back into history and cache, then returned to memoQ.
 
-`StoreTranslation` works in the reverse direction: once a user confirms a translation inside memoQ, the plugin sends the source and target text back to the desktop runtime so they can be stored as reusable cache entries.
+Confirmed translations can also flow back through `StoreTranslation` so the desktop runtime can reuse them as adaptive cache entries later.
 
-## Repository Structure
+## Actual Setup Order
 
-- Runtime modules: `apps/desktop/`, `native/plugin/`, `native/preview-helper/`, `packages/contracts/`
-- Engineering support: `tooling/scripts/`, `tooling/build/`, `.github/workflows/`
-- Docs and reference material: `docs/`
-- Static assets: `assets/`
-- Repo-level tests: `tests/repo/`
+The current dashboard and user flow are aligned around this order:
 
-See `docs/repository-structure.md` for repository structure and extension rules.
+1. Install the plugin DLL.
+2. Configure a provider.
+3. Build a profile in Builder.
+4. Review translation history.
 
-## User Guide
-
-- English user guide: [docs/user-guide.md](docs/user-guide.md)
-- 简体中文用户指南：[docs/user-guide.zh-CN.md](docs/user-guide.zh-CN.md)
-
-If you are setting up the desktop app, installing the memoQ plugin, or configuring providers and profiles for the first time, start with the user guide before diving into the engineering docs.
+If you are setting up the app for the first time, this is the path that matches the shipped UI.
 
 ## Local Development
+
+Install dependencies and build from the repo root:
 
 ```powershell
 pnpm install
 pnpm run install:desktop
 pnpm run build:plugin
 pnpm run prepare:release
+```
+
+Run desktop tests:
+
+```powershell
+pnpm run test:desktop
+pnpm run test:repo
+```
+
+Start the Electron app:
+
+```powershell
 cd apps/desktop
 pnpm start
 ```
 
-Default gateway base URL: `http://127.0.0.1:5271`
+Default local gateway:
 
-## Packaging And Release
+```text
+http://127.0.0.1:5271
+```
 
-This repository includes GitHub Actions:
+## Packaging
 
-- `.github/workflows/ci.yml`: runs build, tests, and Windows packaging checks on pushes to `main` and on pull requests.
-- `.github/workflows/release.yml`: runs the release packaging flow on `v*` tags and uploads `apps/desktop/out/**/*.zip` to GitHub Releases.
-
-Local packaging command:
+Common packaging commands:
 
 ```powershell
+pnpm run package:desktop
+pnpm run zip:desktop
 pnpm run package:windows
 ```
 
-Primary outputs:
+Typical outputs include:
 
 - `native/plugin/MemoQ.AI.Desktop.Plugin/bin/Release/net48/MemoQ.AI.Hub.Plugin.dll`
 - `apps/desktop/out/*.zip`
 - `apps/desktop/out/make/**/*.exe`
-- `apps/desktop/build-resources/memoq-integration/*`
+
+## Documentation
+
+- User guide: [docs/user-guide.md](docs/user-guide.md)
+- Chinese user guide: [docs/user-guide.zh-CN.md](docs/user-guide.zh-CN.md)
+- Repository structure: [docs/repository-structure.md](docs/repository-structure.md)
 
 ## License
 
-This project is released under the MIT License. See `LICENSE`.
+MIT. See [LICENSE](LICENSE).

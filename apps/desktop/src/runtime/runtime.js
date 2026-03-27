@@ -453,10 +453,11 @@ async function createRuntime(options = {}) {
   }
 
   function buildChecklist(state, history, integration, providers) {
+    const enabledProviderCount = providers.filter((item) => item.enabled).length;
     return [
       { key: 'install-plugin', title: '1. Install plugin', subtitle: integration.status === 'installed' ? 'dll installed' : 'dll not installed', actionLabel: 'Install' },
-      { key: 'context-builder', title: '2. Build context', subtitle: state.profiles.length ? `${state.profiles.length} profile(s)` : 'No profile yet', actionLabel: 'Configure' },
-      { key: 'provider-hub', title: '3. Connect AI', subtitle: providers.filter((item) => item.enabled).length ? `${providers.filter((item) => item.enabled).length} provider(s)` : 'No provider yet', actionLabel: 'Configure' },
+      { key: 'provider-hub', title: '2. Configure provider', subtitle: enabledProviderCount ? `${enabledProviderCount} provider(s)` : 'No provider yet', actionLabel: 'Configure' },
+      { key: 'context-builder', title: '3. Build context', subtitle: state.profiles.length ? `${state.profiles.length} profile(s)` : 'No profile yet', actionLabel: 'Build' },
       { key: 'history', title: '4. Verify run', subtitle: history.length ? `${history.length} record(s)` : 'No history yet', actionLabel: 'Review' }
     ];
   }
@@ -2928,6 +2929,9 @@ async function createRuntime(options = {}) {
         XLSX.writeFile(workbook, outputPath);
       }
       return { path: outputPath, count: rows.length };
+    },
+    deleteHistoryEntries(entryIds = []) {
+      return persistence.deleteHistoryEntries(entryIds);
     },
     bypassTranslationCacheOnce(profileId) {
       return armTranslationCacheBypass(profileId);

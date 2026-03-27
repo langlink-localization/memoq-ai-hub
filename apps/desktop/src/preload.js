@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('memoqDesktop', {
   saveAssetTbConfig: (assetId, payload) => ipcRenderer.invoke('desktop:save-asset-tb-config', { assetId, ...(payload || {}) }),
   deleteAsset: (assetId) => ipcRenderer.invoke('desktop:delete-asset', assetId),
   exportHistory: (options) => ipcRenderer.invoke('desktop:export-history', options),
+  deleteHistoryEntries: (entryIds) => ipcRenderer.invoke('desktop:delete-history-entries', entryIds),
   bypassTranslationCacheOnce: (profileId) => ipcRenderer.invoke('desktop:bypass-translation-cache-once', profileId),
   clearTranslationCache: () => ipcRenderer.invoke('desktop:clear-translation-cache'),
   getUpdateStatus: () => ipcRenderer.invoke('desktop:get-update-status'),

@@ -123,7 +123,9 @@ function ProviderCatalog({
                               </Space>
                               <Tag color={tagMeta.color}>{tagMeta.label}</Tag>
                             </div>
-                            <Text type="secondary" className="provider-list-subtitle">{item.baseUrl}</Text>
+                            <Tooltip title={item.baseUrl}>
+                              <Text type="secondary" className="provider-list-subtitle">{item.baseUrl}</Text>
+                            </Tooltip>
                             <Text type="secondary">
                               {t('providers.modelCount', { value: getProviderModelCount(item) })}
                               {' · '}
