@@ -627,6 +627,13 @@ function BuilderEditor({
               />
             </StepCard>
           </div>
+
+          <div className="builder-sticky-actions" data-testid="builder-sticky-actions">
+            <Space wrap size={[10, 10]} className="builder-sticky-actions-inner">
+              <Button onClick={onDiscard}>{t('context.discardChanges')}</Button>
+              <Button type="primary" icon={<SaveOutlined />} onClick={onSave}>{t('context.saveProfile')}</Button>
+            </Space>
+          </div>
         </Space>
       </Card>
     </>

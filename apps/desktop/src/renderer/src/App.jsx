@@ -1318,19 +1318,21 @@ export default function App() {
     return groups.filter((group) => group.items.length);
   }, [filteredProviders, t]);
   const currentProviderFingerprint = useMemo(() => buildProviderFingerprint(currentProvider), [currentProvider]);
-  const currentProviderTestState = currentProvider ? (providerTestStatesById[currentProvider.id] || DEFAULT_PROVIDER_TEST_STATE) : DEFAULT_PROVIDER_TEST_STATE;
-  const currentProviderConnectionStatus = normalizeProviderStatus(currentProvider?.status);
+  const currentProviderConnectionSnapshot = currentProvider?.connectionSnapshot || {
+    status: normalizeProviderStatus(currentProvider?.status),
+    testedAt: '',
+    latencyMs: null,
+    message: '',
+    lastError: '',
+    hasPreviousTest: false
+  };
+  const currentProviderConnectionStatus = normalizeProviderStatus(currentProviderConnectionSnapshot.status);
   const currentProviderConnectionMeta = getStatusTagMeta(currentProviderConnectionStatus, t);
-  const currentProviderHasPreviousTest = Boolean(String(currentProviderTestState.testedAt || '').trim());
-  const currentProviderTestMessage = useMemo(() => {
-    if (currentProviderConnectionStatus === 'failed') {
-      return String(currentProviderTestState.message || currentProvider.lastError || '').trim();
-    }
-    if (currentProviderConnectionStatus === 'connected') {
-      return String(currentProviderTestState.message || '').trim();
-    }
-    return '';
-  }, [currentProvider, currentProviderConnectionStatus, currentProviderTestState]);
+  const currentProviderHasPreviousTest = currentProviderConnectionSnapshot.hasPreviousTest === true;
+  const currentProviderTestMessage = useMemo(
+    () => String(currentProviderConnectionSnapshot.message || '').trim(),
+    [currentProviderConnectionSnapshot]
+  );
   const currentHistoryRecord = useMemo(
     () => state?.historyExplorer?.items?.find((item) => item.id === selectedHistoryId) || null,
     [state, selectedHistoryId],
@@ -2579,6 +2581,7 @@ export default function App() {
               providerModelSearch={providerModelSearch}
               filteredCurrentProviderModelCatalog={filteredCurrentProviderModelCatalog}
               currentProviderConnectionMeta={currentProviderConnectionMeta}
+              currentProviderConnectionSnapshot={currentProviderConnectionSnapshot}
               currentProviderConnectionStatus={currentProviderConnectionStatus}
               currentProviderHasPreviousTest={currentProviderHasPreviousTest}
               currentProviderTestMessage={currentProviderTestMessage}

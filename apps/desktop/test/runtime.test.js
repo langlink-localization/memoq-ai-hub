@@ -1486,6 +1486,26 @@ test('runtime clearTranslationCache removes only translation cache entries', asy
   }
 });
 
+test('runtime saveProfile preserves cacheEnabled false across save and reload', async () => {
+  const tempRoot = createTempAppRoot();
+  try {
+    const runtime = await createRuntime({ appDataRoot: tempRoot });
+
+    const profile = await runtime.saveProfile({
+      name: 'Cache Off Profile',
+      cacheEnabled: false
+    });
+
+    assert.equal(profile.cacheEnabled, false);
+    assert.equal(
+      runtime.getAppState().contextBuilder.profiles.find((item) => item.id === profile.id)?.cacheEnabled,
+      false
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('runtime exposes update status and portable prepare flow through app state', async () => {
   const tempRoot = createTempAppRoot();
   const manifestUrl = 'https://example.com/latest.json';

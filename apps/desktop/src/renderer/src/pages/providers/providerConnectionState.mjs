@@ -19,6 +19,87 @@ export function normalizeProviderStatus(status) {
   return 'not_tested';
 }
 
+export function resolveProviderConnectionSnapshot({
+  provider = null,
+  draftEntry = null,
+  hasDraftChanges = false,
+  testState = DEFAULT_PROVIDER_TEST_STATE,
+  fingerprint = '',
+  invalidatingFields = CONNECTION_INVALIDATING_PROVIDER_FIELDS
+} = {}) {
+  const providerStatus = normalizeProviderStatus(provider?.status);
+  const previousTestedAt = String(testState?.testedAt || '').trim();
+  const previousMessage = String(testState?.message || '').trim();
+  const previousLatencyMs = Number.isFinite(testState?.latencyMs) ? testState.latencyMs : null;
+
+  const baseSnapshot = {
+    status: providerStatus,
+    testedAt: String(provider?.lastCheckedAt || '').trim(),
+    latencyMs: Number.isFinite(provider?.lastLatencyMs)
+      ? provider.lastLatencyMs
+      : (Number.isFinite(provider?.avgLatencyMs) ? provider.avgLatencyMs : null),
+    message: providerStatus === 'failed' ? String(provider?.lastError || '').trim() : '',
+    lastError: String(provider?.lastError || '').trim(),
+    hasPreviousTest: Boolean(previousTestedAt)
+  };
+
+  if (!provider) {
+    return {
+      ...baseSnapshot,
+      status: 'not_tested',
+      testedAt: '',
+      latencyMs: null,
+      message: '',
+      lastError: '',
+      hasPreviousTest: false
+    };
+  }
+
+  if (!(draftEntry && hasDraftChanges)) {
+    return baseSnapshot;
+  }
+
+  if (testState.fingerprint === fingerprint) {
+    const status = normalizeProviderStatus(testState.status);
+    const message = status === 'failed' ? previousMessage : (status === 'connected' ? previousMessage : '');
+    return {
+      ...baseSnapshot,
+      status,
+      testedAt: previousTestedAt,
+      latencyMs: previousLatencyMs,
+      message,
+      lastError: status === 'failed' ? previousMessage : ''
+    };
+  }
+
+  const invalidatesConnection = (draftEntry.dirtyFields || []).some((field) => invalidatingFields.has(field));
+  if (invalidatesConnection) {
+    return {
+      ...baseSnapshot,
+      status: 'not_tested',
+      message: '',
+      lastError: '',
+      hasPreviousTest: Boolean(previousTestedAt)
+    };
+  }
+
+  if (testState.status && testState.status !== 'not_tested') {
+    const status = normalizeProviderStatus(testState.status);
+    const message = status === 'failed' ? previousMessage : (status === 'connected' ? previousMessage : '');
+    return {
+      ...baseSnapshot,
+      status,
+      testedAt: previousTestedAt,
+      latencyMs: previousLatencyMs,
+      message,
+      lastError: status === 'failed' ? previousMessage : '',
+      hasPreviousTest: Boolean(previousTestedAt)
+    };
+  }
+
+  return baseSnapshot;
+}
+
 export function resolveProviderConnectionStatus({
   provider = null,
   draftEntry = null,
@@ -27,26 +108,14 @@ export function resolveProviderConnectionStatus({
   fingerprint = '',
   invalidatingFields = CONNECTION_INVALIDATING_PROVIDER_FIELDS
 } = {}) {
-  if (!provider) {
-    return 'not_tested';
-  }
-
-  if (draftEntry && hasDraftChanges) {
-    if (testState.fingerprint === fingerprint) {
-      return normalizeProviderStatus(testState.status);
-    }
-
-    const invalidatesConnection = (draftEntry.dirtyFields || []).some((field) => invalidatingFields.has(field));
-    if (invalidatesConnection) {
-      return 'not_tested';
-    }
-
-    if (testState.status && testState.status !== 'not_tested') {
-      return normalizeProviderStatus(testState.status);
-    }
-  }
-
-  return normalizeProviderStatus(provider.status);
+  return resolveProviderConnectionSnapshot({
+    provider,
+    draftEntry,
+    hasDraftChanges,
+    testState,
+    fingerprint,
+    invalidatingFields
+  }).status;
 }
 
 export function decorateProvidersWithConnectionStatus({
@@ -61,16 +130,18 @@ export function decorateProvidersWithConnectionStatus({
     const providerId = String(provider?.id || '').trim();
     const draftEntry = providerId ? draftsById[providerId] || null : null;
     const testState = providerId ? (testStatesById[providerId] || DEFAULT_PROVIDER_TEST_STATE) : DEFAULT_PROVIDER_TEST_STATE;
+    const connectionSnapshot = resolveProviderConnectionSnapshot({
+      provider,
+      draftEntry,
+      hasDraftChanges: providerId ? hasDraftChanges(draftsById, providerId) : false,
+      testState,
+      fingerprint: buildFingerprint(provider),
+      invalidatingFields
+    });
     return {
       ...provider,
-      status: resolveProviderConnectionStatus({
-        provider,
-        draftEntry,
-        hasDraftChanges: providerId ? hasDraftChanges(draftsById, providerId) : false,
-        testState,
-        fingerprint: buildFingerprint(provider),
-        invalidatingFields
-      })
+      status: connectionSnapshot.status,
+      connectionSnapshot
     };
   });
 }

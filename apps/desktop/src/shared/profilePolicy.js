@@ -5,7 +5,6 @@ const FIRST_RELEASE_FIXED_PROFILE_FIELDS = Object.freeze({
   useCustomTm: false,
   useBrief: false,
   useMetadata: true,
-  cacheEnabled: true,
   usePreviewContext: true,
   usePreviewFullText: false
 });

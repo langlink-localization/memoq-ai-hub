@@ -423,6 +423,26 @@ body,
   gap: 18px;
 }
 
+.builder-sticky-actions {
+  position: sticky;
+  bottom: 16px;
+  z-index: 3;
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 6px;
+}
+
+.builder-sticky-actions-inner {
+  justify-content: flex-end;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--app-color-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(10px);
+}
+
 .builder-step-card {
   overflow: hidden;
 }

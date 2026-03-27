@@ -381,32 +381,39 @@ function ProviderModelLibraryModal({
 }
 
 function ProviderHealthPanel({
-  currentProvider,
+  connectionSnapshot,
   formatLocalTimestamp
 }) {
   const { t } = useI18n();
+  const status = String(connectionSnapshot?.status || 'not_tested');
+  const testedAt = String(connectionSnapshot?.testedAt || '').trim();
+  const lastError = String(connectionSnapshot?.lastError || '').trim();
+  const latencyMs = Number.isFinite(connectionSnapshot?.latencyMs) ? connectionSnapshot.latencyMs : null;
+  const hasPreviousTest = connectionSnapshot?.hasPreviousTest === true;
 
   return (
     <>
       <Descriptions column={1} size="small">
         <Descriptions.Item label={t('providers.lastHealthTitle')}>
-          {Number.isFinite(currentProvider.lastLatencyMs)
-            ? t('providers.lastLatencyMs', { value: currentProvider.lastLatencyMs })
-            : Number.isFinite(currentProvider.avgLatencyMs)
-              ? t('providers.avgLatency24h', { value: currentProvider.avgLatencyMs })
-              : t('providers.noHealthData')}
+          {status === 'connected' && Number.isFinite(latencyMs)
+            ? t('providers.lastLatencyMs', { value: latencyMs })
+            : status === 'failed'
+              ? t('providers.statusFailed')
+              : hasPreviousTest
+                ? t('providers.testAfterChangesHint')
+                : t('providers.noHealthData')}
         </Descriptions.Item>
         <Descriptions.Item label={t('providers.lastCheckedAt')}>
-          {formatLocalTimestamp(currentProvider.lastCheckedAt, t('providers.notAvailable'))}
+          {testedAt ? formatLocalTimestamp(testedAt, t('providers.notAvailable')) : t('providers.notAvailable')}
         </Descriptions.Item>
       </Descriptions>
 
-      {currentProvider.lastError && (
+      {lastError && (
         <Alert
           type="error"
           showIcon
           message={t('providers.lastError')}
-          description={currentProvider.lastError}
+          description={lastError}
         />
       )}
     </>
@@ -418,6 +425,7 @@ export function ProvidersPage(props) {
     buildProviderRequestPreview,
     currentProvider,
     currentProviderConnectionMeta,
+    currentProviderConnectionSnapshot,
     currentProviderConnectionStatus,
     currentProviderHasPreviousTest,
     currentProviderTestMessage,
@@ -575,7 +583,7 @@ export function ProvidersPage(props) {
                 />
 
                 <ProviderHealthPanel
-                  currentProvider={currentProvider}
+                  connectionSnapshot={currentProviderConnectionSnapshot}
                   formatLocalTimestamp={formatLocalTimestamp}
                 />
               </Space>
