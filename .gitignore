@@ -30,6 +30,13 @@ native/preview-helper/**/preview-helper/
 *.user
 *.suo
 pnpm-lock.yaml
+.env
+.claude/
+.codex/
+CLAUDE.md
+AGENTS.md
+IMPLEMENTATION_PLAN.md
+.infisical.json
 
 # OS-generated files
 .DS_Store

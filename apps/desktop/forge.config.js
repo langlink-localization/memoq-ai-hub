@@ -30,6 +30,10 @@ const builtinModuleSet = new Set([
 ]);
 const packageRequirePattern = /require\((['"])([^'"]+)\1\)/g;
 
+function readPackageJson(packageDir) {
+  return JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'));
+}
+
 function safeRemoveDirectory(targetPath) {
   if (!fs.existsSync(targetPath)) {
     return;
@@ -104,6 +108,11 @@ function findRuntimePackageNames(buildPath) {
 }
 
 function resolvePackageDirectory(packageName) {
+  const directPackagePath = path.join(sourceNodeModulesPath, packageName);
+  if (fs.existsSync(directPackagePath)) {
+    return fs.realpathSync(directPackagePath);
+  }
+
   const resolvedEntryPath = buildRequire.resolve(packageName, {
     paths: [__dirname, sourceNodeModulesPath]
   });
@@ -123,6 +132,42 @@ function resolvePackageDirectory(packageName) {
   }
 
   throw new Error(`Unable to locate package root for runtime dependency: ${packageName}`);
+}
+
+function getPackageDependencyNames(packageDir) {
+  const packageJson = readPackageJson(packageDir);
+  return Object.keys({
+    ...(packageJson.dependencies || {}),
+    ...(packageJson.optionalDependencies || {})
+  })
+    .map((dependencyName) => normalizePackageName(dependencyName))
+    .filter(Boolean);
+}
+
+function collectRuntimePackageNames(buildPath) {
+  const discoveredPackages = findRuntimePackageNames(buildPath);
+  const pendingPackages = discoveredPackages.filter((packageName) => packageName !== 'electron');
+  const collectedPackages = new Set();
+
+  while (pendingPackages.length) {
+    const packageName = pendingPackages.pop();
+    if (!packageName || collectedPackages.has(packageName)) {
+      continue;
+    }
+
+    collectedPackages.add(packageName);
+
+    const packageDir = resolvePackageDirectory(packageName);
+    const dependencyNames = getPackageDependencyNames(packageDir);
+
+    for (const dependencyName of dependencyNames) {
+      if (!collectedPackages.has(dependencyName)) {
+        pendingPackages.push(dependencyName);
+      }
+    }
+  }
+
+  return Array.from(collectedPackages).sort();
 }
 
 function copyPackageDirectory(sourceDir, targetDir) {
@@ -148,7 +193,7 @@ function copyRuntimeNodeModules(buildPath) {
   }
 
   const targetNodeModulesPath = path.join(buildPath, 'node_modules');
-  const runtimePackageNames = findRuntimePackageNames(buildPath);
+  const runtimePackageNames = collectRuntimePackageNames(buildPath);
 
   safeRemoveDirectory(targetNodeModulesPath);
   fs.mkdirSync(targetNodeModulesPath, { recursive: true });
