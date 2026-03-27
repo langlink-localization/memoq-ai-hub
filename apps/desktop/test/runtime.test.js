@@ -1874,7 +1874,7 @@ test('runtime can test unsaved provider draft without saving it first', async ()
   }
 });
 
-test('runtime saves a default model when a provider is created without explicit models', async () => {
+test('runtime preserves empty compatible model lists when a provider is created without explicit models', async () => {
   const tempRoot = createTempAppRoot();
 
   try {
@@ -1890,32 +1890,29 @@ test('runtime saves a default model when a provider is created without explicit 
       name: 'OpenAI Compatible',
       type: 'openai-compatible',
       baseUrl: 'https://api.example.com/v1',
-      requestPath: '/responses',
+      requestPath: '/chat/completions',
       apiKey: 'test-key',
       models: []
     });
 
-    assert.equal(provider.models.length, 1);
-    assert.equal(provider.models[0].modelName, 'gpt-5.4-mini');
-    assert.equal(provider.models[0].enabled, true);
+    assert.equal(provider.models.length, 0);
+    assert.equal(provider.defaultModelId, '');
 
     const state = runtime.getAppState();
-    assert.equal(state.providerHub.providers[0].models[0].modelName, 'gpt-5.4-mini');
+    assert.equal(state.providerHub.providers[0].models.length, 0);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
 
-test('runtime tests provider drafts with the default model when no model list is provided', async () => {
+test('runtime rejects compatible provider draft tests when no enabled model is provided', async () => {
   const tempRoot = createTempAppRoot();
-  const seen = [];
 
   try {
     const runtime = await createRuntime({
       appDataRoot: tempRoot,
       providerRegistry: {
         testConnection: async ({ provider, modelName }) => {
-          seen.push({ type: provider.type, modelName, requestPath: provider.requestPath });
           return { ok: true, latencyMs: 12, message: `ok:${modelName}` };
         },
         translateSegment: async ({ sourceText }) => ({ text: `${sourceText} -> ZH`, latencyMs: 25 })
@@ -1931,16 +1928,9 @@ test('runtime tests provider drafts with the default model when no model list is
       models: []
     });
 
-    assert.equal(result.ok, true);
-    assert.equal(result.status, 'connected');
-    assert.match(result.message, /gpt-5.4-mini/);
-    assert.deepEqual(seen, [
-      {
-        type: 'openai-compatible',
-        modelName: 'gpt-5.4-mini',
-        requestPath: '/chat/completions'
-      }
-    ]);
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 'failed');
+    assert.equal(result.message, 'At least one enabled model is required.');
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

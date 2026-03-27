@@ -2744,7 +2744,7 @@ async function createRuntime(options = {}) {
       if (candidateApiKey) {
         const validationModels = modelsToValidate.length
           ? modelsToValidate
-          : [{ modelName: getDefaultModelName(nextProvider.type) }];
+          : (nextProvider.type === 'openai-compatible' ? [] : [{ modelName: getDefaultModelName(nextProvider.type) }]);
 
         for (const model of validationModels) {
           validateProviderRequestInput({

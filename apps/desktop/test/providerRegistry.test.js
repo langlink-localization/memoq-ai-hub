@@ -1087,6 +1087,35 @@ test('provider registry testConnection falls back to the provider default model 
   });
 });
 
+test('provider registry testConnection adds an OpenRouter-specific hint for banned model authors', async () => {
+  const { MockOpenAI } = createMockOpenAI({
+    responsesCreate: async () => {
+      throw new Error('403 Author openai is banned');
+    }
+  });
+
+  await withMockedModules({ openai: MockOpenAI }, async () => {
+    const { createProviderRegistry: loadRegistry } = require(providerRegistryModulePath);
+    const registry = loadRegistry();
+
+    const result = await registry.testConnection({
+      provider: {
+        type: 'openai-compatible',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        requestPath: '/responses'
+      },
+      apiKey: 'test-key',
+      modelName: 'openai/gpt-5.4-mini'
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'PROVIDER_AUTH_FAILED');
+    assert.match(result.message, /Author openai is banned/);
+    assert.match(result.message, /OpenRouter rejected the selected model author/i);
+    assert.match(result.message, /Discover Models/i);
+  });
+});
+
 test('provider registry translateSegment prefers structured openai responses before text fallback', async () => {
   const { MockOpenAI, calls } = createMockOpenAI({
     responsesCreate: async () => ({

@@ -24,7 +24,7 @@ const DEFAULT_PROVIDER_NAMES = {
 
 const DEFAULT_REQUEST_PATHS = {
   openai: '/responses',
-  'openai-compatible': '/responses'
+  'openai-compatible': '/chat/completions'
 };
 
 const DEFAULT_CAPABILITIES = {

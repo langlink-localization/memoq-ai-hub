@@ -80,6 +80,34 @@ function createClient(OpenAIConstructor, provider, apiKey, timeoutMs) {
   });
 }
 
+function isOpenRouterProvider(provider = {}) {
+  return String(provider?.baseUrl || '').trim().toLowerCase().includes('openrouter.ai');
+}
+
+function buildConnectionTestFailureMessage(provider, mappedError) {
+  const baseMessage = String(mappedError?.message || 'Connection test failed.').trim();
+  const normalized = baseMessage.toLowerCase();
+
+  if (isOpenRouterProvider(provider) && normalized.includes('author') && normalized.includes('banned')) {
+    return `${baseMessage} OpenRouter rejected the selected model author. Choose a different model or use Discover Models to pick an allowed model ID.`;
+  }
+
+  if (
+    String(provider?.type || '').trim().toLowerCase() === 'openai-compatible'
+    && normalized.includes('model')
+    && (
+      normalized.includes('not found')
+      || normalized.includes('does not exist')
+      || normalized.includes('unknown')
+      || normalized.includes('invalid')
+    )
+  ) {
+    return `${baseMessage} Use Discover Models or enter the exact provider-specific model ID.`;
+  }
+
+  return baseMessage;
+}
+
 function createChatMessages(systemPrompt, prompt) {
   const messages = [];
   if (systemPrompt) {
@@ -500,7 +528,7 @@ function createProviderRegistry(options = {}) {
         ok: false,
         latencyMs: null,
         code: mapped.code,
-        message: mapped.message
+        message: buildConnectionTestFailureMessage(provider, mapped)
       };
     }
   }

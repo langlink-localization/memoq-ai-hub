@@ -45,6 +45,7 @@ import {
   rebaseDraftEntries,
   updateDraftEntry
 } from './editorDrafts.mjs';
+import providerDraftDefaults from './providerDraftDefaults';
 import {
   buildDefaultPresetProfile,
   buildHistoryPromptItems,
@@ -59,11 +60,18 @@ import {
 } from './timeFormatting.mjs';
 import { useI18n } from './i18n';
 import { ProvidersPage } from './pages/providers';
+import {
+  CONNECTION_INVALIDATING_PROVIDER_FIELDS,
+  DEFAULT_PROVIDER_TEST_STATE,
+  decorateProvidersWithConnectionStatus,
+  normalizeProviderStatus
+} from './pages/providers/providerConnectionState.mjs';
 import { BuilderPage } from './pages/builder';
 import AssetsPage from './pages/assets/AssetsPage.jsx';
 
 const { Content, Header, Sider } = Layout;
 const { Text, Title } = Typography;
+const { getProviderDraftSeed } = providerDraftDefaults;
 const DEFAULT_MEMOQ_VERSIONS = ['10', '11', '12'];
 const EMPTY_HISTORY_FILTERS = {
   search: '',
@@ -75,15 +83,7 @@ const EMPTY_HISTORY_FILTERS = {
   dateFrom: '',
   dateTo: ''
 };
-const DEFAULT_PROVIDER_TEST_STATE = {
-  fingerprint: '',
-  status: 'not_tested',
-  message: '',
-  testedAt: '',
-  latencyMs: null
-};
 const CONNECTION_SENSITIVE_PROVIDER_FIELDS = new Set(['apiKey', 'baseUrl', 'requestPath', 'type']);
-const CONNECTION_INVALIDATING_PROVIDER_FIELDS = new Set(['apiKey', 'baseUrl', 'requestPath', 'type', 'modelsConnection']);
 const TEMPLATE_PLACEHOLDER_PATTERN = /{{\s*([a-z-]+)(!)?\s*}}/g;
 const WIDE_SIDE_DRAWER_WIDTH = '68vw';
 const TRANSLATION_STYLE_PRESETS = [
@@ -349,24 +349,11 @@ function resolveSelectedRecordId(items = [], currentId = '', fallbackId = '') {
 }
 
 function createProviderDraft(type) {
-  const drafts = {
-    openai: {
-      name: 'OpenAI',
-      type: 'openai',
-      baseUrl: 'https://api.openai.com/v1',
-      models: [createDraftProviderModel('gpt-5.4-mini')]
-    },
-    'openai-compatible': {
-      name: 'OpenAI Compatible',
-      type: 'openai-compatible',
-      baseUrl: 'https://api.example.com/v1',
-      requestPath: '/responses',
-      models: [createDraftProviderModel('gpt-5.4-mini')]
-    }
-  };
+  const draftSeed = getProviderDraftSeed(type);
 
   return {
-    ...(drafts[type] || drafts.openai),
+    ...draftSeed,
+    models: (draftSeed.modelNames || []).map((modelName) => createDraftProviderModel(modelName)),
     enabled: true
   };
 }
@@ -410,17 +397,6 @@ function getPackagingModeLabel(mode, t) {
   return String(mode || '').trim().toLowerCase() === 'installed'
     ? translateWithFallback(t, 'dashboard.packagingInstalled', 'Installed')
     : translateWithFallback(t, 'dashboard.packagingPortable', 'Portable');
-}
-
-function normalizeProviderStatus(status) {
-  const normalized = String(status || '').trim().toLowerCase();
-  if (normalized === 'connected' || normalized === 'failed' || normalized === 'testing' || normalized === 'not_tested') {
-    return normalized;
-  }
-  if (normalized === 'healthy') return 'connected';
-  if (normalized === 'needs_attention') return 'failed';
-  if (normalized === 'idle') return 'not_tested';
-  return 'not_tested';
 }
 
 function getPresetInstallDir(version) {
@@ -1275,10 +1251,13 @@ export default function App() {
     [state?.contextBuilder?.profiles, profileDraftsById],
   );
   const defaultProfileId = String(state?.contextBuilder?.defaultProfileId || '').trim();
-  const providerItems = useMemo(
-    () => getResolvedRecords(state?.providerHub?.providers || [], providerDraftsById),
-    [state?.providerHub?.providers, providerDraftsById],
-  );
+  const providerItems = useMemo(() => decorateProvidersWithConnectionStatus({
+    providers: getResolvedRecords(state?.providerHub?.providers || [], providerDraftsById),
+    draftsById: providerDraftsById,
+    testStatesById: providerTestStatesById,
+    buildFingerprint: buildProviderFingerprint,
+    hasDraftChanges,
+  }), [state?.providerHub?.providers, providerDraftsById, providerTestStatesById]);
   const currentProfile = useMemo(
     () => profileItems.find((item) => item.id === resolveSelectedRecordId(profileItems, profileId, defaultProfileId)) || null,
     [defaultProfileId, profileItems, profileId],
@@ -1339,33 +1318,19 @@ export default function App() {
     return groups.filter((group) => group.items.length);
   }, [filteredProviders, t]);
   const currentProviderFingerprint = useMemo(() => buildProviderFingerprint(currentProvider), [currentProvider]);
-  const currentProviderDraft = currentProvider ? providerDraftsById[currentProvider.id] : null;
   const currentProviderTestState = currentProvider ? (providerTestStatesById[currentProvider.id] || DEFAULT_PROVIDER_TEST_STATE) : DEFAULT_PROVIDER_TEST_STATE;
-  const currentProviderConnectionStatus = useMemo(() => {
-    if (!currentProvider) {
-      return 'not_tested';
-    }
-
-    if (currentProviderDraft && hasDraftChanges(providerDraftsById, currentProvider.id)) {
-      if (currentProviderTestState.fingerprint === currentProviderFingerprint) {
-        return normalizeProviderStatus(currentProviderTestState.status);
-      }
-
-      const invalidatesConnection = (currentProviderDraft.dirtyFields || []).some((field) => CONNECTION_INVALIDATING_PROVIDER_FIELDS.has(field));
-      if (invalidatesConnection) {
-        return 'not_tested';
-      }
-
-      if (currentProviderTestState.status && currentProviderTestState.status !== 'not_tested') {
-        return normalizeProviderStatus(currentProviderTestState.status);
-      }
-
-      return normalizeProviderStatus(currentProvider.status);
-    }
-
-    return normalizeProviderStatus(currentProvider.status);
-  }, [currentProvider, currentProviderDraft, currentProviderFingerprint, currentProviderTestState, providerDraftsById]);
+  const currentProviderConnectionStatus = normalizeProviderStatus(currentProvider?.status);
   const currentProviderConnectionMeta = getStatusTagMeta(currentProviderConnectionStatus, t);
+  const currentProviderHasPreviousTest = Boolean(String(currentProviderTestState.testedAt || '').trim());
+  const currentProviderTestMessage = useMemo(() => {
+    if (currentProviderConnectionStatus === 'failed') {
+      return String(currentProviderTestState.message || currentProvider.lastError || '').trim();
+    }
+    if (currentProviderConnectionStatus === 'connected') {
+      return String(currentProviderTestState.message || '').trim();
+    }
+    return '';
+  }, [currentProvider, currentProviderConnectionStatus, currentProviderTestState]);
   const currentHistoryRecord = useMemo(
     () => state?.historyExplorer?.items?.find((item) => item.id === selectedHistoryId) || null,
     [state, selectedHistoryId],
@@ -2039,10 +2004,6 @@ export default function App() {
       };
     }, { dirtyFields: [field] });
 
-    if (CONNECTION_SENSITIVE_PROVIDER_FIELDS.has(field)) {
-      clearProviderTestState(currentProvider.id);
-      return;
-    }
   }
 
   function patchCurrentModel(modelId, field, value) {
@@ -2054,14 +2015,13 @@ export default function App() {
       ))
     }), { dirtyFields: field === 'modelName' ? ['models', 'modelsConnection'] : ['models'] });
 
-    if (field === 'modelName') {
-      clearProviderTestState(currentProvider.id);
-    }
   }
 
   function addModelToCurrentProvider(modelName = '') {
     if (!currentProvider) return;
-    const normalizedModelName = String(modelName || '').trim() || createProviderDraft(currentProvider.type).models[0]?.modelName || 'gpt-5.4-mini';
+    const draftSeed = getProviderDraftSeed(currentProvider.type);
+    const normalizedModelName = String(modelName || '').trim() || draftSeed.modelNames?.[0] || '';
+    if (!normalizedModelName) return;
 
     updateCurrentProviderDraft((provider) => {
       const existingModel = (provider.models || []).find((model) => String(model.modelName || '').trim().toLowerCase() === normalizedModelName.toLowerCase());
@@ -2078,7 +2038,6 @@ export default function App() {
         defaultModelId: nextDefaultModelId
       };
     }, { dirtyFields: ['models', 'defaultModelId', 'modelsConnection'] });
-    clearProviderTestState(currentProvider.id);
   }
 
   function removeModelsFromCurrentProvider(modelIds = []) {
@@ -2090,7 +2049,8 @@ export default function App() {
 
     updateCurrentProviderDraft((provider) => {
       const currentModels = Array.isArray(provider.models) ? provider.models : [];
-      if (currentModels.length - normalizedIds.length < 1) {
+      const allowsEmptyDraftModels = provider.type === 'openai-compatible';
+      if (!allowsEmptyDraftModels && currentModels.length - normalizedIds.length < 1) {
         throw new Error(t('providers.keepOneModel'));
       }
 
@@ -2104,7 +2064,6 @@ export default function App() {
       };
     }, { dirtyFields: ['models', 'defaultModelId', 'modelsConnection'] });
     setProviderModelSelection((current) => current.filter((item) => !normalizedIds.includes(item)));
-    clearProviderTestState(currentProvider.id);
   }
 
   function setCurrentProviderDefaultModel(modelId) {
@@ -2621,6 +2580,8 @@ export default function App() {
               filteredCurrentProviderModelCatalog={filteredCurrentProviderModelCatalog}
               currentProviderConnectionMeta={currentProviderConnectionMeta}
               currentProviderConnectionStatus={currentProviderConnectionStatus}
+              currentProviderHasPreviousTest={currentProviderHasPreviousTest}
+              currentProviderTestMessage={currentProviderTestMessage}
               savingProvider={savingProvider}
               testingProvider={testingProvider}
               discoveringProviderModels={discoveringProviderModels}

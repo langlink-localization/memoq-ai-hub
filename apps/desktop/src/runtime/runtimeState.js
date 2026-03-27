@@ -319,7 +319,7 @@ function ensureProvider(provider = {}) {
   const models = Array.isArray(sanitized.models) ? sanitized.models : [];
   const normalizedModels = models.length
     ? models.map((model) => ensureProviderModel(model, sanitized.type))
-    : [ensureProviderModel({}, sanitized.type)];
+    : (sanitized.type === 'openai-compatible' ? [] : [ensureProviderModel({}, sanitized.type)]);
   const defaultModelId = resolveProviderDefaultModelId(normalizedModels, sanitized.defaultModelId);
 
   return {

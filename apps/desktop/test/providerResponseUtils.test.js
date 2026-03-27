@@ -32,6 +32,15 @@ test('provider response utils maps provider errors into stable codes', () => {
   assert.equal(mapProviderError({ message: '429 too many requests', retryAfterSeconds: 7 }).retryAfterSeconds, 7);
 });
 
+test('provider response utils keeps 403 policy failures distinct from auth failures', () => {
+  const authorBanned = mapProviderError(new Error('403 Author openai is banned'));
+  assert.equal(authorBanned.code, 'PROVIDER_CONFIG_INVALID');
+  assert.match(authorBanned.message, /Discover Models/i);
+
+  const forbidden = mapProviderError(new Error('403 forbidden'));
+  assert.equal(forbidden.code, 'PROVIDER_FORBIDDEN');
+});
+
 test('provider response utils extract response text from output arrays and embedded objects', () => {
   assert.equal(
     extractResponseText({

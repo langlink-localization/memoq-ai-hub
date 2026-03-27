@@ -52,6 +52,15 @@ function normalizeRetryAfterSeconds(value, message = '') {
   return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
 }
 
+function buildForbiddenProviderMessage(message) {
+  const normalized = String(message || '').trim();
+  const lower = normalized.toLowerCase();
+  if (lower.includes('author') && lower.includes('banned')) {
+    return `Provider policy rejected the selected model or author. Try Discover Models and pick a model allowed by this endpoint. ${normalized}`.trim();
+  }
+  return normalized;
+}
+
 function mapProviderError(error) {
   const message = String(error?.message || error || 'Unknown provider error');
   const lower = message.toLowerCase();
@@ -59,8 +68,15 @@ function mapProviderError(error) {
   if (lower.includes('bytestring') || lower.includes('replacement character') || lower.includes('u+fffd')) {
     return { code: 'PROVIDER_CONFIG_INVALID', message, retryAfterSeconds };
   }
-  if (lower.includes('api key') || lower.includes('unauthorized') || lower.includes('401') || lower.includes('403')) {
+  if (lower.includes('api key') || lower.includes('unauthorized') || lower.includes('401')) {
     return { code: 'PROVIDER_AUTH_FAILED', message, retryAfterSeconds };
+  }
+  if (lower.includes('403')) {
+    return {
+      code: lower.includes('author') && lower.includes('banned') ? 'PROVIDER_CONFIG_INVALID' : 'PROVIDER_FORBIDDEN',
+      message: buildForbiddenProviderMessage(message),
+      retryAfterSeconds
+    };
   }
   if (
     lower.includes('429')

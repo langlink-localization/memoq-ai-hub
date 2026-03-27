@@ -28,8 +28,10 @@ import {
 } from '../../appShell.mjs';
 import { CollapsibleItemList, CollapsibleSidePanel, SidePanelMeta } from '../../components/CollapsibleSidePanel';
 import { useI18n } from '../../i18n';
+import providerConnectionUx from '../../providerConnectionUx';
 
 const { Text, Title } = Typography;
+const { getProviderConnectionHelperText, isProviderConnectionTestDisabled } = providerConnectionUx;
 
 function ProviderCatalog({
   filteredProviders,
@@ -417,6 +419,8 @@ export function ProvidersPage(props) {
     currentProvider,
     currentProviderConnectionMeta,
     currentProviderConnectionStatus,
+    currentProviderHasPreviousTest,
+    currentProviderTestMessage,
     discoveringProviderModels,
     filteredCurrentProviderModelCatalog,
     filteredProviders,
@@ -456,6 +460,15 @@ export function ProvidersPage(props) {
   } = props;
   const { t } = useI18n();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const currentProviderHelperText = getProviderConnectionHelperText({
+    provider: currentProvider,
+    status: currentProviderConnectionStatus,
+    statusLabel: currentProviderConnectionMeta.label,
+    message: currentProviderTestMessage,
+    hasPreviousTest: currentProviderHasPreviousTest,
+    t
+  });
+  const isTestConnectionDisabled = isProviderConnectionTestDisabled(currentProvider, testingProvider);
 
   return (
     <Row gutter={[20, 20]}>
@@ -509,14 +522,16 @@ export function ProvidersPage(props) {
                       onChange={(event) => onPatchProvider?.('apiKey', event.target.value)}
                       placeholder={t('providers.pasteApiKey')}
                     />
-                    <Button loading={testingProvider} onClick={onTestProvider}>{t('providers.testBeforeSave')}</Button>
+                    <Button
+                      loading={testingProvider}
+                      disabled={isTestConnectionDisabled}
+                      onClick={onTestProvider}
+                    >
+                      {t('providers.testBeforeSave')}
+                    </Button>
                   </div>
                   <Text type={currentProviderConnectionMeta.color === 'red' ? 'danger' : 'secondary'}>
-                    {currentProviderConnectionStatus === 'testing'
-                      ? t('providers.testingDraft')
-                      : currentProviderConnectionStatus === 'connected'
-                        ? `${currentProviderConnectionMeta.label}. ${t('providers.connectionReady')}`
-                        : t('providers.testBeforeSaveHint')}
+                    {currentProviderHelperText}
                   </Text>
                 </Space>
 
