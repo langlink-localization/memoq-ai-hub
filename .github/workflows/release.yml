@@ -50,10 +50,43 @@ jobs:
         run: ./tooling/scripts/package-windows.ps1 -Configuration Release
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: memoQ AI Hub ${{ steps.release_meta.outputs.tag }}
-          tag_name: ${{ steps.release_meta.outputs.tag }}
-          files: |
-            apps/desktop/out/**/*.zip
-            apps/desktop/out/memoq-ai-hub-updates-stable.json
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ steps.release_meta.outputs.tag }}"
+          $zipPath = "apps/desktop/out/memoq-ai-hub-win32-x64.zip"
+          $manifestPath = "apps/desktop/out/memoq-ai-hub-updates-stable.json"
+          $notesPath = "docs/release-notes/$tag.md"
+
+          if (-not (Test-Path $zipPath)) {
+            throw "Release zip not found at $zipPath"
+          }
+
+          if (-not (Test-Path $manifestPath)) {
+            throw "Update manifest not found at $manifestPath"
+          }
+
+          if (-not (Test-Path $notesPath)) {
+            throw "Release notes file not found at $notesPath"
+          }
+
+          $releaseTitle = "memoQ AI Hub $tag"
+
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $zipPath $manifestPath --clobber
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to upload release assets for $tag"
+            }
+
+            gh release edit $tag --title $releaseTitle --notes-file $notesPath
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to update release notes for $tag"
+            }
+          } else {
+            gh release create $tag $zipPath $manifestPath --title $releaseTitle --notes-file $notesPath
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to create release $tag"
+            }
+          }
