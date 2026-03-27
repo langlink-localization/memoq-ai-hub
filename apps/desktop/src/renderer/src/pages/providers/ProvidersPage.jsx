@@ -28,10 +28,9 @@ import {
 } from '../../appShell.mjs';
 import { CollapsibleItemList, CollapsibleSidePanel, SidePanelMeta } from '../../components/CollapsibleSidePanel';
 import { useI18n } from '../../i18n';
-import providerConnectionUx from '../../providerConnectionUx';
+import { getProviderConnectionHelperText, isProviderConnectionTestDisabled } from '../../providerConnectionUx.mjs';
 
 const { Text, Title } = Typography;
-const { getProviderConnectionHelperText, isProviderConnectionTestDisabled } = providerConnectionUx;
 
 function ProviderCatalog({
   filteredProviders,

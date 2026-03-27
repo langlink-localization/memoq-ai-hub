@@ -45,7 +45,7 @@ import {
   rebaseDraftEntries,
   updateDraftEntry
 } from './editorDrafts.mjs';
-import providerDraftDefaults from './providerDraftDefaults';
+import { getProviderDraftSeed } from './providerDraftDefaults.mjs';
 import {
   buildDefaultPresetProfile,
   buildHistoryPromptItems,
@@ -71,7 +71,6 @@ import AssetsPage from './pages/assets/AssetsPage.jsx';
 
 const { Content, Header, Sider } = Layout;
 const { Text, Title } = Typography;
-const { getProviderDraftSeed } = providerDraftDefaults;
 const DEFAULT_MEMOQ_VERSIONS = ['10', '11', '12'];
 const EMPTY_HISTORY_FILTERS = {
   search: '',
