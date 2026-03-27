@@ -408,6 +408,30 @@ function createRuntimePersistence(db, { nowIso, normalizeState }) {
     listHistory() {
       return listHistoryEntries(db);
     },
+    deleteHistoryEntries(entryIds = []) {
+      const normalizedIds = Array.from(new Set(
+        (Array.isArray(entryIds) ? entryIds : [])
+          .map((item) => String(item || '').trim())
+          .filter(Boolean)
+      ));
+
+      if (!normalizedIds.length) {
+        return { deletedCount: 0 };
+      }
+
+      db.transaction(() => {
+        normalizedIds.forEach((entryId) => {
+          db.run('DELETE FROM translation_history_segments WHERE history_id = $historyId', {
+            $historyId: entryId
+          });
+          db.run('DELETE FROM translation_history WHERE id = $id', {
+            $id: entryId
+          });
+        });
+      });
+
+      return { deletedCount: normalizedIds.length };
+    },
     appendHistoryEntry(entry) {
       db.transaction(() => {
         insertHistoryEntry(db, entry);

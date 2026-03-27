@@ -473,6 +473,69 @@ test('runtime starts from empty real state', async () => {
     assert.equal(state.contextBuilder.profiles.length, 0);
     assert.equal(state.providerHub.providers.length, 0);
     assert.equal(state.historyExplorer.items.length, 0);
+    assert.deepEqual(
+      state.dashboard.checklist.map((item) => item.key),
+      ['install-plugin', 'provider-hub', 'context-builder', 'history']
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime deletes history entries together with their segment rows', async () => {
+  const tempRoot = createTempAppRoot();
+  const databaseCapture = {};
+
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      __databaseState: {
+        historyRows: [
+          {
+            id: 'hist-1',
+            request_id: 'REQ-1',
+            submitted_at: '2026-03-26T00:00:00.000Z',
+            completed_at: '2026-03-26T00:00:01.000Z',
+            entry_json: {
+              id: 'hist-1',
+              requestId: 'REQ-1',
+              status: 'success',
+              submittedAt: '2026-03-26T00:00:00.000Z',
+              completedAt: '2026-03-26T00:00:01.000Z',
+              segments: [{ id: 'seg-1', index: 0, sourceText: 'A', targetText: 'B' }]
+            }
+          },
+          {
+            id: 'hist-2',
+            request_id: 'REQ-2',
+            submitted_at: '2026-03-25T00:00:00.000Z',
+            completed_at: '2026-03-25T00:00:01.000Z',
+            entry_json: {
+              id: 'hist-2',
+              requestId: 'REQ-2',
+              status: 'success',
+              submittedAt: '2026-03-25T00:00:00.000Z',
+              completedAt: '2026-03-25T00:00:01.000Z',
+              segments: [{ id: 'seg-2', index: 0, sourceText: 'C', targetText: 'D' }]
+            }
+          }
+        ],
+        historySegmentRows: [
+          { id: 'seg-1', history_id: 'hist-1', segment_index: 0, source_text: 'A', target_text: 'B', segment_json: { id: 'seg-1' } },
+          { id: 'seg-2', history_id: 'hist-2', segment_index: 0, source_text: 'C', target_text: 'D', segment_json: { id: 'seg-2' } }
+        ]
+      },
+      __databaseCapture: databaseCapture
+    });
+
+    const result = runtime.deleteHistoryEntries(['hist-1']);
+    assert.equal(result.deletedCount, 1);
+    assert.equal(runtime.getAppState().historyExplorer.items.length, 1);
+    assert.equal(runtime.getAppState().historyExplorer.items[0].id, 'hist-2');
+    assert.equal(databaseCapture.store.historyRows.has('hist-1'), false);
+    assert.equal(databaseCapture.store.historySegmentRows.has('seg-1'), false);
+    assert.equal(databaseCapture.store.historyRows.has('hist-2'), true);
+    assert.equal(databaseCapture.store.historySegmentRows.has('seg-2'), true);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
