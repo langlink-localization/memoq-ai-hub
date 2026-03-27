@@ -1109,7 +1109,7 @@ test('provider registry testConnection adds an OpenRouter-specific hint for bann
     });
 
     assert.equal(result.ok, false);
-    assert.equal(result.code, 'PROVIDER_AUTH_FAILED');
+    assert.equal(result.code, 'PROVIDER_CONFIG_INVALID');
     assert.match(result.message, /Author openai is banned/);
     assert.match(result.message, /OpenRouter rejected the selected model author/i);
     assert.match(result.message, /Discover Models/i);
