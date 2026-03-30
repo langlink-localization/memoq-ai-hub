@@ -68,6 +68,19 @@ test('compatible drafts with no enabled model disable test connection', () => {
   }), 0);
 });
 
+test('null providers behave like an empty first-run provider state', () => {
+  assert.equal(getEnabledModelCount(null), 0);
+  assert.equal(isProviderConnectionTestDisabled(null), false);
+  assert.equal(getProviderConnectionHelperText({
+    provider: null,
+    status: 'not_tested',
+    statusLabel: 'Not tested',
+    message: '',
+    hasPreviousTest: false,
+    t: createTranslator()
+  }), 'Add at least one enabled model before testing this draft.');
+});
+
 test('discovery hint detection targets banned-author style failures', () => {
   assert.equal(shouldSuggestModelDiscovery('403 Author openai is banned'), true);
   assert.equal(shouldSuggestModelDiscovery('401 unauthorized'), false);

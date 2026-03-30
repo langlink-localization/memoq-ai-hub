@@ -6,11 +6,12 @@ function shouldSuggestModelDiscovery(message = '') {
     || normalized.includes('forbidden');
 }
 
-function getEnabledModelCount(provider = {}) {
-  return (Array.isArray(provider.models) ? provider.models : []).filter((model) => model?.enabled !== false).length;
+function getEnabledModelCount(provider = null) {
+  const models = Array.isArray(provider?.models) ? provider.models : [];
+  return models.filter((model) => model?.enabled !== false).length;
 }
 
-function isProviderConnectionTestDisabled(provider = {}, testing = false) {
+function isProviderConnectionTestDisabled(provider = null, testing = false) {
   if (testing) {
     return true;
   }
