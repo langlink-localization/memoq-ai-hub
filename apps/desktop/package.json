@@ -1,7 +1,7 @@
 {
   "name": "memoq-ai-hub-app",
   "private": true,
-  "version": "1.0.11",
+  "version": "1.0.12",
   "packageManager": "pnpm@10.6.2",
   "license": "MIT",
   "author": "LangLink Localization",
@@ -16,7 +16,7 @@
     "start": "electron-forge start",
     "start:server": "node src/serverStandalone.js",
     "smoke:health": "node src/smokeHealthCheck.js",
-    "test": "node --test \"test/*.test.js\"",
+    "test": "node --test \"test/*.test.js\" \"test/*.test.mjs\"",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "zip:win-unpacked": "powershell -ExecutionPolicy Bypass -File ..\\..\\tooling\\build\\zip-win-unpacked.ps1"

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -42,6 +43,29 @@ export function validateReleaseTag(tagName, repoRoot = getRepoRoot()) {
   return {
     version,
     tag: expectedTag
+  };
+}
+
+export function validateReleaseCommitOnRef(commitSha, refName = 'origin/main', repoRoot = getRepoRoot()) {
+  const normalizedCommit = String(commitSha || '').trim();
+  const normalizedRef = String(refName || '').trim() || 'origin/main';
+
+  if (!normalizedCommit) {
+    throw new Error(`A release commit SHA is required to validate ancestry against ${normalizedRef}.`);
+  }
+
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', normalizedCommit, normalizedRef], {
+      cwd: repoRoot,
+      stdio: 'ignore'
+    });
+  } catch (error) {
+    throw new Error(`Release commit ${normalizedCommit} is not reachable from ${normalizedRef}. Create release tags from the main release line.`);
+  }
+
+  return {
+    commitSha: normalizedCommit,
+    refName: normalizedRef
   };
 }
 
@@ -94,7 +118,7 @@ export function writeStableUpdateManifest(outputPath, options = {}) {
 }
 
 function printUsage() {
-  console.error('Usage: node tooling/scripts/release-metadata.mjs <version|check-tag|write-manifest> [args]');
+  console.error('Usage: node tooling/scripts/release-metadata.mjs <version|check-tag|check-mainline|write-manifest> [args]');
 }
 
 function main(argv = process.argv.slice(2)) {
@@ -107,6 +131,12 @@ function main(argv = process.argv.slice(2)) {
 
   if (command === 'check-tag') {
     const result = validateReleaseTag(value);
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    return;
+  }
+
+  if (command === 'check-mainline') {
+    const result = validateReleaseCommitOnRef(value, argv[2] || 'origin/main');
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }

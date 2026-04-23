@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULT_DESKTOP_VERSION = '1.0.9';
+const DEFAULT_DESKTOP_VERSION = '0.0.0';
 
 function safeStatMtimeIso(filePath) {
   try {
@@ -11,8 +11,58 @@ function safeStatMtimeIso(filePath) {
   }
 }
 
+function buildSearchRoots(repoRoot) {
+  const roots = [
+    String(repoRoot || ''),
+    String(process.resourcesPath || ''),
+    process.resourcesPath ? path.join(process.resourcesPath, 'app.asar') : ''
+  ].filter(Boolean);
+
+  const uniqueRoots = [];
+  const seen = new Set();
+
+  for (const root of roots) {
+    const resolved = path.resolve(root);
+    if (!seen.has(resolved)) {
+      seen.add(resolved);
+      uniqueRoots.push(resolved);
+    }
+  }
+
+  return uniqueRoots;
+}
+
+function findNearestPackageJsonPath(startDir) {
+  if (!startDir) {
+    return '';
+  }
+
+  let currentDir = path.resolve(startDir);
+  while (currentDir && currentDir !== path.dirname(currentDir)) {
+    const packagePath = path.join(currentDir, 'package.json');
+    if (fs.existsSync(packagePath)) {
+      return packagePath;
+    }
+    currentDir = path.dirname(currentDir);
+  }
+
+  const finalCandidate = path.join(currentDir, 'package.json');
+  return fs.existsSync(finalCandidate) ? finalCandidate : '';
+}
+
+function resolveDesktopPackagePath(repoRoot) {
+  for (const searchRoot of buildSearchRoots(repoRoot)) {
+    const packagePath = findNearestPackageJsonPath(searchRoot);
+    if (packagePath) {
+      return packagePath;
+    }
+  }
+
+  return path.join(path.resolve(String(repoRoot || process.cwd() || '.')), 'package.json');
+}
+
 function readDesktopPackageMetadata(repoRoot) {
-  const packagePath = path.join(String(repoRoot || ''), 'package.json');
+  const packagePath = resolveDesktopPackagePath(repoRoot);
   try {
     const raw = fs.readFileSync(packagePath, 'utf8');
     const parsed = JSON.parse(raw);
@@ -35,7 +85,8 @@ function buildRuntimeIdentity({
   runtimeScriptPath,
   nowIso = () => new Date().toISOString()
 }) {
-  const packageMetadata = readDesktopPackageMetadata(repoRoot);
+  const metadataRoot = runtimeScriptPath ? path.dirname(runtimeScriptPath) : repoRoot;
+  const packageMetadata = readDesktopPackageMetadata(metadataRoot);
   return {
     desktopVersion: packageMetadata.desktopVersion,
     runtimeStartedAt: nowIso(),
@@ -59,6 +110,7 @@ function readDesktopVersionFromPayload(payload = {}) {
 
 module.exports = {
   DEFAULT_DESKTOP_VERSION,
+  resolveDesktopPackagePath,
   safeStatMtimeIso,
   readDesktopPackageMetadata,
   buildRuntimeIdentity,

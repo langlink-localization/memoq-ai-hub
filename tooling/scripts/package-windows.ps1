@@ -48,17 +48,53 @@ function Ensure-Dotnet() {
     throw "dotnet is not available. Install the .NET SDK or add C:\Program Files\dotnet to PATH before running tooling/scripts/package-windows.ps1."
 }
 
-function Get-DesktopVersion() {
-    $versionOutput = & node (Join-Path $repoRoot "tooling\scripts\release-metadata.mjs") version 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "Unable to read desktop version from apps/desktop/package.json. node returned exit code $LASTEXITCODE. Output: $versionOutput"
+function Resolve-NodeExecutable() {
+    $candidates = @()
+    $nodeCommand = Get-Command "node" -ErrorAction SilentlyContinue
+    if ($nodeCommand -and $nodeCommand.Source) {
+        $candidates += $nodeCommand.Source
     }
 
-    $normalized = ($versionOutput | Out-String).Trim()
+    $whereExePath = Join-Path $env:SystemRoot "System32\where.exe"
+    if (Test-Path $whereExePath) {
+        $whereOutput = & $whereExePath node 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $candidates += ($whereOutput | Out-String).Split([Environment]::NewLine, [System.StringSplitOptions]::RemoveEmptyEntries)
+        }
+    }
+
+    foreach ($candidate in ($candidates | Where-Object { $_ } | Select-Object -Unique)) {
+        $resolved = [string]$candidate
+        if (-not (Test-Path $resolved)) {
+            continue
+        }
+
+        if ($resolved -match [regex]::Escape("\mise\shims\")) {
+            continue
+        }
+
+        return $resolved
+    }
+
+    if ($nodeCommand -and $nodeCommand.Source -and (Test-Path $nodeCommand.Source)) {
+        return $nodeCommand.Source
+    }
+
+    throw "Unable to locate a real Node.js executable."
+}
+
+function Get-DesktopVersion() {
+    $packageJsonPath = Join-Path $repoRoot "apps\desktop\package.json"
+    if (-not (Test-Path $packageJsonPath)) {
+        throw "Unable to read desktop version because package.json is missing: $packageJsonPath"
+    }
+
+    $packageJson = Get-Content $packageJsonPath -Raw | ConvertFrom-Json
+    $normalized = [string]$packageJson.version
     if (-not $normalized) {
         throw "Unable to read desktop version from apps/desktop/package.json."
     }
-    return $normalized
+    return $normalized.Trim()
 }
 
 function Get-ArtifactFiles([string]$Pattern) {
@@ -121,7 +157,8 @@ try {
 }
 
 Write-Step "Writing update manifest"
-& node (Join-Path $repoRoot "tooling\scripts\release-metadata.mjs") write-manifest $updateManifestPath (Get-Date).ToUniversalTime().ToString("o")
+$nodeExecutable = Resolve-NodeExecutable
+& $nodeExecutable (Join-Path $repoRoot "tooling\scripts\release-metadata.mjs") write-manifest $updateManifestPath (Get-Date).ToUniversalTime().ToString("o")
 if ($LASTEXITCODE -ne 0) {
     throw "Unable to write update manifest."
 }
@@ -148,6 +185,21 @@ if (-not $zipFiles.Count) {
 
 if (-not (Test-Path $updateManifestPath)) {
     throw "Update manifest was not produced at $updateManifestPath."
+}
+
+Write-Step "Verifying packaged desktop bundle"
+$previousPackagedAppDir = $env:MEMOQ_AI_PACKAGED_APP_DIR
+$env:MEMOQ_AI_PACKAGED_APP_DIR = $unpackedAppDir[0].FullName
+Push-Location $desktopDir
+try {
+    Invoke-NativeStep "node --test test/releasePackaging.test.js" { node --test test/releasePackaging.test.js }
+} finally {
+    Pop-Location
+    if ($null -eq $previousPackagedAppDir) {
+        Remove-Item Env:MEMOQ_AI_PACKAGED_APP_DIR -ErrorAction SilentlyContinue
+    } else {
+        $env:MEMOQ_AI_PACKAGED_APP_DIR = $previousPackagedAppDir
+    }
 }
 
 Write-Host ""

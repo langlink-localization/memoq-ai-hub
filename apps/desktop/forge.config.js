@@ -358,5 +358,12 @@ module.exports = {
         ]
       }
     }
-  ]
+  ],
+  __testables: {
+    collectRuntimePackageNames,
+    findRuntimePackageNames,
+    getPackageDependencyNames,
+    normalizePackageName,
+    resolvePackageDirectory
+  }
 };

@@ -5,6 +5,7 @@ const Module = require('module');
 const os = require('os');
 const path = require('path');
 const { formatTimestampForLocalDisplay } = require('../src/shared/timeFormatting');
+const desktopPackageVersion = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')).version;
 
 const runtimeModulePath = require.resolve('../src/runtime/runtime');
 
@@ -937,7 +938,7 @@ test('runtime writes real translation history using configured provider route', 
     assert.equal(state.historyExplorer.items.length, 1);
     assert.equal(state.historyExplorer.items[0].providerName, 'OpenAI');
     assert.equal(state.historyExplorer.items[0].segmentCount, 1);
-    assert.equal(state.historyExplorer.items[0].runtime.desktopVersion, '1.0.9');
+    assert.equal(state.historyExplorer.items[0].runtime.desktopVersion, desktopPackageVersion);
     assert.equal(state.historyExplorer.items[0].runtime.processId, process.pid);
     assert.equal(state.historyExplorer.items[0].runtime.execPath, process.execPath);
     assert.ok(state.historyExplorer.items[0].runtime.runtimeStartedAt);
@@ -1586,7 +1587,7 @@ test('runtime exposes update status and portable download-page flow through app 
             status: 200,
             async json() {
               return {
-                version: '1.0.10',
+                version: '1.0.13',
                 publishedAt: '2026-03-26T00:00:00.000Z',
                 releaseNotesUrl: 'https://example.com/release',
                 assets: {
@@ -1611,7 +1612,7 @@ test('runtime exposes update status and portable download-page flow through app 
     const available = await runtime.checkForUpdates({ manual: true });
     const finalState = runtime.getAppState();
 
-    assert.equal(available.latestVersion, '1.0.10');
+    assert.equal(available.latestVersion, '1.0.13');
     assert.equal(available.portableDownloadUrl, 'https://example.com/release');
     assert.equal(finalState.updateCenter.updateStatus, 'available');
     await assert.rejects(() => runtime.downloadPortableUpdate(), /browser download page/i);
@@ -1686,8 +1687,8 @@ test('runtime exposes runtime identity in desktop version payload', async () => 
     });
 
     const payload = runtime.getDesktopVersionPayload();
-    assert.equal(payload.desktopVersion, '1.0.9');
-    assert.equal(payload.runtime.desktopVersion, '1.0.9');
+    assert.equal(payload.desktopVersion, desktopPackageVersion);
+    assert.equal(payload.runtime.desktopVersion, desktopPackageVersion);
     assert.equal(payload.runtime.processId, process.pid);
     assert.equal(payload.runtime.execPath, process.execPath);
     assert.ok(payload.runtime.runtimeStartedAt);

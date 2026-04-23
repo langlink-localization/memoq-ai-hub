@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
@@ -40,8 +42,10 @@ jobs:
         id: release_meta
         shell: pwsh
         run: |
+          git fetch origin main --force
           $version = node ./tooling/scripts/release-metadata.mjs version
           node ./tooling/scripts/release-metadata.mjs check-tag "${{ github.ref_name }}" | Out-Null
+          node ./tooling/scripts/release-metadata.mjs check-mainline "${{ github.sha }}" origin/main | Out-Null
           "version=$version" >> $env:GITHUB_OUTPUT
           "tag=v$version" >> $env:GITHUB_OUTPUT
 
