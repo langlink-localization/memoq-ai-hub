@@ -5091,7 +5091,7 @@ test('runtime records summary cache and generation debug details in history', as
   }
 });
 
-test('runtime retries a failed batch on the same route before using a fallback route', async () => {
+test('runtime falls back from a failed batch on the same route before using a fallback route', async () => {
   const tempRoot = createTempAppRoot();
   const batchCalls = [];
   let sequentialCalls = 0;

@@ -643,7 +643,7 @@ async function createRuntime(options = {}) {
     }
 
     const configured = Number(route?.model?.retryAttempts);
-    const fallback = isBatch ? 1 : 2;
+    const fallback = isBatch ? 0 : 2;
     const budget = Number.isFinite(configured) && configured >= 0 ? Math.floor(configured) : fallback;
     return Math.min(isBatch ? 1 : 2, budget);
   }
@@ -2726,7 +2726,7 @@ async function createRuntime(options = {}) {
         routes: ROUTES,
         mt: {
           maxBatchSegments: 32,
-          requestTimeoutMs: 120000,
+          requestTimeoutMs: 300000,
           throughputModes: ['auto', 'reliable', 'fast', 'custom'],
           capabilities: {
             requestTypePolicy: true,

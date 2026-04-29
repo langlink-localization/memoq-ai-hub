@@ -19,7 +19,7 @@ namespace MemoQAIHubPlugin
     public class MemoQAIHubGeneralSettings
     {
         public string GatewayBaseUrl = "http://127.0.0.1:5271";
-        public int GatewayTimeoutMs = 120000;
+        public int GatewayTimeoutMs = 300000;
         public bool EnableGateway = true;
         public bool EnableCustomDisplayName = false;
         public string CustomDisplayName = "memoQ AI Hub";
