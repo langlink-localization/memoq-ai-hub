@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using MemoQ.Addins.Common;
 using MemoQ.Addins.Common.DataStructures;
@@ -15,6 +16,8 @@ namespace MemoQAIHubPlugin
 {
     public class MemoQAIHubSession : ISession, ISessionForStoringTranslations, ISessionWithMetadata
     {
+        private const int GatewayTranslateConcurrency = 2;
+        private static readonly SemaphoreSlim GatewayTranslateGate = new SemaphoreSlim(GatewayTranslateConcurrency, GatewayTranslateConcurrency);
         private static readonly object LogSync = new object();
         private readonly string _sourceLangCode;
         private readonly string _targetLangCode;
@@ -93,11 +96,7 @@ namespace MemoQAIHubPlugin
             LogMetadataSummary(request.metadata);
             LogDebug("Fuzzy forwarding support=true tmHintsRequested=true");
 
-            var response = MemoQAIHubServiceHelper.Translate(
-                _options.GeneralSettings.GatewayBaseUrl,
-                _options.GeneralSettings.GatewayTimeoutMs,
-                request
-            );
+            var response = SendTranslateRequest(request, formattingMode.ToString(), segs.Length);
 
             LogDebug(
                 $"Translate response success={response.success} translations={response.translations?.Count ?? 0} requestId={response.requestId ?? request.requestId} traceId={response.traceId ?? request.traceId}"
@@ -200,10 +199,12 @@ namespace MemoQAIHubPlugin
                 LogMetadataSummary(request.metadata);
                 LogDebug($"Retry request start originalIndex={originalIndex} mode={formattingMode} requestId={request.requestId} traceId={request.traceId}");
 
-                var response = MemoQAIHubServiceHelper.Translate(
-                    _options.GeneralSettings.GatewayBaseUrl,
-                    _options.GeneralSettings.GatewayTimeoutMs,
-                    request
+                var response = SendTranslateRequest(
+                    request,
+                    formattingMode.ToString(),
+                    singleSeg.Length,
+                    "retry",
+                    originalIndex
                 );
 
                 LogDebug(
@@ -233,6 +234,44 @@ namespace MemoQAIHubPlugin
             }
 
             return results;
+        }
+
+        private MemoQAIHubTranslateResponse SendTranslateRequest(
+            MemoQAIHubTranslateRequest request,
+            string formattingMode,
+            int segmentCount,
+            string stage = "batch",
+            int? originalIndex = null)
+        {
+            var queueTimer = Stopwatch.StartNew();
+            GatewayTranslateGate.Wait();
+            queueTimer.Stop();
+            var gatewayQueuedMs = queueTimer.ElapsedMilliseconds;
+            var originalIndexText = originalIndex.HasValue ? $" originalIndex={originalIndex.Value}" : string.Empty;
+
+            LogDebug(
+                $"Translate request start stage={stage} mode={formattingMode} segments={segmentCount}{originalIndexText} requestId={request.requestId} traceId={request.traceId} gatewayQueuedMs={gatewayQueuedMs}"
+            );
+
+            try
+            {
+                return MemoQAIHubServiceHelper.Translate(
+                    _options.GeneralSettings.GatewayBaseUrl,
+                    _options.GeneralSettings.GatewayTimeoutMs,
+                    request
+                );
+            }
+            catch (Exception error)
+            {
+                LogDebug(
+                    $"Translate failed stage={stage} mode={formattingMode} segments={segmentCount}{originalIndexText} requestId={request.requestId} traceId={request.traceId} gatewayQueuedMs={gatewayQueuedMs} error={error.Message}"
+                );
+                throw;
+            }
+            finally
+            {
+                GatewayTranslateGate.Release();
+            }
         }
 
         private static string BuildRequestType(FormattingAndTagsUsageOption formattingMode)

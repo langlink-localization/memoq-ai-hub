@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
@@ -19,6 +20,7 @@ internal static class Program
             RunEngineCapabilityScenario();
             RunPartialBatchRetryScenario();
             RunRequestTypeFallbackScenario();
+            RunGatewayConcurrencyScenario();
             RunGatewayTimeoutConfigurationScenario();
             Console.WriteLine("Plugin regression passed: retry and fallback scenarios behaved as expected.");
             return 0;
@@ -151,6 +153,142 @@ internal static class Program
         Assert((int)normalizeMethod.Invoke(null, new object[] { 360000 }) == 360000, "Expected explicit longer gateway timeouts to be preserved.");
     }
 
+    private static void RunGatewayConcurrencyScenario()
+    {
+        var listener = new HttpListener();
+        var port = GetFreeTcpPort();
+        var prefix = $"http://127.0.0.1:{port}/";
+        listener.Prefixes.Add(prefix);
+        listener.Start();
+
+        var activeRequests = 0;
+        var maxActiveRequests = 0;
+        var servedRequests = 0;
+        var serverDone = new ManualResetEventSlim(false);
+        Exception serverError = null;
+        var serverThread = new Thread(() =>
+        {
+            try
+            {
+                while (listener.IsListening)
+                {
+                    HttpListenerContext context;
+                    try
+                    {
+                        context = listener.GetContext();
+                    }
+                    catch (HttpListenerException)
+                    {
+                        return;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
+
+                    ThreadPool.QueueUserWorkItem(_ =>
+                    {
+                        try
+                        {
+                            using (var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding))
+                            {
+                                reader.ReadToEnd();
+                            }
+
+                            var currentActive = Interlocked.Increment(ref activeRequests);
+                            UpdateMax(ref maxActiveRequests, currentActive);
+                            Thread.Sleep(250);
+
+                            var responseBody = "{\"success\":true,\"requestId\":\"gate\",\"traceId\":\"gate-trace\",\"providerId\":\"test-provider\",\"model\":\"test-model\",\"translations\":[{\"index\":0,\"text\":\"ok\"}]}";
+                            var payload = Encoding.UTF8.GetBytes(responseBody);
+                            context.Response.StatusCode = 200;
+                            context.Response.ContentType = "application/json";
+                            context.Response.ContentEncoding = Encoding.UTF8;
+                            context.Response.ContentLength64 = payload.Length;
+                            context.Response.OutputStream.Write(payload, 0, payload.Length);
+                            context.Response.OutputStream.Close();
+                        }
+                        catch (Exception error)
+                        {
+                            serverError = error;
+                        }
+                        finally
+                        {
+                            Interlocked.Decrement(ref activeRequests);
+                            if (Interlocked.Increment(ref servedRequests) == 6)
+                            {
+                                serverDone.Set();
+                            }
+                        }
+                    });
+                }
+            }
+            catch (Exception error)
+            {
+                serverError = error;
+            }
+        });
+        serverThread.IsBackground = true;
+        serverThread.Start();
+
+        var settings = new MemoQAIHubGeneralSettings
+        {
+            EnableGateway = true,
+            GatewayBaseUrl = prefix.TrimEnd('/'),
+            GatewayTimeoutMs = 10000,
+            FormattingAndTagUsage = FormattingAndTagsUsageOption.Plaintext
+        };
+        var session = new MemoQAIHubSession(
+            "zho",
+            "eng",
+            new MemoQAIHubOptions(settings, new MemoQAIHubSecureSettings())
+        );
+        var start = new ManualResetEventSlim(false);
+        var workers = Enumerable.Range(0, 6)
+            .Select(index => new Thread(() =>
+            {
+                start.Wait();
+                var results = session.TranslateCorrectSegment(
+                    segs: new[] { SegmentBuilder.CreateFromString("segment " + index) },
+                    tmSources: null,
+                    tmTargets: null
+                );
+                Assert(results.Length == 1, "Expected one result from concurrency scenario.");
+                Assert(results[0].Exception == null, "Expected gated request to succeed.");
+                Assert(results[0].Translation.PlainText == "ok", "Expected gated request translation text.");
+            }))
+            .ToArray();
+
+        try
+        {
+            foreach (var worker in workers)
+            {
+                worker.IsBackground = true;
+                worker.Start();
+            }
+
+            start.Set();
+            foreach (var worker in workers)
+            {
+                Assert(worker.Join(TimeSpan.FromSeconds(10)), "Expected gated translation worker to finish.");
+            }
+
+            Assert(serverDone.Wait(TimeSpan.FromSeconds(2)), "Expected test server to receive all gated requests.");
+            Assert(serverError == null, $"Gateway concurrency server failed: {serverError}");
+            Assert(maxActiveRequests <= 2, $"Expected at most 2 concurrent desktop gateway requests, saw {maxActiveRequests}.");
+        }
+        finally
+        {
+            if (listener.IsListening)
+            {
+                listener.Stop();
+            }
+
+            listener.Close();
+            serverThread.Join(TimeSpan.FromSeconds(2));
+        }
+    }
+
     private static void RunScenario(
         string scenarioName,
         MemoQAIHubGeneralSettings settings,
@@ -269,6 +407,23 @@ internal static class Program
         }
 
         return count;
+    }
+
+    private static void UpdateMax(ref int target, int value)
+    {
+        while (true)
+        {
+            var current = target;
+            if (value <= current)
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref target, value, current) == current)
+            {
+                return;
+            }
+        }
     }
 
     private static Segment CreateTaggedSegment(string text)
