@@ -128,4 +128,17 @@ test('path-sensitive entrypoints use the monorepo topology', () => {
   assert.doesNotMatch(integrationService, /'doc'/);
 });
 
+test('release note bodies omit top-level titles because the release page already provides one', () => {
+  const releaseNotesDir = path.join(repoRoot, 'docs', 'release-notes');
+  const releaseNotesFiles = fs.readdirSync(releaseNotesDir).filter((entry) => entry.endsWith('.md'));
+
+  assert.ok(releaseNotesFiles.length > 0, 'expected release note markdown files to exist');
+
+  for (const fileName of releaseNotesFiles) {
+    const content = fs.readFileSync(path.join(releaseNotesDir, fileName), 'utf8');
+
+    assert.doesNotMatch(content, /^#\s+/m, `did not expect top-level markdown titles in ${fileName}`);
+    assert.match(content, /^##\s+/m, `expected section headings in ${fileName}`);
+  }
+});
 

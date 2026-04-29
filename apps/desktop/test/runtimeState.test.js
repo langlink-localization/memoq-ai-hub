@@ -62,8 +62,13 @@ test('runtimeState normalizes providers, rules, assets, and integration preferen
     type: 'openai-compatible',
     baseUrl: 'https://example.com',
     requestPath: 'chat/completions',
-    capabilities: { responseFormat: 'json-object' },
-    models: [{ modelName: 'custom-model', concurrencyLimit: 0, retryAttempts: -1, responseFormat: 'text' }]
+    capabilities: { responseFormat: 'json-object', throughputMode: 'fast' },
+    models: [{ modelName: 'custom-model', concurrencyLimit: 0, retryAttempts: -1, responseFormat: 'text', throughputMode: 'custom', maxBatchSegments: 12, maxBatchCharacters: 24000, providerConcurrency: 2, contextWindowTokens: 256000, maxOutputTokens: 8192 }]
+  });
+  const openaiProvider = ensureProvider({
+    type: 'openai',
+    baseUrl: 'https://api.openai.com/v1',
+    models: [{ modelName: 'gpt-5.4-mini' }]
   });
   const rule = ensureRule({ ruleName: '  ', priority: 'not-a-number' });
   const asset = ensureAsset({
@@ -78,8 +83,16 @@ test('runtimeState normalizes providers, rules, assets, and integration preferen
 
   assert.equal(provider.requestPath, '/chat/completions');
   assert.equal(provider.capabilities.responseFormat, 'json_object');
+  assert.equal(provider.capabilities.throughputMode, 'fast');
   assert.equal(provider.models[0].responseFormat, 'text');
+  assert.equal(provider.models[0].throughputMode, 'custom');
+  assert.equal(provider.models[0].maxBatchSegments, 12);
+  assert.equal(provider.models[0].maxBatchCharacters, 24000);
+  assert.equal(provider.models[0].providerConcurrency, 2);
+  assert.equal(provider.models[0].contextWindowTokens, 256000);
+  assert.equal(provider.models[0].maxOutputTokens, 8192);
   assert.equal(provider.models[0].concurrencyLimit, 1);
+  assert.equal(openaiProvider.models[0].concurrencyLimit, 2);
   assert.equal(provider.models[0].retryAttempts, 2);
   assert.equal(rule.ruleName, 'New Rule');
   assert.equal(rule.priority, 99);

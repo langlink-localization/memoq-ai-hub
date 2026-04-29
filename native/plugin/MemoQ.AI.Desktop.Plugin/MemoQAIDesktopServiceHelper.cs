@@ -3,13 +3,15 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 
 namespace MemoQAIHubPlugin
 {
     internal static class MemoQAIHubServiceHelper
     {
-        private static readonly HttpClient HttpClient = new HttpClient();
+        private const int MinimumGatewayTimeoutMs = 120000;
+        private static readonly HttpClient HttpClient = CreateHttpClient();
 
         public static MemoQAIHubTranslateResponse Translate(string baseUrl, int timeoutMs, MemoQAIHubTranslateRequest payload)
         {
@@ -25,33 +27,56 @@ namespace MemoQAIHubPlugin
         {
             var serializer = new JavaScriptSerializer();
             var body = serializer.Serialize(payload);
-            using (var timeoutCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(timeoutMs)))
+            var effectiveTimeoutMs = NormalizeTimeoutMs(timeoutMs);
+            using (var timeoutCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(effectiveTimeoutMs)))
             using (var content = new StringContent(body, Encoding.UTF8, "application/json"))
             using (var request = new HttpRequestMessage(HttpMethod.Post, baseUrl.TrimEnd('/') + relativePath)
             {
                 Content = content
             })
-            using (var response = HttpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, timeoutCts.Token).GetAwaiter().GetResult())
             {
-                var text = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                if (!response.IsSuccessStatusCode)
+                try
                 {
-                    throw new HttpRequestException(BuildHttpErrorMessage(response, text));
-                }
+                    using (var response = HttpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, timeoutCts.Token).GetAwaiter().GetResult())
+                    {
+                        var text = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            throw new HttpRequestException(BuildHttpErrorMessage(response, text));
+                        }
 
-                if (string.IsNullOrWhiteSpace(text))
+                        if (string.IsNullOrWhiteSpace(text))
+                        {
+                            throw new InvalidOperationException(serviceName + " returned an empty response.");
+                        }
+
+                        var result = serializer.Deserialize<TResponse>(text);
+                        if (result == null)
+                        {
+                            throw new InvalidOperationException(serviceName + " returned an invalid response payload.");
+                        }
+
+                        return result;
+                    }
+                }
+                catch (TaskCanceledException error) when (timeoutCts.IsCancellationRequested)
                 {
-                    throw new InvalidOperationException(serviceName + " returned an empty response.");
+                    throw new TimeoutException(serviceName + " timed out after " + effectiveTimeoutMs + " ms.", error);
                 }
-
-                var result = serializer.Deserialize<TResponse>(text);
-                if (result == null)
-                {
-                    throw new InvalidOperationException(serviceName + " returned an invalid response payload.");
-                }
-
-                return result;
             }
+        }
+
+        private static HttpClient CreateHttpClient()
+        {
+            return new HttpClient
+            {
+                Timeout = Timeout.InfiniteTimeSpan
+            };
+        }
+
+        private static int NormalizeTimeoutMs(int timeoutMs)
+        {
+            return timeoutMs >= MinimumGatewayTimeoutMs ? timeoutMs : MinimumGatewayTimeoutMs;
         }
 
         private static string BuildHttpErrorMessage(HttpResponseMessage response, string body)

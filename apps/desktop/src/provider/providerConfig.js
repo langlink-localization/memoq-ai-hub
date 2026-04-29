@@ -7,6 +7,7 @@ const DEFAULT_PROVIDER_TYPES = {
 const SUPPORTED_PROVIDER_TYPES = new Set(Object.values(DEFAULT_PROVIDER_TYPES));
 const SUPPORTED_REQUEST_PATHS = new Set(['/responses', '/chat/completions']);
 const SUPPORTED_RESPONSE_FORMATS = new Set(['auto', 'json_schema', 'json_object', 'text']);
+const SUPPORTED_THROUGHPUT_MODES = new Set(['auto', 'reliable', 'fast', 'custom']);
 
 const DEFAULT_BASE_URLS = {
   openai: 'https://api.openai.com/v1',
@@ -33,6 +34,7 @@ const DEFAULT_CAPABILITIES = {
     supportsBatch: true,
     supportsStreaming: true,
     responseFormat: 'json_schema',
+    throughputMode: 'auto',
     maxBatchSegments: 8,
     maxBatchCharacters: 12000
   },
@@ -40,8 +42,9 @@ const DEFAULT_CAPABILITIES = {
     supportsBatch: true,
     supportsStreaming: true,
     responseFormat: 'auto',
-    maxBatchSegments: 8,
-    maxBatchCharacters: 12000
+    throughputMode: 'auto',
+    maxBatchSegments: 6,
+    maxBatchCharacters: 8000
   }
 };
 
@@ -92,6 +95,29 @@ function normalizeResponseFormat(responseFormat, fallback = 'auto') {
   return SUPPORTED_RESPONSE_FORMATS.has(fallbackCandidate) ? fallbackCandidate : '';
 }
 
+function normalizeThroughputMode(throughputMode, fallback = 'auto') {
+  const normalized = String(throughputMode || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const aliases = {
+    balanced: 'auto',
+    adaptive: 'auto',
+    safe: 'reliable',
+    stability: 'reliable',
+    speed: 'fast',
+    manual: 'custom'
+  };
+  const candidate = aliases[normalized] || normalized;
+  if (SUPPORTED_THROUGHPUT_MODES.has(candidate)) {
+    return candidate;
+  }
+
+  const normalizedFallback = String(fallback || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const fallbackCandidate = aliases[normalizedFallback] || normalizedFallback;
+  if (!fallbackCandidate) {
+    return '';
+  }
+  return SUPPORTED_THROUGHPUT_MODES.has(fallbackCandidate) ? fallbackCandidate : 'auto';
+}
+
 function isDeepSeekProvider(provider = {}) {
   const baseUrl = String(provider.baseUrl || '').trim().toLowerCase();
   if (baseUrl.includes('deepseek')) {
@@ -136,6 +162,7 @@ function getProviderCapabilities(provider = {}) {
     supportsBatch: provided.supportsBatch ?? defaults.supportsBatch,
     supportsStreaming: provided.supportsStreaming ?? defaults.supportsStreaming,
     responseFormat: normalizeResponseFormat(provided.responseFormat, defaultResponseFormat),
+    throughputMode: normalizeThroughputMode(provided.throughputMode, defaults.throughputMode),
     maxBatchSegments: Number.isFinite(Number(provided.maxBatchSegments))
       ? Number(provided.maxBatchSegments)
       : defaults.maxBatchSegments,
@@ -240,9 +267,11 @@ module.exports = {
   normalizeCompatibleRequestPath,
   normalizeProviderType,
   normalizeResponseFormat,
+  normalizeThroughputMode,
   resolveRequestPath,
   sanitizeProvider,
   SUPPORTED_RESPONSE_FORMATS: Array.from(SUPPORTED_RESPONSE_FORMATS),
+  SUPPORTED_THROUGHPUT_MODES: Array.from(SUPPORTED_THROUGHPUT_MODES),
   validateCompatibleRequestPath,
   validateProviderRequestInput
 };

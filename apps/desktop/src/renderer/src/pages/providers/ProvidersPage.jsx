@@ -33,6 +33,22 @@ import { getProviderConnectionHelperText, isProviderConnectionTestDisabled } fro
 
 const { Text, Title } = Typography;
 
+function getProviderThroughputSummary(provider, t) {
+  const capabilities = provider?.capabilities || {};
+  const mode = capabilities.throughputMode || 'auto';
+  const maxBatchSegments = Number(capabilities.maxBatchSegments || (provider?.type === 'openai-compatible' ? 6 : 8));
+  const maxBatchCharacters = Number(capabilities.maxBatchCharacters || (provider?.type === 'openai-compatible' ? 8000 : 12000));
+  const defaultModel = (provider?.models || []).find((model) => model?.id === provider?.defaultModelId)
+    || (provider?.models || []).find((model) => model?.enabled !== false)
+    || {};
+  const concurrency = Number(defaultModel.providerConcurrency || defaultModel.concurrencyLimit || (provider?.type === 'openai-compatible' ? 1 : 2));
+  return t('providers.throughputStatusValue', {
+    mode: t(`providers.throughputMode${mode.charAt(0).toUpperCase()}${mode.slice(1)}`),
+    segments: maxBatchSegments,
+    concurrency
+  }) + ` (${maxBatchCharacters} chars)`;
+}
+
 function ProviderCatalog({
   filteredProviders,
   groupedProviders,
@@ -576,6 +592,30 @@ export function ProvidersPage(props) {
                     ]}
                   />
                   <Text type="secondary">{t('providers.responseFormatDefaultHint')}</Text>
+                </Space>
+
+                <Space direction="vertical" size={8} style={{ display: 'flex' }}>
+                  <Text strong>{t('providers.throughputModeDefault')}</Text>
+                  <Select
+                    value={currentProvider.capabilities?.throughputMode || 'auto'}
+                    onChange={(value) => onPatchProvider?.('capabilities', {
+                      ...(currentProvider.capabilities || {}),
+                      throughputMode: value
+                    })}
+                    options={[
+                      { value: 'auto', label: t('providers.throughputModeAuto') },
+                      { value: 'reliable', label: t('providers.throughputModeReliable') },
+                      { value: 'fast', label: t('providers.throughputModeFast') },
+                      { value: 'custom', label: t('providers.throughputModeCustom') }
+                    ]}
+                  />
+                  <Text type="secondary">{getProviderThroughputSummary(currentProvider, t)}</Text>
+                  <Alert
+                    type="info"
+                    showIcon
+                    message={t('providers.memoqParallelismNoticeTitle')}
+                    description={t('providers.memoqParallelismNotice')}
+                  />
                 </Space>
 
                 <ProviderModelTable

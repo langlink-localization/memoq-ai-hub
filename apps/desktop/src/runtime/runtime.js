@@ -100,6 +100,10 @@ const {
   truncateSummarySourceText
 } = require('./runtimeTranslationSupport');
 const {
+  createThroughputStatsRecorder,
+  resolveThroughputSettings
+} = require('./runtimeThroughput');
+const {
   createSchema,
   createRuntimePersistence
 } = require('./runtimePersistence');
@@ -204,6 +208,7 @@ async function createRuntime(options = {}) {
   const parsedAssetCache = new Map();
   const providerSlotMap = new Map();
   const providerRateLimitMap = new Map();
+  const throughputStatsMap = new Map();
   const bypassTranslationCacheProfileIds = new Set();
   let gatewayReady = false;
   createSchema(db);
@@ -570,7 +575,40 @@ async function createRuntime(options = {}) {
     return `${String(route?.provider?.id || '')}:${String(route?.model?.id || route?.model?.modelName || '')}`;
   }
 
+  function getRouteThroughputStats(route) {
+    const routeKey = getRouteExecutionKey(route);
+    let recorder = throughputStatsMap.get(routeKey);
+    if (!recorder) {
+      recorder = createThroughputStatsRecorder(24);
+      throughputStatsMap.set(routeKey, recorder);
+    }
+    return recorder.snapshot();
+  }
+
+  function recordRouteThroughputAttempts(route, attempts = []) {
+    const routeKey = getRouteExecutionKey(route);
+    let recorder = throughputStatsMap.get(routeKey);
+    if (!recorder) {
+      recorder = createThroughputStatsRecorder(24);
+      throughputStatsMap.set(routeKey, recorder);
+    }
+    recorder.record(attempts);
+  }
+
+  function getRouteThroughputSettings(route) {
+    return resolveThroughputSettings(route, getRouteThroughputStats(route));
+  }
+
   function getEffectiveConcurrencyLimit(route) {
+    const throughput = getRouteThroughputSettings(route);
+    if (Number.isFinite(Number(throughput.providerConcurrency)) && Number(throughput.providerConcurrency) > 0) {
+      const throughputLimit = Math.max(1, Math.floor(Number(throughput.providerConcurrency)));
+      const parsed = parseRateLimitHint(route?.model?.rateLimitHint || '');
+      return parsed.raw
+        ? Math.max(1, Math.min(throughputLimit, parsed.recommendedConcurrency || throughputLimit))
+        : throughputLimit;
+    }
+
     const explicitLimit = Number(route?.model?.concurrencyLimit);
     if (Number.isFinite(explicitLimit) && explicitLimit > 0) {
       return Math.max(1, Math.floor(explicitLimit));
@@ -1839,6 +1877,178 @@ async function createRuntime(options = {}) {
     };
   }
 
+  function annotateAttemptsWithThroughput(attempts = [], throughput, extras = {}) {
+    return (Array.isArray(attempts) ? attempts : []).map((attempt) => ({
+      ...attempt,
+      throughputMode: throughput?.mode || '',
+      throughputStatus: throughput?.status || '',
+      effectiveMaxBatchSegments: Number(throughput?.maxBatchSegments || 0),
+      effectiveMaxBatchCharacters: Number(throughput?.maxBatchCharacters || 0),
+      effectiveConcurrencyLimit: Number(throughput?.providerConcurrency || 0),
+      ...extras
+    }));
+  }
+
+  function createFailedBatchAttempt({
+    route,
+    batch,
+    error,
+    payload,
+    profile,
+    assetContext,
+    previewContext,
+    requestMode,
+    throughput,
+    fallbackStage
+  }) {
+    const mappedError = error?.mappedError || mapProviderError(error);
+    return {
+      providerId: route.provider.id,
+      providerName: route.provider.name,
+      model: route.model.modelName,
+      latencyMs: null,
+      routeKind: route.routeKind,
+      success: false,
+      batch: true,
+      requestMode,
+      effectiveExecutionMode: 'batch',
+      batchSize: batch.length,
+      finalizedByFallbackRoute: false,
+      segmentIndexes: batch.map((segment) => segment.index),
+      retryCount: Number(error?.retryCount || 0),
+      queuedMs: Number(error?.queuedMs || 0),
+      rateLimitedWaitMs: Number(error?.rateLimitedWaitMs || 0),
+      retryAfterSeconds: resolveRetryAfterSeconds(error?.retryAfterSeconds, mappedError?.message || error?.message || ''),
+      cacheKind: '',
+      errorCode: String(mappedError?.code || ''),
+      requestMetadata: createBatchRequestMetadata({
+        payload,
+        profile,
+        assetContext,
+        previewContext,
+        segments: batch,
+        translations: [],
+        requestMetadata: {
+          mode: 'batch',
+          batchIndexes: batch.map((segment) => segment.index),
+          segmentCount: batch.length,
+          fallbackStage
+        }
+      }),
+      error: mappedError,
+      throughputMode: throughput?.mode || '',
+      throughputStatus: throughput?.status || '',
+      effectiveMaxBatchSegments: Number(throughput?.maxBatchSegments || 0),
+      effectiveMaxBatchCharacters: Number(throughput?.maxBatchCharacters || 0),
+      effectiveConcurrencyLimit: Number(throughput?.providerConcurrency || 0),
+      fallbackStage
+    };
+  }
+
+  async function translateBatchWithAdaptiveFallback({
+    state,
+    route,
+    batch,
+    secret,
+    normalizedMetadata,
+    profile,
+    payload,
+    assetContext,
+    previewContext,
+    requestMode,
+    throughput,
+    fallbackStage = 'batch'
+  }) {
+    if (batch.length <= 1) {
+      const sequentialResult = await translateSegmentsSequentially({
+        state,
+        route,
+        segments: batch,
+        secret,
+        normalizedMetadata,
+        profile,
+        payload,
+        assetContext,
+        previewContext,
+        requestMode
+      });
+      return {
+        ...sequentialResult,
+        attempts: annotateAttemptsWithThroughput(sequentialResult.attempts, throughput, { fallbackStage: 'single' })
+      };
+    }
+
+    try {
+      const batchResult = await translateBatchWithRoute({
+        state,
+        route,
+        batch,
+        secret,
+        normalizedMetadata,
+        profile,
+        payload,
+        assetContext,
+        previewContext,
+        requestMode
+      });
+      return {
+        translations: batchResult.translations,
+        attempts: annotateAttemptsWithThroughput(batchResult.attempts, throughput, { fallbackStage }),
+        latencyMs: batchResult.latencyMs,
+        error: null
+      };
+    } catch (error) {
+      const failedBatchAttempt = createFailedBatchAttempt({
+        route,
+        batch,
+        error,
+        payload,
+        profile,
+        assetContext,
+        previewContext,
+        requestMode,
+        throughput,
+        fallbackStage
+      });
+      const midpoint = Math.ceil(batch.length / 2);
+      const splitBatches = [batch.slice(0, midpoint), batch.slice(midpoint)].filter((item) => item.length);
+      const translations = [];
+      const attempts = [failedBatchAttempt];
+      let latencyMs = 0;
+      let lastError = failedBatchAttempt.error || null;
+
+      for (const splitBatch of splitBatches) {
+        const result = await translateBatchWithAdaptiveFallback({
+          state,
+          route,
+          batch: splitBatch,
+          secret,
+          normalizedMetadata,
+          profile,
+          payload,
+          assetContext,
+          previewContext,
+          requestMode,
+          throughput,
+          fallbackStage: splitBatch.length > 1 ? 'half_batch' : 'single'
+        });
+        translations.push(...result.translations);
+        attempts.push(...result.attempts);
+        latencyMs += Number(result.latencyMs || 0);
+        if (result.error) {
+          lastError = result.error;
+        }
+      }
+
+      return {
+        translations,
+        attempts,
+        latencyMs,
+        error: lastError
+      };
+    }
+  }
+
   async function translatePendingSegmentsWithRoute({
     state,
     route,
@@ -1851,86 +2061,39 @@ async function createRuntime(options = {}) {
     previewContext,
     requestMode
   }) {
-    const batches = splitSegmentsForRoute(pendingSegments, route.capabilities);
+    const throughput = getRouteThroughputSettings(route);
+    const effectiveCapabilities = {
+      ...route.capabilities,
+      maxBatchSegments: throughput.maxBatchSegments,
+      maxBatchCharacters: throughput.maxBatchCharacters
+    };
+    const batches = splitSegmentsForRoute(pendingSegments, effectiveCapabilities);
     const batchResults = await Promise.all(
       batches.map(async (batch, batchIndex) => {
         if (batch.length > 1 && route.capabilities.supportsBatch && typeof providerRegistry.translateBatch === 'function') {
-          try {
-            const batchResult = await translateBatchWithRoute({
-              state,
-              route,
-              batch,
-              secret,
-              normalizedMetadata,
-              profile,
-              payload,
-              assetContext,
-              previewContext,
-              requestMode
-            });
-            return {
-              batchIndex,
-              translations: batchResult.translations,
-              attempts: batchResult.attempts,
-              latencyMs: batchResult.latencyMs,
-              error: null
-            };
-          } catch (error) {
-            const mappedError = mapProviderError(error);
-            const failedBatchAttempt = {
-              providerId: route.provider.id,
-              providerName: route.provider.name,
-              model: route.model.modelName,
-              latencyMs: null,
-              routeKind: route.routeKind,
-              success: false,
-              batch: true,
-              requestMode,
-              effectiveExecutionMode: 'batch',
-              batchSize: batch.length,
-              finalizedByFallbackRoute: false,
-              segmentIndexes: batch.map((segment) => segment.index),
-              retryCount: Number(error?.retryCount || 0),
-              queuedMs: Number(error?.queuedMs || 0),
-              rateLimitedWaitMs: Number(error?.rateLimitedWaitMs || 0),
-              retryAfterSeconds: resolveRetryAfterSeconds(error?.retryAfterSeconds, (error?.mappedError || mapProviderError(error))?.message || error?.message || ''),
-              cacheKind: '',
-              errorCode: String((error?.mappedError || mapProviderError(error))?.code || ''),
-              requestMetadata: createBatchRequestMetadata({
-                payload,
-                profile,
-                assetContext,
-                previewContext,
-                segments: batch,
-                translations: [],
-                requestMetadata: {
-                  mode: 'batch',
-                  batchIndexes: batch.map((segment) => segment.index),
-                  segmentCount: batch.length
-                }
-              }),
-              error: mappedError
-            };
-            const sequentialResult = await translateSegmentsSequentially({
-              state,
-              route,
-              segments: batch,
-              secret,
-              normalizedMetadata,
-              profile,
-              payload,
-              assetContext,
-              previewContext,
-              requestMode
-            });
-            return {
-              batchIndex,
-              translations: sequentialResult.translations,
-              attempts: [failedBatchAttempt, ...sequentialResult.attempts],
-              latencyMs: sequentialResult.latencyMs,
-              error: sequentialResult.error || null
-            };
-          }
+          const batchResult = await translateBatchWithAdaptiveFallback({
+            state,
+            route,
+            batch,
+            secret,
+            normalizedMetadata,
+            profile,
+            payload,
+            assetContext,
+            previewContext,
+            requestMode,
+            throughput
+          });
+          return {
+            batchIndex,
+            translations: batchResult.translations,
+            attempts: batchResult.attempts.map((attempt) => ({
+              ...attempt,
+              batchSplitCount: batches.length
+            })),
+            latencyMs: batchResult.latencyMs,
+            error: batchResult.error || null
+          };
         }
 
         const sequentialResult = await translateSegmentsSequentially({
@@ -1948,7 +2111,10 @@ async function createRuntime(options = {}) {
         return {
           batchIndex,
           translations: sequentialResult.translations,
-          attempts: sequentialResult.attempts,
+          attempts: annotateAttemptsWithThroughput(sequentialResult.attempts, throughput, {
+            fallbackStage: 'single',
+            batchSplitCount: batches.length
+          }),
           latencyMs: sequentialResult.latencyMs,
           error: sequentialResult.error || null
         };
@@ -2309,6 +2475,7 @@ async function createRuntime(options = {}) {
         });
       }
       attempts.push(...routeResult.attempts);
+      recordRouteThroughputAttempts(route, routeResult.attempts);
 
       for (const translation of routeResult.translations) {
         translatedByIndex.set(translation.index, translation);
@@ -2558,8 +2725,9 @@ async function createRuntime(options = {}) {
         },
         routes: ROUTES,
         mt: {
-          maxBatchSegments: 10,
+          maxBatchSegments: 32,
           requestTimeoutMs: 120000,
+          throughputModes: ['auto', 'reliable', 'fast', 'custom'],
           capabilities: {
             requestTypePolicy: true,
             batching: true,

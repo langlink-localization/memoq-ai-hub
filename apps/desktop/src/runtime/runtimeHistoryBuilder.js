@@ -278,6 +278,40 @@ function buildHistoryPromptViewFromAttempts(attempts = []) {
   return {};
 }
 
+function buildHistoryThroughputSummary(attempts = []) {
+  const providerAttempts = (Array.isArray(attempts) ? attempts : [])
+    .filter((attempt) => attempt && attempt.providerId !== 'cache' && attempt.providerId !== 'adaptive-cache');
+  if (!providerAttempts.length) {
+    return null;
+  }
+
+  const batchAttempts = providerAttempts.filter((attempt) => attempt.batch === true);
+  const fallbackStages = Array.from(new Set(providerAttempts
+    .map((attempt) => String(attempt.fallbackStage || '').trim())
+    .filter(Boolean)));
+  const fallbackReasons = Array.from(new Set(providerAttempts
+    .filter((attempt) => attempt.success === false)
+    .map((attempt) => String(attempt.errorCode || attempt.error?.code || '').trim())
+    .filter(Boolean)));
+
+  return {
+    mode: String(providerAttempts.at(-1)?.throughputMode || ''),
+    status: String(providerAttempts.at(-1)?.throughputStatus || ''),
+    effectiveMaxBatchSegments: Number(providerAttempts.at(-1)?.effectiveMaxBatchSegments || 0),
+    effectiveMaxBatchCharacters: Number(providerAttempts.at(-1)?.effectiveMaxBatchCharacters || 0),
+    effectiveConcurrencyLimit: Number(providerAttempts.at(-1)?.effectiveConcurrencyLimit || 0),
+    requestCount: providerAttempts.length,
+    batchRequestCount: batchAttempts.length,
+    maxObservedBatchSize: Math.max(0, ...providerAttempts.map((attempt) => Number(attempt.batchSize || 0))),
+    batchSplitCount: Math.max(0, ...providerAttempts.map((attempt) => Number(attempt.batchSplitCount || 0))),
+    queuedMs: providerAttempts.reduce((sum, attempt) => sum + Number(attempt.queuedMs || 0), 0),
+    rateLimitedWaitMs: providerAttempts.reduce((sum, attempt) => sum + Number(attempt.rateLimitedWaitMs || 0), 0),
+    providerLatencyMs: providerAttempts.reduce((sum, attempt) => sum + Number(attempt.latencyMs || 0), 0),
+    fallbackStages,
+    fallbackReasons
+  };
+}
+
 function buildHistoryEntry({
   createId,
   requestId,
@@ -306,6 +340,7 @@ function buildHistoryEntry({
   buildTemplatePreflightContext
 }) {
   const derivedPromptView = buildHistoryPromptViewFromAttempts(attempts);
+  const throughputSummary = buildHistoryThroughputSummary(attempts);
   const promptView = Object.keys(derivedPromptView).length
     ? derivedPromptView
     : (() => {
@@ -426,6 +461,7 @@ function buildHistoryEntry({
     promptView,
     returnStatus: terminalError ? 'desktop_error' : 'returned_to_memoq',
     attempts,
+    throughput: throughputSummary,
     context: {
       segments: payloadSegments || []
     },

@@ -512,6 +512,12 @@ function createDraftProviderModel(modelName = 'gpt-5.4-mini') {
     promptCacheEnabled: false,
     promptCacheTtlHint: '',
     responseFormat: '',
+    throughputMode: '',
+    maxBatchSegments: 0,
+    maxBatchCharacters: 0,
+    providerConcurrency: 0,
+    contextWindowTokens: 0,
+    maxOutputTokens: 0,
     notes: ''
   };
 }
@@ -705,6 +711,9 @@ function buildProviderFingerprint(provider) {
     enabled: provider.enabled !== false,
     apiKey: provider.apiKey || '',
     responseFormat: provider.capabilities?.responseFormat || '',
+    throughputMode: provider.capabilities?.throughputMode || '',
+    maxBatchSegments: provider.capabilities?.maxBatchSegments || 0,
+    maxBatchCharacters: provider.capabilities?.maxBatchCharacters || 0,
     models: (provider.models || []).map((model) => ({
       id: model.id || '',
       modelName: model.modelName || '',
@@ -716,6 +725,12 @@ function buildProviderFingerprint(provider) {
       promptCacheEnabled: model.promptCacheEnabled === true,
       promptCacheTtlHint: model.promptCacheTtlHint || '',
       responseFormat: model.responseFormat || '',
+      throughputMode: model.throughputMode || '',
+      maxBatchSegments: model.maxBatchSegments || 0,
+      maxBatchCharacters: model.maxBatchCharacters || 0,
+      providerConcurrency: model.providerConcurrency || 0,
+      contextWindowTokens: model.contextWindowTokens || 0,
+      maxOutputTokens: model.maxOutputTokens || 0,
       notes: model.notes || ''
     }))
   });
@@ -810,6 +825,39 @@ function buildHistorySegments(record) {
     tmSource: segment.tmSource || '',
     tmTarget: segment.tmTarget || ''
   }));
+}
+
+function formatHistoryThroughputValue(record) {
+  const throughput = record?.throughput;
+  if (!throughput) {
+    return '';
+  }
+  const parts = [];
+  if (throughput.mode) {
+    parts.push(`${throughput.mode}${throughput.status ? `/${throughput.status}` : ''}`);
+  }
+  if (throughput.effectiveMaxBatchSegments) {
+    parts.push(`${throughput.effectiveMaxBatchSegments} segments`);
+  }
+  if (throughput.effectiveMaxBatchCharacters) {
+    parts.push(`${throughput.effectiveMaxBatchCharacters} chars`);
+  }
+  if (throughput.effectiveConcurrencyLimit) {
+    parts.push(`concurrency ${throughput.effectiveConcurrencyLimit}`);
+  }
+  if (throughput.batchSplitCount) {
+    parts.push(`${throughput.batchSplitCount} split(s)`);
+  }
+  if (throughput.queuedMs) {
+    parts.push(`queued ${throughput.queuedMs} ms`);
+  }
+  if (throughput.providerLatencyMs) {
+    parts.push(`provider ${throughput.providerLatencyMs} ms`);
+  }
+  if (Array.isArray(throughput.fallbackReasons) && throughput.fallbackReasons.length) {
+    parts.push(`fallback: ${throughput.fallbackReasons.join(', ')}`);
+  }
+  return parts.join(' | ');
 }
 
 function buildAssetPreviewRows(preview) {
@@ -2428,6 +2476,12 @@ export default function App() {
                   <Card className="page-card" title={t('dashboard.installConfig')}>
                     <Space direction="vertical" size={16} style={{ display: 'flex' }}>
                       <Alert type="info" showIcon message={t('dashboard.installDialogHint')} />
+                      <Alert
+                        type="warning"
+                        showIcon
+                        message={t('dashboard.memoqParallelismNoticeTitle')}
+                        description={t('dashboard.memoqParallelismNotice')}
+                      />
                       <Row gutter={12}>
                         <Col span={12}>
                           <Space direction="vertical" size={8} style={{ display: 'flex' }}>
@@ -2880,6 +2934,7 @@ export default function App() {
               <Descriptions.Item label={t('history.completedAt')}><HoverText value={formatLocalTimestamp(currentHistoryRecord.completedAt)} /></Descriptions.Item>
               <Descriptions.Item label={t('history.segmentCount')}><HoverText value={currentHistoryRecord.segmentCount ?? buildHistorySegments(currentHistoryRecord).length} /></Descriptions.Item>
               <Descriptions.Item label={t('history.segmentSummary')}><HoverText value={currentHistoryRecord.segmentSummary} /></Descriptions.Item>
+              <Descriptions.Item label={t('history.throughputSummary')}><HoverText value={formatHistoryThroughputValue(currentHistoryRecord)} /></Descriptions.Item>
             </Descriptions>
             <Card size="small" title={t('history.promptViewTitle')}>
               <Space direction="vertical" size={12} style={{ display: 'flex' }}>

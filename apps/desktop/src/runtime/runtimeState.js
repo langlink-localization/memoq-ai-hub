@@ -8,7 +8,8 @@ const {
   getDefaultProviderName,
   getDefaultModelName,
   getDefaultRequestPath,
-  normalizeResponseFormat
+  normalizeResponseFormat,
+  normalizeThroughputMode
 } = require('../provider/providerRegistry');
 const { createInitialState } = require('./runtimePersistence');
 
@@ -271,13 +272,14 @@ function ensureProfile(profile = {}) {
 }
 
 function ensureProviderModel(model = {}, providerType = 'openai') {
+  const defaultConcurrency = providerType === 'openai' ? 2 : 1;
   return {
     id: model.id || createId('model'),
     modelName: String(model.modelName || getDefaultModelName(providerType)).trim() || getDefaultModelName(providerType),
     enabled: model.enabled !== false,
     concurrencyLimit: Number.isFinite(Number(model.concurrencyLimit)) && Number(model.concurrencyLimit) > 0
       ? Math.floor(Number(model.concurrencyLimit))
-      : 1,
+      : defaultConcurrency,
     rateLimitHint: String(model.rateLimitHint || '').trim(),
     retryEnabled: model.retryEnabled !== false,
     retryAttempts: Number.isFinite(Number(model.retryAttempts)) && Number(model.retryAttempts) >= 0
@@ -286,6 +288,22 @@ function ensureProviderModel(model = {}, providerType = 'openai') {
     promptCacheEnabled: model.promptCacheEnabled === true,
     promptCacheTtlHint: String(model.promptCacheTtlHint || '').trim(),
     responseFormat: normalizeResponseFormat(model.responseFormat, ''),
+    throughputMode: normalizeThroughputMode(model.throughputMode, ''),
+    maxBatchSegments: Number.isFinite(Number(model.maxBatchSegments)) && Number(model.maxBatchSegments) > 0
+      ? Math.floor(Number(model.maxBatchSegments))
+      : 0,
+    maxBatchCharacters: Number.isFinite(Number(model.maxBatchCharacters)) && Number(model.maxBatchCharacters) > 0
+      ? Math.floor(Number(model.maxBatchCharacters))
+      : 0,
+    providerConcurrency: Number.isFinite(Number(model.providerConcurrency)) && Number(model.providerConcurrency) > 0
+      ? Math.floor(Number(model.providerConcurrency))
+      : 0,
+    contextWindowTokens: Number.isFinite(Number(model.contextWindowTokens)) && Number(model.contextWindowTokens) > 0
+      ? Math.floor(Number(model.contextWindowTokens))
+      : 0,
+    maxOutputTokens: Number.isFinite(Number(model.maxOutputTokens)) && Number(model.maxOutputTokens) > 0
+      ? Math.floor(Number(model.maxOutputTokens))
+      : 0,
     notes: String(model.notes || '').trim()
   };
 }

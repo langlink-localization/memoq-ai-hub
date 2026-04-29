@@ -2376,6 +2376,71 @@ test('runtime falls back to single-segment execution when compatible batch trans
   }
 });
 
+test('runtime splits failed batches into half-batches before single-segment fallback', async () => {
+  const tempRoot = createTempAppRoot();
+  const batchCalls = [];
+
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      providerRegistry: {
+        testConnection: async () => ({ ok: true, latencyMs: 12, message: 'ok' }),
+        translateBatch: async (request) => {
+          const indexes = request.segments.map((segment) => segment.index);
+          batchCalls.push(indexes);
+          if (indexes.length === 4) {
+            const error = new Error('Provider request timed out after 120000 ms');
+            error.code = 'PROVIDER_TIMEOUT';
+            throw error;
+          }
+          return {
+            translations: request.segments.map((segment) => ({ index: segment.index, text: `${segment.sourceText} -> ZH` })),
+            latencyMs: 10
+          };
+        },
+        translateSegment: async ({ sourceText }) => ({ text: `${sourceText} -> ZH`, latencyMs: 10 })
+      }
+    });
+
+    const provider = await runtime.saveProvider({
+      name: 'OpenAI',
+      type: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'test-key',
+      models: [{ modelName: 'gpt-5.4-mini', enabled: true, retryAttempts: 0 }]
+    });
+    const profile = await runtime.saveProfile({ name: 'Default', providerId: provider.id });
+
+    const result = await runtime.translate({
+      requestId: 'REQ-HALF-BATCH',
+      traceId: 'TRACE-HALF-BATCH',
+      contractVersion: '1',
+      sourceLanguage: 'EN',
+      targetLanguage: 'ZH',
+      requestType: 'Plaintext',
+      profileResolution: { profileId: profile.id, useCase: 'pretranslate' },
+      metadata: {},
+      segments: [
+        { index: 0, text: 'One', plainText: 'One' },
+        { index: 1, text: 'Two', plainText: 'Two' },
+        { index: 2, text: 'Three', plainText: 'Three' },
+        { index: 3, text: 'Four', plainText: 'Four' }
+      ]
+    });
+
+    assert.equal(result.statusCode, 200);
+    assert.deepEqual(result.body.translations.map((item) => item.index), [0, 1, 2, 3]);
+    assert.deepEqual(batchCalls, [[0, 1, 2, 3], [0, 1], [2, 3]]);
+    const history = runtime.getAppState().historyExplorer.items[0];
+    assert.equal(history.throughput.mode, 'auto');
+    assert.equal(history.throughput.batchRequestCount, 3);
+    assert.deepEqual(history.throughput.fallbackReasons, ['PROVIDER_TIMEOUT']);
+    assert.equal(history.attempts[1].fallbackStage, 'half_batch');
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('runtime filters history by provider', async () => {
   const tempRoot = createTempAppRoot();
 

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Net.Http;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using MemoQ.Addins.Common.DataStructures;
@@ -17,6 +19,7 @@ internal static class Program
             RunEngineCapabilityScenario();
             RunPartialBatchRetryScenario();
             RunRequestTypeFallbackScenario();
+            RunGatewayTimeoutConfigurationScenario();
             Console.WriteLine("Plugin regression passed: retry and fallback scenarios behaved as expected.");
             return 0;
         }
@@ -36,7 +39,7 @@ internal static class Program
         );
 
         Assert(engine.SupportsFuzzyCorrection, "Expected plugin engine to expose fuzzy correction capability.");
-        Assert(engine.MaxDegreeOfParallelism == 8, "Expected plugin engine parallelism to remain unchanged.");
+        Assert(engine.MaxDegreeOfParallelism == 8, "Expected plugin engine parallelism to preserve memoQ resource compatibility.");
     }
 
     private static void RunPartialBatchRetryScenario()
@@ -129,6 +132,23 @@ internal static class Program
                 Assert(requestTypes[2] == "Plaintext", "Expected final fallback request type to be Plaintext.");
             }
         );
+    }
+
+    private static void RunGatewayTimeoutConfigurationScenario()
+    {
+        var helperType = typeof(MemoQAIHubSession).Assembly.GetType("MemoQAIHubPlugin.MemoQAIHubServiceHelper");
+        Assert(helperType != null, "Expected service helper type to exist.");
+
+        var clientField = helperType.GetField("HttpClient", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert(clientField != null, "Expected service helper to expose a private HttpClient field.");
+        var client = clientField.GetValue(null) as HttpClient;
+        Assert(client != null, "Expected service helper HttpClient to be initialized.");
+        Assert(client.Timeout == Timeout.InfiniteTimeSpan, "Expected HttpClient default timeout to be disabled.");
+
+        var normalizeMethod = helperType.GetMethod("NormalizeTimeoutMs", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert(normalizeMethod != null, "Expected service helper timeout normalization method to exist.");
+        Assert((int)normalizeMethod.Invoke(null, new object[] { 15000 }) == 120000, "Expected short saved gateway timeouts to be raised to 120 seconds.");
+        Assert((int)normalizeMethod.Invoke(null, new object[] { 180000 }) == 180000, "Expected explicit longer gateway timeouts to be preserved.");
     }
 
     private static void RunScenario(

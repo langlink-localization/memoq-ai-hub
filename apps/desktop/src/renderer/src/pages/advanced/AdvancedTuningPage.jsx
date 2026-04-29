@@ -207,6 +207,57 @@ function ModelTuningCard({
             { value: 'text', label: t('providers.responseFormatText') }
           ]}
         />
+        <Select
+          value={model.throughputMode || ''}
+          onChange={(value) => onPatchModel?.(model.id, 'throughputMode', value)}
+          options={[
+            { value: '', label: t('providers.throughputModeInherit') },
+            { value: 'auto', label: t('providers.throughputModeAuto') },
+            { value: 'reliable', label: t('providers.throughputModeReliable') },
+            { value: 'fast', label: t('providers.throughputModeFast') },
+            { value: 'custom', label: t('providers.throughputModeCustom') }
+          ]}
+        />
+        <Text type="secondary">{t('providers.throughputModeHint')}</Text>
+        {(model.throughputMode || currentProvider.capabilities?.throughputMode) === 'custom' && (
+          <Space direction="vertical" size={10} style={{ display: 'flex' }}>
+            <Input
+              type="number"
+              min={1}
+              addonBefore={t('providers.maxBatchSegments')}
+              value={model.maxBatchSegments || ''}
+              onChange={(event) => onPatchModel?.(model.id, 'maxBatchSegments', Math.max(0, Number(event.target.value || 0)))}
+            />
+            <Input
+              type="number"
+              min={1000}
+              addonBefore={t('providers.maxBatchCharacters')}
+              value={model.maxBatchCharacters || ''}
+              onChange={(event) => onPatchModel?.(model.id, 'maxBatchCharacters', Math.max(0, Number(event.target.value || 0)))}
+            />
+            <Input
+              type="number"
+              min={1}
+              addonBefore={t('providers.providerConcurrency')}
+              value={model.providerConcurrency || model.concurrencyLimit || 1}
+              onChange={(event) => onPatchModel?.(model.id, 'providerConcurrency', Math.max(1, Number(event.target.value || 1)))}
+            />
+            <Input
+              type="number"
+              min={0}
+              addonBefore={t('providers.contextWindowTokens')}
+              value={model.contextWindowTokens || ''}
+              onChange={(event) => onPatchModel?.(model.id, 'contextWindowTokens', Math.max(0, Number(event.target.value || 0)))}
+            />
+            <Input
+              type="number"
+              min={0}
+              addonBefore={t('providers.maxOutputTokens')}
+              value={model.maxOutputTokens || ''}
+              onChange={(event) => onPatchModel?.(model.id, 'maxOutputTokens', Math.max(0, Number(event.target.value || 0)))}
+            />
+          </Space>
+        )}
         <Space wrap size={[8, 8]}>
           <Switch checked={model.promptCacheEnabled === true} onChange={(checked) => onPatchModel?.(model.id, 'promptCacheEnabled', checked)} />
           <Text>{t('providers.promptCacheEnabled')}</Text>
