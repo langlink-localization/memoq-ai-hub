@@ -239,7 +239,7 @@ function ModelTuningCard({
               type="number"
               min={1}
               addonBefore={t('providers.providerConcurrency')}
-              value={model.providerConcurrency || model.concurrencyLimit || 1}
+              value={model.providerConcurrency || (currentProvider?.type === 'openai-compatible' ? 2 : 2)}
               onChange={(event) => onPatchModel?.(model.id, 'providerConcurrency', Math.max(1, Number(event.target.value || 1)))}
             />
             <Input

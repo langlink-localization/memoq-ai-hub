@@ -25,8 +25,10 @@ test('throughput auto chooses safe initial defaults by provider family', () => {
   );
   assert.deepEqual(
     { segments: compatible.maxBatchSegments, chars: compatible.maxBatchCharacters, concurrency: compatible.providerConcurrency },
-    { segments: 6, chars: 8000, concurrency: 1 }
+    { segments: 5, chars: 6000, concurrency: 2 }
   );
+  assert.equal(compatible.batchAttemptTimeoutMs, 45000);
+  assert.equal(compatible.singleAttemptTimeoutMs, 75000);
 });
 
 test('throughput auto scales up only after stable high-context history', () => {
@@ -71,6 +73,27 @@ test('throughput auto backs off after timeout, rate limit, or format instability
 
   assert.equal(unstable.status, 'backing_off');
   assert.equal(unstable.maxBatchSegments, 4);
+  assert.equal(unstable.providerConcurrency, 1);
+});
+
+test('throughput auto backs off compatible providers to small batches after timeout', () => {
+  const unstable = resolveThroughputSettings({
+    provider: { type: 'openai-compatible', baseUrl: 'https://api.deepseek.com/v1' },
+    model: { modelName: 'deepseek-v4-flash' },
+    capabilities: { throughputMode: 'auto', maxBatchSegments: 5, maxBatchCharacters: 6000 }
+  }, {
+    completed: 3,
+    successes: 2,
+    failures: 1,
+    timeouts: 1,
+    rateLimits: 0,
+    formatErrors: 0,
+    latenciesMs: [10000, 12000]
+  });
+
+  assert.equal(unstable.status, 'backing_off');
+  assert.equal(unstable.maxBatchSegments, 2);
+  assert.equal(unstable.maxBatchCharacters, 3000);
   assert.equal(unstable.providerConcurrency, 1);
 });
 

@@ -92,7 +92,7 @@ namespace MemoQAIHubPlugin
         private void OnLoad(object sender, EventArgs e)
         {
             _gatewayBaseUrl.Text = Options.GeneralSettings.GatewayBaseUrl;
-            _timeoutMs.Value = Math.Max(300000, Options.GeneralSettings.GatewayTimeoutMs);
+            _timeoutMs.Value = Math.Max(120000, Options.GeneralSettings.GatewayTimeoutMs);
             _enableGateway.Checked = Options.GeneralSettings.EnableGateway;
             _enableCustomDisplayName.Checked = Options.GeneralSettings.EnableCustomDisplayName;
             _customDisplayName.Text = Options.GeneralSettings.CustomDisplayName;

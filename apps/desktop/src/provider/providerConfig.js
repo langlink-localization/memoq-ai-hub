@@ -43,8 +43,8 @@ const DEFAULT_CAPABILITIES = {
     supportsStreaming: true,
     responseFormat: 'auto',
     throughputMode: 'auto',
-    maxBatchSegments: 6,
-    maxBatchCharacters: 8000
+    maxBatchSegments: 5,
+    maxBatchCharacters: 6000
   }
 };
 

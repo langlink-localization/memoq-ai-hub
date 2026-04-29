@@ -147,7 +147,7 @@ internal static class Program
 
         var normalizeMethod = helperType.GetMethod("NormalizeTimeoutMs", BindingFlags.NonPublic | BindingFlags.Static);
         Assert(normalizeMethod != null, "Expected service helper timeout normalization method to exist.");
-        Assert((int)normalizeMethod.Invoke(null, new object[] { 15000 }) == 300000, "Expected short saved gateway timeouts to be raised to 300 seconds.");
+        Assert((int)normalizeMethod.Invoke(null, new object[] { 15000 }) == 120000, "Expected short saved gateway timeouts to be raised to 120 seconds.");
         Assert((int)normalizeMethod.Invoke(null, new object[] { 360000 }) == 360000, "Expected explicit longer gateway timeouts to be preserved.");
     }
 

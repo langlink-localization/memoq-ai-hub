@@ -854,6 +854,9 @@ function formatHistoryThroughputValue(record) {
   if (throughput.providerLatencyMs) {
     parts.push(`provider ${throughput.providerLatencyMs} ms`);
   }
+  if (throughput.providerAttemptTimeoutMs) {
+    parts.push(`timeout ${throughput.providerAttemptTimeoutMs} ms`);
+  }
   if (Array.isArray(throughput.fallbackReasons) && throughput.fallbackReasons.length) {
     parts.push(`fallback: ${throughput.fallbackReasons.join(', ')}`);
   }

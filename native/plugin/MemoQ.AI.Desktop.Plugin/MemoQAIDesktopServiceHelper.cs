@@ -10,7 +10,7 @@ namespace MemoQAIHubPlugin
 {
     internal static class MemoQAIHubServiceHelper
     {
-        private const int MinimumGatewayTimeoutMs = 300000;
+        private const int MinimumGatewayTimeoutMs = 120000;
         private static readonly HttpClient HttpClient = CreateHttpClient();
 
         public static MemoQAIHubTranslateResponse Translate(string baseUrl, int timeoutMs, MemoQAIHubTranslateRequest payload)
@@ -142,6 +142,7 @@ namespace MemoQAIHubPlugin
         public string traceId { get; set; }
         public string providerId { get; set; }
         public string model { get; set; }
+        public bool partial { get; set; }
         public MemoQAIHubError error { get; set; }
         public List<MemoQAIHubSegmentResult> translations { get; set; }
     }

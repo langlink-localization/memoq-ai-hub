@@ -53,16 +53,20 @@ function getContextTier(route = {}) {
 function getBaseDefaults(route = {}) {
   if (isDeepSeekRoute(route) || isOpenAICompatibleRoute(route)) {
     return {
-      maxBatchSegments: 6,
-      maxBatchCharacters: 8000,
-      providerConcurrency: 1
+      maxBatchSegments: 5,
+      maxBatchCharacters: 6000,
+      providerConcurrency: 2,
+      batchAttemptTimeoutMs: 45000,
+      singleAttemptTimeoutMs: 75000
     };
   }
 
   return {
     maxBatchSegments: 8,
     maxBatchCharacters: 12000,
-    providerConcurrency: 2
+    providerConcurrency: 2,
+    batchAttemptTimeoutMs: 60000,
+    singleAttemptTimeoutMs: 90000
   };
 }
 
@@ -108,17 +112,27 @@ function resolveThroughputSettings(route = {}, stats = {}) {
 
   let maxBatchSegments = clampPositiveInteger(capabilities.maxBatchSegments, base.maxBatchSegments);
   let maxBatchCharacters = clampPositiveInteger(capabilities.maxBatchCharacters, base.maxBatchCharacters);
-  let providerConcurrency = clampPositiveInteger(model.concurrencyLimit, base.providerConcurrency);
+  let providerConcurrency = clampPositiveInteger(model.providerConcurrency, base.providerConcurrency);
+  let batchAttemptTimeoutMs = clampPositiveInteger(model.batchAttemptTimeoutMs, base.batchAttemptTimeoutMs);
+  let singleAttemptTimeoutMs = clampPositiveInteger(model.singleAttemptTimeoutMs, base.singleAttemptTimeoutMs);
   let status = 'starting';
+  const compatibleRoute = isDeepSeekRoute(route) || isOpenAICompatibleRoute(route);
+
+  if (mode === 'auto' && compatibleRoute) {
+    maxBatchSegments = Math.min(maxBatchSegments, base.maxBatchSegments);
+    maxBatchCharacters = Math.min(maxBatchCharacters, base.maxBatchCharacters);
+  }
 
   if (mode === 'custom') {
     maxBatchSegments = clampPositiveInteger(model.maxBatchSegments, maxBatchSegments);
     maxBatchCharacters = clampPositiveInteger(model.maxBatchCharacters, maxBatchCharacters);
     providerConcurrency = clampPositiveInteger(model.providerConcurrency || model.concurrencyLimit, providerConcurrency);
+    batchAttemptTimeoutMs = clampPositiveInteger(model.batchAttemptTimeoutMs, batchAttemptTimeoutMs);
+    singleAttemptTimeoutMs = clampPositiveInteger(model.singleAttemptTimeoutMs, singleAttemptTimeoutMs);
     status = 'custom';
   } else if (mode === 'reliable') {
-    maxBatchSegments = Math.min(maxBatchSegments, isDeepSeekRoute(route) || isOpenAICompatibleRoute(route) ? 4 : 6);
-    maxBatchCharacters = Math.min(maxBatchCharacters, isDeepSeekRoute(route) || isOpenAICompatibleRoute(route) ? 6000 : 9000);
+    maxBatchSegments = Math.min(maxBatchSegments, compatibleRoute ? 3 : 6);
+    maxBatchCharacters = Math.min(maxBatchCharacters, compatibleRoute ? 6000 : 9000);
     providerConcurrency = 1;
     status = 'reliable';
   } else if (mode === 'fast') {
@@ -126,10 +140,10 @@ function resolveThroughputSettings(route = {}, stats = {}) {
     const targetCharacters = contextTier === 'huge' ? 40000 : 24000;
     maxBatchSegments = Math.max(maxBatchSegments, targetSegments);
     maxBatchCharacters = Math.max(maxBatchCharacters, targetCharacters);
-    providerConcurrency = Math.max(providerConcurrency, isDeepSeekRoute(route) || isOpenAICompatibleRoute(route) ? 2 : 4);
+    providerConcurrency = Math.max(providerConcurrency, compatibleRoute ? 2 : 4);
     status = 'fast';
   } else if (summary.unstable) {
-    maxBatchSegments = Math.max(1, Math.floor(maxBatchSegments / 2));
+    maxBatchSegments = Math.max(compatibleRoute ? 2 : 1, Math.floor(maxBatchSegments / 2));
     maxBatchCharacters = Math.max(1000, Math.floor(maxBatchCharacters / 2));
     providerConcurrency = 1;
     status = 'backing_off';
@@ -140,7 +154,7 @@ function resolveThroughputSettings(route = {}, stats = {}) {
     } else if (contextTier === 'large') {
       maxBatchSegments = Math.max(maxBatchSegments, 16);
       maxBatchCharacters = Math.max(maxBatchCharacters, 24000);
-    } else if (!isDeepSeekRoute(route) && !isOpenAICompatibleRoute(route)) {
+    } else if (!compatibleRoute) {
       maxBatchSegments = Math.max(maxBatchSegments, 12);
       maxBatchCharacters = Math.max(maxBatchCharacters, 16000);
     }
@@ -161,6 +175,8 @@ function resolveThroughputSettings(route = {}, stats = {}) {
     maxBatchSegments,
     maxBatchCharacters,
     providerConcurrency,
+    batchAttemptTimeoutMs,
+    singleAttemptTimeoutMs,
     stats: summary
   };
 }

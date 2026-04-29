@@ -1676,8 +1676,10 @@ async function createRuntime(options = {}) {
     payload,
     assetContext,
     previewContext,
-    requestMode
+    requestMode,
+    throughput
   }) {
+    const attemptTimeoutMs = Number(throughput?.batchAttemptTimeoutMs || 60000);
     const batchResult = await runProviderCallWithGovernance({
       route,
       isBatch: true,
@@ -1700,7 +1702,7 @@ async function createRuntime(options = {}) {
         previewContext,
         profile,
         requestType: payload.requestType,
-        timeoutMs: 120000,
+        timeoutMs: attemptTimeoutMs,
         assetContext,
         requestOptions: {
           localPromptCacheEnabled: true,
@@ -1732,6 +1734,7 @@ async function createRuntime(options = {}) {
         queuedMs: batchResult.queuedMs || 0,
         rateLimitedWaitMs: batchResult.rateLimitedWaitMs || 0,
         retryAfterSeconds: resolveRetryAfterSeconds(batchResult.retryAfterSeconds),
+        providerAttemptTimeoutMs: attemptTimeoutMs,
         cacheKind: '',
         errorCode: '',
         promptCacheKey: batchResult.promptCache?.key || '',
@@ -1760,12 +1763,14 @@ async function createRuntime(options = {}) {
     payload,
     assetContext,
     previewContext,
-    requestMode
+    requestMode,
+    throughput
   }) {
     const translations = [];
     const attempts = [];
     let latencyMs = 0;
     let lastError = null;
+    const attemptTimeoutMs = Number(throughput?.singleAttemptTimeoutMs || 90000);
 
     for (const segment of segments) {
       try {
@@ -1784,7 +1789,7 @@ async function createRuntime(options = {}) {
             previewContext,
             profile,
             requestType: payload.requestType,
-            timeoutMs: 120000,
+            timeoutMs: attemptTimeoutMs,
             assetContext,
             tbContext: segment.tbContext || null,
             segmentMetadata: segment.segmentMetadata,
@@ -1818,6 +1823,7 @@ async function createRuntime(options = {}) {
           queuedMs: result.queuedMs || 0,
           rateLimitedWaitMs: result.rateLimitedWaitMs || 0,
           retryAfterSeconds: resolveRetryAfterSeconds(result.retryAfterSeconds),
+          providerAttemptTimeoutMs: attemptTimeoutMs,
           cacheKind: '',
           errorCode: '',
           promptCacheKey: result.promptCache?.key || '',
@@ -1854,6 +1860,7 @@ async function createRuntime(options = {}) {
           queuedMs: Number(error?.queuedMs || 0),
           rateLimitedWaitMs: Number(error?.rateLimitedWaitMs || 0),
           retryAfterSeconds: resolveRetryAfterSeconds(error?.retryAfterSeconds, lastError?.message || error?.message || ''),
+          providerAttemptTimeoutMs: attemptTimeoutMs,
           cacheKind: '',
           errorCode: String(lastError?.code || ''),
           requestMetadata: createSingleRequestMetadata({
@@ -1885,6 +1892,12 @@ async function createRuntime(options = {}) {
       effectiveMaxBatchSegments: Number(throughput?.maxBatchSegments || 0),
       effectiveMaxBatchCharacters: Number(throughput?.maxBatchCharacters || 0),
       effectiveConcurrencyLimit: Number(throughput?.providerConcurrency || 0),
+      providerAttemptTimeoutMs: Number(
+        extras.providerAttemptTimeoutMs
+        || attempt.providerAttemptTimeoutMs
+        || (attempt.batch ? throughput?.batchAttemptTimeoutMs : throughput?.singleAttemptTimeoutMs)
+        || 0
+      ),
       ...extras
     }));
   }
@@ -1941,6 +1954,7 @@ async function createRuntime(options = {}) {
       effectiveMaxBatchSegments: Number(throughput?.maxBatchSegments || 0),
       effectiveMaxBatchCharacters: Number(throughput?.maxBatchCharacters || 0),
       effectiveConcurrencyLimit: Number(throughput?.providerConcurrency || 0),
+      providerAttemptTimeoutMs: Number(throughput?.batchAttemptTimeoutMs || 0),
       fallbackStage
     };
   }
@@ -1970,7 +1984,8 @@ async function createRuntime(options = {}) {
         payload,
         assetContext,
         previewContext,
-        requestMode
+        requestMode,
+        throughput
       });
       return {
         ...sequentialResult,
@@ -1989,7 +2004,8 @@ async function createRuntime(options = {}) {
         payload,
         assetContext,
         previewContext,
-        requestMode
+        requestMode,
+        throughput
       });
       return {
         translations: batchResult.translations,
@@ -2017,8 +2033,9 @@ async function createRuntime(options = {}) {
       let latencyMs = 0;
       let lastError = failedBatchAttempt.error || null;
 
-      for (const splitBatch of splitBatches) {
-        const result = await translateBatchWithAdaptiveFallback({
+      const splitResults = await Promise.all(splitBatches.map(async (splitBatch, splitIndex) => ({
+        splitIndex,
+        result: await translateBatchWithAdaptiveFallback({
           state,
           route,
           batch: splitBatch,
@@ -2031,7 +2048,10 @@ async function createRuntime(options = {}) {
           requestMode,
           throughput,
           fallbackStage: splitBatch.length > 1 ? 'half_batch' : 'single'
-        });
+        })
+      })));
+
+      for (const { result } of splitResults.sort((left, right) => left.splitIndex - right.splitIndex)) {
         translations.push(...result.translations);
         attempts.push(...result.attempts);
         latencyMs += Number(result.latencyMs || 0);
@@ -2106,7 +2126,8 @@ async function createRuntime(options = {}) {
           payload,
           assetContext,
           previewContext,
-          requestMode
+          requestMode,
+          throughput
         });
         return {
           batchIndex,
@@ -2512,7 +2533,7 @@ async function createRuntime(options = {}) {
       const translated = translatedByIndex.get(segment.index);
       if (!translated) {
         terminalError = terminalError || { code: ERROR_CODES.translationFailed, message: 'Translation failed for one or more segments.' };
-        break;
+        continue;
       }
       translations.push({ index: segment.index, text: translated.text });
       segment.qaSummary = evaluateTerminologyQa({
@@ -2676,7 +2697,7 @@ async function createRuntime(options = {}) {
 
     saveState(latestState);
 
-    if (terminalError) {
+    if (terminalError && translations.length === 0) {
       return {
         statusCode: 502,
         body: {
@@ -2696,6 +2717,8 @@ async function createRuntime(options = {}) {
         traceId,
         providerId: historyEntry.providerId,
         model: historyEntry.model,
+        partial: Boolean(terminalError),
+        error: terminalError ? { code: terminalError.code || ERROR_CODES.translationFailed, message: terminalError.message || 'Translation failed.' } : null,
         profileResolution: {
           profileId: profile.id,
           profileName: profile.name,
@@ -2726,7 +2749,7 @@ async function createRuntime(options = {}) {
         routes: ROUTES,
         mt: {
           maxBatchSegments: 32,
-          requestTimeoutMs: 300000,
+          requestTimeoutMs: 120000,
           throughputModes: ['auto', 'reliable', 'fast', 'custom'],
           capabilities: {
             requestTypePolicy: true,

@@ -2441,6 +2441,66 @@ test('runtime splits failed batches into half-batches before single-segment fall
   }
 });
 
+test('runtime returns partial translations when split fallback leaves only some segments failed', async () => {
+  const tempRoot = createTempAppRoot();
+
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      providerRegistry: {
+        testConnection: async () => ({ ok: true, latencyMs: 12, message: 'ok' }),
+        translateBatch: async () => {
+          const error = new Error('Provider request timed out after 45000 ms');
+          error.code = 'PROVIDER_TIMEOUT';
+          throw error;
+        },
+        translateSegment: async ({ sourceText }) => {
+          if (sourceText === 'Bad') {
+            const error = new Error('Provider request timed out after 75000 ms');
+            error.code = 'PROVIDER_TIMEOUT';
+            throw error;
+          }
+          return { text: `${sourceText} -> ZH`, latencyMs: 10 };
+        }
+      }
+    });
+
+    const provider = await runtime.saveProvider({
+      name: 'DeepSeek',
+      type: 'openai-compatible',
+      baseUrl: 'https://api.deepseek.com/v1',
+      apiKey: 'test-key',
+      models: [{ modelName: 'deepseek-v4-flash', enabled: true, retryAttempts: 0 }]
+    });
+    const profile = await runtime.saveProfile({ name: 'Default', providerId: provider.id, cacheEnabled: false });
+
+    const result = await runtime.translate({
+      requestId: 'REQ-PARTIAL-BATCH',
+      traceId: 'TRACE-PARTIAL-BATCH',
+      contractVersion: '1',
+      sourceLanguage: 'EN',
+      targetLanguage: 'ZH',
+      requestType: 'Plaintext',
+      profileResolution: { profileId: profile.id, useCase: 'pretranslate' },
+      metadata: {},
+      segments: [
+        { index: 0, text: 'Good', plainText: 'Good' },
+        { index: 1, text: 'Bad', plainText: 'Bad' }
+      ]
+    });
+
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.body.partial, true);
+    assert.equal(result.body.error.code, 'PROVIDER_TIMEOUT');
+    assert.deepEqual(result.body.translations, [{ index: 0, text: 'Good -> ZH' }]);
+    const history = runtime.getAppState().historyExplorer.items[0];
+    assert.equal(history.result.error.code, 'PROVIDER_TIMEOUT');
+    assert.deepEqual(history.throughput.fallbackStages, ['batch', 'single']);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('runtime filters history by provider', async () => {
   const tempRoot = createTempAppRoot();
 
@@ -4992,6 +5052,80 @@ test('runtime executes split batches concurrently within route slot limits', asy
         Array.from({ length: 8 }, (_, index) => index + 8)
       ]
     );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime uses DeepSeek auto batch size, concurrency, and short batch timeout', async () => {
+  const tempRoot = createTempAppRoot();
+  const calls = [];
+  let activeCalls = 0;
+  let maxActiveCalls = 0;
+
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      providerRegistry: {
+        testConnection: async () => ({ ok: true, latencyMs: 12, message: 'ok' }),
+        translateBatch: async (request) => {
+          activeCalls += 1;
+          maxActiveCalls = Math.max(maxActiveCalls, activeCalls);
+          calls.push({
+            indexes: request.segments.map((segment) => segment.index),
+            timeoutMs: request.timeoutMs
+          });
+          await new Promise((resolve) => setTimeout(resolve, 25));
+          activeCalls -= 1;
+          return {
+            latencyMs: 25,
+            translations: request.segments.map((segment) => ({
+              index: segment.index,
+              text: `${segment.sourceText} -> EN`
+            }))
+          };
+        }
+      }
+    });
+
+    const provider = await runtime.saveProvider({
+      name: 'DeepSeek',
+      type: 'openai-compatible',
+      baseUrl: 'https://api.deepseek.com/v1',
+      apiKey: 'test-key',
+      models: [{ modelName: 'deepseek-v4-flash', enabled: true }]
+    });
+    const profile = await runtime.saveProfile({ name: 'DeepSeek Profile', providerId: provider.id, cacheEnabled: false });
+
+    const result = await runtime.translate({
+      requestId: 'REQ-DEEPSEEK-AUTO-BATCH',
+      traceId: 'TRACE-DEEPSEEK-AUTO-BATCH',
+      contractVersion: '1',
+      sourceLanguage: 'ZH',
+      targetLanguage: 'EN',
+      requestType: 'Plaintext',
+      profileResolution: { profileId: profile.id, useCase: 'pretranslate' },
+      metadata: {},
+      segments: Array.from({ length: 10 }, (_, index) => ({
+        index,
+        text: `Segment ${index}`,
+        plainText: `Segment ${index}`,
+        tmSource: '',
+        tmTarget: ''
+      }))
+    });
+
+    assert.equal(result.statusCode, 200);
+    assert.equal(maxActiveCalls, 2);
+    assert.deepEqual(calls.map((call) => call.indexes), [
+      [0, 1, 2, 3, 4],
+      [5, 6, 7, 8, 9]
+    ]);
+    assert.ok(calls.every((call) => call.timeoutMs === 45000));
+    const history = runtime.getAppState().historyExplorer.items[0];
+    assert.equal(history.throughput.effectiveMaxBatchSegments, 5);
+    assert.equal(history.throughput.effectiveConcurrencyLimit, 2);
+    assert.equal(history.throughput.providerAttemptTimeoutMs, 45000);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

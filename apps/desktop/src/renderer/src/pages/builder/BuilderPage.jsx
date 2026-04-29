@@ -252,8 +252,8 @@ function RouteSelectorCard({ route, profile, providers, onChange }) {
     .map((model) => ({ label: model.modelName, value: model.id }));
   const selectedModel = getPreferredProviderModel(selectedProvider, modelId) || {};
   const throughputMode = selectedModel.throughputMode || selectedProvider?.capabilities?.throughputMode || 'auto';
-  const maxBatchSegments = selectedModel.maxBatchSegments || selectedProvider?.capabilities?.maxBatchSegments || (selectedProvider?.type === 'openai-compatible' ? 6 : 8);
-  const concurrency = selectedModel.providerConcurrency || selectedModel.concurrencyLimit || (selectedProvider?.type === 'openai-compatible' ? 1 : 2);
+  const maxBatchSegments = selectedModel.maxBatchSegments || selectedProvider?.capabilities?.maxBatchSegments || (selectedProvider?.type === 'openai-compatible' ? 5 : 8);
+  const concurrency = selectedModel.providerConcurrency || (selectedProvider?.type === 'openai-compatible' ? 2 : 2);
 
   return (
     <Card size="small" className="builder-subcard" title={t(route.titleKey)}>

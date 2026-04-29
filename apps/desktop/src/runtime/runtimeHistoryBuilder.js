@@ -307,6 +307,7 @@ function buildHistoryThroughputSummary(attempts = []) {
     queuedMs: providerAttempts.reduce((sum, attempt) => sum + Number(attempt.queuedMs || 0), 0),
     rateLimitedWaitMs: providerAttempts.reduce((sum, attempt) => sum + Number(attempt.rateLimitedWaitMs || 0), 0),
     providerLatencyMs: providerAttempts.reduce((sum, attempt) => sum + Number(attempt.latencyMs || 0), 0),
+    providerAttemptTimeoutMs: Math.max(0, ...providerAttempts.map((attempt) => Number(attempt.providerAttemptTimeoutMs || 0))),
     fallbackStages,
     fallbackReasons
   };

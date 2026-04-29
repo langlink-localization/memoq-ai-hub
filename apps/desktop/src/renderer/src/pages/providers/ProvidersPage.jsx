@@ -36,12 +36,12 @@ const { Text, Title } = Typography;
 function getProviderThroughputSummary(provider, t) {
   const capabilities = provider?.capabilities || {};
   const mode = capabilities.throughputMode || 'auto';
-  const maxBatchSegments = Number(capabilities.maxBatchSegments || (provider?.type === 'openai-compatible' ? 6 : 8));
-  const maxBatchCharacters = Number(capabilities.maxBatchCharacters || (provider?.type === 'openai-compatible' ? 8000 : 12000));
+  const maxBatchSegments = Number(capabilities.maxBatchSegments || (provider?.type === 'openai-compatible' ? 5 : 8));
+  const maxBatchCharacters = Number(capabilities.maxBatchCharacters || (provider?.type === 'openai-compatible' ? 6000 : 12000));
   const defaultModel = (provider?.models || []).find((model) => model?.id === provider?.defaultModelId)
     || (provider?.models || []).find((model) => model?.enabled !== false)
     || {};
-  const concurrency = Number(defaultModel.providerConcurrency || defaultModel.concurrencyLimit || (provider?.type === 'openai-compatible' ? 1 : 2));
+  const concurrency = Number(defaultModel.providerConcurrency || (provider?.type === 'openai-compatible' ? 2 : 2));
   return t('providers.throughputStatusValue', {
     mode: t(`providers.throughputMode${mode.charAt(0).toUpperCase()}${mode.slice(1)}`),
     segments: maxBatchSegments,

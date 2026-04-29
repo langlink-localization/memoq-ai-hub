@@ -108,6 +108,13 @@ namespace MemoQAIHubPlugin
             );
 
             var translationsByIndex = MapTranslationsByIndex(response, segs.Length, results);
+            var missingCount = GetFailedIndexes(results).Count;
+            if (response.partial || missingCount > 0)
+            {
+                LogDebug(
+                    $"Partial translate response translations={response.translations?.Count ?? 0} missing={missingCount} retrying={missingCount} error={response.error?.message ?? string.Empty}"
+                );
+            }
             ApplyTranslations(segs, translationsByIndex, results, formattingMode);
         }
 
