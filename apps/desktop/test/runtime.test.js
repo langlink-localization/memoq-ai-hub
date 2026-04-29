@@ -1570,6 +1570,130 @@ test('runtime saveProfile preserves cacheEnabled false across save and reload', 
   }
 });
 
+test('runtime saveProfile preserves user-overridable builder settings across save and reload', async () => {
+  const tempRoot = createTempAppRoot();
+  try {
+    const runtime = await createRuntime({ appDataRoot: tempRoot });
+
+    const profile = await runtime.saveProfile({
+      name: 'Builder Settings Profile',
+      useBestFuzzyTm: false,
+      useMetadata: false,
+      cacheEnabled: false,
+      usePreviewContext: false,
+      usePreviewFullText: true,
+      usePreviewSummary: false,
+      usePreviewAboveBelow: false,
+      usePreviewTargetText: false,
+      previewAboveSegments: 4,
+      previewAboveCharacters: 120,
+      previewAboveIncludeSource: false,
+      previewAboveIncludeTarget: true,
+      previewBelowSegments: 5,
+      previewBelowCharacters: 240,
+      previewBelowIncludeSource: false,
+      previewBelowIncludeTarget: true
+    });
+
+    const saved = runtime.getAppState().contextBuilder.profiles.find((item) => item.id === profile.id);
+
+    assert.equal(saved.useBestFuzzyTm, false);
+    assert.equal(saved.useMetadata, false);
+    assert.equal(saved.cacheEnabled, false);
+    assert.equal(saved.usePreviewContext, false);
+    assert.equal(saved.usePreviewFullText, true);
+    assert.equal(saved.usePreviewSummary, false);
+    assert.equal(saved.usePreviewAboveBelow, false);
+    assert.equal(saved.usePreviewTargetText, false);
+    assert.equal(saved.previewAboveSegments, 4);
+    assert.equal(saved.previewAboveCharacters, 120);
+    assert.equal(saved.previewAboveIncludeSource, false);
+    assert.equal(saved.previewAboveIncludeTarget, true);
+    assert.equal(saved.previewBelowSegments, 5);
+    assert.equal(saved.previewBelowCharacters, 240);
+    assert.equal(saved.previewBelowIncludeSource, false);
+    assert.equal(saved.previewBelowIncludeTarget, true);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime translate completion preserves profile edits saved during an in-flight request', async () => {
+  const tempRoot = createTempAppRoot();
+  let releaseProvider;
+  let markProviderStarted;
+  const providerStarted = new Promise((resolve) => {
+    markProviderStarted = resolve;
+  });
+
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      providerRegistry: {
+        testConnection: async () => ({ ok: true, latencyMs: 12, message: 'ok' }),
+        translateSegment: async ({ sourceText }) => {
+          markProviderStarted();
+          await new Promise((resolve) => {
+            releaseProvider = resolve;
+          });
+          return { text: `${sourceText} -> ZH`, latencyMs: 25 };
+        }
+      }
+    });
+
+    const provider = await runtime.saveProvider({
+      name: 'OpenAI',
+      type: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'test-key',
+      models: [{ modelName: 'gpt-4.1-mini', enabled: true }]
+    });
+
+    const profile = await runtime.saveProfile({
+      name: 'Race Profile',
+      providerId: provider.id,
+      interactiveProviderId: provider.id,
+      interactiveModelId: provider.models[0].id,
+      translationStyle: 'Original style.',
+      cacheEnabled: true,
+      usePreviewFullText: false
+    });
+
+    const translation = runtime.translate({
+      requestId: 'REQ-RACE',
+      traceId: 'TRACE-RACE',
+      contractVersion: '1',
+      sourceLanguage: 'EN',
+      targetLanguage: 'ZH',
+      requestType: 'Plaintext',
+      profileResolution: { profileId: profile.id, useCase: 'interactive' },
+      metadata: { client: 'ABC', subject: 'Race' },
+      segments: [{ index: 0, text: 'Restart service', plainText: 'Restart service', tmSource: '', tmTarget: '' }]
+    });
+
+    await providerStarted;
+
+    await runtime.saveProfile({
+      ...profile,
+      translationStyle: 'Updated while translation is running.',
+      cacheEnabled: false,
+      usePreviewFullText: true
+    });
+
+    releaseProvider();
+    const result = await translation;
+
+    assert.equal(result.statusCode, 200);
+
+    const saved = runtime.getAppState().contextBuilder.profiles.find((item) => item.id === profile.id);
+    assert.equal(saved.translationStyle, 'Updated while translation is running.');
+    assert.equal(saved.cacheEnabled, false);
+    assert.equal(saved.usePreviewFullText, true);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('runtime exposes update status and portable download-page flow through app state', async () => {
   const tempRoot = createTempAppRoot();
   const manifestUrl = 'https://example.com/latest.json';
@@ -1587,7 +1711,7 @@ test('runtime exposes update status and portable download-page flow through app 
             status: 200,
             async json() {
               return {
-                version: '1.0.13',
+                version: '1.0.14',
                 publishedAt: '2026-03-26T00:00:00.000Z',
                 releaseNotesUrl: 'https://example.com/release',
                 assets: {
@@ -1612,7 +1736,7 @@ test('runtime exposes update status and portable download-page flow through app 
     const available = await runtime.checkForUpdates({ manual: true });
     const finalState = runtime.getAppState();
 
-    assert.equal(available.latestVersion, '1.0.13');
+    assert.equal(available.latestVersion, '1.0.14');
     assert.equal(available.portableDownloadUrl, 'https://example.com/release');
     assert.equal(finalState.updateCenter.updateStatus, 'available');
     await assert.rejects(() => runtime.downloadPortableUpdate(), /browser download page/i);
@@ -2761,7 +2885,7 @@ test('runtime derives preview context from ingested preview events and forwards 
     assert.equal(result.statusCode, 200);
     assert.equal(calls.length, 1);
     assert.equal(calls[0].previewContext.activePreviewPartId, 'part-b');
-    assert.equal(calls[0].previewContext.fullText, '');
+    assert.equal(calls[0].previewContext.fullText, 'First sentence.\nSecond sentence.\nThird sentence.');
     assert.equal(calls[0].segmentPreviewContext.targetText, '第二句。');
     assert.equal(calls[0].segmentPreviewContext.above, 'First sentence.');
     assert.equal(calls[0].segmentPreviewContext.below, 'Third sentence.');
@@ -3247,13 +3371,13 @@ test('runtime limits batch preview to shared context and records shared-only deb
     assert.equal(result.statusCode, 200);
     assert.equal(calls.length, 1);
     assert.equal(calls[0].previewContext.documentName, 'Guide');
-    assert.equal(calls[0].previewContext.fullText, '');
+    assert.equal(calls[0].previewContext.fullText, 'First sentence.\nSecond sentence.');
     assert.equal(calls[0].segments[0].previewContext, null);
     assert.equal(calls[0].segments[1].previewContext, null);
 
     const history = runtime.getAppState().historyExplorer.items[0];
     assert.equal(history.assembly.previewContext.reason, 'batch_shared_only_mode');
-    assert.deepEqual(history.assembly.previewContext.previewAvailableFeatures, []);
+    assert.deepEqual(history.assembly.previewContext.previewAvailableFeatures, ['fullText']);
     assert.equal(history.segments[0].previewContext.reason, 'batch_shared_only_mode');
     assert.equal(history.segments[1].previewContext.reason, 'batch_shared_only_mode');
   } finally {

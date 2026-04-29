@@ -6,6 +6,7 @@ const DEFAULT_PROVIDER_TYPES = {
 
 const SUPPORTED_PROVIDER_TYPES = new Set(Object.values(DEFAULT_PROVIDER_TYPES));
 const SUPPORTED_REQUEST_PATHS = new Set(['/responses', '/chat/completions']);
+const SUPPORTED_RESPONSE_FORMATS = new Set(['auto', 'json_schema', 'json_object', 'text']);
 
 const DEFAULT_BASE_URLS = {
   openai: 'https://api.openai.com/v1',
@@ -38,7 +39,7 @@ const DEFAULT_CAPABILITIES = {
   'openai-compatible': {
     supportsBatch: true,
     supportsStreaming: true,
-    responseFormat: 'json_schema',
+    responseFormat: 'auto',
     maxBatchSegments: 8,
     maxBatchCharacters: 12000
   }
@@ -68,6 +69,47 @@ function getDefaultModelName(type) {
   return DEFAULT_MODELS[normalizeProviderType(type)];
 }
 
+function normalizeResponseFormat(responseFormat, fallback = 'auto') {
+  const normalized = String(responseFormat || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const aliases = {
+    json: 'json_object',
+    json_mode: 'json_object',
+    object: 'json_object',
+    schema: 'json_schema',
+    structured: 'json_schema',
+    structured_output: 'json_schema',
+    none: 'text',
+    plain: 'text',
+    plain_text: 'text'
+  };
+  const candidate = aliases[normalized] || normalized;
+  if (SUPPORTED_RESPONSE_FORMATS.has(candidate)) {
+    return candidate;
+  }
+
+  const normalizedFallback = String(fallback || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const fallbackCandidate = aliases[normalizedFallback] || normalizedFallback;
+  return SUPPORTED_RESPONSE_FORMATS.has(fallbackCandidate) ? fallbackCandidate : '';
+}
+
+function isDeepSeekProvider(provider = {}) {
+  const baseUrl = String(provider.baseUrl || '').trim().toLowerCase();
+  if (baseUrl.includes('deepseek')) {
+    return true;
+  }
+
+  const models = Array.isArray(provider.models) ? provider.models : [];
+  return models.some((model) => String(model?.modelName || model?.id || model || '').trim().toLowerCase().startsWith('deepseek-'));
+}
+
+function getDefaultResponseFormat(type, provider = {}) {
+  const normalizedType = normalizeProviderType(type);
+  if (normalizedType === 'openai-compatible' && isDeepSeekProvider(provider)) {
+    return 'json_object';
+  }
+  return DEFAULT_CAPABILITIES[normalizedType].responseFormat;
+}
+
 function normalizeCompatibleRequestPath(requestPath) {
   const candidate = `/${String(requestPath || getDefaultRequestPath('openai-compatible')).trim().replace(/^\/+/, '').replace(/\/+$/, '')}`;
   return SUPPORTED_REQUEST_PATHS.has(candidate) ? candidate : getDefaultRequestPath('openai-compatible');
@@ -88,11 +130,12 @@ function getProviderCapabilities(provider = {}) {
   const provided = provider.capabilities && typeof provider.capabilities === 'object'
     ? provider.capabilities
     : {};
+  const defaultResponseFormat = getDefaultResponseFormat(type, provider);
 
   return {
     supportsBatch: provided.supportsBatch ?? defaults.supportsBatch,
     supportsStreaming: provided.supportsStreaming ?? defaults.supportsStreaming,
-    responseFormat: String(provided.responseFormat || defaults.responseFormat).trim() || 'json',
+    responseFormat: normalizeResponseFormat(provided.responseFormat, defaultResponseFormat),
     maxBatchSegments: Number.isFinite(Number(provided.maxBatchSegments))
       ? Number(provided.maxBatchSegments)
       : defaults.maxBatchSegments,
@@ -100,6 +143,22 @@ function getProviderCapabilities(provider = {}) {
       ? Number(provided.maxBatchCharacters)
       : defaults.maxBatchCharacters
   };
+}
+
+function getProviderModelResponseFormat(provider = {}, modelName = '') {
+  const providerCapabilities = getProviderCapabilities(provider);
+  const normalizedModelName = String(modelName || '').trim().toLowerCase();
+  const models = Array.isArray(provider.models) ? provider.models : [];
+  const model = normalizedModelName
+    ? models.find((item) => {
+      const itemId = String(item?.id || '').trim().toLowerCase();
+      const itemName = String(item?.modelName || '').trim().toLowerCase();
+      return itemName === normalizedModelName || itemId === normalizedModelName;
+    })
+    : null;
+  const modelResponseFormat = normalizeResponseFormat(model?.responseFormat, '');
+
+  return modelResponseFormat || providerCapabilities.responseFormat;
 }
 
 function sanitizeProvider(provider = {}) {
@@ -176,11 +235,14 @@ module.exports = {
   getDefaultProviderName,
   getDefaultRequestPath,
   getProviderCapabilities,
+  getProviderModelResponseFormat,
   isSupportedProviderType,
   normalizeCompatibleRequestPath,
   normalizeProviderType,
+  normalizeResponseFormat,
   resolveRequestPath,
   sanitizeProvider,
+  SUPPORTED_RESPONSE_FORMATS: Array.from(SUPPORTED_RESPONSE_FORMATS),
   validateCompatibleRequestPath,
   validateProviderRequestInput
 };

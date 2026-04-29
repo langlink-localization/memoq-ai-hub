@@ -8,6 +8,7 @@ import {
   Input,
   List,
   Row,
+  Select,
   Space,
   Switch,
   Tag,
@@ -194,6 +195,17 @@ function ModelTuningCard({
           placeholder={t('providers.rateLimitHint')}
           value={model.rateLimitHint || ''}
           onChange={(event) => onPatchModel?.(model.id, 'rateLimitHint', event.target.value)}
+        />
+        <Select
+          value={model.responseFormat || ''}
+          onChange={(value) => onPatchModel?.(model.id, 'responseFormat', value)}
+          options={[
+            { value: '', label: t('providers.responseFormatInherit') },
+            { value: 'auto', label: t('providers.responseFormatAuto') },
+            { value: 'json_schema', label: t('providers.responseFormatJsonSchema') },
+            { value: 'json_object', label: t('providers.responseFormatJsonObject') },
+            { value: 'text', label: t('providers.responseFormatText') }
+          ]}
         />
         <Space wrap size={[8, 8]}>
           <Switch checked={model.promptCacheEnabled === true} onChange={(checked) => onPatchModel?.(model.id, 'promptCacheEnabled', checked)} />

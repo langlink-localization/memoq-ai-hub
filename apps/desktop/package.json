@@ -1,7 +1,7 @@
 {
   "name": "memoq-ai-hub-app",
   "private": true,
-  "version": "1.0.12",
+  "version": "1.0.13",
   "packageManager": "pnpm@10.6.2",
   "license": "MIT",
   "author": "LangLink Localization",

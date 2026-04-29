@@ -62,7 +62,8 @@ test('runtimeState normalizes providers, rules, assets, and integration preferen
     type: 'openai-compatible',
     baseUrl: 'https://example.com',
     requestPath: 'chat/completions',
-    models: [{ modelName: 'custom-model', concurrencyLimit: 0, retryAttempts: -1 }]
+    capabilities: { responseFormat: 'json-object' },
+    models: [{ modelName: 'custom-model', concurrencyLimit: 0, retryAttempts: -1, responseFormat: 'text' }]
   });
   const rule = ensureRule({ ruleName: '  ', priority: 'not-a-number' });
   const asset = ensureAsset({
@@ -76,6 +77,8 @@ test('runtimeState normalizes providers, rules, assets, and integration preferen
   const integration = ensureIntegrationPreferences({ memoqVersion: '99', customInstallDir: ' C:\\memoQ ' });
 
   assert.equal(provider.requestPath, '/chat/completions');
+  assert.equal(provider.capabilities.responseFormat, 'json_object');
+  assert.equal(provider.models[0].responseFormat, 'text');
   assert.equal(provider.models[0].concurrencyLimit, 1);
   assert.equal(provider.models[0].retryAttempts, 2);
   assert.equal(rule.ruleName, 'New Rule');

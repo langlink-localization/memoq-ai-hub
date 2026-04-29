@@ -117,6 +117,18 @@ test('provider registry sanitizeProvider applies provider defaults', () => {
   assert.match(provider.baseUrl, /api\.openai\.com/);
 });
 
+test('provider registry defaults DeepSeek compatible providers to json_object structured output', () => {
+  const registry = createProviderRegistry();
+  const provider = registry.sanitizeProvider({
+    type: 'openai-compatible',
+    baseUrl: 'https://api.deepseek.com/v1',
+    requestPath: '/chat/completions',
+    models: [{ modelName: 'deepseek-v4-flash' }]
+  });
+
+  assert.equal(provider.capabilities.responseFormat, 'json_object');
+});
+
 test('provider registry testConnection reports success with the current openai client path', async () => {
   const { MockOpenAI, calls } = createMockOpenAI();
 
@@ -1196,6 +1208,147 @@ test('provider registry translateSegment falls back to plain text when structure
     assert.ok(calls.chats.length >= 2);
     assert.ok(calls.chats[0].request.response_format);
     assert.equal(calls.chats[calls.chats.length - 1].request.response_format, undefined);
+  });
+});
+
+test('provider registry translateSegment falls back from unavailable json_schema to json_object', async () => {
+  const { MockOpenAI, calls } = createMockOpenAI({
+    chatCreate: async (request) => {
+      if (request.response_format?.type === 'json_schema') {
+        const error = new Error('This response_format type is unavailable now');
+        error.error = {
+          message: 'This response_format type is unavailable now',
+          type: 'invalid_request_error',
+          code: 'invalid_request_error'
+        };
+        throw error;
+      }
+      return {
+        choices: [
+          {
+            message: {
+              content: '{"translations":[{"index":0,"text":"Closed"}]}'
+            }
+          }
+        ]
+      };
+    }
+  });
+
+  await withMockedModules({ openai: MockOpenAI }, async () => {
+    const { createProviderRegistry: loadRegistry } = require(providerRegistryModulePath);
+    const registry = loadRegistry();
+
+    const result = await registry.translateSegment({
+      provider: {
+        type: 'openai-compatible',
+        baseUrl: 'https://api.deepseek.com/v1',
+        requestPath: '/chat/completions',
+        capabilities: { responseFormat: 'auto' },
+        models: [{ modelName: 'deepseek-v4-flash' }]
+      },
+      apiKey: 'test',
+      modelName: 'deepseek-v4-flash',
+      sourceText: '已关闭',
+      tmSource: '',
+      tmTarget: '',
+      metadata: {},
+      profile: {},
+      requestType: 'Plaintext'
+    });
+
+    assert.equal(result.text, 'Closed');
+    assert.equal(calls.chats.length, 2);
+    assert.equal(calls.chats[0].request.response_format.type, 'json_schema');
+    assert.deepEqual(calls.chats[1].request.response_format, { type: 'json_object' });
+  });
+});
+
+test('provider registry translateSegment uses json_object response format when configured', async () => {
+  const { MockOpenAI, calls } = createMockOpenAI({
+    chatCreate: async () => ({
+      choices: [
+        {
+          message: {
+            content: '{"translations":[{"index":0,"text":"Bonjour"}]}'
+          }
+        }
+      ]
+    })
+  });
+
+  await withMockedModules({ openai: MockOpenAI }, async () => {
+    const { createProviderRegistry: loadRegistry } = require(providerRegistryModulePath);
+    const registry = loadRegistry();
+
+    const result = await registry.translateSegment({
+      provider: {
+        type: 'openai-compatible',
+        baseUrl: 'https://api.example.com/v1',
+        requestPath: '/chat/completions',
+        capabilities: { responseFormat: 'json_object' }
+      },
+      apiKey: 'test',
+      modelName: 'provider-model',
+      sourceText: 'Hello',
+      tmSource: '',
+      tmTarget: '',
+      metadata: {},
+      profile: {},
+      requestType: 'Plaintext'
+    });
+
+    assert.equal(result.text, 'Bonjour');
+    assert.equal(calls.chats.length, 1);
+    assert.deepEqual(calls.chats[0].request.response_format, { type: 'json_object' });
+    assert.equal(calls.chats[0].request.response_format?.json_schema, undefined);
+  });
+});
+
+test('provider registry translateSegment auto response format tries schema, object, then text', async () => {
+  const seenFormats = [];
+  const { MockOpenAI, calls } = createMockOpenAI({
+    chatCreate: async (request) => {
+      seenFormats.push(request.response_format?.type || 'text');
+      if (request.response_format) {
+        throw new Error(`response_format ${request.response_format.type} unsupported`);
+      }
+      return {
+        choices: [
+          {
+            message: {
+              content: '{"translations":[{"index":0,"text":"Hallo"}]}'
+            }
+          }
+        ]
+      };
+    }
+  });
+
+  await withMockedModules({ openai: MockOpenAI }, async () => {
+    const { createProviderRegistry: loadRegistry } = require(providerRegistryModulePath);
+    const registry = loadRegistry();
+
+    const result = await registry.translateSegment({
+      provider: {
+        type: 'openai-compatible',
+        baseUrl: 'https://api.example.com/v1',
+        requestPath: '/chat/completions'
+      },
+      apiKey: 'test',
+      modelName: 'fresh-compatible-model',
+      sourceText: 'Hello',
+      tmSource: '',
+      tmTarget: '',
+      metadata: {},
+      profile: {},
+      requestType: 'Plaintext'
+    });
+
+    assert.equal(result.text, 'Hallo');
+    assert.deepEqual(seenFormats, ['json_schema', 'json_object', 'text']);
+    assert.equal(calls.chats.length, 3);
+    assert.equal(calls.chats[2].request.response_format, undefined);
   });
 });
 

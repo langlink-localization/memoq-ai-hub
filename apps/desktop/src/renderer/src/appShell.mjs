@@ -286,6 +286,7 @@ export function buildAdvancedModelRows(providers = []) {
     rateLimitHint: String(model?.rateLimitHint || ''),
     promptCacheEnabled: model?.promptCacheEnabled === true,
     promptCacheTtlHint: String(model?.promptCacheTtlHint || ''),
+    responseFormat: String(model?.responseFormat || ''),
     notes: String(model?.notes || '')
   })));
 }

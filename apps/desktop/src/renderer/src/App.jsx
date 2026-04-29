@@ -511,6 +511,7 @@ function createDraftProviderModel(modelName = 'gpt-5.4-mini') {
     retryAttempts: 2,
     promptCacheEnabled: false,
     promptCacheTtlHint: '',
+    responseFormat: '',
     notes: ''
   };
 }
@@ -703,6 +704,7 @@ function buildProviderFingerprint(provider) {
     defaultModelId: provider.defaultModelId || '',
     enabled: provider.enabled !== false,
     apiKey: provider.apiKey || '',
+    responseFormat: provider.capabilities?.responseFormat || '',
     models: (provider.models || []).map((model) => ({
       id: model.id || '',
       modelName: model.modelName || '',
@@ -713,6 +715,7 @@ function buildProviderFingerprint(provider) {
       retryAttempts: model.retryAttempts ?? 2,
       promptCacheEnabled: model.promptCacheEnabled === true,
       promptCacheTtlHint: model.promptCacheTtlHint || '',
+      responseFormat: model.responseFormat || '',
       notes: model.notes || ''
     }))
   });

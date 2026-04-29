@@ -7,7 +7,8 @@ const {
   sanitizeProvider,
   getDefaultProviderName,
   getDefaultModelName,
-  getDefaultRequestPath
+  getDefaultRequestPath,
+  normalizeResponseFormat
 } = require('../provider/providerRegistry');
 const { createInitialState } = require('./runtimePersistence');
 
@@ -284,6 +285,7 @@ function ensureProviderModel(model = {}, providerType = 'openai') {
       : 2,
     promptCacheEnabled: model.promptCacheEnabled === true,
     promptCacheTtlHint: String(model.promptCacheTtlHint || '').trim(),
+    responseFormat: normalizeResponseFormat(model.responseFormat, ''),
     notes: String(model.notes || '').trim()
   };
 }
@@ -336,6 +338,7 @@ function ensureProvider(provider = {}) {
     lastError: String(sanitized.lastError || ''),
     lastLatencyMs: Number.isFinite(Number(sanitized.lastLatencyMs)) ? Number(sanitized.lastLatencyMs) : null,
     secretRef: String(sanitized.secretRef || `provider-${sanitized.id || createId('secret')}`),
+    capabilities: sanitized.capabilities,
     models: normalizedModels,
     defaultModelId
   };

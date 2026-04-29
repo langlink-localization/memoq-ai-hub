@@ -8,8 +8,10 @@ const {
   getDefaultProviderName,
   getDefaultRequestPath,
   getProviderCapabilities,
+  getProviderModelResponseFormat,
   isSupportedProviderType,
   normalizeProviderType,
+  normalizeResponseFormat,
   resolveRequestPath,
   sanitizeProvider,
   validateCompatibleRequestPath,
@@ -127,6 +129,42 @@ function createStructuredOutputFormat(schema, name, description) {
   };
 }
 
+function createChatResponseFormat(responseFormat, schema, name, description) {
+  if (responseFormat === 'json_schema') {
+    return {
+      type: 'json_schema',
+      json_schema: {
+        name,
+        description,
+        schema,
+        strict: true
+      }
+    };
+  }
+  if (responseFormat === 'json_object') {
+    return { type: 'json_object' };
+  }
+  return null;
+}
+
+function createResponsesTextFormat(responseFormat, schema, name, description) {
+  if (responseFormat === 'json_schema') {
+    return createStructuredOutputFormat(schema, name, description);
+  }
+  if (responseFormat === 'json_object') {
+    return { type: 'json_object' };
+  }
+  return null;
+}
+
+function getStructuredResponseFormatCandidates(provider = {}, modelName = '') {
+  const responseFormat = normalizeResponseFormat(getProviderModelResponseFormat(provider, modelName), 'auto');
+  if (responseFormat === 'auto') {
+    return ['json_schema', 'json_object', 'text'];
+  }
+  return [responseFormat];
+}
+
 function looksLikeStructuredParseFailure(message) {
   const normalized = String(message || '').toLowerCase();
   return normalized.includes('translation response is not valid json')
@@ -150,6 +188,12 @@ function looksLikeStructuredCapabilityFailure(message) {
     || normalized.includes('schema');
   const indicatesIncompatibility = normalized.includes('unsupported')
     || normalized.includes('not support')
+    || normalized.includes('unavailable')
+    || normalized.includes('not available')
+    || normalized.includes('not enabled')
+    || normalized.includes('unsupported value')
+    || normalized.includes('invalid value')
+    || normalized.includes('invalid type')
     || normalized.includes('invalid')
     || normalized.includes('unknown parameter')
     || normalized.includes('invalid schema')
@@ -158,13 +202,54 @@ function looksLikeStructuredCapabilityFailure(message) {
   return mentionsStructuredOutput && indicatesIncompatibility;
 }
 
+function pushErrorSignal(values, value) {
+  const text = String(value || '').trim();
+  if (text && !values.includes(text)) {
+    values.push(text);
+  }
+}
+
+function collectProviderErrorSignals(error, mapped = {}) {
+  const values = [];
+  const bodyError = error?.response?.data?.error || error?.body?.error || error?.error;
+
+  if (bodyError && typeof bodyError === 'object') {
+    pushErrorSignal(values, bodyError.message);
+    pushErrorSignal(values, bodyError.type);
+    pushErrorSignal(values, bodyError.code);
+    pushErrorSignal(values, bodyError.param);
+  }
+  if (error?.response?.data && typeof error.response.data === 'string') {
+    pushErrorSignal(values, error.response.data);
+  }
+  if (error?.body && typeof error.body === 'string') {
+    pushErrorSignal(values, error.body);
+  }
+  pushErrorSignal(values, error?.message);
+  pushErrorSignal(values, error?.type);
+  pushErrorSignal(values, error?.code);
+  pushErrorSignal(values, error?.param);
+  pushErrorSignal(values, mapped.message);
+  pushErrorSignal(values, mapped.code);
+  return values.join(' ');
+}
+
+function shouldFallbackFromStructuredCapabilityError(error) {
+  const mapped = mapProviderError(error);
+  if (shouldRetryProviderError(mapped) || ['PROVIDER_AUTH_FAILED', 'PROVIDER_CONFIG_INVALID'].includes(mapped.code)) {
+    return false;
+  }
+
+  return looksLikeStructuredCapabilityFailure(collectProviderErrorSignals(error, mapped));
+}
+
 function shouldFallbackFromStructuredError(error) {
   const mapped = mapProviderError(error);
   if (shouldRetryProviderError(mapped) || ['PROVIDER_AUTH_FAILED', 'PROVIDER_CONFIG_INVALID'].includes(mapped.code)) {
     return false;
   }
 
-  const message = String(error?.message || mapped.message || '');
+  const message = collectProviderErrorSignals(error, mapped);
   return looksLikeStructuredParseFailure(message) || looksLikeStructuredCapabilityFailure(message);
 }
 
@@ -450,61 +535,81 @@ function createProviderRegistry(options = {}) {
     const client = createClient(sdk.OpenAI, sanitizedProvider, normalizedApiKey, timeoutMs);
     const startedAt = Date.now();
     const promptCacheFields = buildPromptCacheRequestFields(sanitizedProvider, requestOptions);
+    const responseFormats = getStructuredResponseFormatCandidates(sanitizedProvider, normalizedModelName);
+    let lastError = null;
 
-    if (requestPath === '/chat/completions') {
-      const completion = await withAbortableTimeout(async ({ requestOptions }) => {
-        try {
-          return await client.chat.completions.create({
+    for (let index = 0; index < responseFormats.length; index += 1) {
+      const responseFormat = responseFormats[index];
+      const hasNextResponseFormat = index < responseFormats.length - 1;
+      try {
+        if (requestPath === '/chat/completions') {
+          const completion = await withAbortableTimeout(async ({ requestOptions }) => {
+            const chatResponseFormat = createChatResponseFormat(responseFormat, schema, name, description);
+            const request = {
+              model: normalizedModelName,
+              messages: createChatMessages(systemPrompt, prompt),
+              ...promptCacheFields
+            };
+            if (chatResponseFormat) {
+              request.response_format = chatResponseFormat;
+            }
+
+            try {
+              return await client.chat.completions.create(request, requestOptions);
+            } catch (error) {
+              throw attachRetryAfter(error, error?.headers || error?.response?.headers);
+            }
+          }, timeoutMs);
+
+          return {
+            output: JSON.parse(extractJsonText(extractChatText(completion))),
+            latencyMs: Date.now() - startedAt,
+            responseFormat,
+            providerMetadata: {
+              cachedPromptTokens: getCachedPromptTokens(completion)
+            }
+          };
+        }
+
+        const response = await withAbortableTimeout(async ({ requestOptions }) => {
+          const textFormat = createResponsesTextFormat(responseFormat, schema, name, description);
+          const request = {
             model: normalizedModelName,
-            messages: createChatMessages(systemPrompt, prompt),
-            response_format: {
-              type: 'json_schema',
-              json_schema: {
-                name,
-                description,
-                schema,
-                strict: true
-              }
-            },
+            instructions: systemPrompt,
+            input: prompt,
             ...promptCacheFields
-          }, requestOptions);
-        } catch (error) {
-          throw attachRetryAfter(error, error?.headers || error?.response?.headers);
-        }
-      }, timeoutMs);
+          };
+          if (textFormat) {
+            request.text = { format: textFormat };
+          }
 
-      return {
-        output: JSON.parse(extractJsonText(extractChatText(completion))),
-        latencyMs: Date.now() - startedAt,
-        providerMetadata: {
-          cachedPromptTokens: getCachedPromptTokens(completion)
+          try {
+            return await client.responses.create(request, requestOptions);
+          } catch (error) {
+            throw attachRetryAfter(error, error?.headers || error?.response?.headers);
+          }
+        }, timeoutMs);
+
+        return {
+          output: responseFormat === 'json_schema' && response?.output_parsed
+            ? response.output_parsed
+            : JSON.parse(extractJsonText(extractResponseText(response))),
+          latencyMs: Date.now() - startedAt,
+          responseFormat,
+          providerMetadata: {
+            cachedPromptTokens: getCachedPromptTokens(response)
+          }
+        };
+      } catch (error) {
+        lastError = error;
+        if (hasNextResponseFormat && shouldFallbackFromStructuredCapabilityError(error)) {
+          continue;
         }
-      };
+        throw error;
+      }
     }
 
-    const response = await withAbortableTimeout(async ({ requestOptions }) => {
-      try {
-        return await client.responses.create({
-          model: normalizedModelName,
-          instructions: systemPrompt,
-          input: prompt,
-          text: {
-            format: createStructuredOutputFormat(schema, name, description)
-          },
-          ...promptCacheFields
-        }, requestOptions);
-      } catch (error) {
-        throw attachRetryAfter(error, error?.headers || error?.response?.headers);
-      }
-    }, timeoutMs);
-
-    return {
-      output: response?.output_parsed ?? JSON.parse(extractJsonText(extractResponseText(response))),
-      latencyMs: Date.now() - startedAt,
-      providerMetadata: {
-        cachedPromptTokens: getCachedPromptTokens(response)
-      }
-    };
+    throw lastError || new Error('No structured response format was available.');
   }
 
   async function testConnection({ provider, apiKey, modelName, timeoutMs = 30000 }) {
@@ -999,7 +1104,9 @@ function createProviderRegistry(options = {}) {
     getDefaultBaseUrl,
     getDefaultModelName,
     getProviderCapabilities,
+    getProviderModelResponseFormat,
     normalizeRequestType,
+    normalizeResponseFormat,
     normalizeTranslatedText,
     createPromptCacheKey,
     sanitizeProvider,
@@ -1021,10 +1128,12 @@ module.exports = {
   getDefaultBaseUrl,
   getDefaultModelName,
   getProviderCapabilities,
+  getProviderModelResponseFormat,
   isSupportedProviderType,
   mapProviderError,
   normalizeProviderType,
   normalizeRequestType,
+  normalizeResponseFormat,
   normalizeTranslatedText,
   parseBatchTranslations,
   createPromptCacheKey,

@@ -584,7 +584,7 @@ test('background worker runtime harness exposes portable update metadata without
           status: 200,
           async json() {
             return {
-              version: '1.0.13',
+              version: '1.0.14',
               releaseNotesUrl,
               assets: {
                 portable: {
@@ -609,7 +609,7 @@ test('background worker runtime harness exposes portable update metadata without
 
   const available = await runtime.checkForUpdates({ manual: true });
 
-  assert.equal(runtime.getUpdateStatus().latestVersion, '1.0.13');
+  assert.equal(runtime.getUpdateStatus().latestVersion, '1.0.14');
   assert.equal(available.updateStatus, 'available');
   assert.equal(available.portableDownloadUrl, releaseNotesUrl);
   await assert.rejects(() => runtime.downloadPortableUpdate(), /browser download page/i);

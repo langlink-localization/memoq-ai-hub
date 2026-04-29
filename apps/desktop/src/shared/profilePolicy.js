@@ -1,13 +1,6 @@
 const { listTemplatePlaceholders } = require('./promptTemplate');
 
-const FIRST_RELEASE_FIXED_PROFILE_FIELDS = Object.freeze({
-  useUploadedGlossary: true,
-  useCustomTm: false,
-  useBrief: false,
-  useMetadata: true,
-  usePreviewContext: true,
-  usePreviewFullText: false
-});
+const FIRST_RELEASE_FIXED_PROFILE_FIELDS = Object.freeze({});
 
 const FIRST_RELEASE_DISABLED_PLACEHOLDER_TOKENS = new Set([
   'brief-text',
@@ -38,7 +31,6 @@ function normalizeAssetBindings(assetBindings = []) {
 function applyFirstReleaseProfilePolicy(profile = {}) {
   return {
     ...profile,
-    ...FIRST_RELEASE_FIXED_PROFILE_FIELDS,
     assetBindings: normalizeAssetBindings(profile.assetBindings),
     assetSelections: normalizeAssetSelections(profile.assetSelections)
   };

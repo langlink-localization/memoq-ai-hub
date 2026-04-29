@@ -2487,17 +2487,18 @@ async function createRuntime(options = {}) {
       buildTemplatePreflightContext
     });
 
+    persistence.appendHistoryEntry(historyEntry);
+
+    const latestState = loadState();
     if (resolved.matchedRule) {
-      const rule = state.mappingRules.find((item) => item.id === resolved.matchedRule.id);
+      const rule = latestState.mappingRules.find((item) => item.id === resolved.matchedRule.id);
       if (rule) {
         rule.hitCount = Number(rule.hitCount || 0) + 1;
       }
     }
 
-    persistence.appendHistoryEntry(historyEntry);
-
     if (winningRoute) {
-      const provider = state.providers.find((item) => item.id === winningRoute.provider.id);
+      const provider = latestState.providers.find((item) => item.id === winningRoute.provider.id);
       if (provider) {
         provider.status = terminalError ? 'failed' : 'connected';
         provider.lastCheckedAt = completedAt;
@@ -2506,7 +2507,7 @@ async function createRuntime(options = {}) {
       }
     }
 
-    saveState(state);
+    saveState(latestState);
 
     if (terminalError) {
       return {

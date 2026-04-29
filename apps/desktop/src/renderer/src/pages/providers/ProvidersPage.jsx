@@ -12,6 +12,7 @@ import {
   Modal,
   Radio,
   Row,
+  Select,
   Space,
   Switch,
   Table,
@@ -558,6 +559,24 @@ export function ProvidersPage(props) {
                     <Input value={currentProvider.requestPath || ''} onChange={(event) => onPatchProvider?.('requestPath', event.target.value)} />
                   </Space>
                 )}
+
+                <Space direction="vertical" size={8} style={{ display: 'flex' }}>
+                  <Text strong>{t('providers.responseFormatDefault')}</Text>
+                  <Select
+                    value={currentProvider.capabilities?.responseFormat || (currentProvider.type === 'openai-compatible' ? 'auto' : 'json_schema')}
+                    onChange={(value) => onPatchProvider?.('capabilities', {
+                      ...(currentProvider.capabilities || {}),
+                      responseFormat: value
+                    })}
+                    options={[
+                      { value: 'auto', label: t('providers.responseFormatAuto') },
+                      { value: 'json_schema', label: t('providers.responseFormatJsonSchema') },
+                      { value: 'json_object', label: t('providers.responseFormatJsonObject') },
+                      { value: 'text', label: t('providers.responseFormatText') }
+                    ]}
+                  />
+                  <Text type="secondary">{t('providers.responseFormatDefaultHint')}</Text>
+                </Space>
 
                 <ProviderModelTable
                   currentProvider={currentProvider}
