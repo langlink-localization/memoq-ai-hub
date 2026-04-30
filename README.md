@@ -28,11 +28,11 @@ The repository contains runtime code for more advanced capabilities, but not eve
 
 ## Recent Updates
 
-`v1.0.15` focuses on desktop usability and troubleshooting:
+`v1.0.16` focuses on update-check responsiveness and clearer dropdowns:
 
-- The desktop app now includes a dedicated Logs page for viewing log location, retention policy, grouped files, cleanup actions, and diagnostic summaries.
-- Runtime logging now covers the main process, worker, gateway, runtime, renderer errors, preview helper, and memoQ plugin with rotation, retention cleanup, and sensitive-data redaction.
-- English and Chinese UI copy has been simplified, and common text areas now wrap more naturally while paths and IDs remain available when needed.
+- Update checks now time out cleanly instead of leaving the Dashboard stuck on Checking, with friendly English and Chinese messages and diagnostic logging.
+- The Updates card keeps the latest known version readable during checks and shows same-version manifests as up to date.
+- Select controls and dropdowns now fill their content area more consistently while long provider, model, asset, and path names wrap naturally.
 
 ## Runtime Layout
 

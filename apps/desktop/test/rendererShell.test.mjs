@@ -65,13 +65,25 @@ test('dashboard keeps refresh controls icon-first and guards stale available upd
   assert.match(appSource, /className="app-header-refresh"/);
   assert.match(appSource, /aria-label=\{t\('app\.refresh'\)\}/);
   assert.match(appSource, /const safeUpdateStatus = getSafeUpdateStatus\(updateCenter\);/);
-  assert.match(appSource, /const hasAvailableUpdate = safeUpdateStatus === 'available';/);
+  assert.match(appSource, /const effectiveUpdateStatus = checkingUpdates \? 'checking' : safeUpdateStatus;/);
+  assert.match(appSource, /const latestVersionDisplay = updateCenter\.latestVersion/);
+  assert.match(appSource, /getUpdateErrorDisplay\(result, t\)/);
+  assert.match(appSource, /const hasAvailableUpdate = !checkingUpdates && safeUpdateStatus === 'available';/);
   assert.match(appSource, /icon=\{<ReloadOutlined \/>}/);
+  assert.match(en.dashboard.updateCheckingLatestVersion, /Checking/);
+  assert.equal(zhCN.dashboard.updateCheckingLatestVersion, '检查中...');
+  assert.match(en.dashboard.updateCheckTimeoutError, /timed out/i);
+  assert.match(zhCN.dashboard.updateCheckTimeoutError, /超时/);
 });
 
 test('global select styles allow selected values and dropdown options to wrap', () => {
   const cssSource = readRendererSource('index.css');
 
+  assert.match(cssSource, /\.content-wrap \.ant-select/);
+  assert.match(cssSource, /width:\s*100%/);
+  assert.match(cssSource, /max-width:\s*100%/);
+  assert.match(cssSource, /\.ant-select-dropdown\s*\{/);
+  assert.match(cssSource, /max-width:\s*90vw/);
   assert.match(cssSource, /\.ant-select-dropdown \.ant-select-item-option-content/);
   assert.match(cssSource, /\.ant-select-single \.ant-select-selector \.ant-select-selection-item/);
   assert.match(cssSource, /overflow-wrap:\s*anywhere/);

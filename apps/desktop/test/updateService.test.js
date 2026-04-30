@@ -8,6 +8,8 @@ const {
   compareVersions,
   createUpdateService,
   PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE,
+  UPDATE_CHECK_TIMEOUT_CODE,
+  UPDATE_CHECK_TIMEOUT_MESSAGE,
   resolvePackagingMode
 } = require('../src/update/updateService');
 const { createAppPaths } = require('../src/shared/paths');
@@ -34,6 +36,9 @@ function createMockFetch(responses = new Map(), calls = []) {
     }
 
     const response = responses.get(key);
+    if (Number(response.delayMs || 0) > 0) {
+      await new Promise((resolve) => setTimeout(resolve, Number(response.delayMs)));
+    }
     return {
       ok: response.ok !== false,
       status: response.status || 200,
@@ -44,6 +49,22 @@ function createMockFetch(responses = new Map(), calls = []) {
         return Buffer.from(response.buffer || '');
       }
     };
+  };
+}
+
+function createMockLogger() {
+  const entries = [];
+  return {
+    entries,
+    info(event, message, data) {
+      entries.push({ level: 'info', event, message, data });
+    },
+    warn(event, message, data) {
+      entries.push({ level: 'warn', event, message, data });
+    },
+    error(event, message, data) {
+      entries.push({ level: 'error', event, message, data });
+    }
   };
 }
 
@@ -135,14 +156,14 @@ test('update service normalizes stale persisted available updates for the curren
 
     const service = createUpdateService({
       paths,
-      currentVersion: '1.0.15',
+      currentVersion: '1.0.16',
       manifestUrl,
       packagingMode: 'portable',
       fetch: createMockFetch()
     });
     const status = service.getStatus();
 
-    assert.equal(status.currentVersion, '1.0.15');
+    assert.equal(status.currentVersion, '1.0.16');
     assert.equal(status.updateStatus, 'up-to-date');
     assert.equal(status.latestVersion, '');
     assert.equal(status.releaseNotesUrl, '');
@@ -161,21 +182,23 @@ test('update service requests the manifest without cache and treats equal remote
     const paths = createAppPaths({ appDataRoot: tempRoot });
     const manifestUrl = 'https://example.com/latest.json';
     const calls = [];
+    const logger = createMockLogger();
     const service = createUpdateService({
       paths,
-      currentVersion: '1.0.15',
+      currentVersion: '1.0.16',
       manifestUrl,
       packagingMode: 'portable',
+      logger,
       fetch: createMockFetch(new Map([
         [manifestUrl, {
           json: {
-            version: '1.0.15',
-            tag: 'v1.0.15',
-            releaseNotesUrl: 'https://github.com/langlink-localization/memoq-ai-hub/releases/tag/v1.0.15',
+            version: '1.0.16',
+            tag: 'v1.0.16',
+            releaseNotesUrl: 'https://github.com/langlink-localization/memoq-ai-hub/releases/tag/v1.0.16',
             assets: {
               portable: {
                 name: 'memoq-ai-hub-win32-x64.zip',
-                url: 'https://example.com/v1.0.15/memoq-ai-hub-win32-x64.zip'
+                url: 'https://example.com/v1.0.16/memoq-ai-hub-win32-x64.zip'
               }
             }
           }
@@ -190,11 +213,88 @@ test('update service requests the manifest without cache and treats equal remote
     assert.equal(calls[0].options.headers['cache-control'], 'no-cache');
     assert.equal(calls[0].options.headers.pragma, 'no-cache');
     assert.equal(status.updateStatus, 'up-to-date');
-    assert.equal(status.latestVersion, '1.0.15');
+    assert.equal(status.latestVersion, '1.0.16');
+    assert.equal(status.lastErrorCode, '');
     assert.equal(status.portableDownloadUrl, '');
     assert.equal(status.downloadedArtifactPath, '');
     assert.equal(status.preparedDirectory, '');
     assert.equal(status.availableAssets.portable, null);
+    assert.equal(logger.entries.some((entry) => entry.event === 'update-check-start'), true);
+    assert.equal(logger.entries.some((entry) => entry.event === 'update-check-complete' && entry.data.latestVersion === '1.0.16'), true);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('update service times out manifest requests that never settle', async () => {
+  const tempRoot = createTempRoot();
+  try {
+    const paths = createAppPaths({ appDataRoot: tempRoot });
+    const manifestUrl = 'https://example.com/latest.json';
+    const calls = [];
+    const logger = createMockLogger();
+    const service = createUpdateService({
+      paths,
+      currentVersion: '1.0.16',
+      manifestUrl,
+      packagingMode: 'portable',
+      manifestTimeoutMs: 20,
+      logger,
+      fetch: (url, options = {}) => {
+        calls.push({ url: String(url || ''), options });
+        return new Promise(() => {});
+      }
+    });
+
+    const status = await service.checkForUpdates({ manual: true });
+
+    assert.equal(status.updateStatus, 'error');
+    assert.equal(status.lastErrorCode, UPDATE_CHECK_TIMEOUT_CODE);
+    assert.equal(status.lastError, UPDATE_CHECK_TIMEOUT_MESSAGE);
+    assert.equal(calls[0].url, manifestUrl);
+    assert.equal(calls[0].options.signal.aborted, true);
+    assert.equal(logger.entries.some((entry) => entry.event === 'update-check-start'), true);
+    assert.equal(
+      logger.entries.some((entry) => entry.event === 'update-check-failed' && entry.data.errorCode === UPDATE_CHECK_TIMEOUT_CODE),
+      true
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('update service accepts a slow manifest response within the timeout', async () => {
+  const tempRoot = createTempRoot();
+  try {
+    const paths = createAppPaths({ appDataRoot: tempRoot });
+    const manifestUrl = 'https://example.com/latest.json';
+    const logger = createMockLogger();
+    const service = createUpdateService({
+      paths,
+      currentVersion: '1.0.16',
+      manifestUrl,
+      packagingMode: 'portable',
+      manifestTimeoutMs: 80,
+      logger,
+      fetch: createMockFetch(new Map([
+        [manifestUrl, {
+          delayMs: 20,
+          json: {
+            version: '1.0.16',
+            publishedAt: '2026-04-30T08:41:20.402Z',
+            releaseNotesUrl: 'https://github.com/langlink-localization/memoq-ai-hub/releases/tag/v1.0.16'
+          }
+        }]
+      ]))
+    });
+
+    const status = await service.checkForUpdates({ manual: true });
+
+    assert.equal(status.updateStatus, 'up-to-date');
+    assert.equal(status.latestVersion, '1.0.16');
+    assert.equal(status.publishedAt, '2026-04-30T08:41:20.402Z');
+    assert.equal(status.releaseNotesUrl, 'https://github.com/langlink-localization/memoq-ai-hub/releases/tag/v1.0.16');
+    assert.equal(logger.entries.some((entry) => entry.event === 'update-check-complete' && entry.data.elapsedMs >= 0), true);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

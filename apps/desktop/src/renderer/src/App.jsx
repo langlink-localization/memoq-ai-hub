@@ -156,6 +156,7 @@ function createFallbackAppState() {
         preparedDirectory: '',
         lastCheckedAt: '',
         lastError: '',
+        lastErrorCode: '',
         manifestUrl: '',
         pluginReinstallRecommended: true,
         availableAssets: {
@@ -212,6 +213,7 @@ function createFallbackAppState() {
       preparedDirectory: '',
       lastCheckedAt: '',
       lastError: '',
+      lastErrorCode: '',
       manifestUrl: '',
       pluginReinstallRecommended: true,
       availableAssets: {
@@ -464,6 +466,17 @@ function getSafeUpdateStatus(updateCenter = {}) {
     return 'up-to-date';
   }
   return status || 'idle';
+}
+
+function getUpdateErrorDisplay(updateCenter = {}, t) {
+  const errorCode = String(updateCenter.lastErrorCode || '').trim();
+  if (errorCode === 'UPDATE_CHECK_TIMEOUT') {
+    return translateWithFallback(t, 'dashboard.updateCheckTimeoutError', 'Update check timed out. Please try again later.');
+  }
+  if (errorCode === 'UPDATE_CHECK_FAILED') {
+    return translateWithFallback(t, 'dashboard.updateCheckFailedError', 'Unable to check for updates. Please try again later.');
+  }
+  return String(updateCenter.lastError || '').trim();
 }
 
 function getPackagingModeLabel(mode, t) {
@@ -2063,7 +2076,7 @@ export default function App() {
 
       if (manual) {
         if (result?.updateStatus === 'error') {
-          message.error(result?.lastError || translateWithFallback(t, 'dashboard.updateStatusError', 'Error'));
+          message.error(getUpdateErrorDisplay(result, t) || translateWithFallback(t, 'dashboard.updateStatusError', 'Error'));
         } else {
           message.success(
             result?.updateStatus === 'available'
@@ -2118,11 +2131,15 @@ export default function App() {
   const previewBridgeStatusLabel = getRuntimeConnectionLabel(previewBridgeStatus.status, t);
   const updateCenter = state?.updateCenter || state?.dashboard?.updateCenter || createFallbackAppState().updateCenter;
   const safeUpdateStatus = getSafeUpdateStatus(updateCenter);
-  const hasAvailableUpdate = safeUpdateStatus === 'available';
+  const effectiveUpdateStatus = checkingUpdates ? 'checking' : safeUpdateStatus;
+  const hasAvailableUpdate = !checkingUpdates && safeUpdateStatus === 'available';
   const portableDownloadPage = hasAvailableUpdate
     ? (updateCenter.portableDownloadUrl || updateCenter.releaseNotesUrl || updateCenter.availableAssets?.portable?.url || '')
     : '';
-  const updateStatusLabel = getUpdateStatusLabel(safeUpdateStatus, t);
+  const updateStatusLabel = getUpdateStatusLabel(effectiveUpdateStatus, t);
+  const latestVersionDisplay = updateCenter.latestVersion
+    || (effectiveUpdateStatus === 'checking' ? translateWithFallback(t, 'dashboard.updateCheckingLatestVersion', 'Checking...') : '');
+  const updateErrorDisplay = getUpdateErrorDisplay(updateCenter, t);
   const packagingModeLabel = getPackagingModeLabel(updateCenter.packagingMode, t);
   const selectedInstallVersionOptions = installOptions.map((option) => ({
     label: option.label || `memoQ ${option.version}`,
@@ -2716,7 +2733,7 @@ export default function App() {
                     <Descriptions.Item label={translateWithFallback(t, 'dashboard.currentVersion', 'Current version')}><HoverText value={updateCenter.currentVersion} /></Descriptions.Item>
                     <Descriptions.Item label={translateWithFallback(t, 'dashboard.packagingMode', 'Packaging mode')}><HoverText value={packagingModeLabel} /></Descriptions.Item>
                     <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateState', 'Update state')}><HoverText value={updateStatusLabel} /></Descriptions.Item>
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.latestVersion', 'Latest version')}><HoverText value={updateCenter.latestVersion} /></Descriptions.Item>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.latestVersion', 'Latest version')}><HoverText value={latestVersionDisplay} /></Descriptions.Item>
                     <Descriptions.Item label={translateWithFallback(t, 'dashboard.updatePublishedAt', 'Published at')}><HoverText value={formatLocalTimestamp(updateCenter.publishedAt)} /></Descriptions.Item>
                     {updateCenter.packagingMode === 'portable' ? (
                       <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateDownloadPage', 'Download page')}><HoverText value={portableDownloadPage} /></Descriptions.Item>
@@ -2726,7 +2743,7 @@ export default function App() {
                         <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateDownloadedArtifact', 'Downloaded artifact')}><HoverText value={updateCenter.downloadedArtifactPath} /></Descriptions.Item>
                       </>
                     )}
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateLastError', 'Update error')}><HoverText value={updateCenter.lastError} /></Descriptions.Item>
+                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateLastError', 'Update error')}><HoverText value={updateErrorDisplay} /></Descriptions.Item>
                   </Descriptions>
                   <Alert
                     type="info"

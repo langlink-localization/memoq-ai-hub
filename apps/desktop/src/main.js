@@ -107,6 +107,7 @@ function buildPlaceholderAppState() {
         preparedDirectory: '',
         lastCheckedAt: '',
         lastError: '',
+        lastErrorCode: '',
         manifestUrl: '',
         pluginReinstallRecommended: true,
         availableAssets: {
@@ -155,6 +156,7 @@ function buildPlaceholderAppState() {
       preparedDirectory: '',
       lastCheckedAt: '',
       lastError: '',
+      lastErrorCode: '',
       manifestUrl: '',
       pluginReinstallRecommended: true,
       availableAssets: {

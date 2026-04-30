@@ -10,6 +10,11 @@ const STABLE_RELEASE_CHANNEL = 'stable';
 const STABLE_UPDATE_MANIFEST_NAME = 'memoq-ai-hub-updates-stable.json';
 const DEFAULT_UPDATE_STATUS = 'idle';
 const AVAILABLE_UPDATE_STATUSES = new Set(['available', 'downloading', 'prepared']);
+const DEFAULT_MANIFEST_TIMEOUT_MS = 12_000;
+const UPDATE_CHECK_FAILED_CODE = 'UPDATE_CHECK_FAILED';
+const UPDATE_CHECK_TIMEOUT_CODE = 'UPDATE_CHECK_TIMEOUT';
+const UPDATE_CHECK_FAILED_MESSAGE = 'Unable to check for updates. Please try again later.';
+const UPDATE_CHECK_TIMEOUT_MESSAGE = 'Update check timed out. Please try again later.';
 const PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE = 'Portable builds use a browser download page instead of downloading updates inside the app.';
 
 function ensureDir(dirPath) {
@@ -61,6 +66,7 @@ function createDefaultUpdateState({ currentVersion, packagingMode, manifestUrl }
     preparedDirectory: '',
     lastCheckedAt: '',
     lastError: '',
+    lastErrorCode: '',
     manualCheckRequestedAt: '',
     manifestUrl: String(manifestUrl || '').trim(),
     pluginReinstallRecommended: true,
@@ -99,8 +105,47 @@ function normalizePersistedUpdateState(defaultState, persistedState = {}) {
       ? 'up-to-date'
       : DEFAULT_UPDATE_STATUS,
     lastCheckedAt: String(nextState.lastCheckedAt || ''),
+    lastError: '',
+    lastErrorCode: '',
     manualCheckRequestedAt: String(nextState.manualCheckRequestedAt || ''),
     pluginReinstallRecommended: nextState.pluginReinstallRecommended !== false
+  };
+}
+
+function createNoopLogger() {
+  return {
+    info() {},
+    warn() {},
+    error() {}
+  };
+}
+
+function createUpdateCheckTimeoutError(timeoutMs) {
+  const error = new Error(UPDATE_CHECK_TIMEOUT_MESSAGE);
+  error.code = UPDATE_CHECK_TIMEOUT_CODE;
+  error.statusCode = 408;
+  error.timeoutMs = timeoutMs;
+  return error;
+}
+
+function normalizeUpdateCheckError(error) {
+  const code = String(error?.code || '').trim();
+  if (
+    code === UPDATE_CHECK_TIMEOUT_CODE
+    || error?.name === 'AbortError'
+    || code === 'ABORT_ERR'
+  ) {
+    return {
+      code: UPDATE_CHECK_TIMEOUT_CODE,
+      message: UPDATE_CHECK_TIMEOUT_MESSAGE,
+      detail: String(error?.message || UPDATE_CHECK_TIMEOUT_MESSAGE)
+    };
+  }
+
+  return {
+    code: code || UPDATE_CHECK_FAILED_CODE,
+    message: UPDATE_CHECK_FAILED_MESSAGE,
+    detail: String(error?.message || error || UPDATE_CHECK_FAILED_MESSAGE)
   };
 }
 
@@ -193,6 +238,10 @@ function getDefaultManifestUrl(repository = DEFAULT_RELEASE_REPOSITORY) {
 function createUpdateService(options = {}) {
   const fsImpl = options.fs || fs;
   const fetchImpl = options.fetch || globalThis.fetch;
+  const logger = options.logger || createNoopLogger();
+  const manifestTimeoutMs = Number.isFinite(Number(options.manifestTimeoutMs))
+    ? Math.max(1, Number(options.manifestTimeoutMs))
+    : DEFAULT_MANIFEST_TIMEOUT_MS;
   const nowIso = typeof options.nowIso === 'function' ? options.nowIso : () => new Date().toISOString();
   const repository = String(options.releaseRepository || DEFAULT_RELEASE_REPOSITORY).trim() || DEFAULT_RELEASE_REPOSITORY;
   const manifestUrl = String(options.manifestUrl || getDefaultManifestUrl(repository)).trim();
@@ -275,14 +324,47 @@ function createUpdateService(options = {}) {
       throw new Error('Update checking is unavailable because fetch is not configured.');
     }
 
-    const response = await fetchImpl(manifestUrl, {
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timeoutError = createUpdateCheckTimeoutError(manifestTimeoutMs);
+    let timeoutId;
+    const requestOptions = {
       cache: 'no-store',
       headers: {
         accept: 'application/json',
         'cache-control': 'no-cache',
         pragma: 'no-cache'
       }
+    };
+
+    if (controller) {
+      requestOptions.signal = controller.signal;
+    }
+
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        if (controller) {
+          controller.abort(timeoutError);
+        }
+        reject(timeoutError);
+      }, manifestTimeoutMs);
+      if (typeof timeoutId.unref === 'function') {
+        timeoutId.unref();
+      }
     });
+
+    let response;
+    try {
+      response = await Promise.race([
+        Promise.resolve().then(() => fetchImpl(manifestUrl, requestOptions)),
+        timeoutPromise
+      ]);
+    } catch (error) {
+      throw normalizeUpdateCheckError(error).code === UPDATE_CHECK_TIMEOUT_CODE
+        ? createUpdateCheckTimeoutError(manifestTimeoutMs)
+        : error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response || response.ok !== true) {
       throw new Error(`Update manifest request failed with status ${response?.status || 'unknown'}.`);
@@ -342,6 +424,7 @@ function createUpdateService(options = {}) {
         return setState({
           updateStatus: DEFAULT_UPDATE_STATUS,
           lastError: '',
+          lastErrorCode: '',
           lastCheckedAt: nowIso(),
           manualCheckRequestedAt: options.manual ? nowIso() : state.manualCheckRequestedAt
         });
@@ -350,15 +433,34 @@ function createUpdateService(options = {}) {
       setState({
         updateStatus: 'checking',
         lastError: '',
+        lastErrorCode: '',
         manualCheckRequestedAt: options.manual ? nowIso() : state.manualCheckRequestedAt
+      });
+
+      const startedAtMs = Date.now();
+      logger.info('update-check-start', 'Checking for updates.', {
+        manual: options.manual === true,
+        manifestUrl,
+        currentVersion,
+        packagingMode,
+        timeoutMs: manifestTimeoutMs
       });
 
       try {
         const manifest = await fetchManifest();
         const hasUpdate = compareVersions(manifest.version, currentVersion) > 0;
         const portableDownloadUrl = hasUpdate ? (manifest.releaseNotesUrl || manifest.assets?.portable?.url || '') : '';
+        const nextStatus = hasUpdate ? 'available' : 'up-to-date';
+        logger.info('update-check-complete', 'Update check completed.', {
+          elapsedMs: Date.now() - startedAtMs,
+          updateStatus: nextStatus,
+          currentVersion,
+          latestVersion: manifest.version,
+          hasUpdate,
+          manifestUrl
+        });
         return setState({
-          updateStatus: hasUpdate ? 'available' : 'up-to-date',
+          updateStatus: nextStatus,
           latestVersion: manifest.version,
           publishedAt: manifest.publishedAt,
           releaseNotes: manifest.releaseNotes,
@@ -366,15 +468,25 @@ function createUpdateService(options = {}) {
           portableDownloadUrl,
           lastCheckedAt: nowIso(),
           lastError: '',
+          lastErrorCode: '',
           downloadedArtifactPath: hasUpdate && packagingMode !== 'portable' ? state.downloadedArtifactPath : '',
           preparedDirectory: hasUpdate && packagingMode !== 'portable' ? state.preparedDirectory : '',
           availableAssets: hasUpdate ? manifest.assets : defaultState.availableAssets
         });
       } catch (error) {
+        const normalizedError = normalizeUpdateCheckError(error);
+        logger.warn('update-check-failed', 'Update check failed.', {
+          elapsedMs: Date.now() - startedAtMs,
+          manifestUrl,
+          errorCode: normalizedError.code,
+          errorMessage: normalizedError.message,
+          errorDetail: normalizedError.detail
+        });
         return setState({
           updateStatus: 'error',
           lastCheckedAt: nowIso(),
-          lastError: String(error?.message || error || 'Unable to check for updates.')
+          lastError: normalizedError.message,
+          lastErrorCode: normalizedError.code
         });
       }
     },
@@ -428,6 +540,11 @@ module.exports = {
   DEFAULT_RELEASE_REPOSITORY,
   STABLE_RELEASE_CHANNEL,
   STABLE_UPDATE_MANIFEST_NAME,
+  DEFAULT_MANIFEST_TIMEOUT_MS,
+  UPDATE_CHECK_FAILED_CODE,
+  UPDATE_CHECK_TIMEOUT_CODE,
+  UPDATE_CHECK_FAILED_MESSAGE,
+  UPDATE_CHECK_TIMEOUT_MESSAGE,
   compareVersions,
   createUpdateService,
   getDefaultManifestUrl,

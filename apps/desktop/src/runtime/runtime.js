@@ -288,6 +288,8 @@ async function createRuntime(options = {}) {
     paths,
     currentVersion: runtimeIdentity.desktopVersion,
     fetch: options.fetch,
+    logger: options.updateLogger || createLogger({ source: 'update', logsDir: paths.logsDir }),
+    manifestTimeoutMs: options.manifestTimeoutMs,
     packagingMode: options.packagingMode,
     extractArchive: options.extractArchive,
     releaseRepository: options.releaseRepository,
