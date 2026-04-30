@@ -25,6 +25,15 @@ The current desktop app exposes these operator-facing modules:
 
 The repository contains runtime code for more advanced capabilities, but not every internal/runtime concept is exposed as a dedicated top-level UI page in the current build. The README and user flow below describe the shipped surface, not every internal module.
 
+## Recent Updates
+
+`v1.0.14` focuses on stabilizing memoQ batch pre-translation:
+
+- The desktop runtime now uses smaller aggregate groups and controlled provider concurrency so large memoQ pre-translation runs do not overload a single provider route.
+- Pending aggregate results are polled explicitly, with clearer timeout and error diagnostics instead of long opaque waits.
+- Slow aggregate jobs can fall back to single-segment rescue and partial success responses, allowing memoQ to fill completed segments first and retry missing segments separately.
+- Plugin and gateway logs include request, trace, job, queue, wait, pending, timeout, and retry details to make provider slowdowns easier to diagnose.
+
 ## Runtime Layout
 
 - `native/plugin/`: memoQ MT plugin implementation and packaging assets.
@@ -53,6 +62,13 @@ The current dashboard and user flow are aligned around this order:
 4. Review translation history.
 
 If you are setting up the app for the first time, this is the path that matches the shipped UI.
+
+## Upgrade Notes
+
+- Keep the memoQ AI Hub desktop app running while memoQ uses the local gateway.
+- If you already installed an older memoQ AI Hub plugin DLL, open the desktop Dashboard after upgrading and click **Install / Reinstall** so memoQ receives the latest `MemoQ.AI.Hub.Plugin.dll`.
+- Restart memoQ after reinstalling the integration. memoQ loads plugin DLLs at startup, so a running memoQ instance can keep using the old DLL until it restarts.
+- If you install manually, replace `MemoQ.AI.Hub.Plugin.dll` in memoQ's `Addins` directory and then restart memoQ.
 
 ## Local Development
 

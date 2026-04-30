@@ -25,6 +25,15 @@
 
 仓库里确实包含一些更底层的运行时能力，但当前版本并没有把所有内部模块都做成独立页面。本文档描述的是“当前交付界面”，不是所有内部实现细节。
 
+## 近期更新
+
+`v1.0.14` 主要用于稳定 memoQ 批量预翻译流程：
+
+- 桌面端运行时改用更小的聚合组，并控制 Provider 并发，避免大型预翻译任务把单一路由打满。
+- 聚合结果会明确进入 pending 轮询，超时和错误信息更清晰，不再只是长时间等待。
+- 慢聚合任务会进入单句 rescue，并支持 partial success，让 memoQ 先填充已经成功的句段，缺失句段再单独重试。
+- 插件和本地网关日志会记录 request、trace、job、排队、等待、pending、超时和 retry 信息，便于判断是 Provider 慢、排队还是格式转换失败。
+
 ## 运行时结构
 
 - `native/plugin/`：memoQ MT 插件实现和相关打包资源。
@@ -53,6 +62,13 @@
 4. 查看翻译历史记录。
 
 如果是首次部署，请按这个顺序操作，这与当前版本的实际界面保持一致。
+
+## 升级注意事项
+
+- memoQ 使用本地网关时，请保持 memoQ AI Hub 桌面端运行。
+- 如果之前已经安装过旧版本 memoQ AI Hub 插件 DLL，升级桌面端后仍需要在 Dashboard 点击 **Install / Reinstall**，让 memoQ 收到最新的 `MemoQ.AI.Hub.Plugin.dll`。
+- 重新安装集成后请重启 memoQ。memoQ 会在启动时加载插件 DLL，已经运行的 memoQ 可能仍在使用旧 DLL。
+- 如果手动安装，请替换 memoQ `Addins` 目录中的 `MemoQ.AI.Hub.Plugin.dll`，然后重启 memoQ。
 
 ## 本地开发
 
