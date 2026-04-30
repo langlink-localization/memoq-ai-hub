@@ -22,17 +22,17 @@ The current desktop app exposes these operator-facing modules:
 - `Builder`: create translation profiles, choose provider routes, bind a TB asset, and adjust the limited v1 advanced switches.
 - `Assets`: import and preview glossary or TB assets.
 - `History`: inspect translation runs and export or delete history records.
+- `Logs`: review local diagnostic logs, open log files, clean old logs, and copy a short support summary.
 
 The repository contains runtime code for more advanced capabilities, but not every internal/runtime concept is exposed as a dedicated top-level UI page in the current build. The README and user flow below describe the shipped surface, not every internal module.
 
 ## Recent Updates
 
-`v1.0.14` focuses on stabilizing memoQ batch pre-translation:
+`v1.0.15` focuses on desktop usability and troubleshooting:
 
-- The desktop runtime now uses smaller aggregate groups and controlled provider concurrency so large memoQ pre-translation runs do not overload a single provider route.
-- Pending aggregate results are polled explicitly, with clearer timeout and error diagnostics instead of long opaque waits.
-- Slow aggregate jobs can fall back to single-segment rescue and partial success responses, allowing memoQ to fill completed segments first and retry missing segments separately.
-- Plugin and gateway logs include request, trace, job, queue, wait, pending, timeout, and retry details to make provider slowdowns easier to diagnose.
+- The desktop app now includes a dedicated Logs page for viewing log location, retention policy, grouped files, cleanup actions, and diagnostic summaries.
+- Runtime logging now covers the main process, worker, gateway, runtime, renderer errors, preview helper, and memoQ plugin with rotation, retention cleanup, and sensitive-data redaction.
+- English and Chinese UI copy has been simplified, and common text areas now wrap more naturally while paths and IDs remain available when needed.
 
 ## Runtime Layout
 
@@ -118,6 +118,8 @@ Typical outputs include:
 - `apps/desktop/out/make/**/*.exe`
 
 ## Documentation
+
+Repository Structure guidance lives under `docs/`; keep desktop code under `apps/desktop/` and shared scripts under `tooling/scripts/`.
 
 - User guide: [docs/user-guide.md](docs/user-guide.md)
 - Chinese user guide: [docs/user-guide.zh-CN.md](docs/user-guide.zh-CN.md)

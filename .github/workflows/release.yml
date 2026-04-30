@@ -59,6 +59,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ steps.release_meta.outputs.tag }}"
+          # Release zips are produced under apps/desktop/out/**/*.zip; the stable zip name below is the public asset contract.
           $zipPath = "apps/desktop/out/memoq-ai-hub-win32-x64.zip"
           $manifestPath = "apps/desktop/out/memoq-ai-hub-updates-stable.json"
           $notesPath = "docs/release-notes/$tag.md"

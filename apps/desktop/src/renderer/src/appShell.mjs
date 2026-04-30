@@ -3,6 +3,7 @@ export const APP_SECTIONS = [
   { key: 'builder', navKey: 'builder' },
   { key: 'assets', navKey: 'assets' },
   { key: 'providers', navKey: 'providers' },
+  { key: 'logs', navKey: 'logs' },
   { key: 'history', navKey: 'history' }
 ];
 

@@ -9,21 +9,24 @@ import {
   PORTABLE_WINDOWS_ARTIFACT_NAME
 } from '../../tooling/scripts/release-metadata.mjs';
 
+const currentDesktopVersion = getDesktopPackageVersion();
+const currentDesktopTag = `v${currentDesktopVersion}`;
+
 test('release metadata reads desktop package version as the release source of truth', () => {
-  assert.equal(getDesktopPackageVersion(), '1.0.7');
+  assert.match(currentDesktopVersion, /^\d+\.\d+\.\d+$/);
 });
 
 test('release metadata validates matching tags against desktop package version', () => {
-  assert.deepEqual(validateReleaseTag('v1.0.7'), {
-    version: '1.0.7',
-    tag: 'v1.0.7'
+  assert.deepEqual(validateReleaseTag(currentDesktopTag), {
+    version: currentDesktopVersion,
+    tag: currentDesktopTag
   });
 });
 
 test('release metadata rejects tags that do not match desktop package version', () => {
   assert.throws(
     () => validateReleaseTag('v9.9.9'),
-    /does not match apps\/desktop\/package\.json version 1\.0\.7/
+    new RegExp(`does not match apps\\/desktop\\/package\\.json version ${currentDesktopVersion.replaceAll('.', '\\.')}`)
   );
 });
 

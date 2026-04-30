@@ -5,6 +5,7 @@ import {
   DatabaseOutlined,
   DeploymentUnitOutlined,
   FileSearchOutlined,
+  FileTextOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   PlusOutlined,
@@ -68,6 +69,7 @@ import {
 } from './pages/providers/providerConnectionState.mjs';
 import { BuilderPage } from './pages/builder';
 import AssetsPage from './pages/assets/AssetsPage.jsx';
+import { LogsPage } from './pages/logs';
 
 const { Content, Header, Sider } = Layout;
 const { Text, Title } = Typography;
@@ -392,6 +394,39 @@ function HoverText({ value, fallback = '-', className = '' }) {
       <span className={`hover-text ${className}`.trim()}>{displayValue}</span>
     </Tooltip>
   );
+}
+
+function normalizeLogStatePayload(data = {}) {
+  return {
+    ok: data.ok !== false,
+    logsDir: String(data.logsDir || ''),
+    policy: {
+      maxFileBytes: Number(data.policy?.maxFileBytes || 0),
+      maxFiles: Number(data.policy?.maxFiles || 0),
+      retentionDays: Number(data.policy?.retentionDays || 0)
+    },
+    totalSizeBytes: Number(data.totalSizeBytes || 0),
+    latestUpdatedAt: String(data.latestUpdatedAt || ''),
+    groups: Array.isArray(data.groups) ? data.groups : []
+  };
+}
+
+function buildLogDiagnosticText(logState = {}, appState = {}) {
+  const groups = (logState.groups || [])
+    .map((group) => `${group.source}: ${(group.files || []).length} file(s), ${group.totalSizeBytes || 0} bytes`)
+    .join('\n');
+
+  return [
+    `${appState.productName || 'memoQ AI Hub'} diagnostics`,
+    `Contract: ${appState.contractVersion || '-'}`,
+    `Gateway: ${appState.gatewayBaseUrl || '-'}`,
+    `Startup: ${appState.startup?.status || 'ready'}`,
+    `Logs: ${logState.logsDir || '-'}`,
+    `Total log size: ${logState.totalSizeBytes || 0} bytes`,
+    `Latest log update: ${logState.latestUpdatedAt || '-'}`,
+    '',
+    groups || 'No log files found.'
+  ].join('\n');
 }
 
 function getUpdateStatusLabel(status, t) {
@@ -1163,6 +1198,9 @@ export default function App() {
   const [handshaking, setHandshaking] = useState(false);
   const [checkingUpdates, setCheckingUpdates] = useState(false);
   const [updateActionLoading, setUpdateActionLoading] = useState(false);
+  const [logState, setLogState] = useState(null);
+  const [logLoading, setLogLoading] = useState(false);
+  const [logPruning, setLogPruning] = useState(false);
   const [savingProvider, setSavingProvider] = useState(false);
   const [testingProvider, setTestingProvider] = useState(false);
   const [discoveringProviderModels, setDiscoveringProviderModels] = useState(false);
@@ -1202,7 +1240,8 @@ export default function App() {
     { key: 'builder', label: <span className="app-nav-label">{t('nav.builder')}</span>, title: t('nav.builder'), icon: <DeploymentUnitOutlined className="app-nav-icon" /> },
     { key: 'assets', label: <span className="app-nav-label">{t('nav.assets')}</span>, title: t('nav.assets'), icon: <DatabaseOutlined className="app-nav-icon" /> },
     { key: 'providers', label: <span className="app-nav-label">{t('nav.providers')}</span>, title: t('nav.providers'), icon: <CloudServerOutlined className="app-nav-icon" /> },
-    { key: 'history', label: <span className="app-nav-label">{t('nav.history')}</span>, title: t('nav.history'), icon: <FileSearchOutlined className="app-nav-icon" /> }
+    { key: 'history', label: <span className="app-nav-label">{t('nav.history')}</span>, title: t('nav.history'), icon: <FileSearchOutlined className="app-nav-icon" /> },
+    { key: 'logs', label: <span className="app-nav-label">{t('nav.logs')}</span>, title: t('nav.logs'), icon: <FileTextOutlined className="app-nav-icon" /> }
   ];
 
   function notifyError(loadError, fallback = t('feedback.actionFailed')) {
@@ -1258,6 +1297,71 @@ export default function App() {
     }
   }
 
+  async function refreshLogs() {
+    if (!api?.getLogState) {
+      return;
+    }
+
+    try {
+      setLogLoading(true);
+      setLogState(normalizeLogStatePayload(await api.getLogState()));
+    } catch (loadError) {
+      notifyError(loadError);
+    } finally {
+      setLogLoading(false);
+    }
+  }
+
+  async function pruneLogsNow() {
+    if (!api?.pruneLogs) {
+      return;
+    }
+
+    try {
+      setLogPruning(true);
+      const result = await api.pruneLogs();
+      message.success(t('logs.cleanSuccess', { count: result?.deletedCount || 0 }));
+      await refreshLogs();
+    } catch (pruneError) {
+      notifyError(pruneError);
+    } finally {
+      setLogPruning(false);
+    }
+  }
+
+  async function openLogsDirectory() {
+    if (!logState?.logsDir) {
+      return;
+    }
+
+    try {
+      await api.openPath(logState.logsDir);
+    } catch (openError) {
+      notifyError(openError);
+    }
+  }
+
+  async function revealLogFile(filePath) {
+    if (!filePath) {
+      return;
+    }
+
+    try {
+      await api.showItemInFolder(filePath);
+    } catch (openError) {
+      notifyError(openError);
+    }
+  }
+
+  async function copyLogDiagnostics() {
+    try {
+      await navigator.clipboard.writeText(buildLogDiagnosticText(logState || {}, state || {}));
+      message.success(t('logs.copySuccess'));
+    } catch (copyError) {
+      notifyError(copyError);
+    }
+  }
+
   useEffect(() => {
     refresh();
   }, []);
@@ -1291,6 +1395,12 @@ export default function App() {
 
     return () => window.clearInterval(timer);
   }, [state?.startup?.status, activePage]);
+
+  useEffect(() => {
+    if (activePage === 'logs') {
+      void refreshLogs();
+    }
+  }, [activePage]);
 
   useEffect(() => {
     if (state?.startup?.status !== 'ready' || autoUpdateCheckStartedRef.current || typeof api?.checkForUpdates !== 'function') {
@@ -2714,6 +2824,19 @@ export default function App() {
               getProviderTypeLabel={getProviderTypeLabel}
               buildProviderRequestPreview={buildProviderRequestPreview}
               formatLocalTimestamp={formatLocalTimestamp}
+            />
+          )}
+
+          {activePage === 'logs' && (
+            <LogsPage
+              logState={logState}
+              loading={logLoading}
+              pruning={logPruning}
+              onRefresh={refreshLogs}
+              onOpenLogsDir={openLogsDirectory}
+              onPruneLogs={pruneLogsNow}
+              onRevealFile={revealLogFile}
+              onCopyDiagnostics={copyLogDiagnostics}
             />
           )}
 

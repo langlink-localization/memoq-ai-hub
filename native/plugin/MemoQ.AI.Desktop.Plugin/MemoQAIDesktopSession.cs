@@ -22,6 +22,8 @@ namespace MemoQAIHubPlugin
         private const int AggregateResultPollWaitMs = 25000;
         private const int AggregateResultPollDelayMs = 250;
         private const int AggregateResultTimeoutSafetyMs = 15000;
+        private const long LogMaxBytes = 5L * 1024L * 1024L;
+        private const int LogMaxFiles = 6;
         private static readonly SemaphoreSlim GatewayDirectGate = new SemaphoreSlim(GatewayDirectConcurrency, GatewayDirectConcurrency);
         private static readonly SemaphoreSlim GatewaySubmitGate = new SemaphoreSlim(GatewaySubmitConcurrency, GatewaySubmitConcurrency);
         private static readonly object LogSync = new object();
@@ -874,7 +876,9 @@ namespace MemoQAIHubPlugin
                 {
                     var logPath = ResolveLogPath();
                     Directory.CreateDirectory(Path.GetDirectoryName(logPath));
+                    RotateLogFileIfNeeded(logPath);
                     File.AppendAllText(logPath, line + Environment.NewLine, Encoding.UTF8);
+                    PruneLogFiles(Path.GetDirectoryName(logPath), Path.GetFileNameWithoutExtension(logPath));
                 }
             }
             catch
@@ -897,6 +901,45 @@ namespace MemoQAIHubPlugin
             }
 
             return Path.Combine(Path.GetTempPath(), "memoq-ai-hub-plugin.log");
+        }
+
+        private static void RotateLogFileIfNeeded(string logPath)
+        {
+            var info = new FileInfo(logPath);
+            if (!info.Exists || info.Length < LogMaxBytes)
+            {
+                return;
+            }
+
+            var directory = info.DirectoryName;
+            var baseName = Path.GetFileNameWithoutExtension(logPath);
+            var rotatedPath = Path.Combine(directory, $"{baseName}.{DateTime.UtcNow:yyyy-MM-ddTHH-mm-ss-fffZ}.log");
+            File.Move(logPath, rotatedPath);
+        }
+
+        private static void PruneLogFiles(string directory, string baseName)
+        {
+            if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+            {
+                return;
+            }
+
+            var cutoff = DateTime.UtcNow.AddDays(-14);
+            var files = Directory.GetFiles(directory, $"{baseName}*.log")
+                .Select(path => new FileInfo(path))
+                .OrderByDescending(file => file.LastWriteTimeUtc)
+                .ToList();
+
+            foreach (var file in files.Where(file => file.LastWriteTimeUtc < cutoff).Concat(files.Skip(LogMaxFiles)))
+            {
+                try
+                {
+                    file.Delete();
+                }
+                catch
+                {
+                }
+            }
         }
 
         public void StoreTranslation(TranslationUnit transunit)

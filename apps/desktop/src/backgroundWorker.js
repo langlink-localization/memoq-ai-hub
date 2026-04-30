@@ -3,7 +3,11 @@ const { createRuntime } = require('./runtime/runtime');
 const { createGatewayServer } = require('./server');
 const { startGatewayLifecycle, stopGatewayLifecycle } = require('./gatewayLifecycle');
 const { DEFAULT_HOST, DEFAULT_PORT } = require('./shared/desktopContract');
+const { createAppPaths } = require('./shared/paths');
+const { DEFAULT_LOG_POLICY, createLogger, pruneLogs } = require('./shared/logging');
 
+const paths = createAppPaths();
+const logger = createLogger({ source: 'desktop-worker', logsDir: paths.logsDir });
 let runtime = null;
 let server = null;
 let startupState = { status: 'starting', message: '' };
@@ -46,10 +50,13 @@ function loadProviderRegistryOverride() {
 
 async function startRuntimeAndGateway() {
   sendStatus('starting');
+  logger.info('worker-starting', 'Desktop worker is starting runtime and gateway.');
+  pruneLogs(paths.logsDir, DEFAULT_LOG_POLICY);
 
   try {
     runtime = await createRuntime({
-      ...loadProviderRegistryOverride()
+      ...loadProviderRegistryOverride(),
+      logger
     });
 
     ({ server } = await startGatewayLifecycle({
@@ -59,6 +66,7 @@ async function startRuntimeAndGateway() {
       port: DEFAULT_PORT
     }));
     sendStatus('ready');
+    logger.info('worker-ready', 'Desktop worker is ready.', { host: DEFAULT_HOST, port: DEFAULT_PORT });
     setTimeout(() => {
       if (!shuttingDown && startupState.status === 'ready') {
         send({
@@ -79,6 +87,7 @@ async function startRuntimeAndGateway() {
     server = null;
 
     sendStatus('error', error?.message || 'Desktop services failed to start.');
+    logger.error('worker-start-failed', 'Desktop worker failed to start.', { error });
   }
 }
 
@@ -99,6 +108,7 @@ async function stopRuntimeAndGateway(exitCode = 0) {
     }
 
     sendStatus('stopped');
+    logger.info('worker-stopped', 'Desktop worker stopped.');
   } finally {
     process.exit(exitCode);
   }
@@ -244,6 +254,10 @@ process.on('message', async (message) => {
       result
     });
   } catch (error) {
+    logger.error('request-failed', 'Desktop worker request failed.', {
+      channel: message.channel,
+      error
+    });
     send({
       type: 'response',
       id: message.id,

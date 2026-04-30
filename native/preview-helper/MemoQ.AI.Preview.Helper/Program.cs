@@ -18,7 +18,8 @@ namespace MemoQAIHubPreviewHelper
         private static int Main(string[] args)
         {
             var dataDir = ResolveDataDirectory(args);
-            var app = new PreviewMirrorApp(dataDir);
+            var logsDir = ResolveLogsDirectory(args, dataDir);
+            var app = new PreviewMirrorApp(dataDir, logsDir);
             app.Run();
             return 0;
         }
@@ -36,6 +37,19 @@ namespace MemoQAIHubPreviewHelper
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             return Path.Combine(appData, "memoq-ai-hub", "preview-helper");
         }
+
+        private static string ResolveLogsDirectory(string[] args, string dataDir)
+        {
+            for (var index = 0; index < args.Length - 1; index += 1)
+            {
+                if (string.Equals(args[index], "--logs-dir", StringComparison.OrdinalIgnoreCase))
+                {
+                    return args[index + 1];
+                }
+            }
+
+            return Path.Combine(dataDir, "logs");
+        }
     }
 
     internal sealed class PreviewMirrorApp
@@ -45,6 +59,8 @@ namespace MemoQAIHubPreviewHelper
         private const string PreviewToolDescription = "Provides target-text, above-text, below-text, full-text, and summary support for memoQ AI Hub.";
         private const string PreviewPartIdRegex = ".*";
         private const string PreviewContentComplexity = "Minimal";
+        private const long LogMaxBytes = 5L * 1024L * 1024L;
+        private const int LogMaxFiles = 6;
         private readonly object _sync = new object();
         private readonly string _dataDir;
         private readonly string _documentsDir;
@@ -60,11 +76,11 @@ namespace MemoQAIHubPreviewHelper
         private string _lastConnectedAt = string.Empty;
         private string _lastUpdatedAt = string.Empty;
 
-        public PreviewMirrorApp(string dataDir)
+        public PreviewMirrorApp(string dataDir, string logsDir)
         {
             _dataDir = dataDir;
             _documentsDir = Path.Combine(_dataDir, "documents");
-            _logsDir = Path.Combine(_dataDir, "logs");
+            _logsDir = logsDir;
             _statusPath = Path.Combine(_dataDir, "status.json");
             _previewToolId = CreatePreviewToolId(dataDir);
 
@@ -670,10 +686,51 @@ namespace MemoQAIHubPreviewHelper
             try
             {
                 var logPath = Path.Combine(_logsDir, "preview-helper.log");
+                RotateLogFileIfNeeded(logPath);
                 File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] {message}{Environment.NewLine}", Encoding.UTF8);
+                PruneLogFiles(_logsDir, "preview-helper");
             }
             catch
             {
+            }
+        }
+
+        private static void RotateLogFileIfNeeded(string logPath)
+        {
+            var info = new FileInfo(logPath);
+            if (!info.Exists || info.Length < LogMaxBytes)
+            {
+                return;
+            }
+
+            var directory = info.DirectoryName;
+            var baseName = Path.GetFileNameWithoutExtension(logPath);
+            var rotatedPath = Path.Combine(directory, $"{baseName}.{DateTime.UtcNow:yyyy-MM-ddTHH-mm-ss-fffZ}.log");
+            File.Move(logPath, rotatedPath);
+        }
+
+        private static void PruneLogFiles(string directory, string baseName)
+        {
+            if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+            {
+                return;
+            }
+
+            var cutoff = DateTime.UtcNow.AddDays(-14);
+            var files = Directory.GetFiles(directory, $"{baseName}*.log")
+                .Select(path => new FileInfo(path))
+                .OrderByDescending(file => file.LastWriteTimeUtc)
+                .ToList();
+
+            foreach (var file in files.Where(file => file.LastWriteTimeUtc < cutoff).Concat(files.Skip(LogMaxFiles)))
+            {
+                try
+                {
+                    file.Delete();
+                }
+                catch
+                {
+                }
             }
         }
 

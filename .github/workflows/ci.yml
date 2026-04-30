@@ -63,4 +63,4 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: memoq-ai-hub-windows
-          path: apps/desktop/out/memoq-ai-hub-win32-x64.zip
+          path: apps/desktop/out/**/*.zip

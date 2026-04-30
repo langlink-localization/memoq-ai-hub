@@ -2,12 +2,21 @@ const path = require('path');
 const { fork } = require('child_process');
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const { createAppPaths } = require('./shared/paths');
+const {
+  DEFAULT_LOG_POLICY,
+  createLogger,
+  getLogState,
+  pruneLogs
+} = require('./shared/logging');
 const { getIntegrationStatus } = require('./integration/integrationService');
 const { DEFAULT_HOST, DEFAULT_PORT, PRODUCT_NAME, CONTRACT_VERSION } = require('./shared/desktopContract');
 const { getAssetImportRules } = require('./asset/assetRules');
 const { getSupportedPlaceholders } = require('./shared/promptTemplate');
 const { readDesktopPackageMetadata } = require('./shared/desktopMetadata');
 
+const appPaths = createAppPaths();
+const logger = createLogger({ source: 'desktop-main', logsDir: appPaths.logsDir });
+const rendererLogger = createLogger({ source: 'renderer', logsDir: appPaths.logsDir });
 let mainWindow;
 let backgroundWorker;
 let workerRequestId = 0;
@@ -19,6 +28,7 @@ function buildWorkerForkOptions(baseEnv = {}) {
   return {
     env: {
       ...baseEnv,
+      MEMOQ_AI_DESKTOP_LOGS_DIR: appPaths.logsDir,
       ELECTRON_RUN_AS_NODE: '1'
     },
     execArgv: [],
@@ -215,6 +225,7 @@ function startBackgroundWorker() {
   }
 
   startupState = { status: 'starting', message: '' };
+  logger.info('worker-start', 'Starting desktop background worker.');
 
   backgroundWorker = fork(buildWorkerPath(), [], buildWorkerForkOptions(process.env));
 
@@ -230,6 +241,7 @@ function startBackgroundWorker() {
       code: 'DESKTOP_WORKER_EXITED',
       statusCode: 500
     });
+    logger.warn('worker-exit', 'Desktop background worker stopped.', { code, signal });
 
     if (appIsQuitting) {
       startupState = { status: 'stopped', message: '' };
@@ -254,12 +266,14 @@ function startBackgroundWorker() {
   if (backgroundWorker.stdout) {
     backgroundWorker.stdout.on('data', (chunk) => {
       process.stdout.write(chunk);
+      logger.info('worker-stdout', 'Desktop worker wrote to stdout.', { bytes: Buffer.byteLength(chunk) });
     });
   }
 
   if (backgroundWorker.stderr) {
     backgroundWorker.stderr.on('data', (chunk) => {
       process.stderr.write(chunk);
+      logger.warn('worker-stderr', 'Desktop worker wrote to stderr.', { bytes: Buffer.byteLength(chunk) });
     });
   }
 
@@ -336,20 +350,25 @@ function createWindow() {
   });
 
   mainWindow.webContents.on('did-finish-load', () => {
-    console.log('Renderer finished loading.');
+    logger.info('renderer-loaded', 'Renderer finished loading.');
   });
 
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
-    console.error(`Renderer failed to load (${errorCode}): ${errorDescription}`);
+    logger.error('renderer-load-failed', 'Renderer failed to load.', { errorCode, errorDescription });
   });
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    console.error('Renderer process exited unexpectedly.', details);
+    logger.error('renderer-process-gone', 'Renderer process exited unexpectedly.', { details });
   });
 
   mainWindow.webContents.on('console-message', (_event, level, messageText, line, sourceId) => {
     if (level >= 2) {
-      console.error(`Renderer console [${level}] ${sourceId}:${line} ${messageText}`);
+      rendererLogger.warn('console-message', 'Renderer console warning or error.', {
+        level,
+        message: messageText,
+        line,
+        sourceId
+      });
     }
   });
 
@@ -388,6 +407,26 @@ function createWindow() {
 
 function registerIpcHandlers() {
   ipcMain.handle('desktop:get-gateway-base-url', () => `http://${DEFAULT_HOST}:${DEFAULT_PORT}`);
+  ipcMain.handle('desktop:get-log-state', () => getLogState(appPaths.logsDir, DEFAULT_LOG_POLICY));
+  ipcMain.handle('desktop:prune-logs', () => pruneLogs(appPaths.logsDir, DEFAULT_LOG_POLICY));
+  ipcMain.handle('desktop:record-renderer-log', (_event, payload) => {
+    const level = String(payload?.level || 'info').toLowerCase();
+    const event = String(payload?.event || 'renderer-event');
+    const messageText = String(payload?.message || '');
+    const data = payload?.data && typeof payload.data === 'object' ? payload.data : {};
+
+    if (level === 'error') {
+      rendererLogger.error(event, messageText, data);
+    } else if (level === 'warn') {
+      rendererLogger.warn(event, messageText, data);
+    } else if (level === 'debug') {
+      rendererLogger.debug(event, messageText, data);
+    } else {
+      rendererLogger.info(event, messageText, data);
+    }
+
+    return { ok: true };
+  });
   ipcMain.handle('desktop:get-app-state', (_event, filters) => {
     if (startupState.status !== 'ready') {
       return buildPlaceholderAppState();
@@ -588,6 +627,8 @@ function registerIpcHandlers() {
 }
 
 app.whenReady().then(() => {
+  logger.info('app-ready', 'Electron app is ready.');
+  pruneLogs(appPaths.logsDir, DEFAULT_LOG_POLICY);
   registerIpcHandlers();
   createWindow();
   startBackgroundWorker();
@@ -601,6 +642,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   appIsQuitting = true;
+  logger.info('app-before-quit', 'Electron app is shutting down.');
 
   if (backgroundWorker) {
     try {

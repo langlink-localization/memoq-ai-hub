@@ -2,13 +2,30 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const { PRODUCT_NAME, CONTRACT_VERSION, DEFAULT_HOST, DEFAULT_PORT, ROUTES } = require('./shared/desktopContract');
 const { readDesktopVersionFromPayload } = require('./shared/desktopMetadata');
+const { createAppPaths } = require('./shared/paths');
+const { createLogger } = require('./shared/logging');
+
+const gatewayLogger = createLogger({ source: 'gateway', logsDir: createAppPaths().logsDir });
 
 function createRuntimeRoute(runtimeMethod, defaultCode) {
   return async (req, res) => {
+    const startedAtMs = Date.now();
     try {
       const result = await runtimeMethod(req.body || {});
+      gatewayLogger.info('route-complete', 'Gateway route completed.', {
+        method: req.method,
+        path: req.path || req.url,
+        statusCode: result?.statusCode || 200,
+        durationMs: Date.now() - startedAtMs
+      });
       res.status(result?.statusCode || 200).json(result?.body ?? result);
     } catch (error) {
+      gatewayLogger.error('route-failed', 'Gateway route failed.', {
+        method: req.method,
+        path: req.path || req.url,
+        durationMs: Date.now() - startedAtMs,
+        error
+      });
       res.status(error?.statusCode || 500).json({
         success: false,
         error: {
@@ -23,6 +40,18 @@ function createRuntimeRoute(runtimeMethod, defaultCode) {
 function createGatewayServer(runtime) {
   const app = express();
   app.use(bodyParser.json({ limit: '10mb' }));
+  app.use((req, res, next) => {
+    const startedAtMs = Date.now();
+    res.on?.('finish', () => {
+      gatewayLogger.info('http-request', 'Gateway HTTP request finished.', {
+        method: req.method,
+        path: req.path || req.url,
+        statusCode: res.statusCode,
+        durationMs: Date.now() - startedAtMs
+      });
+    });
+    next();
+  });
 
   app.get('/', (_req, res) => {
     res.type('html').send(`

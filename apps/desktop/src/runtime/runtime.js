@@ -12,6 +12,7 @@ const {
   evaluateTerminologyQa,
 } = require('../asset/assetTerminology');
 const { createAppPaths } = require('../shared/paths');
+const { createLogger } = require('../shared/logging');
 const { createDatabase } = require('../database');
 const { createSecretStore } = require('../secretStore');
 const { resolveRuleMatch } = require('./runtimeRuleEngine');
@@ -203,6 +204,7 @@ function assertSupportedProviderDraft(provider = {}) {
 
 async function createRuntime(options = {}) {
   const paths = createAppPaths(options);
+  const runtimeLogger = options.runtimeLogger || createLogger({ source: 'runtime', logsDir: paths.logsDir });
   const db = await createDatabase(paths);
   const secretStore = createSecretStore(paths);
   const providerRegistry = options.providerRegistry || createProviderRegistry(options);
@@ -219,6 +221,7 @@ async function createRuntime(options = {}) {
     : DEFAULT_PREVIEW_CONTEXT_POLL_MS;
   const previewContextClient = options.previewContextClient || createPreviewContextClient({
     appDataRoot: paths.appDataRoot,
+    logsDir: paths.logsDir,
     repoRoot: paths.repoRoot,
     helperExecutablePath: options.helperExecutablePath
   });
@@ -268,6 +271,10 @@ async function createRuntime(options = {}) {
   const aggregateRescueCollectWindowMs = Number.isFinite(Number(options.aggregateRescueCollectWindowMs))
     ? Math.max(0, Math.floor(Number(options.aggregateRescueCollectWindowMs)))
     : DEFAULT_AGGREGATE_RESCUE_COLLECT_WINDOW_MS;
+  runtimeLogger.info('runtime-created', 'Runtime created.', {
+    appDataRoot: paths.appDataRoot,
+    logsDir: paths.logsDir
+  });
   const aggregateRescueMinSettleTranslations = Number.isFinite(Number(options.aggregateRescueMinSettleTranslations))
     ? Math.max(1, Math.floor(Number(options.aggregateRescueMinSettleTranslations)))
     : DEFAULT_AGGREGATE_RESCUE_MIN_SETTLE_TRANSLATIONS;
@@ -1885,9 +1892,18 @@ async function createRuntime(options = {}) {
     entry.rescueConcurrency = aggregateRescueConcurrency;
     entry.rescueSingleTimeoutMs = aggregateRescueSingleTimeoutMs;
     markAggregateGroupCongested(entry.groupId, reason);
-    console.info(
-      `[MemoQAIHubRuntime] Aggregate fallback groupId=${entry.groupId} reason=${reason} requestId=${entry.requestId} segmentCount=${entry.segmentCount} rescueMode=${entry.rescueMode} rescueBatchSize=${entry.rescueBatchSize} rescueConcurrency=${entry.rescueConcurrency} singleAttemptTimeoutMs=${entry.rescueSingleTimeoutMs} providerQueuedMs=0 fallbackState=${entry.fallbackState}`
-    );
+    runtimeLogger.info('aggregate-fallback-start', 'Aggregate fallback started.', {
+      groupId: entry.groupId,
+      reason,
+      requestId: entry.requestId,
+      segmentCount: entry.segmentCount,
+      rescueMode: entry.rescueMode,
+      rescueBatchSize: entry.rescueBatchSize,
+      rescueConcurrency: entry.rescueConcurrency,
+      singleAttemptTimeoutMs: entry.rescueSingleTimeoutMs,
+      providerQueuedMs: 0,
+      fallbackState: entry.fallbackState
+    });
 
     const translationsByIndex = new Map();
     let providerQueuedMs = 0;
@@ -2014,9 +2030,19 @@ async function createRuntime(options = {}) {
       if (!translationsByIndex.size) {
         entry.fallbackState = 'fallback_failed';
         entry.fallbackError = lastError || { code: ERROR_CODES.translationFailed, message: 'Aggregate rescue did not return any translations.' };
-        console.info(
-          `[MemoQAIHubRuntime] Aggregate fallback complete groupId=${entry.groupId} requestId=${entry.requestId} successCount=0 missingCount=${entry.segmentCount} fallbackCount=1 settleMode=rescue providerQueuedMs=${providerQueuedMs} fallbackState=${entry.fallbackState} rescueMode=${entry.rescueMode} rescueConcurrency=${entry.rescueConcurrency} singleAttemptTimeoutMs=${entry.rescueSingleTimeoutMs}`
-        );
+        runtimeLogger.info('aggregate-fallback-complete', 'Aggregate fallback completed without translations.', {
+          groupId: entry.groupId,
+          requestId: entry.requestId,
+          successCount: 0,
+          missingCount: entry.segmentCount,
+          fallbackCount: 1,
+          settleMode: 'rescue',
+          providerQueuedMs,
+          fallbackState: entry.fallbackState,
+          rescueMode: entry.rescueMode,
+          rescueConcurrency: entry.rescueConcurrency,
+          singleAttemptTimeoutMs: entry.rescueSingleTimeoutMs
+        });
         return false;
       }
 
@@ -2024,9 +2050,20 @@ async function createRuntime(options = {}) {
       entry.fallbackCompletedAtMs = Date.now();
       const rescueResult = buildResult();
       const settled = settleAggregateEntry(entry, buildRescueFallbackResult(entry, rescueResult, reason), 'rescue');
-      console.info(
-        `[MemoQAIHubRuntime] Aggregate fallback complete groupId=${entry.groupId} requestId=${entry.requestId} successCount=${rescueResult.translations.length} missingCount=${Math.max(0, entry.segmentCount - rescueResult.translations.length)} fallbackCount=1 settleMode=${settled ? 'rescue' : 'late_ignored'} providerQueuedMs=${providerQueuedMs} fallbackState=${entry.fallbackState} rescueMode=${entry.rescueMode} rescueConcurrency=${entry.rescueConcurrency} singleAttemptTimeoutMs=${entry.rescueSingleTimeoutMs} firstSuccessMs=${Number(entry.firstRescueSuccessAtMs ? entry.firstRescueSuccessAtMs - entry.fallbackStartedAtMs : 0)}`
-      );
+      runtimeLogger.info('aggregate-fallback-complete', 'Aggregate fallback completed.', {
+        groupId: entry.groupId,
+        requestId: entry.requestId,
+        successCount: rescueResult.translations.length,
+        missingCount: Math.max(0, entry.segmentCount - rescueResult.translations.length),
+        fallbackCount: 1,
+        settleMode: settled ? 'rescue' : 'late_ignored',
+        providerQueuedMs,
+        fallbackState: entry.fallbackState,
+        rescueMode: entry.rescueMode,
+        rescueConcurrency: entry.rescueConcurrency,
+        singleAttemptTimeoutMs: entry.rescueSingleTimeoutMs,
+        firstSuccessMs: Number(entry.firstRescueSuccessAtMs ? entry.firstRescueSuccessAtMs - entry.fallbackStartedAtMs : 0)
+      });
       return settled;
     } catch (error) {
       const mappedError = mapProviderError(error);
@@ -2035,9 +2072,20 @@ async function createRuntime(options = {}) {
         code: mappedError.code || ERROR_CODES.translationFailed,
         message: mappedError.message || error.message || 'Aggregate rescue failed.'
       };
-      console.info(
-        `[MemoQAIHubRuntime] Aggregate fallback complete groupId=${entry.groupId} requestId=${entry.requestId} successCount=0 missingCount=${entry.segmentCount} fallbackCount=1 settleMode=rescue providerQueuedMs=${providerQueuedMs} fallbackState=${entry.fallbackState} rescueMode=${entry.rescueMode} rescueConcurrency=${entry.rescueConcurrency} singleAttemptTimeoutMs=${entry.rescueSingleTimeoutMs} error=${entry.fallbackError.message}`
-      );
+      runtimeLogger.info('aggregate-fallback-complete', 'Aggregate fallback failed.', {
+        groupId: entry.groupId,
+        requestId: entry.requestId,
+        successCount: 0,
+        missingCount: entry.segmentCount,
+        fallbackCount: 1,
+        settleMode: 'rescue',
+        providerQueuedMs,
+        fallbackState: entry.fallbackState,
+        rescueMode: entry.rescueMode,
+        rescueConcurrency: entry.rescueConcurrency,
+        singleAttemptTimeoutMs: entry.rescueSingleTimeoutMs,
+        error: entry.fallbackError.message
+      });
       return false;
     }
   }
@@ -2166,15 +2214,27 @@ async function createRuntime(options = {}) {
       const { aggregatePayload, mappings } = buildAggregatePayload(entries);
       const segmentCount = getPayloadSegmentCount(aggregatePayload);
       const characterCount = getPayloadCharacterCount(aggregatePayload);
-      console.info(
-        `[MemoQAIHubRuntime] Aggregate flush groupId=${groupId} requestCount=${entries.length} segmentCount=${segmentCount} characterCount=${characterCount} flushReason=${flushReason} activeJobs=${activeAggregateJobs} congestionMode=${limits.mode}`
-      );
+      runtimeLogger.info('aggregate-flush', 'Aggregate request group flushed.', {
+        groupId,
+        requestCount: entries.length,
+        segmentCount,
+        characterCount,
+        flushReason,
+        activeJobs: activeAggregateJobs,
+        congestionMode: limits.mode
+      });
       const aggregateResponse = await performTranslation(aggregatePayload);
       const summary = resolveAggregateEntriesFromResponse(entries, aggregateResponse, mappings, flushReason);
       if (summary.lateIgnoredCount > 0) {
-        console.info(
-          `[MemoQAIHubRuntime] Aggregate complete groupId=${groupId} latencyMs=${Date.now() - startedAtMs} successCount=0 missingCount=0 fallbackCount=0 settleMode=late_ignored lateIgnoredCount=${summary.lateIgnoredCount}`
-        );
+        runtimeLogger.info('aggregate-complete', 'Aggregate request completed late.', {
+          groupId,
+          latencyMs: Date.now() - startedAtMs,
+          successCount: 0,
+          missingCount: 0,
+          fallbackCount: 0,
+          settleMode: 'late_ignored',
+          lateIgnoredCount: summary.lateIgnoredCount
+        });
       }
       if (
         summary.lateIgnoredCount === 0
@@ -2185,16 +2245,27 @@ async function createRuntime(options = {}) {
         markAggregateGroupStable(groupId);
       }
       if (summary.lateIgnoredCount < entries.length) {
-        console.info(
-          `[MemoQAIHubRuntime] Aggregate complete groupId=${groupId} latencyMs=${Date.now() - startedAtMs} successCount=${summary.successCount} missingCount=${summary.missingCount} fallbackCount=${summary.fallbackCount} settleMode=normal`
-        );
+        runtimeLogger.info('aggregate-complete', 'Aggregate request completed.', {
+          groupId,
+          latencyMs: Date.now() - startedAtMs,
+          successCount: summary.successCount,
+          missingCount: summary.missingCount,
+          fallbackCount: summary.fallbackCount,
+          settleMode: 'normal'
+        });
       }
     } catch (error) {
       const mappedError = mapProviderError(error);
       const segmentCount = entries.reduce((total, entry) => total + entry.segmentCount, 0);
-      console.info(
-        `[MemoQAIHubRuntime] Aggregate complete groupId=${groupId} latencyMs=${Date.now() - startedAtMs} successCount=0 missingCount=${segmentCount} fallbackCount=${entries.length} settleMode=normal error=${mappedError.message || error.message || 'Aggregated translation failed.'}`
-      );
+      runtimeLogger.info('aggregate-complete', 'Aggregate request failed.', {
+        groupId,
+        latencyMs: Date.now() - startedAtMs,
+        successCount: 0,
+        missingCount: segmentCount,
+        fallbackCount: entries.length,
+        settleMode: 'normal',
+        error: mappedError.message || error.message || 'Aggregated translation failed.'
+      });
       for (const entry of entries) {
         if (entry.settled) {
           continue;
@@ -3608,9 +3679,15 @@ async function createRuntime(options = {}) {
             void settleAggregateEntryWithRescue(entry, 'pending_poll');
           }
         }
-        console.info(
-          `[MemoQAIHubRuntime] Aggregate pending groupId=${entry.groupId} requestId=${entry.requestId} jobRequestId=${entry.jobRequestId} pendingAttempts=${entry.pendingPollCount} jobAgeMs=${jobAgeMs} activeJobs=${activeAggregateJobs} fallbackState=${entry.fallbackState || 'fallback_not_started'}`
-        );
+        runtimeLogger.info('aggregate-pending', 'Aggregate request is still pending.', {
+          groupId: entry.groupId,
+          requestId: entry.requestId,
+          jobRequestId: entry.jobRequestId,
+          pendingAttempts: entry.pendingPollCount,
+          jobAgeMs,
+          activeJobs: activeAggregateJobs,
+          fallbackState: entry.fallbackState || 'fallback_not_started'
+        });
         resolve({
           statusCode: 202,
           body: {
@@ -3938,6 +4015,7 @@ async function createRuntime(options = {}) {
       return { ok: result.ok, status: provider.status, message: result.message, latencyMs: result.latencyMs, testedAt: result.testedAt };
     },
     async translate(payload) {
+      const startedAtMs = Date.now();
       const nextPayload = payload && typeof payload === 'object'
         ? { ...payload }
         : {};
@@ -3945,13 +4023,50 @@ async function createRuntime(options = {}) {
       if (nextPayload.bypassTranslationCache !== true && explicitProfileId && consumeTranslationCacheBypass(explicitProfileId)) {
         nextPayload.bypassTranslationCache = true;
       }
-      return performTranslation(nextPayload);
+      try {
+        const result = await performTranslation(nextPayload);
+        runtimeLogger.info('translation-complete', 'Translation request completed.', {
+          requestId: nextPayload.requestId,
+          traceId: nextPayload.traceId,
+          statusCode: result?.statusCode,
+          segmentCount: getPayloadSegmentCount(nextPayload),
+          durationMs: Date.now() - startedAtMs
+        });
+        return result;
+      } catch (error) {
+        runtimeLogger.error('translation-failed', 'Translation request failed.', {
+          requestId: nextPayload.requestId,
+          traceId: nextPayload.traceId,
+          segmentCount: getPayloadSegmentCount(nextPayload),
+          durationMs: Date.now() - startedAtMs,
+          error
+        });
+        throw error;
+      }
     },
     async submitAggregateTranslation(payload) {
-      return submitAggregateTranslation(payload);
+      const startedAtMs = Date.now();
+      const result = await submitAggregateTranslation(payload);
+      runtimeLogger.info('aggregate-submit', 'Aggregate translation submitted.', {
+        requestId: payload?.requestId,
+        traceId: payload?.traceId,
+        statusCode: result?.statusCode,
+        segmentCount: getPayloadSegmentCount(payload || {}),
+        durationMs: Date.now() - startedAtMs
+      });
+      return result;
     },
     async waitAggregateTranslation(payload) {
-      return waitAggregateTranslation(payload);
+      const startedAtMs = Date.now();
+      const result = await waitAggregateTranslation(payload);
+      runtimeLogger.info('aggregate-wait', 'Aggregate translation wait completed.', {
+        requestId: payload?.requestId,
+        traceId: payload?.traceId,
+        jobRequestId: payload?.jobRequestId,
+        statusCode: result?.statusCode,
+        durationMs: Date.now() - startedAtMs
+      });
+      return result;
     },
     async storeTranslations(payload) {
       const requestId = payload.requestId || createId('store');
@@ -3994,6 +4109,11 @@ async function createRuntime(options = {}) {
         storedCount += 1;
       }
 
+      runtimeLogger.info('store-translations-complete', 'Stored translations in cache.', {
+        requestId,
+        traceId,
+        storedCount
+      });
       return {
         statusCode: 200,
         body: {
@@ -4075,6 +4195,7 @@ async function createRuntime(options = {}) {
       }
       previewContextClient?.dispose?.();
       db.close?.();
+      runtimeLogger.info('runtime-disposed', 'Runtime disposed.');
       return { ok: true };
     }
   };

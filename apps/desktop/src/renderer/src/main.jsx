@@ -99,6 +99,12 @@ class RenderErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
+    window.memoqDesktop?.recordRendererLog?.({
+      level: 'error',
+      event: 'render-error',
+      message: error?.message || 'Renderer crashed during render.',
+      data: { error, componentStack: info?.componentStack || '' }
+    }).catch?.(() => {});
     console.error('Renderer crashed during render.', error, info);
   }
 
@@ -133,10 +139,22 @@ class RenderErrorBoundary extends React.Component {
 }
 
 window.addEventListener('error', (event) => {
+  window.memoqDesktop?.recordRendererLog?.({
+    level: 'error',
+    event: 'unhandled-error',
+    message: event.error?.message || event.message || 'Unhandled renderer error.',
+    data: { error: event.error || event.message || event }
+  }).catch?.(() => {});
   console.error('Unhandled renderer error.', event.error || event.message || event);
 });
 
 window.addEventListener('unhandledrejection', (event) => {
+  window.memoqDesktop?.recordRendererLog?.({
+    level: 'error',
+    event: 'unhandled-rejection',
+    message: event.reason?.message || String(event.reason || 'Unhandled renderer rejection.'),
+    data: { error: event.reason || event }
+  }).catch?.(() => {});
   console.error('Unhandled renderer rejection.', event.reason || event);
 });
 

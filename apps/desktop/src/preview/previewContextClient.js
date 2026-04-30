@@ -570,7 +570,7 @@ function createPreviewContextClient(options = {}) {
   const appDataRoot = String(options.appDataRoot || '').trim();
   const helperRoot = path.join(appDataRoot, 'preview-helper');
   const documentsDir = path.join(helperRoot, 'documents');
-  const logsDir = path.join(helperRoot, 'logs');
+  const logsDir = String(options.logsDir || '').trim() || path.join(helperRoot, 'logs');
   const statusFilePath = path.join(helperRoot, 'status.json');
   let child = null;
 
@@ -628,7 +628,7 @@ function createPreviewContextClient(options = {}) {
       return;
     }
 
-    child = spawn(executablePath, ['--data-dir', helperRoot], {
+    child = spawn(executablePath, ['--data-dir', helperRoot, '--logs-dir', logsDir], {
       cwd: path.dirname(executablePath),
       windowsHide: true,
       stdio: 'ignore'

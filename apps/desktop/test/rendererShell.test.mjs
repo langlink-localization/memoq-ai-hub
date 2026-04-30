@@ -16,12 +16,39 @@ import {
   buildProviderModelTableRows,
   getPanelColumnSpan
 } from '../src/renderer/src/appShell.mjs';
+import en from '../src/renderer/src/locales/en.js';
+import zhCN from '../src/renderer/src/locales/zh-CN.js';
 
-test('app sections expose assets as a first-class top-level module', () => {
+function collectLocaleKeys(value, prefix = '') {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return [];
+  }
+
+  return Object.entries(value).flatMap(([key, child]) => {
+    const nextPrefix = prefix ? `${prefix}.${key}` : key;
+    if (child && typeof child === 'object' && !Array.isArray(child)) {
+      return collectLocaleKeys(child, nextPrefix);
+    }
+    return [nextPrefix];
+  });
+}
+
+test('app sections expose assets and logs as first-class top-level modules', () => {
   assert.deepEqual(
     APP_SECTIONS.map((item) => item.key),
-    ['dashboard', 'builder', 'assets', 'providers', 'history']
+    ['dashboard', 'builder', 'assets', 'providers', 'logs', 'history']
   );
+});
+
+test('Chinese locale is independent and matches English locale keys', () => {
+  assert.notEqual(zhCN, en);
+  assert.deepEqual(
+    collectLocaleKeys(zhCN).sort(),
+    collectLocaleKeys(en).sort()
+  );
+  assert.equal(zhCN.nav.logs, '日志');
+  assert.equal(zhCN.providers.title, 'AI 服务');
+  assert.equal(en.nav.providers, 'AI Services');
 });
 
 test('buildDefaultPresetProfile enables advanced context toggles with source-first preview defaults', () => {

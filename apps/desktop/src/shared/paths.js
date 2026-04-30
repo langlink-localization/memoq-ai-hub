@@ -14,6 +14,13 @@ function createAppPaths(options = {}) {
     || path.join(process.env.APPDATA || process.cwd(), 'memoq-ai-hub')
   );
 
+  const logsDir = String(
+    options.logsDir
+    || process.env.MEMOQ_AI_DESKTOP_LOGS_DIR
+    || (process.env.MEMOQ_AI_DESKTOP_DATA_DIR
+      ? path.join(appDataRoot, 'logs')
+      : path.join(process.env.LOCALAPPDATA || appDataRoot, 'memoQ AI Hub', 'Logs'))
+  );
   const assetsDir = path.join(appDataRoot, 'assets');
   const exportsDir = path.join(appDataRoot, 'exports');
   const tempDir = path.join(appDataRoot, 'temp');
@@ -24,6 +31,7 @@ function createAppPaths(options = {}) {
   const dbPath = path.join(appDataRoot, 'memoq-ai-hub.db');
 
   ensureDir(appDataRoot);
+  ensureDir(logsDir);
   ensureDir(assetsDir);
   ensureDir(exportsDir);
   ensureDir(tempDir);
@@ -33,6 +41,7 @@ function createAppPaths(options = {}) {
 
   return {
     appDataRoot,
+    logsDir,
     assetsDir,
     exportsDir,
     tempDir,

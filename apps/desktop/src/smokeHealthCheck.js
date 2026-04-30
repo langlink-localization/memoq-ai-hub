@@ -1,7 +1,10 @@
 const { DEFAULT_HOST, DEFAULT_PORT, ROUTES } = require('./shared/desktopContract');
+const { createAppPaths } = require('./shared/paths');
+const { createLogger } = require('./shared/logging');
 
 const HEALTHCHECK_TIMEOUT_MS = 30000;
 const HEALTHCHECK_RETRY_DELAY_MS = 500;
+const logger = createLogger({ source: 'smoke-health-check', logsDir: createAppPaths().logsDir });
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -22,7 +25,7 @@ async function main() {
       if (!payload.ok) {
         throw new Error('Gateway health payload is not ok');
       }
-      console.log('Health check passed:', payload.productName);
+      logger.info('health-check-passed', 'Health check passed.', { productName: payload.productName });
       return;
     } catch (error) {
       lastError = error;
@@ -34,6 +37,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error);
+  logger.error('health-check-failed', 'Health check failed.', { error });
   process.exitCode = 1;
 });
