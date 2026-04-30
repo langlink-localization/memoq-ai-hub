@@ -9,6 +9,7 @@ const DEFAULT_RELEASE_REPOSITORY = 'langlink-localization/memoq-ai-hub';
 const STABLE_RELEASE_CHANNEL = 'stable';
 const STABLE_UPDATE_MANIFEST_NAME = 'memoq-ai-hub-updates-stable.json';
 const DEFAULT_UPDATE_STATUS = 'idle';
+const AVAILABLE_UPDATE_STATUSES = new Set(['available', 'downloading', 'prepared']);
 const PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE = 'Portable builds use a browser download page instead of downloading updates inside the app.';
 
 function ensureDir(dirPath) {
@@ -67,6 +68,39 @@ function createDefaultUpdateState({ currentVersion, packagingMode, manifestUrl }
       portable: null,
       installer: null
     }
+  };
+}
+
+function normalizePersistedUpdateState(defaultState, persistedState = {}) {
+  const nextState = {
+    ...defaultState,
+    ...(persistedState && typeof persistedState === 'object' ? persistedState : {})
+  };
+
+  const persistedCurrentVersion = String(persistedState?.currentVersion || '').trim();
+  const persistedManifestUrl = String(persistedState?.manifestUrl || '').trim();
+  const persistedPackagingMode = String(persistedState?.packagingMode || '').trim();
+  const updateStatus = String(nextState.updateStatus || '').trim().toLowerCase();
+  const latestVersion = String(nextState.latestVersion || '').trim();
+  const currentVersion = String(defaultState.currentVersion || '').trim();
+  const staleAvailableUpdate = AVAILABLE_UPDATE_STATUSES.has(updateStatus)
+    && (!latestVersion || compareVersions(latestVersion, currentVersion) <= 0);
+  const stateBelongsToPreviousRuntime = (persistedCurrentVersion && persistedCurrentVersion !== defaultState.currentVersion)
+    || (persistedManifestUrl && persistedManifestUrl !== defaultState.manifestUrl)
+    || (persistedPackagingMode && persistedPackagingMode !== defaultState.packagingMode);
+
+  if (!stateBelongsToPreviousRuntime && !staleAvailableUpdate) {
+    return nextState;
+  }
+
+  return {
+    ...defaultState,
+    updateStatus: latestVersion && compareVersions(latestVersion, currentVersion) <= 0
+      ? 'up-to-date'
+      : DEFAULT_UPDATE_STATUS,
+    lastCheckedAt: String(nextState.lastCheckedAt || ''),
+    manualCheckRequestedAt: String(nextState.manualCheckRequestedAt || ''),
+    pluginReinstallRecommended: nextState.pluginReinstallRecommended !== false
   };
 }
 
@@ -196,10 +230,12 @@ function createUpdateService(options = {}) {
     fsImpl.writeFileSync(persistedStatePath, JSON.stringify(nextState, null, 2), 'utf8');
   }
 
-  let state = {
-    ...createDefaultUpdateState({ currentVersion, packagingMode, manifestUrl }),
-    ...readPersistedState()
-  };
+  const defaultState = createDefaultUpdateState({ currentVersion, packagingMode, manifestUrl });
+  const persistedState = readPersistedState();
+  let state = normalizePersistedUpdateState(defaultState, persistedState);
+  if (JSON.stringify(state) !== JSON.stringify({ ...defaultState, ...persistedState })) {
+    writePersistedState(state);
+  }
 
   function persistState(nextState) {
     state = {
@@ -240,8 +276,11 @@ function createUpdateService(options = {}) {
     }
 
     const response = await fetchImpl(manifestUrl, {
+      cache: 'no-store',
       headers: {
-        accept: 'application/json'
+        accept: 'application/json',
+        'cache-control': 'no-cache',
+        pragma: 'no-cache'
       }
     });
 
@@ -317,7 +356,7 @@ function createUpdateService(options = {}) {
       try {
         const manifest = await fetchManifest();
         const hasUpdate = compareVersions(manifest.version, currentVersion) > 0;
-        const portableDownloadUrl = manifest.releaseNotesUrl || manifest.assets?.portable?.url || '';
+        const portableDownloadUrl = hasUpdate ? (manifest.releaseNotesUrl || manifest.assets?.portable?.url || '') : '';
         return setState({
           updateStatus: hasUpdate ? 'available' : 'up-to-date',
           latestVersion: manifest.version,
@@ -327,9 +366,9 @@ function createUpdateService(options = {}) {
           portableDownloadUrl,
           lastCheckedAt: nowIso(),
           lastError: '',
-          downloadedArtifactPath: packagingMode === 'portable' ? '' : state.downloadedArtifactPath,
-          preparedDirectory: packagingMode === 'portable' ? '' : state.preparedDirectory,
-          availableAssets: manifest.assets
+          downloadedArtifactPath: hasUpdate && packagingMode !== 'portable' ? state.downloadedArtifactPath : '',
+          preparedDirectory: hasUpdate && packagingMode !== 'portable' ? state.preparedDirectory : '',
+          availableAssets: hasUpdate ? manifest.assets : defaultState.availableAssets
         });
       } catch (error) {
         return setState({

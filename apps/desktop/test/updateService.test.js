@@ -16,9 +16,10 @@ function createTempRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'memoq-ai-hub-update-'));
 }
 
-function createMockFetch(responses = new Map()) {
-  return async function fetch(url) {
+function createMockFetch(responses = new Map(), calls = []) {
+  return async function fetch(url, options = {}) {
     const key = String(url || '');
+    calls.push({ url: key, options });
     if (!responses.has(key)) {
       return {
         ok: false,
@@ -102,6 +103,98 @@ test('update service exposes portable download page and disables in-app portable
     assert.equal(available.portableDownloadUrl, releaseNotesUrl);
     await assert.rejects(() => service.downloadPortableUpdate(), new RegExp(PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     await assert.rejects(() => service.preparePortableUpdate(path.join(tempRoot, 'memoq-ai-hub-win32-x64.zip')), new RegExp(PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('update service normalizes stale persisted available updates for the current app version', () => {
+  const tempRoot = createTempRoot();
+  try {
+    const paths = createAppPaths({ appDataRoot: tempRoot });
+    const manifestUrl = 'https://example.com/latest.json';
+    fs.writeFileSync(paths.updateStatePath, JSON.stringify({
+      currentVersion: '1.0.14',
+      packagingMode: 'portable',
+      manifestUrl,
+      updateStatus: 'available',
+      latestVersion: '1.0.10',
+      publishedAt: '2026-03-27T09:24:41.000Z',
+      releaseNotesUrl: 'https://github.com/langlink-localization/memoq-ai-hub/releases/tag/v1.0.10',
+      portableDownloadUrl: 'https://github.com/langlink-localization/memoq-ai-hub/releases/tag/v1.0.10',
+      downloadedArtifactPath: path.join(tempRoot, 'old-update.zip'),
+      preparedDirectory: path.join(tempRoot, 'prepared-old-update'),
+      availableAssets: {
+        portable: {
+          name: 'memoq-ai-hub-win32-x64.zip',
+          url: 'https://example.com/v1.0.10/memoq-ai-hub-win32-x64.zip'
+        },
+        installer: null
+      }
+    }, null, 2));
+
+    const service = createUpdateService({
+      paths,
+      currentVersion: '1.0.15',
+      manifestUrl,
+      packagingMode: 'portable',
+      fetch: createMockFetch()
+    });
+    const status = service.getStatus();
+
+    assert.equal(status.currentVersion, '1.0.15');
+    assert.equal(status.updateStatus, 'up-to-date');
+    assert.equal(status.latestVersion, '');
+    assert.equal(status.releaseNotesUrl, '');
+    assert.equal(status.portableDownloadUrl, '');
+    assert.equal(status.downloadedArtifactPath, '');
+    assert.equal(status.preparedDirectory, '');
+    assert.equal(status.availableAssets.portable, null);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('update service requests the manifest without cache and treats equal remote versions as up to date', async () => {
+  const tempRoot = createTempRoot();
+  try {
+    const paths = createAppPaths({ appDataRoot: tempRoot });
+    const manifestUrl = 'https://example.com/latest.json';
+    const calls = [];
+    const service = createUpdateService({
+      paths,
+      currentVersion: '1.0.15',
+      manifestUrl,
+      packagingMode: 'portable',
+      fetch: createMockFetch(new Map([
+        [manifestUrl, {
+          json: {
+            version: '1.0.15',
+            tag: 'v1.0.15',
+            releaseNotesUrl: 'https://github.com/langlink-localization/memoq-ai-hub/releases/tag/v1.0.15',
+            assets: {
+              portable: {
+                name: 'memoq-ai-hub-win32-x64.zip',
+                url: 'https://example.com/v1.0.15/memoq-ai-hub-win32-x64.zip'
+              }
+            }
+          }
+        }]
+      ]), calls)
+    });
+
+    const status = await service.checkForUpdates({ manual: true });
+
+    assert.equal(calls[0].url, manifestUrl);
+    assert.equal(calls[0].options.cache, 'no-store');
+    assert.equal(calls[0].options.headers['cache-control'], 'no-cache');
+    assert.equal(calls[0].options.headers.pragma, 'no-cache');
+    assert.equal(status.updateStatus, 'up-to-date');
+    assert.equal(status.latestVersion, '1.0.15');
+    assert.equal(status.portableDownloadUrl, '');
+    assert.equal(status.downloadedArtifactPath, '');
+    assert.equal(status.preparedDirectory, '');
+    assert.equal(status.availableAssets.portable, null);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

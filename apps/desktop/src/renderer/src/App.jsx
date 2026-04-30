@@ -440,6 +440,32 @@ function getUpdateStatusLabel(status, t) {
   return translateWithFallback(t, 'dashboard.updateStatusIdle', 'Idle');
 }
 
+function compareDisplayVersions(leftVersion, rightVersion) {
+  const left = String(leftVersion || '').trim().replace(/^v/i, '').split('.').map((segment) => Number.parseInt(segment, 10) || 0);
+  const right = String(rightVersion || '').trim().replace(/^v/i, '').split('.').map((segment) => Number.parseInt(segment, 10) || 0);
+  const length = Math.max(left.length, right.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const leftValue = left[index] || 0;
+    const rightValue = right[index] || 0;
+    if (leftValue > rightValue) return 1;
+    if (leftValue < rightValue) return -1;
+  }
+
+  return 0;
+}
+
+function getSafeUpdateStatus(updateCenter = {}) {
+  const status = String(updateCenter.updateStatus || '').trim().toLowerCase();
+  if (
+    ['available', 'downloading', 'prepared'].includes(status)
+    && compareDisplayVersions(updateCenter.latestVersion, updateCenter.currentVersion) <= 0
+  ) {
+    return 'up-to-date';
+  }
+  return status || 'idle';
+}
+
 function getPackagingModeLabel(mode, t) {
   return String(mode || '').trim().toLowerCase() === 'installed'
     ? translateWithFallback(t, 'dashboard.packagingInstalled', 'Installed')
@@ -2061,7 +2087,7 @@ export default function App() {
   }
 
   async function openPortableDownloadPage() {
-    const portableDownloadUrl = updateCenter.portableDownloadUrl || updateCenter.releaseNotesUrl || updateCenter.availableAssets?.portable?.url || '';
+    const portableDownloadUrl = portableDownloadPage;
     if (!portableDownloadUrl || typeof api?.openExternalUrl !== 'function') {
       return;
     }
@@ -2091,7 +2117,12 @@ export default function App() {
   const previewBridgeStatus = state?.dashboard?.runtimeStatus?.previewStatus || {};
   const previewBridgeStatusLabel = getRuntimeConnectionLabel(previewBridgeStatus.status, t);
   const updateCenter = state?.updateCenter || state?.dashboard?.updateCenter || createFallbackAppState().updateCenter;
-  const updateStatusLabel = getUpdateStatusLabel(updateCenter.updateStatus, t);
+  const safeUpdateStatus = getSafeUpdateStatus(updateCenter);
+  const hasAvailableUpdate = safeUpdateStatus === 'available';
+  const portableDownloadPage = hasAvailableUpdate
+    ? (updateCenter.portableDownloadUrl || updateCenter.releaseNotesUrl || updateCenter.availableAssets?.portable?.url || '')
+    : '';
+  const updateStatusLabel = getUpdateStatusLabel(safeUpdateStatus, t);
   const packagingModeLabel = getPackagingModeLabel(updateCenter.packagingMode, t);
   const selectedInstallVersionOptions = installOptions.map((option) => ({
     label: option.label || `memoQ ${option.version}`,
@@ -2550,7 +2581,17 @@ export default function App() {
                 options={[{ value: 'en', label: 'English' }, { value: 'zh-CN', label: '中文' }]}
                 onChange={setLocale}
               />
-              <Button icon={<ReloadOutlined />} onClick={() => refresh()} disabled={state?.startup?.status === 'starting'}>{t('app.refresh')}</Button>
+              <Tooltip title={t('app.refresh')}>
+                <Button
+                  type="text"
+                  size="small"
+                  className="app-header-refresh"
+                  icon={<ReloadOutlined />}
+                  onClick={() => refresh()}
+                  disabled={state?.startup?.status === 'starting'}
+                  aria-label={t('app.refresh')}
+                />
+              </Tooltip>
               <Tag color={connectionStatusColor}>{connectionStatusLabel}</Tag>
             </Space>
           </Space>
@@ -2678,7 +2719,7 @@ export default function App() {
                     <Descriptions.Item label={translateWithFallback(t, 'dashboard.latestVersion', 'Latest version')}><HoverText value={updateCenter.latestVersion} /></Descriptions.Item>
                     <Descriptions.Item label={translateWithFallback(t, 'dashboard.updatePublishedAt', 'Published at')}><HoverText value={formatLocalTimestamp(updateCenter.publishedAt)} /></Descriptions.Item>
                     {updateCenter.packagingMode === 'portable' ? (
-                      <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateDownloadPage', 'Download page')}><HoverText value={updateCenter.portableDownloadUrl || updateCenter.releaseNotesUrl} /></Descriptions.Item>
+                      <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateDownloadPage', 'Download page')}><HoverText value={portableDownloadPage} /></Descriptions.Item>
                     ) : (
                       <>
                         <Descriptions.Item label={translateWithFallback(t, 'dashboard.updatePreparedDirectory', 'Prepared directory')}><HoverText value={updateCenter.preparedDirectory} /></Descriptions.Item>
@@ -2702,15 +2743,15 @@ export default function App() {
                     description={translateWithFallback(t, 'dashboard.updatePluginHint', 'If this release changes the memoQ plugin or preview helper, run Install / Reinstall once after upgrading.')}
                   />
                   <Space wrap>
-                    <Button loading={checkingUpdates} onClick={() => void checkForUpdates(true)}>
+                    <Button icon={<ReloadOutlined />} loading={checkingUpdates} onClick={() => void checkForUpdates(true)}>
                       {translateWithFallback(t, 'dashboard.checkForUpdates', 'Check for updates')}
                     </Button>
-                    {updateCenter.packagingMode === 'portable' && updateCenter.updateStatus === 'available' ? (
+                    {updateCenter.packagingMode === 'portable' && hasAvailableUpdate ? (
                       <Button type="primary" loading={updateActionLoading} onClick={() => void openPortableDownloadPage()}>
                         {translateWithFallback(t, 'dashboard.openPortableDownloadPage', 'Open download page')}
                       </Button>
                     ) : null}
-                    {updateCenter.packagingMode === 'installed' && updateCenter.updateStatus === 'available' ? (
+                    {updateCenter.packagingMode === 'installed' && hasAvailableUpdate ? (
                       <Button type="primary" loading={updateActionLoading} onClick={() => void downloadInstallerUpdate()}>
                         {translateWithFallback(t, 'dashboard.downloadAndInstallUpdate', 'Download installer update')}
                       </Button>

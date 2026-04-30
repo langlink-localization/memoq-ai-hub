@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import {
   APP_SECTIONS,
@@ -18,6 +20,12 @@ import {
 } from '../src/renderer/src/appShell.mjs';
 import en from '../src/renderer/src/locales/en.js';
 import zhCN from '../src/renderer/src/locales/zh-CN.js';
+
+const DESKTOP_ROOT = path.resolve(import.meta.dirname, '..');
+
+function readRendererSource(relativePath) {
+  return fs.readFileSync(path.join(DESKTOP_ROOT, 'src', 'renderer', 'src', relativePath), 'utf8');
+}
 
 function collectLocaleKeys(value, prefix = '') {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -49,6 +57,25 @@ test('Chinese locale is independent and matches English locale keys', () => {
   assert.equal(zhCN.nav.logs, '日志');
   assert.equal(zhCN.providers.title, 'AI 服务');
   assert.equal(en.nav.providers, 'AI Services');
+});
+
+test('dashboard keeps refresh controls icon-first and guards stale available updates', () => {
+  const appSource = readRendererSource('App.jsx');
+
+  assert.match(appSource, /className="app-header-refresh"/);
+  assert.match(appSource, /aria-label=\{t\('app\.refresh'\)\}/);
+  assert.match(appSource, /const safeUpdateStatus = getSafeUpdateStatus\(updateCenter\);/);
+  assert.match(appSource, /const hasAvailableUpdate = safeUpdateStatus === 'available';/);
+  assert.match(appSource, /icon=\{<ReloadOutlined \/>}/);
+});
+
+test('global select styles allow selected values and dropdown options to wrap', () => {
+  const cssSource = readRendererSource('index.css');
+
+  assert.match(cssSource, /\.ant-select-dropdown \.ant-select-item-option-content/);
+  assert.match(cssSource, /\.ant-select-single \.ant-select-selector \.ant-select-selection-item/);
+  assert.match(cssSource, /overflow-wrap:\s*anywhere/);
+  assert.match(cssSource, /white-space:\s*normal/);
 });
 
 test('buildDefaultPresetProfile enables advanced context toggles with source-first preview defaults', () => {
