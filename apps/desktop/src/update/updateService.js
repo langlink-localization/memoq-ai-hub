@@ -347,9 +347,6 @@ function createUpdateService(options = {}) {
         }
         reject(timeoutError);
       }, manifestTimeoutMs);
-      if (typeof timeoutId.unref === 'function') {
-        timeoutId.unref();
-      }
     });
 
     let response;
