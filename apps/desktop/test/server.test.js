@@ -48,6 +48,12 @@ function createRuntimeStub(overrides = {}) {
     async translate() {
       return { statusCode: 200, body: { ok: true } };
     },
+    async submitAggregateTranslation() {
+      return { statusCode: 200, body: { ok: true } };
+    },
+    async waitAggregateTranslation() {
+      return { statusCode: 200, body: { ok: true } };
+    },
     async storeTranslations() {
       return { statusCode: 200, body: { ok: true } };
     },
@@ -68,6 +74,76 @@ test('gateway health returns the same desktop version as the desktop version pay
     assert.equal(payload.ok, true);
     assert.equal(payload.desktopVersion, runtime.getDesktopVersionPayload().desktopVersion);
     assert.equal(payload.contractVersion, runtime.getDesktopVersionPayload().contractVersion);
+  } finally {
+    await close(server);
+  }
+});
+
+test('gateway aggregate submit success passes through runtime status and body', async () => {
+  const runtime = createRuntimeStub({
+    async submitAggregateTranslation(payload) {
+      return {
+        statusCode: 200,
+        body: {
+          success: true,
+          jobRequestId: payload.requestId,
+          aggregationGroupId: 'group-1'
+        }
+      };
+    }
+  });
+  const { app } = createGatewayServer(runtime);
+  const { server, baseUrl } = await listen(app);
+
+  try {
+    const response = await fetch(`${baseUrl}${ROUTES.mtTranslateAggregate}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ requestId: 'req-agg-1' })
+    });
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(payload, {
+      success: true,
+      jobRequestId: 'req-agg-1',
+      aggregationGroupId: 'group-1'
+    });
+  } finally {
+    await close(server);
+  }
+});
+
+test('gateway aggregate result success passes through runtime status and body', async () => {
+  const runtime = createRuntimeStub({
+    async waitAggregateTranslation(payload) {
+      return {
+        statusCode: 200,
+        body: {
+          success: true,
+          jobRequestId: payload.jobRequestId,
+          translations: [{ index: 0, text: 'OK' }]
+        }
+      };
+    }
+  });
+  const { app } = createGatewayServer(runtime);
+  const { server, baseUrl } = await listen(app);
+
+  try {
+    const response = await fetch(`${baseUrl}${ROUTES.mtTranslateAggregateResult}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jobRequestId: 'req-agg-1' })
+    });
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(payload, {
+      success: true,
+      jobRequestId: 'req-agg-1',
+      translations: [{ index: 0, text: 'OK' }]
+    });
   } finally {
     await close(server);
   }

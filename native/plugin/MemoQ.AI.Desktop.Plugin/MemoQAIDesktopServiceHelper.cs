@@ -18,6 +18,16 @@ namespace MemoQAIHubPlugin
             return PostJson<MemoQAIHubTranslateResponse>(baseUrl, timeoutMs, "/mt/translate", payload, "Desktop translation service");
         }
 
+        public static MemoQAIHubAggregateSubmitResponse SubmitAggregateTranslation(string baseUrl, int timeoutMs, MemoQAIHubTranslateRequest payload)
+        {
+            return PostJson<MemoQAIHubAggregateSubmitResponse>(baseUrl, timeoutMs, "/mt/translate-aggregate", payload, "Desktop aggregate translation submit service");
+        }
+
+        public static MemoQAIHubTranslateResponse WaitAggregateTranslation(string baseUrl, int timeoutMs, MemoQAIHubAggregateResultRequest payload)
+        {
+            return PostJson<MemoQAIHubTranslateResponse>(baseUrl, timeoutMs, "/mt/translate-aggregate/result", payload, "Desktop aggregate translation result service");
+        }
+
         public static MemoQAIHubStoreTranslationsResponse StoreTranslations(string baseUrl, int timeoutMs, MemoQAIHubStoreTranslationsRequest payload)
         {
             return PostJson<MemoQAIHubStoreTranslationsResponse>(baseUrl, timeoutMs, "/mt/store-translations", payload, "Desktop translation writeback service");
@@ -140,11 +150,33 @@ namespace MemoQAIHubPlugin
         public bool success { get; set; }
         public string requestId { get; set; }
         public string traceId { get; set; }
+        public string jobRequestId { get; set; }
+        public string aggregationGroupId { get; set; }
+        public bool pending { get; set; }
         public string providerId { get; set; }
         public string model { get; set; }
         public bool partial { get; set; }
         public MemoQAIHubError error { get; set; }
         public List<MemoQAIHubSegmentResult> translations { get; set; }
+    }
+
+    internal class MemoQAIHubAggregateSubmitResponse
+    {
+        public bool success { get; set; }
+        public string requestId { get; set; }
+        public string traceId { get; set; }
+        public string jobRequestId { get; set; }
+        public string aggregationGroupId { get; set; }
+        public MemoQAIHubError error { get; set; }
+    }
+
+    internal class MemoQAIHubAggregateResultRequest
+    {
+        public string requestId { get; set; }
+        public string traceId { get; set; }
+        public string jobRequestId { get; set; }
+        public string aggregationGroupId { get; set; }
+        public int waitTimeoutMs { get; set; }
     }
 
     internal class MemoQAIHubStoreTranslationsRequest

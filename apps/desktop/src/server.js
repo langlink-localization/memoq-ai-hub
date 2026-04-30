@@ -58,6 +58,8 @@ function createGatewayServer(runtime) {
 
   app.post(ROUTES.integrationInstall, createRuntimeRoute((payload) => runtime.installIntegration(payload), 'INTEGRATION_FAILED'));
   app.post(ROUTES.mtTranslate, createRuntimeRoute((payload) => runtime.translate(payload), 'TRANSLATION_FAILED'));
+  app.post(ROUTES.mtTranslateAggregate, createRuntimeRoute((payload) => runtime.submitAggregateTranslation(payload), 'TRANSLATION_FAILED'));
+  app.post(ROUTES.mtTranslateAggregateResult, createRuntimeRoute((payload) => runtime.waitAggregateTranslation(payload), 'TRANSLATION_FAILED'));
   app.post(ROUTES.mtStoreTranslations, createRuntimeRoute((payload) => runtime.storeTranslations(payload), 'TRANSLATION_FAILED'));
 
   return { app };

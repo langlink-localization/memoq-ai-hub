@@ -8,4 +8,6 @@ test('desktop contract exposes expected core fields', () => {
   assert.equal(DEFAULT_PORT, 5271);
   assert.equal(ROUTES.desktopVersion, '/desktop/version');
   assert.equal(ROUTES.mtTranslate, '/mt/translate');
+  assert.equal(ROUTES.mtTranslateAggregate, '/mt/translate-aggregate');
+  assert.equal(ROUTES.mtTranslateAggregateResult, '/mt/translate-aggregate/result');
 });

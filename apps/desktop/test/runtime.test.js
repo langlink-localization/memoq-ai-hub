@@ -949,6 +949,559 @@ test('runtime writes real translation history using configured provider route', 
   }
 });
 
+test('runtime aggregate queue uses small groups and returns original indexes', async () => {
+  const tempRoot = createTempAppRoot();
+  try {
+    const providerCalls = [];
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      providerRegistry: {
+        testConnection: async () => ({ ok: true, latencyMs: 12, message: 'ok' }),
+        translateBatch: async (request) => {
+          providerCalls.push(request.segments.map((segment) => segment.sourceText));
+          return {
+            translations: request.segments.map((segment) => ({
+              index: segment.index,
+              text: `${segment.sourceText} -> ZH`
+            })),
+            latencyMs: 20
+          };
+        },
+        translateSegment: async ({ sourceText }) => ({ text: `${sourceText} -> ZH`, latencyMs: 20 })
+      }
+    });
+
+    const provider = await runtime.saveProvider({
+      name: 'OpenAI',
+      type: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'test-key',
+      models: [{ modelName: 'gpt-4.1-mini', enabled: true }]
+    });
+
+    const profile = await runtime.saveProfile({
+      name: 'Default',
+      providerId: provider.id,
+      pretranslateProviderId: provider.id,
+      pretranslateModelId: provider.models[0].id
+    });
+
+    const submitted = [];
+    for (let requestIndex = 0; requestIndex < 8; requestIndex += 1) {
+      const requestId = `REQ-AGG-${requestIndex}`;
+      const submitResult = await runtime.submitAggregateTranslation({
+        requestId,
+        traceId: `TRACE-AGG-${requestIndex}`,
+        contractVersion: '1',
+        sourceLanguage: 'EN',
+        targetLanguage: 'ZH',
+        requestType: 'Plaintext',
+        profileResolution: { profileId: profile.id, useCase: 'batch' },
+        metadata: {
+          projectGuid: 'project-1',
+          documentId: 'document-1',
+          segmentLevelMetadata: [
+            { segmentId: `seg-${requestIndex}-0`, segmentIndex: 0, segmentStatus: 0 },
+            { segmentId: `seg-${requestIndex}-1`, segmentIndex: 1, segmentStatus: 0 }
+          ]
+        },
+        segments: [
+          { index: 0, text: `Segment ${requestIndex}.0`, plainText: `Segment ${requestIndex}.0`, tmSource: '', tmTarget: '' },
+          { index: 1, text: `Segment ${requestIndex}.1`, plainText: `Segment ${requestIndex}.1`, tmSource: '', tmTarget: '' }
+        ]
+      });
+      assert.equal(submitResult.statusCode, 200);
+      submitted.push(submitResult.body);
+    }
+
+    const results = await Promise.all(submitted.map((item) => runtime.waitAggregateTranslation({
+      requestId: item.requestId,
+      traceId: item.traceId,
+      jobRequestId: item.jobRequestId,
+      waitTimeoutMs: 1000
+    })));
+
+    assert.ok(providerCalls.length >= 4);
+    assert.equal(providerCalls.flat().length, 16);
+    for (let requestIndex = 0; requestIndex < results.length; requestIndex += 1) {
+      assert.equal(results[requestIndex].statusCode, 200);
+      assert.deepEqual(results[requestIndex].body.translations, [
+        { index: 0, text: `Segment ${requestIndex}.0 -> ZH` },
+        { index: 1, text: `Segment ${requestIndex}.1 -> ZH` }
+      ]);
+      assert.equal(results[requestIndex].body.aggregation.requestCount, 2);
+      assert.equal(results[requestIndex].body.aggregation.flushReason, 'request_threshold');
+    }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime aggregate result wait caps long waits and returns pending', async () => {
+  const tempRoot = createTempAppRoot();
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      aggregateQuietWindowMs: 1000,
+      aggregateMaxBufferedRequests: 10,
+      aggregateMaxBufferedSegments: 100,
+      aggregateResultWaitMaxMs: 20
+    });
+
+    const submitResult = await runtime.submitAggregateTranslation({
+      requestId: 'REQ-PENDING-1',
+      traceId: 'TRACE-PENDING-1',
+      contractVersion: '1',
+      sourceLanguage: 'EN',
+      targetLanguage: 'ZH',
+      requestType: 'Plaintext',
+      metadata: { projectGuid: 'project-1', documentId: 'document-1' },
+      segments: [{ index: 0, text: 'Pending segment', plainText: 'Pending segment', tmSource: '', tmTarget: '' }]
+    });
+
+    const startedAt = Date.now();
+    const result = await runtime.waitAggregateTranslation({
+      requestId: submitResult.body.requestId,
+      traceId: submitResult.body.traceId,
+      jobRequestId: submitResult.body.jobRequestId,
+      waitTimeoutMs: 120000
+    });
+
+    assert.equal(result.statusCode, 202);
+    assert.equal(result.body.pending, true);
+    assert.ok(Date.now() - startedAt < 500);
+    runtime.dispose();
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime aggregate soft deadline settles entries with rescue fallback and marks congestion', async () => {
+  const tempRoot = createTempAppRoot();
+  try {
+    const providerCalls = [];
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      aggregateSoftDeadlineMs: 20,
+      aggregateHardDeadlineMs: 200,
+      providerRegistry: {
+        testConnection: async () => ({ ok: true, latencyMs: 12, message: 'ok' }),
+        translateBatch: async (request) => {
+          providerCalls.push(request.segments.map((segment) => segment.sourceText));
+          if (request.segments.length === 4) {
+            await wait(120);
+            return {
+              translations: request.segments.map((segment) => ({
+                index: segment.index,
+                text: `${segment.sourceText} aggregate late`
+              })),
+              latencyMs: 120
+            };
+          }
+          return {
+            translations: request.segments.map((segment) => ({
+              index: segment.index,
+              text: `${segment.sourceText} fallback`
+            })),
+            latencyMs: 5
+          };
+        },
+        translateSegment: async ({ sourceText }) => ({ text: `${sourceText} fallback`, latencyMs: 5 })
+      }
+    });
+
+    const provider = await runtime.saveProvider({
+      name: 'OpenAI',
+      type: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'test-key',
+      models: [{ modelName: 'gpt-4.1-mini', enabled: true }]
+    });
+    const profile = await runtime.saveProfile({ name: 'Default', providerId: provider.id, cacheEnabled: false });
+
+    const submit = async (requestIndex) => runtime.submitAggregateTranslation({
+      requestId: `REQ-SOFT-${requestIndex}`,
+      traceId: `TRACE-SOFT-${requestIndex}`,
+      contractVersion: '1',
+      sourceLanguage: 'EN',
+      targetLanguage: 'ZH',
+      requestType: 'Plaintext',
+      profileResolution: { profileId: profile.id, useCase: 'batch' },
+      metadata: { projectGuid: 'project-soft', documentId: 'document-soft' },
+      segments: [
+        { index: 0, text: `Soft ${requestIndex}.0`, plainText: `Soft ${requestIndex}.0`, tmSource: '', tmTarget: '' },
+        { index: 1, text: `Soft ${requestIndex}.1`, plainText: `Soft ${requestIndex}.1`, tmSource: '', tmTarget: '' }
+      ]
+    });
+
+    const first = await submit(0);
+    const second = await submit(1);
+    const results = await Promise.all([first, second].map((item) => runtime.waitAggregateTranslation({
+      requestId: item.body.requestId,
+      traceId: item.body.traceId,
+      jobRequestId: item.body.jobRequestId,
+      waitTimeoutMs: 1000
+    })));
+
+    for (let requestIndex = 0; requestIndex < results.length; requestIndex += 1) {
+      assert.equal(results[requestIndex].statusCode, 200);
+      assert.equal(results[requestIndex].body.aggregation.settleMode, 'rescue');
+      assert.equal(results[requestIndex].body.aggregation.rescueMode, 'single_segment_fast');
+      assert.equal(results[requestIndex].body.aggregation.rescueBatchSize, 1);
+      assert.equal(results[requestIndex].body.aggregation.rescueConcurrency, 2);
+      assert.deepEqual(results[requestIndex].body.translations, [
+        { index: 0, text: `Soft ${requestIndex}.0 fallback` },
+        { index: 1, text: `Soft ${requestIndex}.1 fallback` }
+      ]);
+    }
+
+    await wait(140);
+    const lateResult = await runtime.waitAggregateTranslation({
+      requestId: first.body.requestId,
+      traceId: first.body.traceId,
+      jobRequestId: first.body.jobRequestId,
+      waitTimeoutMs: 50
+    });
+    assert.equal(lateResult.body.aggregation.settleMode, 'rescue');
+    assert.equal(lateResult.body.translations[0].text, 'Soft 0.0 fallback');
+
+    const congestedSubmit = await submit(2);
+    const congestedResult = await runtime.waitAggregateTranslation({
+      requestId: congestedSubmit.body.requestId,
+      traceId: congestedSubmit.body.traceId,
+      jobRequestId: congestedSubmit.body.jobRequestId,
+      waitTimeoutMs: 1000
+    });
+    assert.equal(congestedResult.statusCode, 200);
+    assert.equal(congestedResult.body.aggregation.requestCount, 1);
+    assert.equal(congestedResult.body.aggregation.flushReason, 'request_threshold');
+    runtime.dispose();
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime aggregate rescue uses single-segment fast partial settlement before hard timeout', async () => {
+  const tempRoot = createTempAppRoot();
+  try {
+    const batchCalls = [];
+    const segmentCalls = [];
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      aggregateSoftDeadlineMs: 20,
+      aggregateHardDeadlineMs: 250,
+      aggregateRescueConcurrency: 2,
+      aggregateRescueCollectWindowMs: 40,
+      aggregateRescueMinSettleTranslations: 3,
+      providerRegistry: {
+        testConnection: async () => ({ ok: true, latencyMs: 12, message: 'ok' }),
+        translateBatch: async (request) => {
+          batchCalls.push(request.segments.map((segment) => segment.sourceText));
+          await wait(180);
+          return {
+            translations: request.segments.map((segment) => ({
+              index: segment.index,
+              text: `${segment.sourceText} aggregate late`
+            })),
+            latencyMs: 180
+          };
+        },
+        translateSegment: async ({ sourceText }) => {
+          segmentCalls.push(sourceText);
+          return { text: `${sourceText} rescue`, latencyMs: 5 };
+        }
+      }
+    });
+
+    const provider = await runtime.saveProvider({
+      name: 'DeepSeek',
+      type: 'openai-compatible',
+      baseUrl: 'https://api.deepseek.com/v1',
+      apiKey: 'test-key',
+      models: [{ modelName: 'deepseek-v4-flash', enabled: true }]
+    });
+    const profile = await runtime.saveProfile({ name: 'Default', providerId: provider.id, cacheEnabled: false });
+
+    const submit = async (requestIndex) => runtime.submitAggregateTranslation({
+      requestId: `REQ-RESCUE-${requestIndex}`,
+      traceId: `TRACE-RESCUE-${requestIndex}`,
+      contractVersion: '1',
+      sourceLanguage: 'EN',
+      targetLanguage: 'ZH',
+      requestType: 'Plaintext',
+      profileResolution: { profileId: profile.id, useCase: 'batch' },
+      metadata: { projectGuid: 'project-rescue', documentId: 'document-rescue' },
+      segments: Array.from({ length: 10 }, (_, segmentIndex) => ({
+        index: segmentIndex,
+        text: `Rescue ${requestIndex}.${segmentIndex}`,
+        plainText: `Rescue ${requestIndex}.${segmentIndex}`,
+        tmSource: '',
+        tmTarget: ''
+      }))
+    });
+
+    const first = await submit(0);
+    const second = await submit(1);
+    const results = await Promise.all([first, second].map((item) => runtime.waitAggregateTranslation({
+      requestId: item.body.requestId,
+      traceId: item.body.traceId,
+      jobRequestId: item.body.jobRequestId,
+      waitTimeoutMs: 1000
+    })));
+
+    for (let requestIndex = 0; requestIndex < results.length; requestIndex += 1) {
+      assert.equal(results[requestIndex].statusCode, 200);
+      assert.equal(results[requestIndex].body.aggregation.settleMode, 'rescue');
+      assert.equal(results[requestIndex].body.aggregation.rescueMode, 'single_segment_fast');
+      assert.equal(results[requestIndex].body.aggregation.rescueBatchSize, 1);
+      assert.equal(results[requestIndex].body.aggregation.rescueConcurrency, 2);
+      assert.equal(results[requestIndex].body.partial, true);
+      assert.ok(results[requestIndex].body.translations.length >= 1);
+      assert.ok(results[requestIndex].body.translations.length <= 3);
+      assert.equal(results[requestIndex].body.translations[0].text, `Rescue ${requestIndex}.0 rescue`);
+    }
+    assert.ok(batchCalls.some((call) => call.length === 5));
+    assert.equal(batchCalls.some((call) => call.length > 0 && call.length <= 3), false);
+    assert.ok(segmentCalls.length >= 2);
+    runtime.dispose();
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime aggregate first pending poll starts single-segment rescue before soft deadline', async () => {
+  const tempRoot = createTempAppRoot();
+  try {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const segmentCalls = [];
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      aggregateMaxBufferedRequests: 1,
+      aggregateSoftDeadlineMs: 200,
+      aggregateHardDeadlineMs: 500,
+      aggregateResultWaitMaxMs: 20,
+      aggregateRescueConcurrency: 1,
+      aggregateRescueCollectWindowMs: 0,
+      aggregateRescueMinSettleTranslations: 1,
+      providerRegistry: {
+        testConnection: async () => ({ ok: true, latencyMs: 12, message: 'ok' }),
+        translateBatch: async (request) => {
+          await wait(300);
+          return {
+            translations: request.segments.map((segment) => ({
+              index: segment.index,
+              text: `${segment.sourceText} aggregate late`
+            })),
+            latencyMs: 300
+          };
+        },
+        translateSegment: async ({ sourceText }) => {
+          segmentCalls.push(sourceText);
+          return { text: `${sourceText} rescue`, latencyMs: 5 };
+        }
+      }
+    });
+
+    const provider = await runtime.saveProvider({
+      name: 'OpenAI',
+      type: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'test-key',
+      models: [{ modelName: 'gpt-4.1-mini', enabled: true }]
+    });
+    const profile = await runtime.saveProfile({ name: 'Default', providerId: provider.id, cacheEnabled: false });
+
+    const submitResult = await runtime.submitAggregateTranslation({
+      requestId: 'REQ-PENDING-RESCUE',
+      traceId: 'TRACE-PENDING-RESCUE',
+      contractVersion: '1',
+      sourceLanguage: 'EN',
+      targetLanguage: 'ZH',
+      requestType: 'Plaintext',
+      profileResolution: { profileId: profile.id, useCase: 'batch' },
+      metadata: { projectGuid: 'project-pending-rescue', documentId: 'document-pending-rescue' },
+      segments: [
+        { index: 0, text: 'Pending rescue 0', plainText: 'Pending rescue 0', tmSource: '', tmTarget: '' },
+        { index: 1, text: 'Pending rescue 1', plainText: 'Pending rescue 1', tmSource: '', tmTarget: '' }
+      ]
+    });
+
+    const pending = await runtime.waitAggregateTranslation({
+      requestId: submitResult.body.requestId,
+      traceId: submitResult.body.traceId,
+      jobRequestId: submitResult.body.jobRequestId,
+      waitTimeoutMs: 20
+    });
+    assert.equal(pending.statusCode, 202);
+    assert.equal(pending.body.pending, true);
+
+    const result = await runtime.waitAggregateTranslation({
+      requestId: submitResult.body.requestId,
+      traceId: submitResult.body.traceId,
+      jobRequestId: submitResult.body.jobRequestId,
+      waitTimeoutMs: 1000
+    });
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.body.aggregation.settleMode, 'rescue');
+    assert.equal(result.body.aggregation.rescueMode, 'single_segment_fast');
+    assert.equal(result.body.translations.length, 1);
+    assert.equal(result.body.translations[0].text, 'Pending rescue 0 rescue');
+    assert.ok(segmentCalls.length >= 1);
+    runtime.dispose();
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime aggregate hard deadline settles unresolved entries with explicit timeout', async () => {
+  const tempRoot = createTempAppRoot();
+  try {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      aggregateMaxBufferedRequests: 1,
+      aggregateSoftDeadlineMs: 10,
+      aggregateHardDeadlineMs: 40,
+      providerRegistry: {
+        testConnection: async () => ({ ok: true, latencyMs: 12, message: 'ok' }),
+        translateBatch: async (request) => {
+          await wait(120);
+          return {
+            translations: request.segments.map((segment) => ({
+              index: segment.index,
+              text: `${segment.sourceText} too late`
+            })),
+            latencyMs: 120
+          };
+        },
+        translateSegment: async ({ sourceText }) => {
+          await wait(120);
+          return { text: `${sourceText} too late`, latencyMs: 120 };
+        }
+      }
+    });
+
+    const provider = await runtime.saveProvider({
+      name: 'OpenAI',
+      type: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'test-key',
+      models: [{ modelName: 'gpt-4.1-mini', enabled: true }]
+    });
+    const profile = await runtime.saveProfile({ name: 'Default', providerId: provider.id, cacheEnabled: false });
+
+    const submitResult = await runtime.submitAggregateTranslation({
+      requestId: 'REQ-HARD-1',
+      traceId: 'TRACE-HARD-1',
+      contractVersion: '1',
+      sourceLanguage: 'EN',
+      targetLanguage: 'ZH',
+      requestType: 'Plaintext',
+      profileResolution: { profileId: profile.id, useCase: 'batch' },
+      metadata: { projectGuid: 'project-hard', documentId: 'document-hard' },
+      segments: [{ index: 0, text: 'Hard segment', plainText: 'Hard segment', tmSource: '', tmTarget: '' }]
+    });
+
+    const result = await runtime.waitAggregateTranslation({
+      requestId: submitResult.body.requestId,
+      traceId: submitResult.body.traceId,
+      jobRequestId: submitResult.body.jobRequestId,
+      waitTimeoutMs: 1000
+    });
+
+    assert.equal(result.statusCode, 504);
+    assert.equal(result.body.pending, false);
+    assert.equal(result.body.error.code, 'AGGREGATE_HARD_TIMEOUT');
+    assert.equal(result.body.aggregation.settleMode, 'hard_timeout');
+    assert.equal(result.body.aggregation.fallbackState, 'fallback_in_progress');
+    assert.equal(result.body.aggregation.rescueMode, 'single_segment_fast');
+    assert.equal(result.body.aggregation.rescueBatchSize, 1);
+
+    await wait(150);
+    const lateResult = await runtime.waitAggregateTranslation({
+      requestId: submitResult.body.requestId,
+      traceId: submitResult.body.traceId,
+      jobRequestId: submitResult.body.jobRequestId,
+      waitTimeoutMs: 50
+    });
+    assert.equal(lateResult.body.error.code, 'AGGREGATE_HARD_TIMEOUT');
+    assert.equal(lateResult.body.aggregation.fallbackState, 'fallback_in_progress');
+    runtime.dispose();
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime aggregate hard deadline reports failed rescue when single rescue returns no translations', async () => {
+  const tempRoot = createTempAppRoot();
+  try {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      aggregateMaxBufferedRequests: 1,
+      aggregateSoftDeadlineMs: 10,
+      aggregateHardDeadlineMs: 70,
+      providerRegistry: {
+        testConnection: async () => ({ ok: true, latencyMs: 12, message: 'ok' }),
+        translateBatch: async (request) => {
+          await wait(120);
+          return {
+            translations: request.segments.map((segment) => ({
+              index: segment.index,
+              text: `${segment.sourceText} too late`
+            })),
+            latencyMs: 120
+          };
+        },
+        translateSegment: async () => {
+          throw new Error('single rescue unavailable');
+        }
+      }
+    });
+
+    const provider = await runtime.saveProvider({
+      name: 'OpenAI',
+      type: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'test-key',
+      models: [{ modelName: 'gpt-4.1-mini', enabled: true }]
+    });
+    const profile = await runtime.saveProfile({ name: 'Default', providerId: provider.id, cacheEnabled: false });
+
+    const submitResult = await runtime.submitAggregateTranslation({
+      requestId: 'REQ-HARD-FAILED-RESCUE',
+      traceId: 'TRACE-HARD-FAILED-RESCUE',
+      contractVersion: '1',
+      sourceLanguage: 'EN',
+      targetLanguage: 'ZH',
+      requestType: 'Plaintext',
+      profileResolution: { profileId: profile.id, useCase: 'batch' },
+      metadata: { projectGuid: 'project-hard-failed', documentId: 'document-hard-failed' },
+      segments: [
+        { index: 0, text: 'Hard failed rescue 0', plainText: 'Hard failed rescue 0', tmSource: '', tmTarget: '' },
+        { index: 1, text: 'Hard failed rescue 1', plainText: 'Hard failed rescue 1', tmSource: '', tmTarget: '' }
+      ]
+    });
+
+    const result = await runtime.waitAggregateTranslation({
+      requestId: submitResult.body.requestId,
+      traceId: submitResult.body.traceId,
+      jobRequestId: submitResult.body.jobRequestId,
+      waitTimeoutMs: 1000
+    });
+
+    assert.equal(result.statusCode, 504);
+    assert.equal(result.body.error.code, 'AGGREGATE_HARD_TIMEOUT');
+    assert.equal(result.body.aggregation.fallbackState, 'fallback_failed');
+    assert.equal(result.body.aggregation.rescueMode, 'single_segment_fast');
+    runtime.dispose();
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('runtime retries transient provider failures and records retry metadata', async () => {
   const tempRoot = createTempAppRoot();
   try {
@@ -1711,7 +2264,7 @@ test('runtime exposes update status and portable download-page flow through app 
             status: 200,
             async json() {
               return {
-                version: '1.0.14',
+                version: '1.0.15',
                 publishedAt: '2026-03-26T00:00:00.000Z',
                 releaseNotesUrl: 'https://example.com/release',
                 assets: {
@@ -1736,7 +2289,7 @@ test('runtime exposes update status and portable download-page flow through app 
     const available = await runtime.checkForUpdates({ manual: true });
     const finalState = runtime.getAppState();
 
-    assert.equal(available.latestVersion, '1.0.14');
+    assert.equal(available.latestVersion, '1.0.15');
     assert.equal(available.portableDownloadUrl, 'https://example.com/release');
     assert.equal(finalState.updateCenter.updateStatus, 'available');
     await assert.rejects(() => runtime.downloadPortableUpdate(), /browser download page/i);

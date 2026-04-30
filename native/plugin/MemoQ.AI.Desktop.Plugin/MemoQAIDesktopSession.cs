@@ -16,8 +16,14 @@ namespace MemoQAIHubPlugin
 {
     public class MemoQAIHubSession : ISession, ISessionForStoringTranslations, ISessionWithMetadata
     {
-        private const int GatewayTranslateConcurrency = 2;
-        private static readonly SemaphoreSlim GatewayTranslateGate = new SemaphoreSlim(GatewayTranslateConcurrency, GatewayTranslateConcurrency);
+        private const int GatewayDirectConcurrency = 2;
+        private const int GatewaySubmitConcurrency = 4;
+        private const int MinimumGatewayTimeoutMs = 120000;
+        private const int AggregateResultPollWaitMs = 25000;
+        private const int AggregateResultPollDelayMs = 250;
+        private const int AggregateResultTimeoutSafetyMs = 15000;
+        private static readonly SemaphoreSlim GatewayDirectGate = new SemaphoreSlim(GatewayDirectConcurrency, GatewayDirectConcurrency);
+        private static readonly SemaphoreSlim GatewaySubmitGate = new SemaphoreSlim(GatewaySubmitConcurrency, GatewaySubmitConcurrency);
         private static readonly object LogSync = new object();
         private readonly string _sourceLangCode;
         private readonly string _targetLangCode;
@@ -243,8 +249,157 @@ namespace MemoQAIHubPlugin
             string stage = "batch",
             int? originalIndex = null)
         {
+            if (ShouldUseAggregateRequest(request, stage, segmentCount))
+            {
+                try
+                {
+                    return SendAggregateTranslateRequest(request, formattingMode, segmentCount, stage, originalIndex);
+                }
+                catch (Exception error) when (ShouldFallbackToDirectAfterAggregateSubmit(error))
+                {
+                    LogDebug(
+                        $"Translate aggregate unavailable stage={stage} mode={formattingMode} segments={segmentCount} requestId={request.requestId} traceId={request.traceId} fallback=direct error={error.Message}"
+                    );
+                }
+            }
+
+            return SendDirectTranslateRequest(request, formattingMode, segmentCount, stage, originalIndex);
+        }
+
+        private static bool ShouldUseAggregateRequest(MemoQAIHubTranslateRequest request, string stage, int segmentCount)
+        {
+            if (!string.Equals(stage, "batch", StringComparison.OrdinalIgnoreCase) || segmentCount <= 1)
+            {
+                return false;
+            }
+
+            if (request?.metadata == null)
+            {
+                return false;
+            }
+
+            var documentId = request.metadata.ContainsKey("documentId") ? request.metadata["documentId"] as string : string.Empty;
+            var projectGuid = request.metadata.ContainsKey("projectGuid") ? request.metadata["projectGuid"] as string : string.Empty;
+            return !string.IsNullOrWhiteSpace(documentId) || !string.IsNullOrWhiteSpace(projectGuid);
+        }
+
+        private static bool ShouldFallbackToDirectAfterAggregateSubmit(Exception error)
+        {
+            return error is NotSupportedException;
+        }
+
+        private MemoQAIHubTranslateResponse SendAggregateTranslateRequest(
+            MemoQAIHubTranslateRequest request,
+            string formattingMode,
+            int segmentCount,
+            string stage,
+            int? originalIndex)
+        {
+            var submitTimer = Stopwatch.StartNew();
+            GatewaySubmitGate.Wait();
+            submitTimer.Stop();
+            var submitQueuedMs = submitTimer.ElapsedMilliseconds;
+            var originalIndexText = originalIndex.HasValue ? $" originalIndex={originalIndex.Value}" : string.Empty;
+
+            MemoQAIHubAggregateSubmitResponse submitResponse;
+            try
+            {
+                submitResponse = MemoQAIHubServiceHelper.SubmitAggregateTranslation(
+                    _options.GeneralSettings.GatewayBaseUrl,
+                    _options.GeneralSettings.GatewayTimeoutMs,
+                    request
+                );
+            }
+            catch (Exception error)
+            {
+                throw new NotSupportedException("Aggregate translation submit failed.", error);
+            }
+            finally
+            {
+                GatewaySubmitGate.Release();
+            }
+
+            if (submitResponse == null || !submitResponse.success || string.IsNullOrWhiteSpace(submitResponse.jobRequestId))
+            {
+                throw new NotSupportedException(submitResponse?.error?.message ?? "Aggregate translation submit returned an invalid response.");
+            }
+
+            LogDebug(
+                $"Translate aggregate submitted stage={stage} mode={formattingMode} segments={segmentCount}{originalIndexText} requestId={request.requestId} traceId={request.traceId} jobRequestId={submitResponse.jobRequestId} aggregationGroupId={submitResponse.aggregationGroupId ?? string.Empty} submitQueuedMs={submitQueuedMs}"
+            );
+
+            var waitTimer = Stopwatch.StartNew();
+            var pendingAttempts = 0;
+            try
+            {
+                var overallWaitBudgetMs = Math.Max(1, NormalizeGatewayTimeoutMs(_options.GeneralSettings.GatewayTimeoutMs) - AggregateResultTimeoutSafetyMs);
+                while (true)
+                {
+                    var remainingMs = overallWaitBudgetMs - waitTimer.ElapsedMilliseconds;
+                    if (remainingMs <= 0)
+                    {
+                        throw new TimeoutException("Aggregate translation result remained pending after " + waitTimer.ElapsedMilliseconds + " ms.");
+                    }
+
+                    var pollWaitMs = (int)Math.Min(AggregateResultPollWaitMs, remainingMs);
+                    var response = MemoQAIHubServiceHelper.WaitAggregateTranslation(
+                        _options.GeneralSettings.GatewayBaseUrl,
+                        _options.GeneralSettings.GatewayTimeoutMs,
+                        new MemoQAIHubAggregateResultRequest
+                        {
+                            requestId = request.requestId,
+                            traceId = request.traceId,
+                            jobRequestId = submitResponse.jobRequestId,
+                            aggregationGroupId = submitResponse.aggregationGroupId,
+                            waitTimeoutMs = pollWaitMs
+                        }
+                    );
+
+                    if (response != null && response.pending)
+                    {
+                        pendingAttempts += 1;
+                        LogDebug(
+                            $"Translate aggregate pending stage={stage} mode={formattingMode} segments={segmentCount}{originalIndexText} requestId={request.requestId} traceId={request.traceId} jobRequestId={submitResponse.jobRequestId} aggregationGroupId={submitResponse.aggregationGroupId ?? string.Empty} submitQueuedMs={submitQueuedMs} resultWaitMs={waitTimer.ElapsedMilliseconds} pendingAttempt={pendingAttempts} pollWaitMs={pollWaitMs}"
+                        );
+                        var delayMs = (int)Math.Min(AggregateResultPollDelayMs, Math.Max(0, overallWaitBudgetMs - waitTimer.ElapsedMilliseconds));
+                        if (delayMs > 0)
+                        {
+                            Thread.Sleep(delayMs);
+                        }
+                        continue;
+                    }
+
+                    waitTimer.Stop();
+                    LogDebug(
+                        $"Translate aggregate result stage={stage} mode={formattingMode} segments={segmentCount}{originalIndexText} requestId={request.requestId} traceId={request.traceId} jobRequestId={submitResponse.jobRequestId} aggregationGroupId={submitResponse.aggregationGroupId ?? string.Empty} submitQueuedMs={submitQueuedMs} resultWaitMs={waitTimer.ElapsedMilliseconds} pendingAttempts={pendingAttempts}"
+                    );
+                    return response;
+                }
+            }
+            catch (Exception error)
+            {
+                waitTimer.Stop();
+                LogDebug(
+                    $"Translate aggregate failed stage={stage} mode={formattingMode} segments={segmentCount}{originalIndexText} requestId={request.requestId} traceId={request.traceId} jobRequestId={submitResponse.jobRequestId} aggregationGroupId={submitResponse.aggregationGroupId ?? string.Empty} submitQueuedMs={submitQueuedMs} resultWaitMs={waitTimer.ElapsedMilliseconds} pendingAttempts={pendingAttempts} error={error.Message}"
+                );
+                throw;
+            }
+        }
+
+        private static int NormalizeGatewayTimeoutMs(int timeoutMs)
+        {
+            return timeoutMs >= MinimumGatewayTimeoutMs ? timeoutMs : MinimumGatewayTimeoutMs;
+        }
+
+        private MemoQAIHubTranslateResponse SendDirectTranslateRequest(
+            MemoQAIHubTranslateRequest request,
+            string formattingMode,
+            int segmentCount,
+            string stage,
+            int? originalIndex)
+        {
             var queueTimer = Stopwatch.StartNew();
-            GatewayTranslateGate.Wait();
+            GatewayDirectGate.Wait();
             queueTimer.Stop();
             var gatewayQueuedMs = queueTimer.ElapsedMilliseconds;
             var originalIndexText = originalIndex.HasValue ? $" originalIndex={originalIndex.Value}" : string.Empty;
@@ -270,7 +425,7 @@ namespace MemoQAIHubPlugin
             }
             finally
             {
-                GatewayTranslateGate.Release();
+                GatewayDirectGate.Release();
             }
         }
 

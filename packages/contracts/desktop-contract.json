@@ -9,6 +9,8 @@
     "integrationStatus": "/desktop/integration/status",
     "integrationInstall": "/desktop/integration/install",
     "mtTranslate": "/mt/translate",
+    "mtTranslateAggregate": "/mt/translate-aggregate",
+    "mtTranslateAggregateResult": "/mt/translate-aggregate/result",
     "mtStoreTranslations": "/mt/store-translations"
   },
   "preview": {

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -21,6 +22,7 @@ internal static class Program
             RunPartialBatchRetryScenario();
             RunRequestTypeFallbackScenario();
             RunGatewayConcurrencyScenario();
+            RunAggregateSubmitGateScenario();
             RunGatewayTimeoutConfigurationScenario();
             Console.WriteLine("Plugin regression passed: retry and fallback scenarios behaved as expected.");
             return 0;
@@ -289,6 +291,183 @@ internal static class Program
         }
     }
 
+    private static void RunAggregateSubmitGateScenario()
+    {
+        var listener = new HttpListener();
+        var port = GetFreeTcpPort();
+        var prefix = $"http://127.0.0.1:{port}/";
+        listener.Prefixes.Add(prefix);
+        listener.Start();
+
+        var activeSubmits = 0;
+        var maxActiveSubmits = 0;
+        var activeWaits = 0;
+        var maxActiveWaits = 0;
+        var submitCount = 0;
+        var waitCount = 0;
+        var completedWaitCount = 0;
+        var resultAttempts = new ConcurrentDictionary<string, int>();
+        var serverDone = new ManualResetEventSlim(false);
+        Exception serverError = null;
+        var serverThread = new Thread(() =>
+        {
+            try
+            {
+                while (listener.IsListening)
+                {
+                    HttpListenerContext context;
+                    try
+                    {
+                        context = listener.GetContext();
+                    }
+                    catch (HttpListenerException)
+                    {
+                        return;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
+
+                    ThreadPool.QueueUserWorkItem(_ =>
+                    {
+                        try
+                        {
+                            string requestBody;
+                            using (var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding))
+                            {
+                                requestBody = reader.ReadToEnd();
+                            }
+
+                            var path = context.Request.Url.AbsolutePath;
+                            string responseBody;
+                            if (path == "/mt/translate-aggregate")
+                            {
+                                var currentActive = Interlocked.Increment(ref activeSubmits);
+                                UpdateMax(ref maxActiveSubmits, currentActive);
+                                Thread.Sleep(250);
+                                var requestId = ExtractJsonString(requestBody, "requestId");
+                                responseBody = "{\"success\":true,\"requestId\":\"" + requestId + "\",\"traceId\":\"trace\",\"jobRequestId\":\"" + requestId + "\",\"aggregationGroupId\":\"group-1\"}";
+                                Interlocked.Decrement(ref activeSubmits);
+                                Interlocked.Increment(ref submitCount);
+                            }
+                            else if (path == "/mt/translate-aggregate/result")
+                            {
+                                var currentActive = Interlocked.Increment(ref activeWaits);
+                                UpdateMax(ref maxActiveWaits, currentActive);
+                                Thread.Sleep(500);
+                                var jobRequestId = ExtractJsonString(requestBody, "jobRequestId");
+                                var attempt = resultAttempts.AddOrUpdate(jobRequestId, 1, (_, current) => current + 1);
+                                if (attempt == 1)
+                                {
+                                    responseBody = "{\"success\":false,\"pending\":true,\"requestId\":\"" + jobRequestId + "\",\"traceId\":\"trace\",\"jobRequestId\":\"" + jobRequestId + "\",\"aggregationGroupId\":\"group-1\",\"error\":{\"code\":\"TRANSLATION_PENDING\",\"message\":\"Aggregated translation is still pending.\"},\"translations\":[]}";
+                                }
+                                else
+                                {
+                                    responseBody = "{\"success\":true,\"requestId\":\"" + jobRequestId + "\",\"traceId\":\"trace\",\"jobRequestId\":\"" + jobRequestId + "\",\"aggregationGroupId\":\"group-1\",\"providerId\":\"test-provider\",\"model\":\"test-model\",\"translations\":[{\"index\":0,\"text\":\"ok 0\"},{\"index\":1,\"text\":\"ok 1\"}]}";
+                                    if (Interlocked.Increment(ref completedWaitCount) == 8)
+                                    {
+                                        serverDone.Set();
+                                    }
+                                }
+                                Interlocked.Decrement(ref activeWaits);
+                                Interlocked.Increment(ref waitCount);
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException("Unexpected aggregate gate path: " + path);
+                            }
+
+                            var payload = Encoding.UTF8.GetBytes(responseBody);
+                            context.Response.StatusCode = 200;
+                            context.Response.ContentType = "application/json";
+                            context.Response.ContentEncoding = Encoding.UTF8;
+                            context.Response.ContentLength64 = payload.Length;
+                            context.Response.OutputStream.Write(payload, 0, payload.Length);
+                            context.Response.OutputStream.Close();
+                        }
+                        catch (Exception error)
+                        {
+                            serverError = error;
+                        }
+                    });
+                }
+            }
+            catch (Exception error)
+            {
+                serverError = error;
+            }
+        });
+        serverThread.IsBackground = true;
+        serverThread.Start();
+
+        var settings = new MemoQAIHubGeneralSettings
+        {
+            EnableGateway = true,
+            GatewayBaseUrl = prefix.TrimEnd('/'),
+            GatewayTimeoutMs = 10000,
+            FormattingAndTagUsage = FormattingAndTagsUsageOption.Plaintext
+        };
+        var session = new MemoQAIHubSession(
+            "zho",
+            "eng",
+            new MemoQAIHubOptions(settings, new MemoQAIHubSecureSettings())
+        );
+        var start = new ManualResetEventSlim(false);
+        var workers = Enumerable.Range(0, 8)
+            .Select(index => new Thread(() =>
+            {
+                start.Wait();
+                var metadata = CreateMetadata(2);
+                var results = session.TranslateCorrectSegment(
+                    segs: new[]
+                    {
+                        SegmentBuilder.CreateFromString("segment " + index + ".0"),
+                        SegmentBuilder.CreateFromString("segment " + index + ".1")
+                    },
+                    tmSources: null,
+                    tmTargets: null,
+                    metadata: metadata
+                );
+                Assert(results.Length == 2, "Expected two results from aggregate gate scenario.");
+                Assert(results[0].Exception == null && results[0].Translation.PlainText == "ok 0", "Expected aggregate result 0.");
+                Assert(results[1].Exception == null && results[1].Translation.PlainText == "ok 1", "Expected aggregate result 1.");
+            }))
+            .ToArray();
+
+        try
+        {
+            foreach (var worker in workers)
+            {
+                worker.IsBackground = true;
+                worker.Start();
+            }
+
+            start.Set();
+            foreach (var worker in workers)
+            {
+                Assert(worker.Join(TimeSpan.FromSeconds(15)), "Expected aggregate gate worker to finish.");
+            }
+
+            Assert(serverDone.Wait(TimeSpan.FromSeconds(2)), "Expected test server to receive all aggregate waits.");
+            Assert(serverError == null, $"Aggregate gate server failed: {serverError}");
+            Assert(submitCount == 8, $"Expected 8 aggregate submit calls, saw {submitCount}.");
+            Assert(waitCount == 16, $"Expected 16 aggregate wait calls after pending polling, saw {waitCount}.");
+            Assert(maxActiveSubmits <= 4, $"Expected at most 4 concurrent aggregate submits, saw {maxActiveSubmits}.");
+            Assert(maxActiveWaits > 4, $"Expected result waits not to consume submit gate, saw only {maxActiveWaits} active waits.");
+        }
+        finally
+        {
+            if (listener.IsListening)
+            {
+                listener.Stop();
+            }
+
+            listener.Close();
+            serverThread.Join(TimeSpan.FromSeconds(2));
+        }
+    }
+
     private static void RunScenario(
         string scenarioName,
         MemoQAIHubGeneralSettings settings,
@@ -379,18 +558,23 @@ internal static class Program
 
     private static string ExtractRequestType(string requestBody)
     {
-        const string marker = "\"requestType\":\"";
+        return ExtractJsonString(requestBody, "requestType");
+    }
+
+    private static string ExtractJsonString(string requestBody, string propertyName)
+    {
+        var marker = "\"" + propertyName + "\":\"";
         var markerIndex = requestBody.IndexOf(marker, StringComparison.Ordinal);
         if (markerIndex < 0)
         {
-            throw new InvalidOperationException("requestType missing from request body.");
+            throw new InvalidOperationException(propertyName + " missing from request body.");
         }
 
         var startIndex = markerIndex + marker.Length;
         var endIndex = requestBody.IndexOf('"', startIndex);
         if (endIndex < 0)
         {
-            throw new InvalidOperationException("requestType terminator missing from request body.");
+            throw new InvalidOperationException(propertyName + " terminator missing from request body.");
         }
 
         return requestBody.Substring(startIndex, endIndex - startIndex);
@@ -432,6 +616,28 @@ internal static class Program
         builder.AppendSegment(SegmentBuilder.CreateFromString(text));
         builder.AppendInlineTag(new InlineTag(InlineTagTypes.Empty, "ph", null));
         return builder.ToSegment();
+    }
+
+    private static MTRequestMetadata CreateMetadata(int segmentCount)
+    {
+        var metadata = new MTRequestMetadata
+        {
+            DocumentID = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            ProjectGuid = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            SegmentLevelMetadata = new List<SegmentMetadata>()
+        };
+
+        for (var index = 0; index < segmentCount; index += 1)
+        {
+            metadata.SegmentLevelMetadata.Add(new SegmentMetadata
+            {
+                SegmentID = Guid.NewGuid(),
+                SegmentIndex = index,
+                SegmentStatus = 0
+            });
+        }
+
+        return metadata;
     }
 
     private static int CountInlineTags(Segment segment)
