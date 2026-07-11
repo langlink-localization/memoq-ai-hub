@@ -115,7 +115,8 @@ pnpm run package:windows
 Typical outputs include:
 
 - `native/plugin/MemoQ.AI.Desktop.Plugin/bin/Release/net48/MemoQ.AI.Hub.Plugin.dll`
-- `apps/desktop/out/*.zip`
+- `apps/desktop/out/memoq-ai-hub-win32-x64.7z` (smallest portable archive)
+- `apps/desktop/out/memoq-ai-hub-win32-x64.zip` (compatibility archive)
 - `apps/desktop/out/make/**/*.exe`
 
 ## Documentation

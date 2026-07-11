@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const asar = require('@electron/asar');
 
@@ -35,7 +36,7 @@ test('packaged desktop bundle stores the shipped desktop version inside app.asar
 
 test('packaged desktop bundle includes transitive runtime dependencies required by the background worker', {
   skip: !packagedAppDir
-}, () => {
+}, async () => {
   assert.equal(fs.existsSync(packagedAsarPath), true, `Expected packaged app.asar at ${packagedAsarPath}`);
 
   const archivedFiles = new Set(asar.listPackage(packagedAsarPath));
@@ -44,4 +45,38 @@ test('packaged desktop bundle includes transitive runtime dependencies required 
     true,
     'Expected packaged runtime dependency "\\node_modules\\mime-db\\package.json" inside app.asar'
   );
+  const extractedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'memoq-packaged-runtime-'));
+  try {
+    asar.extractAll(packagedAsarPath, extractedRoot);
+    const packagedRequire = (packageName) => require(path.join(extractedRoot, 'node_modules', packageName));
+
+    const XLSX = packagedRequire('xlsx');
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['source', 'target'], ['Hello', 'Bonjour']]), 'Terms');
+    const workbookBytes = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    assert.ok(workbookBytes.length > 0);
+
+    const { XMLParser } = packagedRequire('fast-xml-parser');
+    assert.equal(new XMLParser().parse('<root><value>ok</value></root>').root.value, 'ok');
+
+    const OpenAI = packagedRequire('openai');
+    assert.equal(typeof OpenAI, 'function');
+
+    const initSqlJs = packagedRequire('sql.js');
+    const SQL = await initSqlJs({
+      locateFile: () => path.join(packagedAppDir, 'resources', 'sql-wasm.wasm')
+    });
+    const database = new SQL.Database();
+    database.run('CREATE TABLE smoke (value TEXT);');
+    database.run('INSERT INTO smoke VALUES (?);', ['ok']);
+    assert.equal(database.exec('SELECT value FROM smoke;')[0].values[0][0], 'ok');
+    database.close();
+
+    assert.equal(archivedFiles.has('\\node_modules\\sql.js\\dist\\sql-asm-debug.js'), false);
+    assert.equal(archivedFiles.has('\\node_modules\\openai\\src\\index.ts'), false);
+    assert.equal(archivedFiles.has('\\node_modules\\xlsx\\dist\\xlsx.full.min.js'), false);
+    assert.equal(archivedFiles.has('\\node_modules\\codepage\\package.json'), false);
+  } finally {
+    fs.rmSync(extractedRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
 });

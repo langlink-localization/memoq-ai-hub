@@ -115,7 +115,8 @@ pnpm run package:windows
 常见产物包括：
 
 - `native/plugin/MemoQ.AI.Desktop.Plugin/bin/Release/net48/MemoQ.AI.Hub.Plugin.dll`
-- `apps/desktop/out/*.zip`
+- `apps/desktop/out/memoq-ai-hub-win32-x64.7z`（体积最小的便携归档）
+- `apps/desktop/out/memoq-ai-hub-win32-x64.zip`（兼容归档）
 - `apps/desktop/out/make/**/*.exe`
 
 ## 相关文档

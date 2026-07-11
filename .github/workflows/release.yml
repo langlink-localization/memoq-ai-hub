@@ -59,13 +59,19 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ steps.release_meta.outputs.tag }}"
-          # Release zips are produced under apps/desktop/out/**/*.zip; the stable zip name below is the public asset contract.
+          # Release zips are produced under apps/desktop/out/**/*.zip; the ZIP remains the compatibility contract.
+          # The 7z is the compact portable alternative advertised by the manifest.
           $zipPath = "apps/desktop/out/memoq-ai-hub-win32-x64.zip"
+          $compactPath = "apps/desktop/out/memoq-ai-hub-win32-x64.7z"
           $manifestPath = "apps/desktop/out/memoq-ai-hub-updates-stable.json"
           $notesPath = "docs/release-notes/$tag.md"
 
           if (-not (Test-Path $zipPath)) {
             throw "Release zip not found at $zipPath"
+          }
+
+          if (-not (Test-Path $compactPath)) {
+            throw "Compact release archive not found at $compactPath"
           }
 
           if (-not (Test-Path $manifestPath)) {
@@ -80,7 +86,7 @@ jobs:
 
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag $zipPath $manifestPath --clobber
+            gh release upload $tag $zipPath $compactPath $manifestPath --clobber
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to upload release assets for $tag"
             }
@@ -90,7 +96,7 @@ jobs:
               throw "Failed to update release notes for $tag"
             }
           } else {
-            gh release create $tag $zipPath $manifestPath --title $releaseTitle --notes-file $notesPath
+            gh release create $tag $zipPath $compactPath $manifestPath --title $releaseTitle --notes-file $notesPath
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to create release $tag"
             }

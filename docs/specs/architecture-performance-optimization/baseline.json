@@ -1,0 +1,210 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-07-11T04:00:23.159Z",
+  "environment": {
+    "node": "v22.19.0",
+    "platform": "win32",
+    "arch": "x64",
+    "cpus": [
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H"
+    ],
+    "totalMemoryBytes": 33820106752
+  },
+  "protocol": {
+    "runtimeSamples": 7,
+    "runtimeIsolation": "fresh child process per sample",
+    "externalProviderCalls": false,
+    "packageAcceptanceSurface": "release ZIP produced by pnpm run zip:desktop"
+  },
+  "runtime": {
+    "sampleCount": 7,
+    "samples": [
+      {
+        "runtimeLoadMs": 235.1814,
+        "runtimeInitializationMs": 82.2599,
+        "runtimeStartupMs": 317.4413,
+        "rssBeforeLoadBytes": 33087488,
+        "rssAfterInitializationBytes": 98676736,
+        "runtimeRssDeltaBytes": 65589248,
+        "heapAfterInitializationBytes": 23918768,
+        "loadedModuleCount": 198
+      },
+      {
+        "runtimeLoadMs": 215.3578,
+        "runtimeInitializationMs": 75.309,
+        "runtimeStartupMs": 290.66679999999997,
+        "rssBeforeLoadBytes": 33202176,
+        "rssAfterInitializationBytes": 98947072,
+        "runtimeRssDeltaBytes": 65744896,
+        "heapAfterInitializationBytes": 23888480,
+        "loadedModuleCount": 198
+      },
+      {
+        "runtimeLoadMs": 220.837,
+        "runtimeInitializationMs": 83.2191,
+        "runtimeStartupMs": 304.0561,
+        "rssBeforeLoadBytes": 33411072,
+        "rssAfterInitializationBytes": 95698944,
+        "runtimeRssDeltaBytes": 62287872,
+        "heapAfterInitializationBytes": 23912616,
+        "loadedModuleCount": 198
+      },
+      {
+        "runtimeLoadMs": 233.5739,
+        "runtimeInitializationMs": 75.4056,
+        "runtimeStartupMs": 308.97950000000003,
+        "rssBeforeLoadBytes": 33538048,
+        "rssAfterInitializationBytes": 96509952,
+        "runtimeRssDeltaBytes": 62971904,
+        "heapAfterInitializationBytes": 23899728,
+        "loadedModuleCount": 198
+      },
+      {
+        "runtimeLoadMs": 213.4672,
+        "runtimeInitializationMs": 82.2809,
+        "runtimeStartupMs": 295.7481,
+        "rssBeforeLoadBytes": 33419264,
+        "rssAfterInitializationBytes": 98885632,
+        "runtimeRssDeltaBytes": 65466368,
+        "heapAfterInitializationBytes": 23881152,
+        "loadedModuleCount": 198
+      },
+      {
+        "runtimeLoadMs": 202.5314,
+        "runtimeInitializationMs": 84.2586,
+        "runtimeStartupMs": 286.78999999999996,
+        "rssBeforeLoadBytes": 33390592,
+        "rssAfterInitializationBytes": 101265408,
+        "runtimeRssDeltaBytes": 67874816,
+        "heapAfterInitializationBytes": 23294200,
+        "loadedModuleCount": 198
+      },
+      {
+        "runtimeLoadMs": 220.056,
+        "runtimeInitializationMs": 90.3884,
+        "runtimeStartupMs": 310.44440000000003,
+        "rssBeforeLoadBytes": 33394688,
+        "rssAfterInitializationBytes": 98500608,
+        "runtimeRssDeltaBytes": 65105920,
+        "heapAfterInitializationBytes": 23889368,
+        "loadedModuleCount": 198
+      }
+    ],
+    "medians": {
+      "runtimeLoadMs": 220.056,
+      "runtimeInitializationMs": 82.2809,
+      "runtimeStartupMs": 304.0561,
+      "runtimeRssDeltaBytes": 65466368,
+      "rssAfterInitializationBytes": 98676736,
+      "heapAfterInitializationBytes": 23889368,
+      "loadedModuleCount": 198
+    }
+  },
+  "package": {
+    "path": "apps/desktop/out/memoQ AI Hub-win32-x64",
+    "exists": true,
+    "fileCount": 25,
+    "totalBytes": 284236687,
+    "largestFiles": [
+      {
+        "path": "memoQ AI Hub.exe",
+        "bytes": 177038848
+      },
+      {
+        "path": "resources/app.asar",
+        "bytes": 54034833
+      },
+      {
+        "path": "icudtl.dat",
+        "bytes": 10717680
+      },
+      {
+        "path": "LICENSES.chromium.html",
+        "bytes": 10272193
+      },
+      {
+        "path": "libGLESv2.dll",
+        "bytes": 7960064
+      },
+      {
+        "path": "vk_swiftshader.dll",
+        "bytes": 5372928
+      },
+      {
+        "path": "resources.pak",
+        "bytes": 5350667
+      },
+      {
+        "path": "d3dcompiler_47.dll",
+        "bytes": 4916728
+      },
+      {
+        "path": "ffmpeg.dll",
+        "bytes": 2692608
+      },
+      {
+        "path": "resources/MemoQ.AI.Hub.Plugin.dll",
+        "bytes": 1493504
+      },
+      {
+        "path": "vulkan-1.dll",
+        "bytes": 957440
+      },
+      {
+        "path": "resources/sql-wasm.wasm",
+        "bytes": 659730
+      },
+      {
+        "path": "v8_context_snapshot.bin",
+        "bytes": 656953
+      },
+      {
+        "path": "libEGL.dll",
+        "bytes": 480768
+      },
+      {
+        "path": "locales/zh-CN.pak",
+        "bytes": 460963
+      }
+    ],
+    "asarBytes": 54034833,
+    "releaseArchive": {
+      "path": "apps/desktop/out/memoq-ai-hub-win32-x64.zip",
+      "exists": true,
+      "bytes": 112306357
+    }
+  },
+  "renderer": {
+    "path": "apps/desktop/.vite/renderer/main_window",
+    "exists": true,
+    "fileCount": 3,
+    "totalBytes": 1265084,
+    "largestFiles": [
+      {
+        "path": "assets/index-_8uDna2F.js",
+        "bytes": 1244433
+      },
+      {
+        "path": "assets/index-CCeclqVS.css",
+        "bytes": 20249
+      },
+      {
+        "path": "index.html",
+        "bytes": 402
+      }
+    ]
+  }
+}

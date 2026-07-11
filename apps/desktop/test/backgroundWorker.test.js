@@ -7,6 +7,8 @@ const path = require('path');
 const { fork } = require('child_process');
 const { spawnSync } = require('child_process');
 const { createRuntime } = require('../src/runtime/runtime');
+const desktopPackageVersion = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')).version;
+const newerDesktopPackageVersion = desktopPackageVersion.replace(/(\d+)$/, (patch) => String(Number(patch) + 1));
 
 function createTempAppRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'memoq-ai-hub-worker-'));
@@ -584,7 +586,7 @@ test('background worker runtime harness exposes portable update metadata without
           status: 200,
           async json() {
             return {
-              version: '1.0.23',
+              version: newerDesktopPackageVersion,
               releaseNotesUrl,
               assets: {
                 portable: {
@@ -609,7 +611,7 @@ test('background worker runtime harness exposes portable update metadata without
 
   const available = await runtime.checkForUpdates({ manual: true });
 
-  assert.equal(runtime.getUpdateStatus().latestVersion, '1.0.23');
+  assert.equal(runtime.getUpdateStatus().latestVersion, newerDesktopPackageVersion);
   assert.equal(available.updateStatus, 'available');
   assert.equal(available.portableDownloadUrl, releaseNotesUrl);
   await assert.rejects(() => runtime.downloadPortableUpdate(), /browser download page/i);

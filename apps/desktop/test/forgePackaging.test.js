@@ -32,3 +32,23 @@ test('forge packaging resolves hoisted ESM-only package roots without a CommonJS
 
   assert.equal(packageJson.name, 'xml-naming');
 });
+
+test('forge packaging treats bundled parser entrypoints as self-contained', () => {
+  const xlsxDir = forgeConfig.__testables.resolvePackageDirectory('xlsx');
+  const parserDir = forgeConfig.__testables.resolvePackageDirectory('fast-xml-parser');
+
+  assert.deepEqual(forgeConfig.__testables.getPackageDependencyNames(xlsxDir), []);
+  assert.deepEqual(forgeConfig.__testables.getPackageDependencyNames(parserDir), []);
+});
+
+test('forge packaging keeps only runtime files for heavyweight dependencies', () => {
+  const shouldCopy = forgeConfig.__testables.shouldCopyRuntimePackagePath;
+
+  assert.equal(shouldCopy('sql.js', 'dist/sql-wasm.js'), true);
+  assert.equal(shouldCopy('sql.js', 'dist/sql-asm-debug.js'), false);
+  assert.equal(shouldCopy('xlsx', 'xlsx.js'), true);
+  assert.equal(shouldCopy('xlsx', 'dist/xlsx.full.min.js'), false);
+  assert.equal(shouldCopy('openai', 'resources/responses/responses.js'), true);
+  assert.equal(shouldCopy('openai', 'resources/responses/responses.d.ts'), false);
+  assert.equal(shouldCopy('openai', 'src/resources/responses/responses.ts'), false);
+});

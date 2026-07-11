@@ -1,5 +1,4 @@
 const crypto = require('crypto');
-const OpenAI = require('openai');
 const {
   SUPPORTED_REQUEST_PATHS,
   buildProviderRequestUrl,
@@ -69,7 +68,7 @@ const DEFAULT_PROFILE_SYSTEM_PROMPT = 'You are a precise translation assistant.'
 
 async function loadSdkModules() {
   return {
-    OpenAI
+    OpenAI: require('openai')
   };
 }
 

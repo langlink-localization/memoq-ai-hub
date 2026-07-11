@@ -77,8 +77,10 @@ const {
   validateAssetImport
 } = require(assetContextModulePath);
 
-Module._load = originalLoad;
-delete require.cache[assetContextModulePath];
+test.after(() => {
+  Module._load = originalLoad;
+  delete require.cache[assetContextModulePath];
+});
 
 function createTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'memoq-ai-hub-assets-'));

@@ -11,6 +11,7 @@
     "prepare:release": "powershell -ExecutionPolicy Bypass -File .\\tooling\\build\\prepare-desktop-release.ps1 -Configuration Release",
     "test:repo": "node --test tests/repo/*.test.mjs",
     "test:desktop": "pnpm --dir apps/desktop run test",
+    "benchmark:desktop": "node tooling/scripts/benchmark-desktop.mjs",
     "package:desktop": "pnpm --dir apps/desktop run package",
     "zip:desktop": "pnpm --dir apps/desktop run zip:win-unpacked",
     "package:windows": "powershell -ExecutionPolicy Bypass -File .\\tooling\\scripts\\package-windows.ps1 -Configuration Release"

@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-07-11T05:49:31.942Z",
+  "environment": {
+    "node": "v22.19.0",
+    "platform": "win32",
+    "arch": "x64",
+    "cpus": [
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H",
+      "Intel(R) Core(TM) Ultra 5 225H"
+    ],
+    "totalMemoryBytes": 33820106752
+  },
+  "protocol": {
+    "runtimeSamples": 7,
+    "runtimeIsolation": "fresh child process per sample",
+    "externalProviderCalls": false,
+    "packageAcceptanceSurface": "smallest complete portable archive produced by pnpm run zip:desktop"
+  },
+  "runtime": {
+    "sampleCount": 7,
+    "samples": [
+      {
+        "runtimeLoadMs": 49.3191,
+        "runtimeInitializationMs": 79.6407,
+        "runtimeStartupMs": 128.9598,
+        "rssBeforeLoadBytes": 36950016,
+        "rssAfterInitializationBytes": 65667072,
+        "runtimeRssDeltaBytes": 28717056,
+        "heapAfterInitializationBytes": 7785800,
+        "loadedModuleCount": 44
+      },
+      {
+        "runtimeLoadMs": 49.7381,
+        "runtimeInitializationMs": 81.4185,
+        "runtimeStartupMs": 131.1566,
+        "rssBeforeLoadBytes": 37019648,
+        "rssAfterInitializationBytes": 71204864,
+        "runtimeRssDeltaBytes": 34185216,
+        "heapAfterInitializationBytes": 7813984,
+        "loadedModuleCount": 44
+      },
+      {
+        "runtimeLoadMs": 45.5455,
+        "runtimeInitializationMs": 76.565,
+        "runtimeStartupMs": 122.1105,
+        "rssBeforeLoadBytes": 36945920,
+        "rssAfterInitializationBytes": 67665920,
+        "runtimeRssDeltaBytes": 30720000,
+        "heapAfterInitializationBytes": 7807608,
+        "loadedModuleCount": 44
+      },
+      {
+        "runtimeLoadMs": 51.8883,
+        "runtimeInitializationMs": 73.7352,
+        "runtimeStartupMs": 125.6235,
+        "rssBeforeLoadBytes": 36958208,
+        "rssAfterInitializationBytes": 68968448,
+        "runtimeRssDeltaBytes": 32010240,
+        "heapAfterInitializationBytes": 7783776,
+        "loadedModuleCount": 44
+      },
+      {
+        "runtimeLoadMs": 46.7367,
+        "runtimeInitializationMs": 88.3608,
+        "runtimeStartupMs": 135.0975,
+        "rssBeforeLoadBytes": 36966400,
+        "rssAfterInitializationBytes": 71200768,
+        "runtimeRssDeltaBytes": 34234368,
+        "heapAfterInitializationBytes": 7737256,
+        "loadedModuleCount": 44
+      },
+      {
+        "runtimeLoadMs": 52.4163,
+        "runtimeInitializationMs": 75.9242,
+        "runtimeStartupMs": 128.3405,
+        "rssBeforeLoadBytes": 36925440,
+        "rssAfterInitializationBytes": 69980160,
+        "runtimeRssDeltaBytes": 33054720,
+        "heapAfterInitializationBytes": 7734808,
+        "loadedModuleCount": 44
+      },
+      {
+        "runtimeLoadMs": 47.3323,
+        "runtimeInitializationMs": 84.6706,
+        "runtimeStartupMs": 132.00289999999998,
+        "rssBeforeLoadBytes": 36978688,
+        "rssAfterInitializationBytes": 70602752,
+        "runtimeRssDeltaBytes": 33624064,
+        "heapAfterInitializationBytes": 7855872,
+        "loadedModuleCount": 44
+      }
+    ],
+    "medians": {
+      "runtimeLoadMs": 49.3191,
+      "runtimeInitializationMs": 79.6407,
+      "runtimeStartupMs": 128.9598,
+      "runtimeRssDeltaBytes": 33054720,
+      "rssAfterInitializationBytes": 69980160,
+      "heapAfterInitializationBytes": 7785800,
+      "loadedModuleCount": 44
+    }
+  },
+  "package": {
+    "path": "apps/desktop/out/memoQ AI Hub-win32-x64",
+    "exists": true,
+    "fileCount": 25,
+    "totalBytes": 239057696,
+    "largestFiles": [
+      {
+        "path": "memoQ AI Hub.exe",
+        "bytes": 177038848
+      },
+      {
+        "path": "icudtl.dat",
+        "bytes": 10717680
+      },
+      {
+        "path": "LICENSES.chromium.html",
+        "bytes": 10272193
+      },
+      {
+        "path": "resources/app.asar",
+        "bytes": 8855842
+      },
+      {
+        "path": "libGLESv2.dll",
+        "bytes": 7960064
+      },
+      {
+        "path": "vk_swiftshader.dll",
+        "bytes": 5372928
+      },
+      {
+        "path": "resources.pak",
+        "bytes": 5350667
+      },
+      {
+        "path": "d3dcompiler_47.dll",
+        "bytes": 4916728
+      },
+      {
+        "path": "ffmpeg.dll",
+        "bytes": 2692608
+      },
+      {
+        "path": "resources/MemoQ.AI.Hub.Plugin.dll",
+        "bytes": 1493504
+      },
+      {
+        "path": "vulkan-1.dll",
+        "bytes": 957440
+      },
+      {
+        "path": "resources/sql-wasm.wasm",
+        "bytes": 659730
+      },
+      {
+        "path": "v8_context_snapshot.bin",
+        "bytes": 656953
+      },
+      {
+        "path": "libEGL.dll",
+        "bytes": 480768
+      },
+      {
+        "path": "locales/zh-CN.pak",
+        "bytes": 460963
+      }
+    ],
+    "asarBytes": 8855842,
+    "releaseArchive": {
+      "path": "apps/desktop/out/memoq-ai-hub-win32-x64.7z",
+      "exists": true,
+      "bytes": 74928592
+    }
+  },
+  "renderer": {
+    "path": "apps/desktop/.vite/renderer/main_window",
+    "exists": true,
+    "fileCount": 9,
+    "totalBytes": 1268663,
+    "largestFiles": [
+      {
+        "path": "assets/index-DZWMFzaN.js",
+        "bytes": 1178626
+      },
+      {
+        "path": "assets/index-CCeclqVS.css",
+        "bytes": 20249
+      },
+      {
+        "path": "assets/BuilderPage-LtlOJyCR.js",
+        "bytes": 19512
+      },
+      {
+        "path": "assets/ProvidersPage-CPbZc05Q.js",
+        "bytes": 17191
+      },
+      {
+        "path": "assets/AssetsPage-LZZ-OvIr.js",
+        "bytes": 15394
+      },
+      {
+        "path": "assets/CollapsibleSidePanel-DYW6MRbH.js",
+        "bytes": 10915
+      },
+      {
+        "path": "assets/LogsPage-BYWcZ_M1.js",
+        "bytes": 5590
+      },
+      {
+        "path": "assets/PlusOutlined-CGYJlpQJ.js",
+        "bytes": 784
+      },
+      {
+        "path": "index.html",
+        "bytes": 402
+      }
+    ]
+  }
+}

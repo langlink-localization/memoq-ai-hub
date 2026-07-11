@@ -1,7 +1,6 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const XLSX = require('xlsx');
 const {
   buildAssetContext,
   buildAssetPreview,
@@ -4204,6 +4203,7 @@ async function createRuntime(options = {}) {
       };
     },
     exportHistory(options = {}) {
+      const XLSX = require('xlsx');
       const entriesSource = loadHistoryEntries();
       const entries = options.scope === 'selected'
         ? entriesSource.filter((item) => (options.selectedIds || []).includes(item.id))

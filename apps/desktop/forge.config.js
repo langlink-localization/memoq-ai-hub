@@ -29,6 +29,12 @@ const builtinModuleSet = new Set([
   ...builtinModules.map((moduleName) => `node:${moduleName}`)
 ]);
 const packageRequirePattern = /require\((['"])([^'"]+)\1\)/g;
+const selfContainedRuntimePackages = new Set(['fast-xml-parser', 'xlsx']);
+const packageRuntimeFileAllowLists = new Map([
+  ['fast-xml-parser', new Set(['LICENSE', 'package.json', 'lib/fxp.cjs'])],
+  ['sql.js', new Set(['LICENSE', 'package.json', 'dist/sql-wasm.js'])],
+  ['xlsx', new Set(['LICENSE', 'package.json', 'xlsx.js', 'dist/cpexcel.js'])]
+]);
 
 function readPackageJson(packageDir) {
   return JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'));
@@ -155,6 +161,9 @@ function resolvePackageDirectory(packageName) {
 
 function getPackageDependencyNames(packageDir) {
   const packageJson = readPackageJson(packageDir);
+  if (selfContainedRuntimePackages.has(packageJson.name)) {
+    return [];
+  }
   return Object.keys({
     ...(packageJson.dependencies || {}),
     ...(packageJson.optionalDependencies || {})
@@ -189,7 +198,28 @@ function collectRuntimePackageNames(buildPath) {
   return Array.from(collectedPackages).sort();
 }
 
-function copyPackageDirectory(sourceDir, targetDir) {
+function shouldCopyRuntimePackagePath(packageName, relativePath, isDirectory = false) {
+  if (!relativePath || isDirectory) {
+    return true;
+  }
+
+  const normalizedPath = relativePath.split(path.sep).join('/');
+  const allowList = packageRuntimeFileAllowLists.get(packageName);
+  if (allowList) {
+    return allowList.has(normalizedPath);
+  }
+
+  if (packageName === 'openai') {
+    return normalizedPath === 'LICENSE'
+      || normalizedPath === 'package.json'
+      || normalizedPath.endsWith('.js');
+  }
+
+  const segments = normalizedPath.split('/');
+  return !segments.includes('.bin') && !segments.includes('.vite-temp');
+}
+
+function copyPackageDirectory(packageName, sourceDir, targetDir) {
   fs.cpSync(sourceDir, targetDir, {
     recursive: true,
     dereference: true,
@@ -199,9 +229,7 @@ function copyPackageDirectory(sourceDir, targetDir) {
       if (!relativePath) {
         return true;
       }
-
-      const segments = relativePath.split(path.sep);
-      return !segments.includes('.bin') && !segments.includes('.vite-temp');
+      return shouldCopyRuntimePackagePath(packageName, relativePath, fs.statSync(source).isDirectory());
     }
   });
 }
@@ -221,7 +249,7 @@ function copyRuntimeNodeModules(buildPath) {
     const sourcePackageDir = resolvePackageDirectory(packageName);
     const targetPackageDir = path.join(targetNodeModulesPath, packageName);
     fs.mkdirSync(path.dirname(targetPackageDir), { recursive: true });
-    copyPackageDirectory(sourcePackageDir, targetPackageDir);
+    copyPackageDirectory(packageName, sourcePackageDir, targetPackageDir);
   }
 }
 
@@ -383,6 +411,7 @@ module.exports = {
     findRuntimePackageNames,
     getPackageDependencyNames,
     normalizePackageName,
-    resolvePackageDirectory
+    resolvePackageDirectory,
+    shouldCopyRuntimePackagePath
   }
 };

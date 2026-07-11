@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 export const DEFAULT_RELEASE_REPOSITORY = 'langlink-localization/memoq-ai-hub';
 export const STABLE_UPDATE_MANIFEST_NAME = 'memoq-ai-hub-updates-stable.json';
 export const PORTABLE_WINDOWS_ARTIFACT_NAME = 'memoq-ai-hub-win32-x64.zip';
+export const COMPACT_PORTABLE_WINDOWS_ARTIFACT_NAME = 'memoq-ai-hub-win32-x64.7z';
 
 function getRepoRoot() {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -96,6 +97,10 @@ export function buildStableUpdateManifest({
       portable: {
         name: PORTABLE_WINDOWS_ARTIFACT_NAME,
         url: `${downloadBaseUrl}/${PORTABLE_WINDOWS_ARTIFACT_NAME}`
+      },
+      portableCompact: {
+        name: COMPACT_PORTABLE_WINDOWS_ARTIFACT_NAME,
+        url: `${downloadBaseUrl}/${COMPACT_PORTABLE_WINDOWS_ARTIFACT_NAME}`
       }
     }
   };

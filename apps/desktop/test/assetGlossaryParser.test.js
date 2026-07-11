@@ -145,8 +145,10 @@ const {
   matchCustomTmEntries
 } = require('../src/asset/assetTmMatcher');
 
-Module._load = originalLoad;
-delete require.cache[parserModulePath];
+test.after(() => {
+  Module._load = originalLoad;
+  delete require.cache[parserModulePath];
+});
 
 function createTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'memoq-ai-hub-asset-parser-'));

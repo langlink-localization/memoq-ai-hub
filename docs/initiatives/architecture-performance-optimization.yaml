@@ -1,0 +1,29 @@
+id: architecture-performance-optimization
+title: memoQ AI Hub architecture and performance optimization
+status: shipped
+owner: repository maintainers
+repos:
+  - path: ../..
+    role: source-of-truth
+source_plan: docs/specs/architecture-performance-optimization/spec.md
+spec_link: docs/specs/architecture-performance-optimization/spec.md
+verification_link: docs/specs/architecture-performance-optimization/verification.md
+github_links:
+  project: pending
+  issues: []
+current_stage: complete
+last_verified_commit: "v1.0.23 release candidate verified on codex/architecture-performance-optimization at 2026-07-11"
+next_action: none
+allowed_interruptions:
+  - emergency production fix
+  - security or data correctness issue
+drift_guard:
+  ui_contract: docs/ui-governance.md
+  toolchain_contract: package.json and .github/workflows/ci.yml
+  validation_command: pnpm run test:desktop && pnpm run test:repo && pnpm run package:desktop && pnpm run zip:desktop && pnpm run benchmark:desktop
+  source_of_truth: repository branch, benchmark artifacts, and GitHub CI when a pull request is authorized
+intentional_divergences: []
+resume_prompt: >
+  This initiative is complete. For later runtime, packaging, or renderer work, read
+  the linked specification and preserve its benchmark protocol, package compatibility,
+  and no-regression gates before changing these boundaries.

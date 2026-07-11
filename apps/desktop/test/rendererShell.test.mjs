@@ -48,6 +48,17 @@ test('app sections expose assets and logs as first-class top-level modules', () 
   );
 });
 
+test('feature pages load behind explicit renderer boundaries', () => {
+  const appSource = readRendererSource('App.jsx');
+
+  assert.match(appSource, /import \{ lazy, Suspense,/);
+  assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/providers\/ProvidersPage\.jsx'\)\)/);
+  assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/builder\/BuilderPage\.jsx'\)\)/);
+  assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/assets\/AssetsPage\.jsx'\)\)/);
+  assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/logs\/LogsPage\.jsx'\)\)/);
+  assert.match(appSource, /<Suspense fallback=\{<Spin/);
+});
+
 test('Chinese locale is independent and matches English locale keys', () => {
   assert.notEqual(zhCN, en);
   assert.deepEqual(

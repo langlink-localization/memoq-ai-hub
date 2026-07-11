@@ -1,8 +1,6 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { XMLParser } = require('fast-xml-parser');
-const XLSX = require('xlsx');
 
 const {
   ASSET_PURPOSES,
@@ -177,6 +175,7 @@ function collectRawTableRowsFromText(text, extension = '') {
 function collectRawTableRowsFromAsset(asset) {
   const extension = path.extname(String(asset?.fileName || asset?.name || '')).trim().toLowerCase();
   if (extension === '.xlsx') {
+    const XLSX = require('xlsx');
     const workbook = XLSX.readFile(asset.storedPath, { dense: true });
     const rows = [];
     for (const sheetName of workbook.SheetNames) {
@@ -469,6 +468,7 @@ function parsePlainGlossary(text, options = {}) {
 }
 
 function parseWorkbookRows(filePath, options = {}) {
+  const XLSX = require('xlsx');
   const workbook = XLSX.readFile(filePath, { dense: true });
   const entries = [];
   const warnings = [];
@@ -493,6 +493,7 @@ function parseWorkbookRows(filePath, options = {}) {
 }
 
 function readXmlParser() {
+  const { XMLParser } = require('fast-xml-parser');
   return new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '@_',

@@ -166,9 +166,14 @@ if ($LASTEXITCODE -ne 0) {
 $unpackedAppDir = @(Get-UnpackedAppDir)
 $portableExe = @(Get-ArtifactFiles "*.exe" | Where-Object { $_.DirectoryName -like "*win32-x64*" -and $_.Name -notlike "*Setup*.exe" } | Select-Object -First 1)
 $expectedZipPath = Join-Path $desktopOutDir "memoq-ai-hub-win32-x64.zip"
+$expectedCompactPath = Join-Path $desktopOutDir "memoq-ai-hub-win32-x64.7z"
 $zipFiles = @()
 if (Test-Path $expectedZipPath) {
     $zipFiles = @((Get-Item $expectedZipPath))
+}
+$compactFiles = @()
+if (Test-Path $expectedCompactPath) {
+    $compactFiles = @((Get-Item $expectedCompactPath))
 }
 
 if (-not $unpackedAppDir) {
@@ -181,6 +186,10 @@ if (-not $portableExe) {
 
 if (-not $zipFiles.Count) {
     throw "ZIP artifact was not produced at $expectedZipPath."
+}
+
+if (-not $compactFiles.Count) {
+    throw "Compact 7z artifact was not produced at $expectedCompactPath."
 }
 
 if (-not (Test-Path $updateManifestPath)) {
@@ -212,4 +221,8 @@ Write-Host "Manifest    : $updateManifestPath"
 Write-Host "ZIP files   :"
 foreach ($zipFile in $zipFiles) {
     Write-Host "  - $($zipFile.FullName)"
+}
+Write-Host "Compact files:"
+foreach ($compactFile in $compactFiles) {
+    Write-Host "  - $($compactFile.FullName)"
 }

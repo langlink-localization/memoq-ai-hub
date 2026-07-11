@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppstoreOutlined,
   CloudServerOutlined,
@@ -64,16 +64,12 @@ import {
   parseDateInputToEpochMs
 } from './timeFormatting.mjs';
 import { useI18n } from './i18n';
-import { ProvidersPage } from './pages/providers';
 import {
   CONNECTION_INVALIDATING_PROVIDER_FIELDS,
   DEFAULT_PROVIDER_TEST_STATE,
   decorateProvidersWithConnectionStatus,
   normalizeProviderStatus
 } from './pages/providers/providerConnectionState.mjs';
-import { BuilderPage } from './pages/builder';
-import AssetsPage from './pages/assets/AssetsPage.jsx';
-import { LogsPage } from './pages/logs';
 import {
   activateOnKeyboard,
   buildDashboardChecklist,
@@ -84,6 +80,11 @@ import {
   updatePageScrollPosition,
   writeShellState
 } from './uiBehavior.mjs';
+
+const ProvidersPage = lazy(() => import('./pages/providers/ProvidersPage.jsx'));
+const BuilderPage = lazy(() => import('./pages/builder/BuilderPage.jsx'));
+const AssetsPage = lazy(() => import('./pages/assets/AssetsPage.jsx'));
+const LogsPage = lazy(() => import('./pages/logs/LogsPage.jsx'));
 
 const { Content, Header, Sider } = Layout;
 const { Text, Title } = Typography;
@@ -3328,6 +3329,7 @@ export default function App() {
         <Content className="content-wrap">
           {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
 
+          <Suspense fallback={<Spin size="large" style={{ display: 'block', margin: '48px auto' }} />}>
           {activePage === 'dashboard' && (
             <Space direction="vertical" size={18} style={{ display: 'flex' }}>
               <Card
@@ -3947,6 +3949,7 @@ export default function App() {
               </Card>
             </Space>
           )}
+          </Suspense>
         </Content>
       </Layout>
 

@@ -47,11 +47,21 @@ function withMockedModules(mockedModules, callback) {
     return originalLoad.call(this, request, parent, isMain);
   };
 
-  try {
-    return callback(require(providerRegistryModulePath));
-  } finally {
+  const restore = () => {
     Module._load = originalLoad;
     delete require.cache[providerRegistryModulePath];
+  };
+
+  try {
+    const result = callback(require(providerRegistryModulePath));
+    if (result && typeof result.then === 'function') {
+      return result.finally(restore);
+    }
+    restore();
+    return result;
+  } catch (error) {
+    restore();
+    throw error;
   }
 }
 
