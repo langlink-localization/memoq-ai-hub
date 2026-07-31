@@ -43,11 +43,11 @@ function normalizeArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-export function buildDefaultPresetProfile() {
+export function buildDefaultPresetProfile(copy = {}) {
   return {
-    name: 'Default Translation Ops',
-    description: 'Preset profile with TB, memoQ TM hints, summary, and preview context enabled.',
-    translationStyle: 'Prefer natural, concise, production-ready translations that stay consistent with product terminology.',
+    name: copy.name || 'Default Translation Ops',
+    description: copy.description || 'Preset profile with TB, memoQ TM hints, summary, and preview context enabled.',
+    translationStyle: copy.translationStyle || 'Prefer natural, concise, production-ready translations that stay consistent with product terminology.',
     profilePresetId: 'default-translation-ops',
     isPresetDerived: true,
     useBestFuzzyTm: true,
@@ -131,16 +131,6 @@ export function buildCollapsiblePanelEntries(records = [], options = {}) {
   });
 }
 
-export function buildPromptResources(profiles = []) {
-  return normalizeArray(profiles).map((profile) => ({
-    id: `prompt:${String(profile?.id || '').trim()}`,
-    profileId: String(profile?.id || '').trim(),
-    name: String(profile?.name || 'Untitled Profile').trim() || 'Untitled Profile',
-    systemPrompt: String(profile?.systemPrompt || ''),
-    userPrompt: String(profile?.userPrompt || '')
-  }));
-}
-
 export function getHistoryPromptView(record) {
   return record?.promptView && typeof record.promptView === 'object' ? record.promptView : {};
 }
@@ -166,7 +156,7 @@ export function getHistoryRenderedSystemPrompt(record) {
   );
 }
 
-export function getHistoryRenderedUserPrompt(record) {
+export function getHistoryRenderedUserPrompt(record, batchFallback = 'Per-segment prompt instructions are shown below for batch requests.') {
   const assembledPrompt = getHistoryAssembledPrompt(record);
   if (assembledPrompt?.userPrompt) {
     return String(assembledPrompt.userPrompt);
@@ -182,7 +172,7 @@ export function getHistoryRenderedUserPrompt(record) {
   }
 
   if (Array.isArray(promptView?.batch?.items) && promptView.batch.items.some((item) => String(item?.userPrompt || '').trim())) {
-    return 'Per-segment prompt instructions are shown below for batch requests.';
+    return batchFallback;
   }
 
   return '';
@@ -252,47 +242,6 @@ export function shouldShowHistoryActualSentContent(record, segments = []) {
   }
 
   return false;
-}
-
-export function buildAssetLibraryEntries(assets = [], profiles = []) {
-  const bindingsByAssetId = new Map();
-
-  for (const profile of normalizeArray(profiles)) {
-    for (const binding of normalizeArray(profile?.assetBindings)) {
-      const assetId = String(binding?.assetId || '').trim();
-      if (!assetId) continue;
-      const boundProfileNames = bindingsByAssetId.get(assetId) || [];
-      boundProfileNames.push(String(profile?.name || 'Untitled Profile').trim() || 'Untitled Profile');
-      bindingsByAssetId.set(assetId, boundProfileNames);
-    }
-  }
-
-  return normalizeArray(assets).map((asset) => {
-    const boundProfileNames = (bindingsByAssetId.get(String(asset?.id || '').trim()) || []).sort((left, right) => left.localeCompare(right));
-    return {
-      ...asset,
-      usageCount: boundProfileNames.length,
-      boundProfileNames
-    };
-  });
-}
-
-export function buildAdvancedModelRows(providers = []) {
-  return normalizeArray(providers).flatMap((provider) => normalizeArray(provider?.models).map((model) => ({
-    providerId: String(provider?.id || '').trim(),
-    providerName: String(provider?.name || '').trim(),
-    modelId: String(model?.id || '').trim(),
-    modelName: String(model?.modelName || '').trim(),
-    enabled: model?.enabled !== false,
-    concurrencyLimit: model?.concurrencyLimit ?? 1,
-    retryEnabled: model?.retryEnabled !== false,
-    retryAttempts: model?.retryAttempts ?? 2,
-    rateLimitHint: String(model?.rateLimitHint || ''),
-    promptCacheEnabled: model?.promptCacheEnabled === true,
-    promptCacheTtlHint: String(model?.promptCacheTtlHint || ''),
-    responseFormat: String(model?.responseFormat || ''),
-    notes: String(model?.notes || '')
-  })));
 }
 
 export function buildProviderModelTableRows(provider = {}) {

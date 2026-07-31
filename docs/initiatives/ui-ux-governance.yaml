@@ -1,0 +1,34 @@
+id: ui-ux-governance
+title: memoQ AI Hub desktop UI and UX governance follow-up
+status: completed
+owner: repository maintainers
+repos:
+  - path: ../..
+    role: source-of-truth
+source_plan: docs/ui-ux-governance-plan.md
+spec_link: docs/specs/ui-ux-governance/spec.md
+verification_link: docs/specs/ui-ux-governance/verification.md
+github_links:
+  project: not-authorized
+  issues: []
+current_stage: completed
+last_verified_commit: "memoq-ai-hub@6e70925e239e513b96eb493315c89aad7d3aaea3 plus verified codex/ui-ux-governance working tree; 2026-08-01"
+next_action: no remaining governance action; commit or pull request only on explicit user request
+allowed_interruptions:
+  - emergency production fix
+  - security or data correctness issue
+drift_guard:
+  ui_contract: docs/ui-governance.md
+  toolchain_contract: package.json and docs/repository-structure.md
+  validation_command: pnpm run test:desktop && pnpm run test:repo && renderer production build
+  source_of_truth: repository branch and GitHub CI when a pull request is authorized
+intentional_divergences:
+  - follow docs/ui-governance.md navigation breakpoints instead of the audit's conflicting below-1024 drawer note
+  - delete unreachable AdvancedTuning and Prompts surfaces instead of preserving their copied accessibility and preset code
+completion_evidence:
+  acceptance_matrix: docs/specs/ui-ux-governance/verification.md
+  visual_smoke: docs/specs/ui-ux-governance/visual-smoke.md
+  automated_gates:
+    - pnpm run test:desktop
+    - pnpm run test:repo
+    - pnpm --dir apps/desktop exec vite build --config vite.renderer.config.mjs

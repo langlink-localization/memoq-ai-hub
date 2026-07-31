@@ -13,5 +13,12 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, '.vite', 'renderer', 'main_window'),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'ui-vendor': ['antd', '@ant-design/icons', 'dayjs', 'react', 'react-dom']
+        }
+      }
+    }
   },
 });

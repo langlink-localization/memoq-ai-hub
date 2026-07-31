@@ -17,6 +17,7 @@ import {
 } from 'antd';
 import { useMemo } from 'react';
 import { useI18n } from '../../i18n';
+import { TABLE_COLUMN_WIDTHS } from '../../tableLayout.mjs';
 
 const { Text } = Typography;
 const TABLE_SCROLL_X = 'max-content';
@@ -61,7 +62,7 @@ export default function LogsPage({
   const policy = logState?.policy || {};
 
   return (
-    <Space direction="vertical" size={18} style={{ display: 'flex' }}>
+    <Space direction="vertical" size={16} className="app-block-space">
       <Card
         className="page-card logs-summary-card"
         title={t('logs.title')}
@@ -82,7 +83,7 @@ export default function LogsPage({
           </Space>
         )}
       >
-        <Space direction="vertical" size={16} style={{ display: 'flex' }}>
+        <Space direction="vertical" size={16} className="app-block-space">
           <Alert type="info" showIcon message={t('logs.supportHint')} />
           <Descriptions column={1} className="wrap-descriptions">
             <Descriptions.Item label={t('logs.directory')}>
@@ -112,12 +113,18 @@ export default function LogsPage({
           scroll={{ x: TABLE_SCROLL_X }}
           dataSource={files}
           pagination={false}
-          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('logs.noFiles')} /> }}
+          locale={{
+            emptyText: (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('logs.noFiles')}>
+                <Button icon={<ReloadOutlined />} loading={loading} onClick={onRefresh}>{t('logs.refresh')}</Button>
+              </Empty>
+            )
+          }}
           columns={[
             {
               title: t('logs.source'),
               dataIndex: 'source',
-              width: 180,
+              width: TABLE_COLUMN_WIDTHS.entityName,
               render: (value) => <Tag>{value}</Tag>
             },
             {
@@ -133,17 +140,17 @@ export default function LogsPage({
             {
               title: t('logs.size'),
               dataIndex: 'sizeBytes',
-              width: 120,
+              width: TABLE_COLUMN_WIDTHS.numericMetric,
               render: formatBytes
             },
             {
               title: t('logs.updatedAt'),
               dataIndex: 'updatedAt',
-              width: 220
+              width: TABLE_COLUMN_WIDTHS.timestamp
             },
             {
               title: t('common.actions'),
-              width: 140,
+              width: TABLE_COLUMN_WIDTHS.singleAction,
               render: (_, record) => (
                 <Button type="link" onClick={() => onRevealFile?.(record.path)}>
                   {t('logs.revealFile')}

@@ -36,6 +36,7 @@ export default function AssetsPage({
   profileItems = [],
   assets = [],
   assetImportRules = {},
+  importingAssetType = '',
   onImportAsset,
   onDeleteAsset,
   onPreviewAsset
@@ -57,24 +58,24 @@ export default function AssetsPage({
   }));
   const addAssetMenu = {
     items: [
-      { key: 'glossary', label: t('context.uploadGlossary') },
-      { key: 'custom_tm', label: t('context.uploadCustomTm') }
+      { key: 'glossary', label: t('context.uploadGlossary'), disabled: Boolean(importingAssetType) },
+      { key: 'custom_tm', label: t('context.uploadCustomTm'), disabled: Boolean(importingAssetType) }
     ],
     onClick: ({ key }) => onImportAsset?.(key)
   };
 
   return (
-    <Space direction="vertical" size={18} style={{ display: 'flex' }}>
+    <Space direction="vertical" size={16} className="app-block-space">
       <Card
         className="page-card"
         title={t('context.assetLibraryTitle')}
         extra={(
           <Dropdown menu={addAssetMenu} trigger={['click']}>
-            <Button type="primary" icon={<PlusOutlined />}>{t('common.add')}</Button>
+            <Button type="primary" icon={<PlusOutlined />} loading={Boolean(importingAssetType)}>{t('common.add')}</Button>
           </Dropdown>
         )}
       >
-            <Space direction="vertical" size={12} style={{ display: 'flex' }}>
+            <Space direction="vertical" size={12} className="app-block-space">
               <div className="asset-library-toolbar">
                 <Segmented
                   options={categoryOptions}
@@ -98,7 +99,13 @@ export default function AssetsPage({
               </Text>
 
               {visibleAssets.length === 0 ? (
-                <Empty description={t('context.noAssets')} />
+                <Empty description={t('context.noAssets')}>
+                  <Dropdown menu={addAssetMenu} trigger={['click']}>
+                    <Button type="primary" icon={<PlusOutlined />} loading={Boolean(importingAssetType)}>
+                      {t('common.add')}
+                    </Button>
+                  </Dropdown>
+                </Empty>
               ) : (
                 <List
                   size="small"
@@ -117,7 +124,7 @@ export default function AssetsPage({
                           </Button>
                         ]}
                       >
-                        <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                        <Space direction="vertical" size={6} className="app-full-width">
                           <Space wrap size={[8, 8]}>
                             <Text strong>{asset.name}</Text>
                             <Tag>{t(`context.assetType.${asset.type}`)}</Tag>

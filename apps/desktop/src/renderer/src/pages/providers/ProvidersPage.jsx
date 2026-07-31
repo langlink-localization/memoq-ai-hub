@@ -1,4 +1,4 @@
-import { PlusOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
+import { MoreOutlined, PlusOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import {
   Alert,
   Button,
@@ -8,6 +8,7 @@ import {
   Descriptions,
   Dropdown,
   Empty,
+  Form,
   Input,
   List,
   Modal,
@@ -30,6 +31,7 @@ import {
 } from '../../appShell.mjs';
 import { CollapsibleItemList, CollapsibleSidePanel, SidePanelMeta } from '../../components/CollapsibleSidePanel';
 import { useI18n } from '../../i18n';
+import { TABLE_COLUMN_WIDTHS } from '../../tableLayout.mjs';
 import { getProviderConnectionHelperText, isProviderConnectionTestDisabled } from '../../providerConnectionUx.mjs';
 import { activateOnKeyboard } from '../../uiBehavior.mjs';
 
@@ -50,7 +52,7 @@ function getProviderThroughputSummary(provider, t) {
     mode: t(`providers.throughputMode${mode.charAt(0).toUpperCase()}${mode.slice(1)}`),
     segments: maxBatchSegments,
     concurrency
-  }) + ` (${maxBatchCharacters} chars)`;
+  }) + ` (${t('providers.characterCount', { count: maxBatchCharacters })})`;
 }
 
 function ProviderCatalog({
@@ -107,7 +109,7 @@ function ProviderCatalog({
         </Dropdown>
       )}
     >
-      <Space direction="vertical" size={16} style={{ display: 'flex' }}>
+      <Space direction="vertical" size={16} className="app-block-space">
         {!collapsed ? (
           <>
             <SidePanelMeta>
@@ -141,7 +143,7 @@ function ProviderCatalog({
                           onKeyDown={(event) => activateOnKeyboard(event, () => onSelectProvider?.(item.id))}
                           className={item.id === currentProvider?.id ? 'provider-list-item provider-list-item-active' : 'provider-list-item'}
                         >
-                          <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                          <Space direction="vertical" size={6} className="app-full-width">
                             <div className="provider-list-header">
                               <Space wrap size={[8, 8]}>
                                 <Text strong>{item.name}</Text>
@@ -213,14 +215,42 @@ function ProviderHeader({
   isDraftProvider
 }) {
   const { t } = useI18n();
+  const editorActionMenu = {
+    items: [
+      { key: 'discard', danger: true, label: t('providers.discardChanges'), disabled: !isDirty || savingProvider },
+      { key: 'delete', danger: true, label: t('providers.deleteProvider'), disabled: savingProvider }
+    ],
+    onClick: ({ key }) => {
+      if (key === 'discard') onDiscardProviderChanges();
+      if (key === 'delete') onDeleteProvider();
+    }
+  };
 
   return (
-    <Card className="page-card provider-inspector-shell">
+    <Card
+      className="page-card provider-inspector-shell"
+      extra={(
+        <Space wrap className="responsive-action-bar">
+          <Button
+            loading={savingProvider}
+            type="primary"
+            icon={<SaveOutlined />}
+            onClick={onSaveProvider}
+            disabled={currentProviderConnectionMeta.color !== 'green'}
+          >
+            {t('common.save')}
+          </Button>
+          <Dropdown menu={editorActionMenu} trigger={['click']}>
+            <Button icon={<MoreOutlined />}>{t('common.more')}</Button>
+          </Dropdown>
+        </Space>
+      )}
+    >
       <div className="provider-hero">
         <div className="provider-hero-main">
           <Text type="secondary">{t('providers.inspector')}</Text>
           <div className="provider-hero-title-row">
-            <Title level={3} style={{ margin: 0 }}>{currentProvider.name}</Title>
+            <Title level={3} className="provider-title">{currentProvider.name}</Title>
             <Space wrap size={[8, 8]}>
               <Text strong>{t('providers.enabled')}</Text>
               <Switch checked={currentProvider.enabled} onChange={(checked) => onPatchProvider?.('enabled', checked)} />
@@ -233,19 +263,6 @@ function ProviderHeader({
             {isDirty ? <Tag color="orange">{t('common.unsavedChanges')}</Tag> : null}
           </Space>
         </div>
-        <Space wrap size={[10, 10]} className="provider-hero-actions responsive-action-bar">
-          <Button onClick={onDiscardProviderChanges}>{t('providers.discardChanges')}</Button>
-          <Button danger onClick={onDeleteProvider}>{t('providers.deleteProvider')}</Button>
-          <Button
-            loading={savingProvider}
-            type="primary"
-            icon={<SaveOutlined />}
-            onClick={onSaveProvider}
-            disabled={currentProviderConnectionMeta.color !== 'green'}
-          >
-            {t('common.save')}
-          </Button>
-        </Space>
       </div>
     </Card>
   );
@@ -313,7 +330,7 @@ function ProviderModelTable({
           },
           {
             title: t('providers.defaultModel'),
-            width: 120,
+            width: TABLE_COLUMN_WIDTHS.booleanControl,
             align: 'center',
             render: (_, record) => (
               <Radio
@@ -325,14 +342,14 @@ function ProviderModelTable({
           },
           {
             title: t('providers.modelEnabled'),
-            width: 120,
+            width: TABLE_COLUMN_WIDTHS.booleanControl,
             render: (_, record) => (
               <Switch checked={record.enabled !== false} onChange={(checked) => onPatchModel?.(record.id, 'enabled', checked)} />
             )
           },
           {
             title: t('providers.actions'),
-            width: 140,
+            width: TABLE_COLUMN_WIDTHS.singleAction,
             render: (_, record) => (
               <Space wrap size={[8, 8]}>
                 <Button danger type="link" onClick={() => onConfirmDeleteModel?.(record)}>{t('providers.deleteModel')}</Button>
@@ -368,7 +385,7 @@ function ProviderModelLibraryModal({
       width={MODEL_LIBRARY_MODAL_WIDTH}
       destroyOnClose={false}
     >
-      <Space direction="vertical" size={16} style={{ display: 'flex' }}>
+      <Space direction="vertical" size={16} className="app-block-space">
         <div className="provider-model-manager-toolbar">
           <Input.Search
             allowClear
@@ -526,9 +543,16 @@ export function ProvidersPage(props) {
   const isTestConnectionDisabled = isProviderConnectionTestDisabled(currentProvider, testingProvider);
   const insightFocusProviderName = String(insightFocus?.provider || currentProvider?.name || '').trim();
   const insightFocusModelName = String(insightFocus?.model || focusedModelName || '').trim();
+  const addProviderMenu = {
+    items: [
+      { key: 'openai', label: t('providers.addOpenAIOfficial') },
+      { key: 'openai-compatible', label: t('providers.addOpenAICompatible') }
+    ],
+    onClick: ({ key }) => onCreateProvider?.(key)
+  };
 
   return (
-    <Row gutter={[20, 20]}>
+    <Row gutter={[16, 16]}>
       <Col xs={24} xl={getPanelColumnSpan(sidebarCollapsed)}>
         <ProviderCatalog
           filteredProviders={filteredProviders}
@@ -551,7 +575,7 @@ export function ProvidersPage(props) {
       </Col>
       <Col xs={24} xl={getPanelContentSpan(sidebarCollapsed)}>
         {currentProvider ? (
-          <Space direction="vertical" size={18} style={{ display: 'flex' }}>
+          <Space direction="vertical" size={16} className="app-block-space">
             {insightFocus ? (
               <Alert
                 type="info"
@@ -587,14 +611,16 @@ export function ProvidersPage(props) {
             />
 
             <Card className="page-card" title={t('providers.configuration')}>
-              <Space direction="vertical" size={18} style={{ display: 'flex' }}>
-                <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                  <Text strong>{t('providers.name')}</Text>
+              <Form layout="vertical" component="div" className="provider-configuration-form">
+                <Form.Item label={t('providers.name')}>
                   <Input value={currentProvider.name || ''} onChange={(event) => onPatchProvider?.('name', event.target.value)} />
-                </Space>
+                </Form.Item>
 
-                <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                  <Text strong>{t('providers.apiKey')}</Text>
+                <Form.Item
+                  label={t('providers.apiKey')}
+                  validateStatus={currentProviderConnectionMeta.color === 'red' ? 'error' : undefined}
+                  help={currentProviderHelperText}
+                >
                   <div className="provider-inline-field">
                     <Input.Password
                       value={currentProvider.apiKey || ''}
@@ -609,24 +635,19 @@ export function ProvidersPage(props) {
                       {t('providers.testBeforeSave')}
                     </Button>
                   </div>
-                  <Text type={currentProviderConnectionMeta.color === 'red' ? 'danger' : 'secondary'}>
-                    {currentProviderHelperText}
-                  </Text>
-                </Space>
+                </Form.Item>
 
-                <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                  <Text strong>{t('providers.baseUrl')}</Text>
+                <Form.Item
+                  label={t('providers.baseUrl')}
+                  extra={t('providers.requestUrlHint', { value: buildProviderRequestPreview(currentProvider) || t('providers.notAvailable') })}
+                >
                   <Input value={currentProvider.baseUrl} onChange={(event) => onPatchProvider?.('baseUrl', event.target.value)} />
-                  <Text type="secondary">
-                    {t('providers.requestUrlHint', { value: buildProviderRequestPreview(currentProvider) || t('providers.notAvailable') })}
-                  </Text>
-                </Space>
+                </Form.Item>
 
                 {currentProvider.type === 'openai-compatible' && (
-                  <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                    <Text strong>{t('providers.requestPath')}</Text>
+                  <Form.Item label={t('providers.requestPath')}>
                     <Input value={currentProvider.requestPath || ''} onChange={(event) => onPatchProvider?.('requestPath', event.target.value)} />
-                  </Space>
+                  </Form.Item>
                 )}
 
                 <Collapse
@@ -640,8 +661,8 @@ export function ProvidersPage(props) {
                       </Space>
                     ),
                     children: (
-                      <Space direction="vertical" size={18} style={{ display: 'flex' }}>
-                        <Space direction="vertical" size={8} style={{ display: 'flex' }}>
+                      <Space direction="vertical" size={16} className="app-block-space">
+                        <Space direction="vertical" size={8} className="app-block-space">
                   <Text strong>{t('providers.responseFormatDefault')}</Text>
                   <Select
                     value={currentProvider.capabilities?.responseFormat || (currentProvider.type === 'openai-compatible' ? 'auto' : 'json_schema')}
@@ -659,7 +680,7 @@ export function ProvidersPage(props) {
                   <Text type="secondary">{t('providers.responseFormatDefaultHint')}</Text>
                         </Space>
 
-                <Space direction="vertical" size={8} style={{ display: 'flex' }}>
+                <Space direction="vertical" size={8} className="app-block-space">
                   <Text strong>{t('providers.throughputModeDefault')}</Text>
                   <Select
                     value={currentProvider.capabilities?.throughputMode || 'auto'}
@@ -711,12 +732,16 @@ export function ProvidersPage(props) {
                   onProviderModelSearchChange={onProviderModelSearchChange}
                   onRemoveModelFromCurrentProvider={onRemoveModelFromCurrentProvider}
                 />
-              </Space>
+              </Form>
             </Card>
           </Space>
         ) : (
           <Card className="page-card">
-            <Empty description={t('providers.createProviderFirst')} />
+            <Empty description={t('providers.createProviderFirst')}>
+              <Dropdown menu={addProviderMenu} trigger={['click']}>
+                <Button type="primary" icon={<PlusOutlined />}>{t('common.add')}</Button>
+              </Dropdown>
+            </Empty>
           </Card>
         )}
       </Col>

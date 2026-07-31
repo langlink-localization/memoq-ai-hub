@@ -4,8 +4,11 @@ import assert from 'node:assert/strict';
 import {
   activateOnKeyboard,
   buildDashboardChecklist,
+  createPendingOperationRegistry,
   getPageScrollPosition,
   getShellNavigationMode,
+  mergeChangedStateSlices,
+  SHELL_BREAKPOINTS,
   normalizePageScrollPositions,
   normalizePageKey,
   readShellState,
@@ -13,6 +16,33 @@ import {
   updatePageScrollPosition,
   writeShellState
 } from '../src/renderer/src/uiBehavior.mjs';
+
+test('pending operation registry blocks duplicate submissions until completion', () => {
+  const registry = createPendingOperationRegistry();
+  const finish = registry.begin('history-export');
+
+  assert.equal(typeof finish, 'function');
+  assert.equal(registry.isPending('history-export'), true);
+  assert.equal(registry.begin('history-export'), null);
+
+  finish();
+  assert.equal(registry.isPending('history-export'), false);
+  assert.equal(typeof registry.begin('history-export'), 'function');
+});
+
+test('polling slice merge preserves state identity when dashboard data is unchanged', () => {
+  const current = { dashboard: { status: 'ready' }, providerHub: { providers: [{ id: 'p1' }] } };
+  const unchanged = mergeChangedStateSlices(current, {
+    dashboard: { status: 'ready' },
+    providerHub: { providers: [{ id: 'p2' }] }
+  }, ['dashboard']);
+  assert.equal(unchanged, current);
+
+  const changed = mergeChangedStateSlices(current, { dashboard: { status: 'error' } }, ['dashboard']);
+  assert.notEqual(changed, current);
+  assert.equal(changed.dashboard.status, 'error');
+  assert.equal(changed.providerHub, current.providerHub);
+});
 
 function createStorage(initialValue = null) {
   const values = new Map(initialValue == null ? [] : [['memoq-ai-hub.shell', initialValue]]);
@@ -47,8 +77,12 @@ test('shell state restores only valid pages and persists navigation preference',
 });
 
 test('shell navigation changes from persistent to compact to drawer by viewport width', () => {
+  assert.deepEqual(SHELL_BREAKPOINTS, { expandedMin: 1200, drawerMax: 768 });
   assert.equal(getShellNavigationMode(1366), 'expanded');
+  assert.equal(getShellNavigationMode(1200), 'expanded');
+  assert.equal(getShellNavigationMode(1199), 'compact');
   assert.equal(getShellNavigationMode(1024), 'compact');
+  assert.equal(getShellNavigationMode(769), 'compact');
   assert.equal(getShellNavigationMode(768), 'drawer');
   assert.equal(getShellNavigationMode(767), 'drawer');
 });
