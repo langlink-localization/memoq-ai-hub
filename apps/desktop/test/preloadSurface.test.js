@@ -17,6 +17,14 @@ test('main process registers log diagnostics IPC handlers', () => {
   assert.match(source, /desktop:record-renderer-log/);
 });
 
+test('main window supports the governed drawer breakpoint and content-width sizing', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, '../src/main.js'), 'utf8');
+  assert.match(source, /minWidth:\s*720/);
+  assert.match(source, /useContentSize:\s*true/);
+  assert.match(source, /MEMOQ_AI_DESKTOP_WINDOW_WIDTH/);
+  assert.match(source, /requestedWidth >= 720 && requestedWidth <= 3840/);
+});
+
 test('main process validates external URLs before invoking the operating system', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../src/main.js'), 'utf8');
   assert.match(source, /normalizeExternalHttpsUrl\(requestedUrl\)/);

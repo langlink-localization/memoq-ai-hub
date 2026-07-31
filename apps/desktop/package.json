@@ -1,7 +1,7 @@
 {
   "name": "memoq-ai-hub-app",
   "private": true,
-  "version": "1.0.25",
+  "version": "1.0.26",
   "packageManager": "pnpm@10.6.2",
   "license": "MIT",
   "author": "LangLink Localization",
@@ -25,6 +25,7 @@
     "@ant-design/icons": "^6.1.0",
     "antd": "^5.27.6",
     "body-parser": "^1.20.3",
+    "dayjs": "^1.11.20",
     "electron-store": "^8.2.0",
     "express": "^4.21.2",
     "fast-xml-parser": "^5.5.7",

@@ -1,5 +1,9 @@
 export const APP_PAGE_KEYS = ['dashboard', 'providers', 'assets', 'builder', 'history', 'logs'];
 export const SHELL_STORAGE_KEY = 'memoq-ai-hub.shell';
+export const SHELL_BREAKPOINTS = Object.freeze({
+  expandedMin: 1200,
+  drawerMax: 768
+});
 
 const CHECKLIST_PRESENTATION = {
   'install-plugin': {
@@ -99,10 +103,41 @@ export function writeShellState(storage, value) {
 
 export function getShellNavigationMode(viewportWidth) {
   const width = Number(viewportWidth);
-  if (!Number.isFinite(width) || width >= 1200) {
+  if (!Number.isFinite(width) || width >= SHELL_BREAKPOINTS.expandedMin) {
     return 'expanded';
   }
-  return width <= 768 ? 'drawer' : 'compact';
+  return width <= SHELL_BREAKPOINTS.drawerMax ? 'drawer' : 'compact';
+}
+
+export function createPendingOperationRegistry() {
+  const activeOperations = new Set();
+  return {
+    begin(key) {
+      const normalizedKey = String(key || '').trim();
+      if (!normalizedKey || activeOperations.has(normalizedKey)) {
+        return null;
+      }
+      activeOperations.add(normalizedKey);
+      return () => activeOperations.delete(normalizedKey);
+    },
+    isPending(key) {
+      return activeOperations.has(String(key || '').trim());
+    }
+  };
+}
+
+export function mergeChangedStateSlices(currentState, incomingState, keys = []) {
+  if (!currentState) return incomingState;
+  if (!incomingState) return currentState;
+
+  let changed = false;
+  const nextState = { ...currentState };
+  for (const key of keys) {
+    if (JSON.stringify(currentState[key]) === JSON.stringify(incomingState[key])) continue;
+    nextState[key] = incomingState[key];
+    changed = true;
+  }
+  return changed ? nextState : currentState;
 }
 
 export function activateOnKeyboard(event, onActivate) {

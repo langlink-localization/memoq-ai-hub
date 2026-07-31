@@ -5,8 +5,6 @@ import path from 'node:path';
 
 import {
   APP_SECTIONS,
-  buildAdvancedModelRows,
-  buildAssetLibraryEntries,
   buildCollapsiblePanelEntries,
   buildDefaultPresetProfile,
   DEFAULT_PRESET_BATCH_USER_PROMPT,
@@ -14,17 +12,21 @@ import {
   buildHistoryPromptItems,
   getHistoryRenderedUserPrompt,
   shouldShowHistoryActualSentContent,
-  buildPromptResources,
   buildProviderModelTableRows,
   getPanelColumnSpan
 } from '../src/renderer/src/appShell.mjs';
 import en from '../src/renderer/src/locales/en.js';
 import zhCN from '../src/renderer/src/locales/zh-CN.js';
+import { SHELL_BREAKPOINTS } from '../src/renderer/src/uiBehavior.mjs';
 
 const DESKTOP_ROOT = path.resolve(import.meta.dirname, '..');
 
 function readRendererSource(relativePath) {
   return fs.readFileSync(path.join(DESKTOP_ROOT, 'src', 'renderer', 'src', relativePath), 'utf8');
+}
+
+function readRendererSources(...relativePaths) {
+  return relativePaths.map(readRendererSource).join('\n');
 }
 
 function collectLocaleKeys(value, prefix = '') {
@@ -50,13 +52,24 @@ test('app sections expose assets and logs as first-class top-level modules', () 
 
 test('feature pages load behind explicit renderer boundaries', () => {
   const appSource = readRendererSource('App.jsx');
+  const dashboardSource = readRendererSource('pages/dashboard/DashboardPage.jsx');
+  const historySource = readRendererSources(
+    'pages/history/HistoryPage.jsx',
+    'pages/history/HistoryDetailDrawer.jsx'
+  );
 
   assert.match(appSource, /import \{ lazy, Suspense,/);
+  assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/dashboard\/DashboardPage\.jsx'\)\)/);
+  assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/history\/HistoryPage\.jsx'\)\)/);
   assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/providers\/ProvidersPage\.jsx'\)\)/);
   assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/builder\/BuilderPage\.jsx'\)\)/);
   assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/assets\/AssetsPage\.jsx'\)\)/);
   assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/logs\/LogsPage\.jsx'\)\)/);
   assert.match(appSource, /<Suspense fallback=\{<Spin/);
+  assert.doesNotMatch(appSource, /dashboard-journey-grid/);
+  assert.doesNotMatch(appSource, /history\.diagnosticSummary/);
+  assert.match(dashboardSource, /dashboard-journey-grid/);
+  assert.match(historySource, /history\.diagnosticSummary/);
 });
 
 test('Chinese locale is independent and matches English locale keys', () => {
@@ -86,15 +99,19 @@ test('Chinese locale is independent and matches English locale keys', () => {
 
 test('dashboard keeps refresh controls icon-first and guards stale available updates', () => {
   const appSource = readRendererSource('App.jsx');
+  const dashboardSource = readRendererSources(
+    'pages/dashboard/DashboardPage.jsx',
+    'pages/dashboard/dashboardPresentation.mjs'
+  );
 
   assert.match(appSource, /className="app-header-refresh"/);
   assert.match(appSource, /aria-label=\{t\('app\.refresh'\)\}/);
-  assert.match(appSource, /const safeUpdateStatus = getSafeUpdateStatus\(updateCenter\);/);
-  assert.match(appSource, /const effectiveUpdateStatus = checkingUpdates \? 'checking' : safeUpdateStatus;/);
-  assert.match(appSource, /const latestVersionDisplay = updateCenter\.latestVersion/);
+  assert.match(dashboardSource, /const safeUpdateStatus = getSafeUpdateStatus\(updateCenter\);/);
+  assert.match(dashboardSource, /const effectiveUpdateStatus = checkingUpdates \? 'checking' : safeUpdateStatus;/);
+  assert.match(dashboardSource, /const latestVersionDisplay = updateCenter\.latestVersion/);
   assert.match(appSource, /getUpdateErrorDisplay\(result, t\)/);
-  assert.match(appSource, /const hasAvailableUpdate = !checkingUpdates && safeUpdateStatus === 'available';/);
-  assert.match(appSource, /icon=\{<ReloadOutlined \/>}/);
+  assert.match(dashboardSource, /const hasAvailableUpdate = !checkingUpdates && safeUpdateStatus === 'available';/);
+  assert.match(dashboardSource, /icon=\{<ReloadOutlined \/>}/);
   assert.match(en.dashboard.updateCheckingLatestVersion, /Checking/);
   assert.equal(zhCN.dashboard.updateCheckingLatestVersion, '检查中...');
   assert.match(en.dashboard.updateCheckTimeoutError, /timed out/i);
@@ -102,7 +119,7 @@ test('dashboard keeps refresh controls icon-first and guards stale available upd
 });
 
 test('history insights expose simple latency-focused filtering hooks', () => {
-  const appSource = readRendererSource('App.jsx');
+  const appSource = readRendererSources('App.jsx', 'pages/history/HistoryPage.jsx');
 
   assert.match(appSource, /issue:\s*''/);
   assert.match(appSource, /function applyHistoryInsightFilter/);
@@ -117,7 +134,12 @@ test('history insights expose simple latency-focused filtering hooks', () => {
 });
 
 test('history records expose per-entry diagnostics and attempt timeline affordances', () => {
-  const appSource = readRendererSource('App.jsx');
+  const appSource = readRendererSources(
+    'App.jsx',
+    'pages/history/HistoryPage.jsx',
+    'pages/history/HistoryDetailDrawer.jsx',
+    'pages/history/historyPresentation.mjs'
+  );
   const cssSource = readRendererSource('index.css');
 
   assert.match(appSource, /function buildHistoryIssueTags/);
@@ -168,34 +190,140 @@ test('provider page exposes history insight focus affordances', () => {
   assert.match(cssSource, /\.provider-model-row-focused > td/);
 });
 
-test('global select styles allow selected values and dropdown options to wrap', () => {
+test('renderer feedback uses the themed Ant Design app context and recoverable startup states', () => {
+  const mainSource = readRendererSource('main.jsx');
+  const appSource = readRendererSource('App.jsx');
+
+  assert.match(mainSource, /<AntdApp>/);
+  assert.match(appSource, /const \{ message, modal \} = AntdApp\.useApp\(\);/);
+  assert.doesNotMatch(appSource, /\n\s*message,\s*\n/);
+  assert.doesNotMatch(appSource, /Modal\.confirm\(/);
+  assert.match(appSource, /className="app-initial-loading"/);
+  assert.match(appSource, /<Result[\s\S]*app\.startupErrorTitle/);
+  assert.match(appSource, /closable[\s\S]*onClose=\{\(\) => setError\(''\)\}/);
+});
+
+test('high-risk actions and async mutations expose confirmation and pending contracts', () => {
+  const appSource = readRendererSources('App.jsx', 'pages/history/HistoryPage.jsx');
+  const builderSource = readRendererSource('pages/builder/BuilderPage.jsx');
+  const assetsSource = readRendererSource('pages/assets/AssetsPage.jsx');
+
+  assert.match(appSource, /function confirmPruneLogs\(\)/);
+  assert.match(appSource, /function confirmInstallIntegration\(\)/);
+  assert.match(appSource, /function confirmLaunchDownloadedInstallerUpdate\(dashboardUpdateCenter = \{\}\)/);
+  assert.match(appSource, /function confirmDiscardCurrentProfileChanges\(\)/);
+  assert.match(appSource, /function confirmDiscardCurrentProviderChanges\(\)/);
+  assert.equal((appSource.match(/okButtonProps: \{ danger: true \}/g) || []).length >= 5, true);
+  assert.match(appSource, /beginPendingOperation\('profile-save'/);
+  assert.match(appSource, /beginPendingOperation\('profile-create'/);
+  assert.match(appSource, /beginPendingOperation\('asset-import'/);
+  assert.match(appSource, /beginPendingOperation\('history-export'/);
+  assert.match(appSource, /beginPendingOperation\('history-delete'/);
+  assert.match(builderSource, /loading=\{saving\}/);
+  assert.match(builderSource, /disabled: saving \|\| duplicating/);
+  assert.match(assetsSource, /loading=\{Boolean\(importingAssetType\)\}/);
+  assert.match(appSource, /history\.exportSelectedCsv/);
+  assert.match(appSource, /history\.exportFilteredXlsx/);
+});
+
+test('renderer theme uses one Ant Design token contract without internal selector overrides', () => {
+  const mainSource = readRendererSource('main.jsx');
+  const appSource = readRendererSource('App.jsx');
   const cssSource = readRendererSource('index.css');
 
-  assert.match(cssSource, /\.content-wrap \.ant-select/);
-  assert.match(cssSource, /width:\s*100%/);
-  assert.match(cssSource, /max-width:\s*100%/);
-  assert.match(cssSource, /\.ant-select-dropdown\s*\{/);
-  assert.match(cssSource, /max-width:\s*90vw/);
-  assert.match(cssSource, /\.ant-select-dropdown \.ant-select-item-option-content/);
-  assert.match(cssSource, /\.ant-select-single \.ant-select-selector \.ant-select-selection-item/);
-  assert.match(cssSource, /overflow-wrap:\s*anywhere/);
-  assert.match(cssSource, /white-space:\s*normal/);
+  assert.match(mainSource, /cssVar:\s*\{[\s\S]*prefix: 'memoq'/);
+  assert.match(mainSource, /colorPrimary: '#0066ff'/);
+  assert.doesNotMatch(cssSource, /--app-/);
+  assert.doesNotMatch(cssSource, /\.ant-/);
+  assert.doesNotMatch(cssSource, /!important/);
+  assert.doesNotMatch(cssSource, /--memoq-color-bg-layout-(?:alt|card|elevated|soft)/);
+  assert.match(cssSource, /var\(--memoq-color-bg-layout\)/);
+  assert.doesNotMatch(appSource, /style=\{\{ display: 'flex'/);
+});
+
+test('dashboard polling updates only changed status slices', () => {
+  const appSource = readRendererSource('App.jsx');
+  const dashboardSource = readRendererSource('pages/dashboard/DashboardPage.jsx');
+  const connectionSource = readRendererSource('components/DashboardConnectionStatus.jsx');
+  const storeSource = readRendererSource('pages/dashboard/dashboardStatusStore.mjs');
+  const pollSource = appSource.slice(
+    appSource.indexOf('async function refreshDashboardStatus()'),
+    appSource.indexOf('async function pruneLogsNow()')
+  );
+
+  assert.match(storeSource, /DASHBOARD_STATUS_KEYS = \['startup', 'dashboard', 'integration', 'previewBridge', 'updateCenter'\]/);
+  assert.match(storeSource, /mergeChangedStateSlices\(/);
+  assert.match(pollSource, /setDashboardStatusSnapshot\(remoteData\)/);
+  assert.doesNotMatch(pollSource, /setState\(/);
+  assert.match(dashboardSource, /useSyncExternalStore\(/);
+  assert.match(connectionSource, /useSyncExternalStore\(/);
+  assert.match(appSource, /void refreshDashboardStatus\(\);/);
+});
+
+test('priority configuration fields use Ant Design form controls', () => {
+  const appSource = readRendererSource('App.jsx');
+  const historySource = readRendererSource('pages/history/HistoryPage.jsx');
+  const builderSource = readRendererSource('pages/builder/BuilderPage.jsx');
+  const providersSource = readRendererSource('pages/providers/ProvidersPage.jsx');
+
+  assert.match(providersSource, /<Form layout="vertical"/);
+  assert.match(providersSource, /<Form\.Item[\s\S]*providers\.apiKey/);
+  assert.match(builderSource, /<InputNumber className="builder-number-input"/);
+  assert.equal((builderSource.match(/<InputNumber/g) || []).length, 4);
+  assert.match(historySource, /<DatePicker[\s\S]*format="YYYY-MM-DD"/);
+  assert.equal((historySource.match(/<DatePicker/g) || []).length, 2);
+});
+
+test('translation style presets and empty-state next actions stay localized and explicit', () => {
+  const builderSource = readRendererSource('pages/builder/BuilderPage.jsx');
+  const assetsSource = readRendererSource('pages/assets/AssetsPage.jsx');
+  const providersSource = readRendererSource('pages/providers/ProvidersPage.jsx');
+
+  assert.match(builderSource, /TRANSLATION_STYLE_PRESETS/);
+  assert.match(builderSource, /t\(selected\.instructionKey\)/);
+  assert.doesNotMatch(builderSource, /Prefer natural, concise/);
+  assert.match(assetsSource, /<Empty[\s\S]*<Dropdown menu=\{addAssetMenu\}/);
+  assert.match(providersSource, /<Empty description=\{t\('providers\.createProviderFirst'\)\}>[\s\S]*<Dropdown menu=\{addProviderMenu\}/);
 });
 
 test('dashboard and history use responsive grid and horizontal table scroll', () => {
   const appSource = readRendererSource('App.jsx');
+  const dashboardSource = readRendererSource('pages/dashboard/DashboardPage.jsx');
+  const historySource = readRendererSource('pages/history/HistoryPage.jsx');
+  const historyDetailSource = readRendererSource('pages/history/HistoryDetailDrawer.jsx');
+  const tableLayoutSource = readRendererSource('tableLayout.mjs');
+  const pageSource = `${dashboardSource}\n${historySource}\n${historyDetailSource}`;
   const cssSource = readRendererSource('index.css');
 
-  assert.match(appSource, /const TABLE_SCROLL_X = 'max-content';/);
+  assert.match(tableLayoutSource, /TABLE_SCROLL_X = 'max-content'/);
   assert.match(appSource, /const WIDE_SIDE_DRAWER_WIDTH = 'min\(920px, calc\(100vw - 32px\)\)';/);
-  assert.match(appSource, /className="dashboard-journey-grid"/);
+  assert.match(historyDetailSource, /const HISTORY_DETAIL_DRAWER_WIDTH = 'min\(920px, calc\(100vw - 32px\)\)';/);
+  assert.match(dashboardSource, /className="dashboard-journey-grid"/);
   assert.match(cssSource, /grid-template-columns:\s*repeat\(auto-fit, minmax\(190px, 1fr\)\)/);
-  assert.match(appSource, /<Col xs=\{24\} xl=\{12\}>/);
-  assert.match(appSource, /<Col xs=\{24\} lg=\{12\}>/);
-  assert.match(appSource, /<Col xs=\{24\} sm=\{12\} lg=\{8\} xl=\{4\}>/);
-  assert.match(appSource, /scroll=\{\{ x: TABLE_SCROLL_X \}\}/);
-  assert.equal((appSource.match(/scroll=\{\{ x: TABLE_SCROLL_X \}\}/g) || []).length >= 3, true);
-  assert.equal((appSource.match(/width=\{WIDE_SIDE_DRAWER_WIDTH\}/g) || []).length >= 2, true);
+  assert.match(dashboardSource, /<Col xs=\{24\} xl=\{12\}>/);
+  assert.match(historySource, /<Col xs=\{24\} lg=\{12\}>/);
+  assert.match(historySource, /<Col xs=\{24\} sm=\{12\} lg=\{8\} xl=\{4\}>/);
+  assert.match(pageSource, /scroll=\{\{ x: TABLE_SCROLL_X \}\}/);
+  assert.equal((`${appSource}\n${pageSource}`.match(/scroll=\{\{ x: TABLE_SCROLL_X \}\}/g) || []).length >= 3, true);
+  assert.match(appSource, /width=\{WIDE_SIDE_DRAWER_WIDTH\}/);
+  assert.match(historyDetailSource, /width=\{HISTORY_DETAIL_DRAWER_WIDTH\}/);
+});
+
+test('renderer tables use semantic column-width tokens instead of inline pixel widths', () => {
+  const tableLayoutSource = readRendererSource('tableLayout.mjs');
+  const tableSources = readRendererSources(
+    'App.jsx',
+    'pages/history/HistoryPage.jsx',
+    'pages/history/HistoryDetailDrawer.jsx',
+    'pages/logs/LogsPage.jsx',
+    'pages/providers/ProvidersPage.jsx'
+  );
+
+  assert.match(tableLayoutSource, /TABLE_COLUMN_WIDTHS = Object\.freeze/);
+  assert.match(tableSources, /TABLE_COLUMN_WIDTHS\.identifier/);
+  assert.match(tableSources, /TABLE_COLUMN_WIDTHS\.timestamp/);
+  assert.match(tableSources, /TABLE_COLUMN_WIDTHS\.inlineActions/);
+  assert.doesNotMatch(tableSources, /\bwidth:\s*\d+/);
 });
 
 test('feature pages keep tables and overlays responsive on narrow viewports', () => {
@@ -204,9 +332,6 @@ test('feature pages keep tables and overlays responsive on narrow viewports', ()
   const logsSource = readRendererSource('pages/logs/LogsPage.jsx');
   const assetsSource = readRendererSource('pages/assets/AssetsPage.jsx');
 
-  assert.match(builderSource, /const PLACEHOLDER_DRAWER_WIDTH = 'min\(420px, calc\(100vw - 32px\)\)';/);
-  assert.match(builderSource, /width=\{PLACEHOLDER_DRAWER_WIDTH\}/);
-  assert.match(builderSource, /builder-sticky-actions-inner responsive-action-bar/);
   assert.match(builderSource, /type: 'custom_tm'/);
   assert.match(builderSource, /titleKey: 'context\.assetRoleTmTitle'/);
   assert.match(builderSource, /fieldName: 'customTmAssetId'/);
@@ -227,6 +352,16 @@ test('feature pages keep tables and overlays responsive on narrow viewports', ()
   assert.doesNotMatch(assetsSource, /t\('providers\.notAvailable'\)/);
 });
 
+test('setup route throughput summaries stay inside their cards with hover disclosure', () => {
+  const builderSource = readRendererSource('pages/builder/BuilderPage.jsx');
+  const cssSource = readRendererSource('index.css');
+
+  assert.match(builderSource, /<Tag className="builder-route-throughput-tag">/);
+  assert.match(builderSource, /<HoverText value=\{throughputStatus\} className="builder-route-throughput-text"/);
+  assert.match(cssSource, /\.builder-route-throughput-tag\s*\{[\s\S]*max-width:\s*100%/);
+  assert.match(cssSource, /\.builder-route-throughput-text\s*\{[\s\S]*text-overflow:\s*ellipsis/);
+});
+
 test('setup asset selections include custom TM bindings', () => {
   const appSource = readRendererSource('App.jsx');
   const builderSource = readRendererSource('pages/builder/BuilderPage.jsx');
@@ -244,45 +379,38 @@ test('global responsive CSS covers wrapping, table overflow, shell header, and m
   assert.match(appSource, /className="app-header-bar"/);
   assert.match(appSource, /className="app-header-controls"/);
   assert.match(cssSource, /\*::before,\s*\n\*::after\s*\{/);
-  assert.match(cssSource, /\.ant-card-head-wrapper/);
   assert.match(cssSource, /flex-wrap:\s*wrap/);
-  assert.match(cssSource, /\.ant-table-wrapper\s*\{/);
+  assert.match(cssSource, /\.responsive-table-shell\s*\{/);
   assert.match(cssSource, /overflow-x:\s*auto/);
   assert.match(cssSource, /\.responsive-action-bar/);
   assert.match(cssSource, /\.responsive-switch-line/);
-  assert.match(cssSource, /\.ant-drawer-content-wrapper/);
-  assert.match(cssSource, /max-width:\s*calc\(100vw - 32px\)/);
-  assert.match(cssSource, /@media \(max-width: 768px\)/);
+  assert.match(cssSource, new RegExp(`@media \\(max-width: ${SHELL_BREAKPOINTS.expandedMin - 1}px\\)`));
+  assert.match(cssSource, new RegExp(`@media \\(max-width: ${SHELL_BREAKPOINTS.drawerMax}px\\)`));
   assert.match(appSource, /shellNavigationMode !== 'drawer' \? \(/);
   assert.match(appSource, /className="app-nav-drawer"/);
-  assert.doesNotMatch(cssSource, /width:\s*72px !important/);
+  assert.doesNotMatch(cssSource, /!important/);
   assert.match(cssSource, /\.asset-library-toolbar/);
   assert.match(cssSource, /\.provider-model-manager-toolbar/);
-  assert.match(cssSource, /\.asset-library-item \.ant-list-item-action/);
 });
 
-test('legacy prompt and list action surfaces use scoped responsive actions', () => {
+test('retired prompt, advanced, and placeholder editor surfaces stay removed', () => {
   const appSource = readRendererSource('App.jsx');
-  const promptsSource = readRendererSource('pages/prompts/PromptsPage.jsx');
-  const cssSource = readRendererSource('index.css');
+  const builderSource = readRendererSource('pages/builder/BuilderPage.jsx');
 
-  assert.match(appSource, /className="responsive-list-actions"/);
-  assert.match(promptsSource, /<Space wrap className="responsive-action-bar">/);
-  assert.match(cssSource, /\.responsive-list-actions \.ant-list-item-action/);
-  assert.match(cssSource, /\.builder-sticky-actions-inner \.ant-btn/);
-  assert.doesNotMatch(cssSource, /responsive-action-bar \.ant-btn\s*\{\s*width:\s*100%;/);
+  assert.equal(fs.existsSync(path.join(DESKTOP_ROOT, 'src', 'renderer', 'src', 'pages', 'prompts', 'PromptsPage.jsx')), false);
+  assert.equal(fs.existsSync(path.join(DESKTOP_ROOT, 'src', 'renderer', 'src', 'pages', 'advanced', 'AdvancedTuningPage.jsx')), false);
+  assert.doesNotMatch(appSource, /EditableProfileForm|insertPlaceholderIntoProfile/);
+  assert.doesNotMatch(builderSource, /PlaceholderDrawer|PLACEHOLDER_DRAWER_WIDTH/);
 });
 
 test('dashboard install path browse button stays horizontal inside input addon', () => {
-  const appSource = readRendererSource('App.jsx');
+  const appSource = readRendererSource('pages/dashboard/DashboardPage.jsx');
   const cssSource = readRendererSource('index.css');
 
   assert.match(appSource, /className="install-browse-button"/);
   assert.match(appSource, /addonAfter=\{<Button className="install-browse-button" onClick=\{chooseInstallDirectory\}>/);
-  assert.match(cssSource, /\.ant-input-group-addon \.ant-btn,\s*\n\.install-browse-button/);
-  assert.match(cssSource, /\.ant-input-group > \.ant-input,\s*\n\.ant-input-group > \.ant-input-affix-wrapper/);
   assert.match(cssSource, /min-width:\s*max-content/);
-  assert.match(cssSource, /\.ant-input-group-addon \.ant-btn > span:not\(\.anticon\),\s*\n\.install-browse-button > span:not\(\.anticon\)/);
+  assert.match(cssSource, /\.install-browse-button > span:not\(\.anticon\)/);
   assert.match(cssSource, /white-space:\s*nowrap/);
   assert.match(cssSource, /overflow-wrap:\s*normal/);
 });
@@ -339,79 +467,6 @@ test('default prompt templates keep volatile terminology and TM details out of f
   assert.doesNotMatch(batch, /\[Project brief:/);
   assert.doesNotMatch(single, /\[Document summary:/);
   assert.doesNotMatch(batch, /\[Document summary:/);
-});
-
-test('buildPromptResources projects prompt content out of profiles', () => {
-  const resources = buildPromptResources([
-    {
-      id: 'profile-1',
-      name: 'Legal EN->DE',
-      systemPrompt: 'System text',
-      userPrompt: 'User text'
-    }
-  ]);
-
-  assert.equal(resources.length, 1);
-  assert.equal(resources[0].id, 'prompt:profile-1');
-  assert.equal(resources[0].profileId, 'profile-1');
-  assert.equal(resources[0].name, 'Legal EN->DE');
-  assert.equal(resources[0].systemPrompt, 'System text');
-  assert.equal(resources[0].userPrompt, 'User text');
-});
-
-test('buildAssetLibraryEntries annotates asset usage by bound profile', () => {
-  const entries = buildAssetLibraryEntries(
-    [
-      { id: 'asset-1', name: 'Core Glossary', type: 'glossary' },
-      { id: 'asset-2', name: 'Retail Brief', type: 'brief' }
-    ],
-    [
-      {
-        id: 'profile-1',
-        name: 'Retail',
-        assetBindings: [{ assetId: 'asset-1' }, { assetId: 'asset-2' }]
-      },
-      {
-        id: 'profile-2',
-        name: 'Support',
-        assetBindings: [{ assetId: 'asset-1' }]
-      }
-    ]
-  );
-
-  assert.deepEqual(entries[0].boundProfileNames, ['Retail', 'Support']);
-  assert.equal(entries[0].usageCount, 2);
-  assert.deepEqual(entries[1].boundProfileNames, ['Retail']);
-  assert.equal(entries[1].usageCount, 1);
-});
-
-test('buildAdvancedModelRows flattens provider model tuning away from the provider model table', () => {
-  const rows = buildAdvancedModelRows([
-    {
-      id: 'provider-1',
-      name: 'OpenAI',
-      models: [
-        {
-          id: 'model-1',
-          modelName: 'gpt-5.4-mini',
-          concurrencyLimit: 3,
-          retryEnabled: true,
-          retryAttempts: 2,
-          promptCacheEnabled: true,
-          promptCacheTtlHint: '5m',
-          rateLimitHint: '120 rpm',
-          notes: 'Primary route'
-        }
-      ]
-    }
-  ]);
-
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].providerName, 'OpenAI');
-  assert.equal(rows[0].modelName, 'gpt-5.4-mini');
-  assert.equal(rows[0].concurrencyLimit, 3);
-  assert.equal(rows[0].promptCacheEnabled, true);
-  assert.equal(rows[0].notes, 'Primary route');
 });
 
 test('buildCollapsiblePanelEntries exposes compact avatars and accessibility labels for collapsed side panels', () => {

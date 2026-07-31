@@ -1,14 +1,41 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('node:path');
 const {
   PRODUCT_NAME,
   CONTRACT_VERSION,
   DEFAULT_HOST,
   DEFAULT_PORT,
   ROUTES,
+  buildContractCandidates,
   normalizeGatewayHost,
   normalizeGatewayPort
 } = require('../src/shared/desktopContract');
+
+test('desktop contract resolution covers source, Vite development, and packaged layouts', () => {
+  const sourceDir = path.join('repo', 'apps', 'desktop', 'src', 'shared');
+  const viteBuildDir = path.join('repo', 'apps', 'desktop', '.vite', 'build', 'shared');
+  const resourcesDir = path.join('installed-app', 'resources');
+
+  assert.equal(
+    buildContractCandidates(sourceDir, resourcesDir).some((candidate) => (
+      candidate.endsWith(path.join('repo', 'packages', 'contracts', 'desktop-contract.json'))
+    )),
+    true
+  );
+  assert.equal(
+    buildContractCandidates(viteBuildDir, resourcesDir).some((candidate) => (
+      candidate.endsWith(path.join('repo', 'packages', 'contracts', 'desktop-contract.json'))
+    )),
+    true
+  );
+  assert.equal(
+    buildContractCandidates(viteBuildDir, resourcesDir).includes(
+      path.join(resourcesDir, 'desktop-contract.json')
+    ),
+    true
+  );
+});
 
 test('desktop contract exposes expected core fields', () => {
   assert.equal(PRODUCT_NAME, 'memoQ AI Hub');

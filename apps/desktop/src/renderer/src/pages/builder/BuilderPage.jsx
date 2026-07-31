@@ -6,10 +6,10 @@ import {
   Col,
   Collapse,
   Dropdown,
-  Drawer,
   Empty,
+  Form,
   Input,
-  List,
+  InputNumber,
   Row,
   Select,
   Space,
@@ -20,7 +20,6 @@ import {
 } from 'antd';
 import { useMemo, useState } from 'react';
 import { useI18n } from '../../i18n';
-import { activateOnKeyboard } from '../../uiBehavior.mjs';
 import {
   CUSTOM_TM_MATCH_BUCKETS,
   DEFAULT_CUSTOM_TM_MATCH_BUCKETS,
@@ -29,32 +28,11 @@ import {
   getPanelContentSpan
 } from '../../appShell.mjs';
 import { CollapsibleItemList, CollapsibleSidePanel, ProfileListRow } from '../../components/CollapsibleSidePanel';
+import HoverText from '../../components/HoverText';
+import { TRANSLATION_STYLE_PRESETS } from '../../translationStylePresets.mjs';
 
 const { Paragraph, Text } = Typography;
-const PLACEHOLDER_DRAWER_WIDTH = 'min(420px, calc(100vw - 32px))';
 
-const STYLE_PRESETS = [
-  {
-    key: 'natural',
-    text: 'Prefer natural, concise, production-ready translations that stay consistent with product terminology.'
-  },
-  {
-    key: 'formal',
-    text: 'Prefer formal, precise wording with a professional tone and stable terminology.'
-  },
-  {
-    key: 'technical',
-    text: 'Prefer technically accurate, explicit phrasing that preserves instructions, constraints, and domain terminology.'
-  },
-  {
-    key: 'marketing',
-    text: 'Prefer fluent, appealing copy that reads naturally to end users while keeping required terms intact.'
-  },
-  {
-    key: 'ui',
-    text: 'Prefer short, clear UI-style wording suitable for buttons, menus, labels, and product microcopy.'
-  }
-];
 const ROUTE_CONFIGS = [
   { key: 'interactive', providerField: 'interactiveProviderId', modelField: 'interactiveModelId', titleKey: 'context.routeInteractiveTitle', hintKey: 'context.routeInteractiveHint' },
   { key: 'pretranslate', providerField: 'pretranslateProviderId', modelField: 'pretranslateModelId', titleKey: 'context.routePretranslateTitle', hintKey: 'context.routePretranslateHint' },
@@ -109,11 +87,6 @@ function getPreferredProviderModel(provider, preferredModelId = '') {
   return models.find((model) => model?.enabled !== false) || models[0] || null;
 }
 
-function getLocalizedPlaceholderText(t, item, kind) {
-  const key = `context.placeholder${kind}.${item.token}`;
-  const localized = t(key);
-  return localized === key ? item?.[kind.toLowerCase()] || '' : localized;
-}
 
 function getRoleAssetId(profile = {}, role) {
   const directField = role.fieldCandidates.find((fieldName) => profile?.[fieldName]);
@@ -160,6 +133,7 @@ function ProfileListPanel({
   onSelectProfile,
   onCreateBlankProfile,
   onCreatePresetProfile,
+  creatingProfileKind,
   title,
   emptyText,
   collapsed,
@@ -170,8 +144,8 @@ function ProfileListPanel({
   const { t } = useI18n();
   const addProfileMenu = {
     items: [
-      { key: 'blank', label: t('context.createBlank') },
-      { key: 'preset', label: t('context.createFromPreset') }
+      { key: 'blank', label: t('context.createBlank'), disabled: Boolean(creatingProfileKind) },
+      { key: 'preset', label: t('context.createFromPreset'), disabled: Boolean(creatingProfileKind) }
     ],
     onClick: ({ key }) => {
       if (key === 'blank') {
@@ -183,7 +157,7 @@ function ProfileListPanel({
   };
   const entries = buildCollapsiblePanelEntries(profileItems, {
     selectedId: currentProfileId,
-    emptyLabel: 'Untitled Profile',
+    emptyLabel: t('context.unnamedProfile'),
     getTags: (profile) => {
       const tags = [];
       if (profile?.isPresetDerived === true) {
@@ -210,12 +184,12 @@ function ProfileListPanel({
           menu={addProfileMenu}
           trigger={['click']}
         >
-          <Button icon={<PlusOutlined />}>{t('common.add')}</Button>
+          <Button icon={<PlusOutlined />} loading={Boolean(creatingProfileKind)}>{t('common.add')}</Button>
         </Dropdown>
       )}
       collapsedExtra={(
         <Dropdown menu={addProfileMenu} trigger={['click']}>
-          <Button icon={<PlusOutlined />} aria-label={t('common.add')} />
+          <Button icon={<PlusOutlined />} loading={Boolean(creatingProfileKind)} aria-label={t('common.add')} />
         </Dropdown>
       )}
     >
@@ -268,10 +242,17 @@ function RouteSelectorCard({ route, profile, providers, onChange }) {
   const throughputMode = selectedModel.throughputMode || selectedProvider?.capabilities?.throughputMode || 'auto';
   const maxBatchSegments = selectedModel.maxBatchSegments || selectedProvider?.capabilities?.maxBatchSegments || (selectedProvider?.type === 'openai-compatible' ? 5 : 8);
   const concurrency = selectedModel.providerConcurrency || (selectedProvider?.type === 'openai-compatible' ? 2 : 2);
+  const throughputStatus = selectedProvider
+    ? t('context.routeThroughputStatus', {
+        mode: t(`providers.throughputMode${throughputMode.charAt(0).toUpperCase()}${throughputMode.slice(1)}`),
+        segments: maxBatchSegments,
+        concurrency
+      })
+    : '';
 
   return (
     <Card size="small" className="builder-subcard" title={t(route.titleKey)}>
-      <Space direction="vertical" size={10} style={{ display: 'flex' }}>
+      <Space direction="vertical" size={10} className="app-block-space">
         <Select
           value={providerId || undefined}
           options={providerOptions}
@@ -287,12 +268,8 @@ function RouteSelectorCard({ route, profile, providers, onChange }) {
         />
         <Text type="secondary">{t(route.hintKey)}</Text>
         {selectedProvider ? (
-          <Tag>
-            {t('context.routeThroughputStatus', {
-              mode: t(`providers.throughputMode${throughputMode.charAt(0).toUpperCase()}${throughputMode.slice(1)}`),
-              segments: maxBatchSegments,
-              concurrency
-            })}
+          <Tag className="builder-route-throughput-tag">
+            <HoverText value={throughputStatus} className="builder-route-throughput-text" />
           </Tag>
         ) : null}
       </Space>
@@ -303,25 +280,25 @@ function RouteSelectorCard({ route, profile, providers, onChange }) {
 function TranslationStyleCard({ profile, onChange }) {
   const { t } = useI18n();
   const currentStyle = String(profile?.translationStyle || '');
-  const matchedPreset = STYLE_PRESETS.find((item) => item.text === currentStyle)?.key;
+  const matchedPreset = TRANSLATION_STYLE_PRESETS.find((item) => t(item.instructionKey) === currentStyle)?.key;
 
   return (
     <Card size="small" className="builder-subcard">
-      <Space direction="vertical" size={12} style={{ display: 'flex' }}>
+      <Space direction="vertical" size={12} className="app-block-space">
         <Text strong>{t('context.translationStyleTitle')}</Text>
         <Text type="secondary">{t('context.translationStyleHint')}</Text>
         <Select
           allowClear
           value={matchedPreset}
           placeholder={t('context.translationStylePresetPlaceholder')}
-          options={STYLE_PRESETS.map((item) => ({
+          options={TRANSLATION_STYLE_PRESETS.map((item) => ({
             value: item.key,
             label: t(`context.translationStylePreset.${item.key}`)
           }))}
           onChange={(value) => {
-            const selected = STYLE_PRESETS.find((item) => item.key === value);
+            const selected = TRANSLATION_STYLE_PRESETS.find((item) => item.key === value);
             if (selected) {
-              onChange('translationStyle', selected.text);
+              onChange('translationStyle', t(selected.instructionKey));
             }
           }}
           onClear={() => onChange('translationStyle', '')}
@@ -353,7 +330,7 @@ function AssetRoleCard({ role, profile, assets, onChange, onProfileChange }) {
 
   return (
     <Card size="small" className="builder-subcard" title={t(role.titleKey)}>
-      <Space direction="vertical" size={10} style={{ display: 'flex' }}>
+      <Space direction="vertical" size={10} className="app-block-space">
         <Select
           allowClear
           value={selectedAssetId}
@@ -379,57 +356,17 @@ function AssetRoleCard({ role, profile, assets, onChange, onProfileChange }) {
   );
 }
 
-function PlaceholderDrawer({ open, targetField, supportedPlaceholders, onClose, onInsert }) {
-  const { t } = useI18n();
-
-  return (
-    <Drawer
-      title={t('context.placeholderPanelTitle')}
-      placement="right"
-      width={PLACEHOLDER_DRAWER_WIDTH}
-      open={open}
-      onClose={onClose}
-    >
-      <Space direction="vertical" size={14} style={{ display: 'flex' }}>
-        <Text type="secondary">
-          {targetField ? t('context.placeholderDrawerHint', { field: t(`context.${targetField}`) }) : t('context.placeholderPanelHint')}
-        </Text>
-        <List
-          size="small"
-          dataSource={supportedPlaceholders}
-          renderItem={(item) => (
-            <List.Item
-              role="button"
-              tabIndex={0}
-              className="builder-placeholder-item"
-              onClick={() => onInsert(item.token)}
-              onKeyDown={(event) => activateOnKeyboard(event, () => onInsert(item.token))}
-            >
-              <Space direction="vertical" size={2} style={{ width: '100%' }}>
-                <Text strong>{`{{${item.token}}}`}</Text>
-                <Text>{getLocalizedPlaceholderText(t, item, 'Label')}</Text>
-                <Text type="secondary">{getLocalizedPlaceholderText(t, item, 'Description')}</Text>
-              </Space>
-            </List.Item>
-          )}
-        />
-        <Text type="secondary">{t('context.placeholderRequiredHint')}</Text>
-        <Text type="secondary">{t('context.placeholderWrapperHint')}</Text>
-      </Space>
-    </Drawer>
-  );
-}
 
 function BuilderEditor({
   profile,
   providers,
   assets,
-  supportedPlaceholders,
-  templateIssues,
   onChange,
   onSave,
   onDiscard,
   onDuplicate,
+  saving,
+  duplicating,
   onDelete,
   onSetDefault,
   onBypassTranslationCacheOnce,
@@ -458,6 +395,22 @@ function BuilderEditor({
     onChange('assetSelections', buildNextAssetSelections(profile, role, assetId));
   }
 
+  const editorActionMenu = {
+    items: [
+      { key: 'set-default', icon: <StarOutlined />, label: t('context.setAsDefaultProfile'), disabled: isDefaultProfile || saving },
+      { key: 'duplicate', label: t('common.duplicate'), disabled: saving || duplicating },
+      { type: 'divider' },
+      { key: 'discard', danger: true, label: t('context.discardChanges'), disabled: !isDirty || saving },
+      { key: 'delete', danger: true, label: t('context.deleteProfile'), disabled: saving }
+    ],
+    onClick: ({ key }) => {
+      if (key === 'set-default') onSetDefault();
+      if (key === 'duplicate') onDuplicate();
+      if (key === 'discard') onDiscard();
+      if (key === 'delete') onDelete();
+    }
+  };
+
   return (
     <>
       <Card
@@ -470,33 +423,26 @@ function BuilderEditor({
         )}
         extra={(
           <Space wrap className="responsive-action-bar">
-            <Button icon={<StarOutlined />} onClick={onSetDefault} disabled={isDefaultProfile}>
-              {t('context.setAsDefaultProfile')}
+            <Button loading={saving} type="primary" icon={<SaveOutlined />} onClick={onSave}>
+              {t('context.saveProfile')}
             </Button>
-            <Button onClick={onDuplicate}>{t('common.duplicate')}</Button>
-            <Dropdown
-              menu={{
-                items: [{ key: 'delete', danger: true, label: t('context.deleteProfile') }],
-                onClick: ({ key }) => {
-                  if (key === 'delete') {
-                    onDelete();
-                  }
-                }
-              }}
-              trigger={['click']}
-            >
+            <Dropdown menu={editorActionMenu} trigger={['click']}>
               <Button icon={<MoreOutlined />}>{t('common.more')}</Button>
             </Dropdown>
           </Space>
         )}
       >
-        <Space direction="vertical" size={18} style={{ display: 'flex' }}>
+        <Form layout="vertical" component="div" className="builder-profile-form">
           <Row gutter={[16, 16]}>
             <Col xs={24} md={12}>
-              <Input addonBefore={t('context.name')} value={profile?.name} onChange={(event) => onChange('name', event.target.value)} />
+              <Form.Item label={t('context.name')}>
+                <Input value={profile?.name} onChange={(event) => onChange('name', event.target.value)} />
+              </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Input addonBefore={t('context.description')} value={profile?.description} onChange={(event) => onChange('description', event.target.value)} />
+              <Form.Item label={t('context.description')}>
+                <Input value={profile?.description} onChange={(event) => onChange('description', event.target.value)} />
+              </Form.Item>
             </Col>
           </Row>
 
@@ -526,7 +472,7 @@ function BuilderEditor({
                 </Space>
               )}
             >
-              <Space direction="vertical" size={16} style={{ display: 'flex' }}>
+              <Space direction="vertical" size={16} className="app-block-space">
                 <Alert
                   type="info"
                   showIcon
@@ -539,12 +485,12 @@ function BuilderEditor({
                   </Col>
                   <Col xs={24} xl={10}>
                     <Card size="small" className="builder-subcard">
-                      <Space direction="vertical" size={10} style={{ display: 'flex' }}>
+                      <Space direction="vertical" size={10} className="app-block-space">
                         <Text strong>{t('context.promptIncludedTitle')}</Text>
-                        <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                        <Paragraph type="secondary" className="builder-prompt-included-hint">
                           {t('context.promptIncludedHint')}
                         </Paragraph>
-                        <ul style={{ margin: 0, paddingLeft: 18 }}>
+                        <ul className="builder-prompt-included-list">
                           <li>{t('context.promptIncludedItems.role')}</li>
                           <li>{t('context.promptIncludedItems.format')}</li>
                           <li>{t('context.promptIncludedItems.terminology')}</li>
@@ -564,7 +510,7 @@ function BuilderEditor({
               title={t('context.builderStepAssetsTitle')}
               description={t('context.builderStepAssetsDescription')}
             >
-              <Space direction="vertical" size={14} style={{ display: 'flex' }}>
+              <Space direction="vertical" size={14} className="app-block-space">
                 <div className="builder-asset-summary">
                   {ASSET_ROLE_CONFIGS.map((role) => (
                     <Tag key={role.key}>{`${t(role.titleKey)}: ${assetCounts[role.key] || 0}`}</Tag>
@@ -594,7 +540,7 @@ function BuilderEditor({
                     key: 'advanced',
                     label: t('context.advancedCollapsedLabel'),
                     children: (
-                      <Space direction="vertical" size={18} style={{ display: 'flex' }}>
+                      <Space direction="vertical" size={16} className="app-block-space">
                         <Alert
                           type="info"
                           showIcon
@@ -618,7 +564,7 @@ function BuilderEditor({
 
                         {profile?.cacheEnabled !== false && (
                           <Card size="small" className="builder-subcard" title={t('context.cacheMaintenanceTitle')}>
-                            <Space direction="vertical" size={10} style={{ display: 'flex' }}>
+                            <Space direction="vertical" size={10} className="app-block-space">
                               <Text type="secondary">{t('context.cacheMaintenanceHint')}</Text>
                               <Space wrap className="responsive-action-bar">
                                 <Button
@@ -641,14 +587,18 @@ function BuilderEditor({
                         )}
 
                         {profile?.usePreviewContext === true && profile?.usePreviewAboveBelow === true && (
-                          <Space direction="vertical" size={14} style={{ display: 'flex' }}>
+                          <Space direction="vertical" size={14} className="app-block-space">
                             <Text type="secondary">{t('context.previewContextHint')}</Text>
                             <Row gutter={[16, 16]}>
                               <Col xs={24} md={12} xl={6}>
-                                <Input addonBefore={t('context.previewAboveSegments')} value={profile?.previewAboveSegments} onChange={(event) => onChange('previewAboveSegments', Number(event.target.value || 0))} />
+                                <Form.Item label={t('context.previewAboveSegments')}>
+                                  <InputNumber className="builder-number-input" min={0} max={Number.MAX_SAFE_INTEGER} precision={0} value={profile?.previewAboveSegments} onChange={(value) => onChange('previewAboveSegments', Number(value || 0))} />
+                                </Form.Item>
                               </Col>
                               <Col xs={24} md={12} xl={6}>
-                                <Input addonBefore={t('context.previewAboveCharacters')} value={profile?.previewAboveCharacters} onChange={(event) => onChange('previewAboveCharacters', Number(event.target.value || 0))} />
+                                <Form.Item label={t('context.previewAboveCharacters')}>
+                                  <InputNumber className="builder-number-input" min={0} max={Number.MAX_SAFE_INTEGER} precision={0} value={profile?.previewAboveCharacters} onChange={(value) => onChange('previewAboveCharacters', Number(value || 0))} />
+                                </Form.Item>
                               </Col>
                               <Col xs={24} md={12} xl={6}>
                                 <div className="builder-switch-line">
@@ -665,10 +615,14 @@ function BuilderEditor({
                             </Row>
                             <Row gutter={[16, 16]}>
                               <Col xs={24} md={12} xl={6}>
-                                <Input addonBefore={t('context.previewBelowSegments')} value={profile?.previewBelowSegments} onChange={(event) => onChange('previewBelowSegments', Number(event.target.value || 0))} />
+                                <Form.Item label={t('context.previewBelowSegments')}>
+                                  <InputNumber className="builder-number-input" min={0} max={Number.MAX_SAFE_INTEGER} precision={0} value={profile?.previewBelowSegments} onChange={(value) => onChange('previewBelowSegments', Number(value || 0))} />
+                                </Form.Item>
                               </Col>
                               <Col xs={24} md={12} xl={6}>
-                                <Input addonBefore={t('context.previewBelowCharacters')} value={profile?.previewBelowCharacters} onChange={(event) => onChange('previewBelowCharacters', Number(event.target.value || 0))} />
+                                <Form.Item label={t('context.previewBelowCharacters')}>
+                                  <InputNumber className="builder-number-input" min={0} max={Number.MAX_SAFE_INTEGER} precision={0} value={profile?.previewBelowCharacters} onChange={(value) => onChange('previewBelowCharacters', Number(value || 0))} />
+                                </Form.Item>
                               </Col>
                               <Col xs={24} md={12} xl={6}>
                                 <div className="builder-switch-line">
@@ -693,14 +647,7 @@ function BuilderEditor({
             </StepCard>
           </div>
 
-          <div className="builder-sticky-actions" data-testid="builder-sticky-actions">
-            <Space wrap size={[10, 10]} className="builder-sticky-actions-inner responsive-action-bar">
-              {isDirty ? <Tag color="orange">{t('common.unsavedChanges')}</Tag> : null}
-              <Button onClick={onDiscard}>{t('context.discardChanges')}</Button>
-              <Button type="primary" icon={<SaveOutlined />} onClick={onSave}>{t('context.saveProfile')}</Button>
-            </Space>
-          </div>
-        </Space>
+        </Form>
       </Card>
     </>
   );
@@ -713,11 +660,10 @@ export default function BuilderPage({
   providers = [],
   assets = [],
   isDirty = false,
-  supportedPlaceholders = [],
-  templateIssues = [],
   onSelectProfile,
   onCreateBlankProfile,
   onCreatePresetProfile,
+  creatingProfileKind = '',
   onChangeProfile,
   onSaveProfile,
   onSetDefaultProfile,
@@ -726,14 +672,16 @@ export default function BuilderPage({
   translationCacheBypassPending = false,
   onDiscardProfile,
   onDuplicateProfile,
+  savingProfile = false,
+  duplicatingProfile = false,
   onDeleteProfile
 }) {
   const { t } = useI18n();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
-    <Space direction="vertical" size={18} style={{ display: 'flex' }}>
-      <Row gutter={16} align="top">
+    <Space direction="vertical" size={16} className="app-block-space">
+      <Row gutter={[16, 16]} align="top">
         <Col xs={24} xl={getPanelColumnSpan(sidebarCollapsed)}>
           <ProfileListPanel
             profileItems={profileItems}
@@ -742,6 +690,7 @@ export default function BuilderPage({
             onSelectProfile={onSelectProfile}
             onCreateBlankProfile={onCreateBlankProfile}
             onCreatePresetProfile={onCreatePresetProfile}
+            creatingProfileKind={creatingProfileKind}
             title={t('context.panelTitle')}
             emptyText={t('context.noProfiles')}
             collapsed={sidebarCollapsed}
@@ -756,8 +705,6 @@ export default function BuilderPage({
               profile={currentProfile}
               providers={providers}
               assets={assets}
-              supportedPlaceholders={supportedPlaceholders}
-              templateIssues={templateIssues}
               onChange={onChangeProfile}
               onSave={onSaveProfile}
               onSetDefault={onSetDefaultProfile}
@@ -768,6 +715,8 @@ export default function BuilderPage({
               isDefaultProfile={currentProfile?.id === defaultProfileId}
               onDiscard={onDiscardProfile}
               onDuplicate={onDuplicateProfile}
+              saving={savingProfile}
+              duplicating={duplicatingProfile}
               onDelete={onDeleteProfile}
             />
           ) : (

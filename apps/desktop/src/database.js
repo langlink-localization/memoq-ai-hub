@@ -2,13 +2,18 @@ const fs = require('fs');
 const path = require('path');
 const initSqlJs = require('sql.js');
 
-function resolveSqlWasmPath() {
-  const candidates = [
-    path.join(__dirname, '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
-    path.join(__dirname, '..', '..', '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
-    path.resolve(__dirname, '..', '..', '..', 'sql-wasm.wasm'),
-    path.join(process.resourcesPath || '', 'sql-wasm.wasm')
+function buildSqlWasmCandidates(baseDir = __dirname, resourcesPath = process.resourcesPath || '') {
+  return [
+    path.join(baseDir, '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
+    path.join(baseDir, '..', '..', '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
+    path.join(baseDir, '..', '..', '..', '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
+    path.resolve(baseDir, '..', '..', '..', 'sql-wasm.wasm'),
+    path.join(resourcesPath, 'sql-wasm.wasm')
   ];
+}
+
+function resolveSqlWasmPath() {
+  const candidates = buildSqlWasmCandidates();
 
   const found = candidates.find((candidate) => fs.existsSync(candidate));
   if (!found) {
@@ -122,5 +127,6 @@ async function createDatabase(paths) {
 }
 
 module.exports = {
+  buildSqlWasmCandidates,
   createDatabase
 };

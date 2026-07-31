@@ -330,6 +330,13 @@ function revealWindow() {
   }
 }
 
+function getInitialWindowWidth() {
+  const requestedWidth = Number.parseInt(process.env.MEMOQ_AI_DESKTOP_WINDOW_WIDTH || '', 10);
+  return Number.isInteger(requestedWidth) && requestedWidth >= 720 && requestedWidth <= 3840
+    ? requestedWidth
+    : 1440;
+}
+
 function createWindow() {
   const rendererDevServerUrl = typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined'
     ? MAIN_WINDOW_VITE_DEV_SERVER_URL
@@ -338,10 +345,11 @@ function createWindow() {
   let revealTimeout;
 
   mainWindow = new BrowserWindow({
-    width: 1440,
+    width: getInitialWindowWidth(),
     height: 960,
-    minWidth: 1200,
+    minWidth: 720,
     minHeight: 760,
+    useContentSize: true,
     title: PRODUCT_NAME,
     backgroundColor: '#f3f5f9',
     show: false,

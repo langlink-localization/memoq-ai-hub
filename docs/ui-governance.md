@@ -28,6 +28,7 @@ Navigation, onboarding, documentation, and empty-state actions must use this ord
 - `769px - 1199px`: compact application navigation is allowed, but module selectors must avoid consuming a permanent content column.
 - `<= 768px`: navigation is a drawer and module selectors stack or become compact controls.
 - Page-level horizontal scrolling is not allowed. Data tables may provide their own horizontal scroll region.
+- Data-table columns use the shared semantic width tokens in `tableLayout.mjs`; page components do not embed anonymous pixel widths.
 - Primary actions remain reachable without covering content, and overlays stay inside the viewport.
 
 ## Interaction And Accessibility
@@ -51,10 +52,15 @@ Navigation, onboarding, documentation, and empty-state actions must use this ord
 - Validation appears near the affected section and prevents invalid saves with an actionable explanation.
 - Empty states explain the next useful action.
 - Loading, success, failure, disconnected, and stale states use consistent language in English and Chinese.
+- Asynchronous mutations expose an operation-scoped pending state and reject duplicate submission until completion.
+- Background polling publishes only page-owned state slices; unchanged or unrelated slices must preserve snapshot identity and must not rerender the application shell.
+- Message, modal, and notification feedback uses the themed Ant Design application context; global and startup failures remain dismissible or retryable.
 
 ## Visual System
 
 - Use Ant Design 5 components and repository theme tokens before adding custom controls.
+- `ConfigProvider.theme` is the visual token source of truth. Renderer CSS must not add a parallel color-token system, unscoped Ant Design internals, or `!important` overrides.
+- Configuration fields use `Form` and `Form.Item`; numeric and date values use `InputNumber` and `DatePicker` when those semantics apply.
 - The spacing rhythm uses 8px increments where practical; page content defaults to 24px wide-screen padding and 16px compact padding.
 - Success and warning text must use accessible dark foregrounds; bright semantic colors are reserved for fills, borders, icons, or large text.
 - Page titles, section titles, supporting text, and technical metadata have clearly different typographic levels.
@@ -63,6 +69,6 @@ Navigation, onboarding, documentation, and empty-state actions must use this ord
 
 - English and Chinese locale key sets remain identical.
 - Keyboard tests cover application navigation, module lists, row activation, and dirty-navigation protection.
-- Responsive checks cover representative 1366px, 1024px, and 768px layouts with no page-level horizontal overflow.
+- Responsive checks cover representative 1024px, 1280px, 1440px, and 1920px layouts plus the 768px drawer boundary, with no page-level horizontal overflow.
 - Renderer behavior is tested through component interaction where feasible; source-string assertions alone are not sufficient for new behavior.
 - `pnpm run test:desktop`, `pnpm run test:repo`, and a renderer compile/package-relevant check must pass before completion.

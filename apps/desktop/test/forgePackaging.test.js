@@ -6,6 +6,27 @@ const path = require('path');
 
 const forgeConfig = require('../forge.config');
 
+test('Vite main-process inputs include every statically required local runtime module', async () => {
+  const viteConfig = (await import('../vite.main.config.mjs')).default;
+  const inputPaths = new Set(
+    Object.values(viteConfig.build.rollupOptions.input).map((inputPath) => path.resolve(inputPath))
+  );
+  const localRequirePattern = /require\((['"])(\.\.?\/[^'"]+)\1\)/g;
+  const missingInputs = [];
+
+  for (const inputPath of inputPaths) {
+    const source = fs.readFileSync(inputPath, 'utf8');
+    for (const match of source.matchAll(localRequirePattern)) {
+      const requiredPath = path.resolve(path.dirname(inputPath), `${match[2]}.js`);
+      if (fs.existsSync(requiredPath) && !inputPaths.has(requiredPath)) {
+        missingInputs.push(path.relative(path.join(__dirname, '..', 'src'), requiredPath));
+      }
+    }
+  }
+
+  assert.deepEqual(missingInputs.sort(), []);
+});
+
 test('forge packaging collects transitive runtime dependencies for discovered desktop modules', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'memoq-forge-packaging-'));
   const buildDir = path.join(tempRoot, '.vite', 'build');

@@ -1,12 +1,17 @@
 const fs = require('fs');
 const path = require('path');
 
-const contractCandidates = [
-  path.resolve(__dirname, '..', '..', '..', '..', 'packages', 'contracts', 'desktop-contract.json'),
-  path.resolve(__dirname, '..', '..', '..', '..', 'desktop-contract.json'),
-  path.join(process.resourcesPath || '', 'desktop-contract.json'),
-  path.join(process.resourcesPath || '', 'packages', 'contracts', 'desktop-contract.json')
-];
+function buildContractCandidates(baseDir = __dirname, resourcesPath = process.resourcesPath || '') {
+  return [
+    path.resolve(baseDir, '..', '..', '..', '..', 'packages', 'contracts', 'desktop-contract.json'),
+    path.resolve(baseDir, '..', '..', '..', '..', '..', 'packages', 'contracts', 'desktop-contract.json'),
+    path.resolve(baseDir, '..', '..', '..', '..', 'desktop-contract.json'),
+    path.join(resourcesPath, 'desktop-contract.json'),
+    path.join(resourcesPath, 'packages', 'contracts', 'desktop-contract.json')
+  ];
+}
+
+const contractCandidates = buildContractCandidates();
 
 const contractPath = contractCandidates.find((candidate) => fs.existsSync(candidate));
 
@@ -46,6 +51,7 @@ module.exports = {
   PREVIEW: contract.preview || {},
   INTEGRATION: contract.integration,
   ERROR_CODES: contract.errorCodes,
+  buildContractCandidates,
   normalizeGatewayHost,
   normalizeGatewayPort,
   raw: contract

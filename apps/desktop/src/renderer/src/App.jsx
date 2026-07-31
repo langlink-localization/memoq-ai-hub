@@ -9,33 +9,29 @@ import {
   MenuOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  PlusOutlined,
-  ReloadOutlined,
-  SaveOutlined
+  ReloadOutlined
 } from '@ant-design/icons';
 import {
   Alert,
+  App as AntdApp,
   Button,
   Card,
   Col,
-  Collapse,
   Descriptions,
   Dropdown,
   Drawer,
   Empty,
+  Form,
   Input,
   Layout,
-  List,
-  message,
   Menu,
   Modal,
   Radio,
+  Result,
   Row,
   Select,
   Space,
   Spin,
-  Statistic,
-  Switch,
   Table,
   Tag,
   Tooltip,
@@ -52,27 +48,34 @@ import {
 import { getProviderDraftSeed } from './providerDraftDefaults.mjs';
 import {
   DEFAULT_CUSTOM_TM_MATCH_BUCKETS,
-  buildDefaultPresetProfile,
-  buildHistoryPromptItems,
-  getHistoryContextSources,
-  getHistoryRenderedSystemPrompt,
-  getHistoryRenderedUserPrompt,
-  shouldShowHistoryActualSentContent
+  buildDefaultPresetProfile
 } from './appShell.mjs';
 import {
-  formatTimestampForLocalDisplay,
-  parseDateInputToEpochMs
+  formatTimestampForLocalDisplay
 } from './timeFormatting.mjs';
 import { useI18n } from './i18n';
+import DashboardConnectionStatus from './components/DashboardConnectionStatus.jsx';
+import { TABLE_SCROLL_X } from './tableLayout.mjs';
 import {
-  CONNECTION_INVALIDATING_PROVIDER_FIELDS,
+  buildInstallDraft,
+  getPresetInstallDir,
+  getUpdateErrorDisplay
+} from './pages/dashboard/dashboardPresentation.mjs';
+import {
+  getDashboardStatusSnapshot,
+  setDashboardStatusSnapshot
+} from './pages/dashboard/dashboardStatusStore.mjs';
+import {
+  buildHistoryActiveFilterTags,
+  filterHistoryItems
+} from './pages/history/historyPresentation.mjs';
+import {
   DEFAULT_PROVIDER_TEST_STATE,
   decorateProvidersWithConnectionStatus,
   normalizeProviderStatus
 } from './pages/providers/providerConnectionState.mjs';
 import {
-  activateOnKeyboard,
-  buildDashboardChecklist,
+  createPendingOperationRegistry,
   getPageScrollPosition,
   getShellNavigationMode,
   readShellState,
@@ -82,13 +85,14 @@ import {
 } from './uiBehavior.mjs';
 
 const ProvidersPage = lazy(() => import('./pages/providers/ProvidersPage.jsx'));
+const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage.jsx'));
+const HistoryPage = lazy(() => import('./pages/history/HistoryPage.jsx'));
 const BuilderPage = lazy(() => import('./pages/builder/BuilderPage.jsx'));
 const AssetsPage = lazy(() => import('./pages/assets/AssetsPage.jsx'));
 const LogsPage = lazy(() => import('./pages/logs/LogsPage.jsx'));
 
 const { Content, Header, Sider } = Layout;
 const { Text, Title } = Typography;
-const DEFAULT_MEMOQ_VERSIONS = ['10', '11', '12'];
 const EMPTY_HISTORY_FILTERS = {
   search: '',
   projectId: '',
@@ -100,8 +104,6 @@ const EMPTY_HISTORY_FILTERS = {
   dateFrom: '',
   dateTo: ''
 };
-const SLOW_HISTORY_LATENCY_MS = 30000;
-const HISTORY_ISSUE_OPTIONS = ['failed', 'timeout', 'rate_limit', 'fallback', 'slow'];
 const DEFAULT_HISTORY_INSIGHTS = {
   totalRequests: 0,
   totalSegments: 0,
@@ -120,34 +122,19 @@ const DEFAULT_HISTORY_INSIGHTS = {
   attentionItems: []
 };
 const CONNECTION_SENSITIVE_PROVIDER_FIELDS = new Set(['apiKey', 'baseUrl', 'requestPath', 'type']);
-const TEMPLATE_PLACEHOLDER_PATTERN = /{{\s*([a-z-]+)(!)?\s*}}/g;
 const WIDE_SIDE_DRAWER_WIDTH = 'min(920px, calc(100vw - 32px))';
-const TABLE_SCROLL_X = 'max-content';
-const TRANSLATION_STYLE_PRESETS = [
-  {
-    key: 'natural',
-    text: 'Prefer natural, concise, production-ready translations that stay consistent with product terminology.'
-  },
-  {
-    key: 'formal',
-    text: 'Prefer formal, precise wording with a professional tone and stable terminology.'
-  },
-  {
-    key: 'technical',
-    text: 'Prefer technically accurate, explicit phrasing that preserves instructions, constraints, and domain terminology.'
-  },
-  {
-    key: 'marketing',
-    text: 'Prefer fluent, appealing copy that reads naturally to end users while keeping required terms intact.'
-  },
-  {
-    key: 'ui',
-    text: 'Prefer short, clear UI-style wording suitable for buttons, menus, labels, and product microcopy.'
-  }
-];
 
 function useDesktopApi() {
   return window.memoqDesktop;
+}
+
+function PageHeaderBlock({ title, description }) {
+  return (
+    <div className="page-header-block">
+      <Title level={2}>{title}</Title>
+      <Text type="secondary">{description}</Text>
+    </div>
+  );
 }
 
 function createFallbackAppState() {
@@ -383,15 +370,19 @@ function preserveProviderHistoryMetrics(remoteData, currentState) {
   });
 }
 
-function createBlankProfile() {
-  return buildDefaultPresetProfile();
+function createBlankProfile(t) {
+  return buildDefaultPresetProfile({
+    name: t('context.defaultPresetName'),
+    description: t('context.defaultPresetDescription'),
+    translationStyle: t('context.translationStyleInstruction.natural')
+  });
 }
 
-function createEmptyProfileDraft() {
+function createEmptyProfileDraft(t) {
   return {
-    name: 'New Profile',
+    name: t('context.newProfileName'),
     description: '',
-    translationStyle: 'Prefer natural, concise, production-ready translations that stay consistent with product terminology.',
+    translationStyle: t('context.translationStyleInstruction.natural'),
     useBestFuzzyTm: true,
     useMetadata: true,
     useUploadedGlossary: true,
@@ -443,41 +434,6 @@ function createProviderDraft(type) {
   };
 }
 
-function getRuntimeConnectionColor(status) {
-  const normalized = String(status || '').trim().toLowerCase();
-  if (normalized === 'connected') return 'green';
-  if (normalized === 'starting' || normalized === 'connecting') return 'gold';
-  if (normalized === 'error') return 'red';
-  if (normalized === 'idle' || normalized === 'missing' || normalized === 'disconnected') return 'default';
-  return 'default';
-}
-
-function getRuntimeConnectionLabel(status, t) {
-  const normalized = String(status || '').trim().toLowerCase();
-  if (normalized === 'connected') return t('dashboard.connectionConnected');
-  if (normalized === 'starting' || normalized === 'connecting') return t('dashboard.connectionStarting');
-  if (normalized === 'error') return t('dashboard.connectionError');
-  if (normalized === 'idle' || normalized === 'missing' || normalized === 'disconnected') return t('dashboard.connectionDisconnected');
-  if (normalized === 'disconnected') return t('dashboard.connectionDisconnected');
-  return t('dashboard.connectionUnknown');
-}
-
-function translateWithFallback(t, key, fallback, values) {
-  const translated = t(key, values);
-  return translated && translated !== key ? translated : fallback;
-}
-
-function HoverText({ value, fallback = '-', className = '' }) {
-  const normalized = String(value ?? '').trim();
-  const displayValue = normalized || fallback;
-
-  return (
-    <Tooltip title={displayValue}>
-      <span className={`hover-text ${className}`.trim()}>{displayValue}</span>
-    </Tooltip>
-  );
-}
-
 function normalizeLogStatePayload(data = {}) {
   return {
     ok: data.ok !== false,
@@ -493,130 +449,26 @@ function normalizeLogStatePayload(data = {}) {
   };
 }
 
-function buildLogDiagnosticText(logState = {}, appState = {}) {
+function buildLogDiagnosticText(logState = {}, appState = {}, t = (key) => key) {
   const groups = (logState.groups || [])
-    .map((group) => `${group.source}: ${(group.files || []).length} file(s), ${group.totalSizeBytes || 0} bytes`)
+    .map((group) => t('logs.diagnosticGroup', {
+      source: group.source,
+      files: (group.files || []).length,
+      bytes: group.totalSizeBytes || 0
+    }))
     .join('\n');
 
   return [
-    `${appState.productName || 'memoQ AI Hub'} diagnostics`,
-    `Contract: ${appState.contractVersion || '-'}`,
-    `Gateway: ${appState.gatewayBaseUrl || '-'}`,
-    `Startup: ${appState.startup?.status || 'ready'}`,
-    `Logs: ${logState.logsDir || '-'}`,
-    `Total log size: ${logState.totalSizeBytes || 0} bytes`,
-    `Latest log update: ${logState.latestUpdatedAt || '-'}`,
+    t('logs.diagnosticsTitle', { product: appState.productName || 'memoQ AI Hub' }),
+    t('logs.diagnosticContract', { value: appState.contractVersion || '-' }),
+    t('logs.diagnosticGateway', { value: appState.gatewayBaseUrl || '-' }),
+    t('logs.diagnosticStartup', { value: appState.startup?.status || 'ready' }),
+    t('logs.diagnosticDirectory', { value: logState.logsDir || '-' }),
+    t('logs.diagnosticTotalSize', { value: logState.totalSizeBytes || 0 }),
+    t('logs.diagnosticLatestUpdate', { value: logState.latestUpdatedAt || '-' }),
     '',
-    groups || 'No log files found.'
+    groups || t('logs.noFilesFound')
   ].join('\n');
-}
-
-function getUpdateStatusLabel(status, t) {
-  const normalized = String(status || '').trim().toLowerCase();
-  if (normalized === 'checking') return translateWithFallback(t, 'dashboard.updateStatusChecking', 'Checking');
-  if (normalized === 'available') return translateWithFallback(t, 'dashboard.updateStatusAvailable', 'Available');
-  if (normalized === 'downloading') return translateWithFallback(t, 'dashboard.updateStatusDownloading', 'Downloading');
-  if (normalized === 'prepared') return translateWithFallback(t, 'dashboard.updateStatusPrepared', 'Prepared');
-  if (normalized === 'up-to-date') return translateWithFallback(t, 'dashboard.updateStatusUpToDate', 'Up to date');
-  if (normalized === 'error') return translateWithFallback(t, 'dashboard.updateStatusError', 'Error');
-  return translateWithFallback(t, 'dashboard.updateStatusIdle', 'Idle');
-}
-
-function compareDisplayVersions(leftVersion, rightVersion) {
-  const left = String(leftVersion || '').trim().replace(/^v/i, '').split('.').map((segment) => Number.parseInt(segment, 10) || 0);
-  const right = String(rightVersion || '').trim().replace(/^v/i, '').split('.').map((segment) => Number.parseInt(segment, 10) || 0);
-  const length = Math.max(left.length, right.length);
-
-  for (let index = 0; index < length; index += 1) {
-    const leftValue = left[index] || 0;
-    const rightValue = right[index] || 0;
-    if (leftValue > rightValue) return 1;
-    if (leftValue < rightValue) return -1;
-  }
-
-  return 0;
-}
-
-function getSafeUpdateStatus(updateCenter = {}) {
-  const status = String(updateCenter.updateStatus || '').trim().toLowerCase();
-  if (
-    ['available', 'downloading', 'prepared'].includes(status)
-    && compareDisplayVersions(updateCenter.latestVersion, updateCenter.currentVersion) <= 0
-  ) {
-    return 'up-to-date';
-  }
-  return status || 'idle';
-}
-
-function getUpdateErrorDisplay(updateCenter = {}, t) {
-  const errorCode = String(updateCenter.lastErrorCode || '').trim();
-  if (errorCode === 'UPDATE_CHECK_TIMEOUT') {
-    return translateWithFallback(t, 'dashboard.updateCheckTimeoutError', 'Update check timed out. Please try again later.');
-  }
-  if (errorCode === 'UPDATE_CHECK_FAILED') {
-    return translateWithFallback(t, 'dashboard.updateCheckFailedError', 'Unable to check for updates. Please try again later.');
-  }
-  return String(updateCenter.lastError || '').trim();
-}
-
-function getPackagingModeLabel(mode, t) {
-  return String(mode || '').trim().toLowerCase() === 'installed'
-    ? translateWithFallback(t, 'dashboard.packagingInstalled', 'Installed')
-    : translateWithFallback(t, 'dashboard.packagingPortable', 'Portable');
-}
-
-function getPresetInstallDir(version) {
-  return `C:\\Program Files\\memoQ\\memoQ-${version}`;
-}
-
-function normalizeInstallOption(option = {}) {
-  const versionCandidate = String(option.memoqVersion || option.version || '').trim();
-  const versionMatch = versionCandidate.match(/\d+/)?.[0] || '';
-  const selectedInstallDir = String(option.selectedInstallDir || option.installDir || option.rootDir || option.path || '').trim();
-  const version = DEFAULT_MEMOQ_VERSIONS.includes(versionCandidate)
-    ? versionCandidate
-    : (DEFAULT_MEMOQ_VERSIONS.includes(versionMatch) ? versionMatch : versionCandidate);
-
-  return {
-    version,
-    selectedInstallDir: selectedInstallDir || (version ? getPresetInstallDir(version) : ''),
-    label: option.label || (version ? `memoQ ${version}` : selectedInstallDir || '')
-  };
-}
-
-function buildInstallOptions(integration = {}) {
-  const remoteOptions = Array.isArray(integration.defaultInstallOptions)
-    ? integration.defaultInstallOptions.map(normalizeInstallOption).filter((option) => option.version || option.selectedInstallDir)
-    : [];
-
-  if (remoteOptions.length) {
-    return remoteOptions;
-  }
-
-  return DEFAULT_MEMOQ_VERSIONS.map((version) => ({
-    version,
-    selectedInstallDir: getPresetInstallDir(version),
-    label: `memoQ ${version}`
-  }));
-}
-
-function buildInstallDraft(integration = {}) {
-  const installOptions = buildInstallOptions(integration);
-  const selectedInstallDir = String(integration.selectedInstallDir || '').trim();
-  const customInstallDir = String(integration.customInstallDir || '').trim();
-  const versionCandidate = String(integration.memoqVersion || '').trim();
-  const matchedOption = installOptions.find((option) => option.selectedInstallDir === selectedInstallDir || option.version === versionCandidate);
-  const version = matchedOption?.version || (DEFAULT_MEMOQ_VERSIONS.includes(versionCandidate) ? versionCandidate : '11');
-  const presetInstallDir = getPresetInstallDir(version);
-  const isCustom = Boolean(customInstallDir) || (selectedInstallDir && selectedInstallDir !== presetInstallDir);
-  const finalSelectedInstallDir = isCustom ? (selectedInstallDir || customInstallDir || '') : presetInstallDir;
-
-  return {
-    mode: isCustom ? 'custom' : 'preset',
-    memoqVersion: version,
-    selectedInstallDir: finalSelectedInstallDir,
-    customInstallDir: isCustom ? (customInstallDir || selectedInstallDir || finalSelectedInstallDir) : ''
-  };
 }
 
 function getStatusTagMeta(status, t) {
@@ -783,280 +635,8 @@ function applyProfileExecutionSelection(profile = {}, value = '') {
   };
 }
 
-function parseFilterDate(value, endOfDay = false) {
-  return parseDateInputToEpochMs(value, { endOfDay });
-}
-
 function formatLocalTimestamp(value, fallback = '-') {
   return formatTimestampForLocalDisplay(value, { fallback });
-}
-
-function getHistoryAttempts(entry = {}) {
-  return Array.isArray(entry.attempts) ? entry.attempts : [];
-}
-
-function getHistoryAttemptErrorCode(attempt = {}) {
-  return String(attempt?.errorCode || '').trim().toUpperCase();
-}
-
-function hasHistoryFallback(entry = {}) {
-  if (entry?.issueFlags?.fallback === true) {
-    return true;
-  }
-  if (entry.finalizedByFallbackRoute === true) {
-    return true;
-  }
-  if (Array.isArray(entry.throughput?.fallbackReasons) && entry.throughput.fallbackReasons.length > 0) {
-    return true;
-  }
-  return getHistoryAttempts(entry).some((attempt) => attempt?.finalizedByFallbackRoute === true);
-}
-
-function matchesHistoryIssue(entry = {}, issue = '') {
-  const normalizedIssue = String(issue || '').trim().toLowerCase();
-  if (!normalizedIssue || !HISTORY_ISSUE_OPTIONS.includes(normalizedIssue)) {
-    return true;
-  }
-
-  if (normalizedIssue === 'failed') {
-    if (entry?.issueFlags?.failed === true) return true;
-    return String(entry?.status || '').trim().toLowerCase() === 'failed';
-  }
-
-  if (normalizedIssue === 'timeout') {
-    if (entry?.issueFlags?.timeout === true) return true;
-    return getHistoryAttempts(entry).some((attempt) => {
-      const errorCode = getHistoryAttemptErrorCode(attempt);
-      return errorCode === 'PROVIDER_TIMEOUT' || errorCode === 'TRANSLATION_TIMEOUT';
-    });
-  }
-
-  if (normalizedIssue === 'rate_limit') {
-    if (entry?.issueFlags?.rate_limit === true) return true;
-    return getHistoryAttempts(entry).some((attempt) => getHistoryAttemptErrorCode(attempt) === 'PROVIDER_RATE_LIMITED');
-  }
-
-  if (normalizedIssue === 'fallback') {
-    return hasHistoryFallback(entry);
-  }
-
-  if (normalizedIssue === 'slow') {
-    if (entry?.issueFlags?.slow === true) return true;
-    const latencyMs = Number(entry?.latencyMs);
-    return Number.isFinite(latencyMs) && latencyMs > SLOW_HISTORY_LATENCY_MS;
-  }
-
-  return true;
-}
-
-function getHistoryIssueLabel(t, issue = '') {
-  const normalizedIssue = String(issue || '').trim().toLowerCase();
-  if (!normalizedIssue) {
-    return '';
-  }
-  const key = `history.issue.${normalizedIssue}`;
-  const label = t(key);
-  return label === key ? normalizedIssue : label;
-}
-
-function buildHistoryActiveFilterTags(filters = {}, t) {
-  const labelsByField = {
-    search: t('history.search'),
-    provider: t('history.providerFilter'),
-    model: t('history.modelFilter'),
-    projectId: t('history.projectIdFilter'),
-    subject: t('history.subjectFilter'),
-    status: t('history.statusFilter'),
-    issue: t('history.issueFilter'),
-    dateFrom: t('history.dateFrom'),
-    dateTo: t('history.dateTo')
-  };
-
-  return Object.entries(filters)
-    .map(([field, value]) => {
-      const normalizedValue = String(value || '').trim();
-      if (!normalizedValue) {
-        return null;
-      }
-      const displayValue = field === 'issue'
-        ? getHistoryIssueLabel(t, normalizedValue)
-        : field === 'status'
-          ? t(`history.status${normalizedValue === 'success' ? 'Success' : 'Failed'}`)
-          : normalizedValue;
-      return {
-        field,
-        value: normalizedValue,
-        label: `${labelsByField[field] || field}: ${displayValue}`
-      };
-    })
-    .filter(Boolean);
-}
-
-function getHistoryInsightFocusMessage(t, focus = {}) {
-  if (!focus || typeof focus !== 'object') {
-    return '';
-  }
-  if (focus.code) {
-    return t(`history.insights.attention.${focus.code}`, focus.values || {});
-  }
-  if (focus.provider || focus.model) {
-    return t('history.insights.providerFocusMessage', {
-      provider: focus.provider || '-',
-      model: focus.model || '-'
-    });
-  }
-  return t('history.insights.genericFocusMessage');
-}
-
-function hasHistoryCacheHit(entry = {}) {
-  if (entry?.issueFlags?.cache_hit === true) {
-    return true;
-  }
-  return getHistoryAttempts(entry).some((attempt) => {
-    const cacheKind = String(attempt?.cacheKind || '').trim().toLowerCase();
-    return cacheKind === 'exact' || cacheKind === 'adaptive';
-  });
-}
-
-function buildHistoryIssueTags(record = {}) {
-  const tags = [];
-  const addTag = (key, color = 'default', issue = '') => {
-    if (!tags.some((tag) => tag.key === key)) {
-      tags.push({ key, color, issue });
-    }
-  };
-
-  if (matchesHistoryIssue(record, 'failed')) {
-    addTag('failed', 'red', 'failed');
-  }
-  if (matchesHistoryIssue(record, 'timeout')) {
-    addTag('timeout', 'orange', 'timeout');
-  }
-  if (matchesHistoryIssue(record, 'rate_limit')) {
-    addTag('rate_limit', 'gold', 'rate_limit');
-  }
-  if (matchesHistoryIssue(record, 'fallback')) {
-    addTag('fallback', 'blue', 'fallback');
-  }
-  if (matchesHistoryIssue(record, 'slow')) {
-    addTag('slow', 'volcano', 'slow');
-  }
-  if (hasHistoryCacheHit(record)) {
-    addTag('cache_hit', 'green', '');
-  }
-
-  return tags;
-}
-
-function getHistoryAttemptErrorMessage(attempt = {}) {
-  return String(attempt?.errorCode || attempt?.error?.code || attempt?.error?.message || attempt?.message || '').trim();
-}
-
-function buildHistoryDiagnosticSummary(record = {}) {
-  const attempts = getHistoryAttempts(record);
-  const issueTags = buildHistoryIssueTags(record);
-  const errorCodes = Array.from(new Set(attempts
-    .map((attempt) => getHistoryAttemptErrorMessage(attempt))
-    .filter(Boolean)));
-  const throughputFallbackReasons = Array.isArray(record?.throughput?.fallbackReasons)
-    ? record.throughput.fallbackReasons.map((reason) => String(reason || '').trim()).filter(Boolean)
-    : [];
-  const fallbackStages = Array.from(new Set(attempts
-    .map((attempt) => String(attempt?.fallbackStage || '').trim())
-    .filter(Boolean)));
-
-  return {
-    issueTags,
-    issueCount: issueTags.filter((tag) => tag.issue).length,
-    totalLatencyMs: Number.isFinite(Number(record?.latencyMs)) ? Number(record.latencyMs) : null,
-    attemptCount: attempts.length,
-    fallbackActive: hasHistoryFallback(record),
-    fallbackReasons: Array.from(new Set([...throughputFallbackReasons, ...fallbackStages])),
-    primaryError: errorCodes[0] || '',
-    errorCodes
-  };
-}
-
-function buildHistoryAttemptRows(record = {}) {
-  return getHistoryAttempts(record).map((attempt, index) => ({
-    key: `${record?.id || 'history'}-${index}`,
-    index: index + 1,
-    route: String(attempt?.routeKind || attempt?.effectiveExecutionMode || '').trim(),
-    provider: String(attempt?.providerName || attempt?.providerId || '').trim(),
-    model: String(attempt?.model || '').trim(),
-    mode: String(attempt?.effectiveExecutionMode || (attempt?.batch ? 'batch' : '')).trim(),
-    success: attempt?.success === true,
-    latencyMs: Number.isFinite(Number(attempt?.latencyMs)) ? Number(attempt.latencyMs) : null,
-    cacheKind: String(attempt?.cacheKind || '').trim(),
-    error: getHistoryAttemptErrorMessage(attempt),
-    fallbackStage: String(attempt?.fallbackStage || '').trim(),
-    batchSize: Number.isFinite(Number(attempt?.batchSize)) ? Number(attempt.batchSize) : null,
-    retryCount: Number.isFinite(Number(attempt?.retryCount)) ? Number(attempt.retryCount) : null
-  }));
-}
-
-function filterHistoryItems(items = [], filters = {}) {
-  const search = normalizeFilterText(filters.search);
-  const projectId = normalizeFilterText(filters.projectId);
-  const subject = normalizeFilterText(filters.subject);
-  const provider = normalizeFilterText(filters.provider);
-  const model = normalizeFilterText(filters.model);
-  const status = normalizeFilterText(filters.status);
-  const issue = normalizeFilterText(filters.issue);
-  const dateFrom = parseFilterDate(filters.dateFrom);
-  const dateTo = parseFilterDate(filters.dateTo, true);
-
-  return items.filter((item) => {
-    const searchableText = [
-      item.requestId,
-      item.projectId,
-      item.subject,
-      item.providerId,
-      item.providerName,
-      item.model,
-      item.status,
-      item.segmentSummary
-    ].map((value) => String(value || '').toLowerCase()).join(' ');
-
-    if (search && !searchableText.includes(search)) {
-      return false;
-    }
-
-    if (projectId && !String(item.projectId || '').toLowerCase().includes(projectId)) {
-      return false;
-    }
-
-    if (subject && !String(item.subject || '').toLowerCase().includes(subject)) {
-      return false;
-    }
-
-    if (provider && !String(item.providerName || item.providerId || '').toLowerCase().includes(provider)) {
-      return false;
-    }
-
-    if (model && !String(item.model || '').toLowerCase().includes(model)) {
-      return false;
-    }
-
-    if (status && String(item.status || '').toLowerCase() !== status) {
-      return false;
-    }
-
-    if (issue && !matchesHistoryIssue(item, issue)) {
-      return false;
-    }
-
-    const submittedAtTime = new Date(item.submittedAt || '').getTime();
-    if (dateFrom && Number.isFinite(submittedAtTime) && submittedAtTime < dateFrom) {
-      return false;
-    }
-
-    if (dateTo && Number.isFinite(submittedAtTime) && submittedAtTime > dateTo) {
-      return false;
-    }
-
-    return true;
-  });
 }
 
 function isDraftProvider(provider) {
@@ -1171,126 +751,6 @@ function buildAssetBindingsFromSelections(assetSelections = {}) {
   return nextBindings;
 }
 
-function buildHistorySegments(record) {
-  if (Array.isArray(record?.segments) && record.segments.length) {
-    return record.segments.map((segment, index) => ({
-      segmentIndex: segment.segmentIndex ?? index,
-      segmentId: segment.segmentId || '',
-      segmentStatus: segment.segmentStatus ?? '',
-      source: segment.sourceText || segment.source || '',
-      target: segment.targetText || segment.target || '',
-      tmSource: segment.tmSource || '',
-      tmTarget: segment.tmTarget || '',
-      customTmMatches: Array.isArray(segment.customTmMatches) ? segment.customTmMatches : []
-    }));
-  }
-
-  const metadataSegments = record?.metadata?.segmentLevelMetadata || [];
-  const translations = record?.result?.translations || [];
-
-  return metadataSegments.map((segment, index) => ({
-    segmentIndex: segment.segmentIndex ?? index,
-    segmentId: segment.segmentId || '',
-    segmentStatus: segment.segmentStatus ?? '',
-    source: segment.source || '',
-    target: translations.find((translation) => Number(translation.index) === index)?.text || '',
-    tmSource: segment.tmSource || '',
-    tmTarget: segment.tmTarget || '',
-    customTmMatches: Array.isArray(segment.customTmMatches) ? segment.customTmMatches : []
-  }));
-}
-
-function formatHistoryThroughputValue(record) {
-  const throughput = record?.throughput;
-  if (!throughput) {
-    return '';
-  }
-  const parts = [];
-  if (throughput.mode) {
-    parts.push(`${throughput.mode}${throughput.status ? `/${throughput.status}` : ''}`);
-  }
-  if (throughput.effectiveMaxBatchSegments) {
-    parts.push(`${throughput.effectiveMaxBatchSegments} segments`);
-  }
-  if (throughput.effectiveMaxBatchCharacters) {
-    parts.push(`${throughput.effectiveMaxBatchCharacters} chars`);
-  }
-  if (throughput.effectiveConcurrencyLimit) {
-    parts.push(`concurrency ${throughput.effectiveConcurrencyLimit}`);
-  }
-  if (throughput.batchSplitCount) {
-    parts.push(`${throughput.batchSplitCount} split(s)`);
-  }
-  if (throughput.queuedMs) {
-    parts.push(`queued ${throughput.queuedMs} ms`);
-  }
-  if (throughput.providerLatencyMs) {
-    parts.push(`provider ${throughput.providerLatencyMs} ms`);
-  }
-  if (throughput.providerAttemptTimeoutMs) {
-    parts.push(`timeout ${throughput.providerAttemptTimeoutMs} ms`);
-  }
-  if (Array.isArray(throughput.fallbackReasons) && throughput.fallbackReasons.length) {
-    parts.push(`fallback: ${throughput.fallbackReasons.join(', ')}`);
-  }
-  return parts.join(' | ');
-}
-
-function formatInsightPercent(value, fallback = '-') {
-  const normalized = Number(value);
-  if (!Number.isFinite(normalized)) {
-    return fallback;
-  }
-  return `${normalized.toFixed(1).replace(/\.0$/, '')}%`;
-}
-
-function formatInsightLatency(value, fallback = '-') {
-  const normalized = Number(value);
-  if (!Number.isFinite(normalized)) {
-    return fallback;
-  }
-  if (normalized >= 1000) {
-    return `${(normalized / 1000).toFixed(1).replace(/\.0$/, '')}s`;
-  }
-  return `${Math.round(normalized)}ms`;
-}
-
-function getAttentionAlertType(severity = '') {
-  if (severity === 'error') return 'error';
-  if (severity === 'warning') return 'warning';
-  return 'info';
-}
-
-function renderHistoryIssueTags(t, record = {}, activeIssue = '', options = {}) {
-  const tags = buildHistoryIssueTags(record);
-  const maxVisible = Number(options.maxVisible || tags.length || 0);
-  const visibleTags = tags.slice(0, maxVisible);
-  const hiddenCount = Math.max(0, tags.length - visibleTags.length);
-  const normalizedActiveIssue = String(activeIssue || '').trim().toLowerCase();
-
-  if (!tags.length) {
-    return <Text type="secondary">-</Text>;
-  }
-
-  return (
-    <Space wrap size={[4, 4]} className="history-issue-tag-row">
-      {visibleTags.map((tag) => {
-        const isActive = normalizedActiveIssue && tag.issue === normalizedActiveIssue;
-        return (
-          <Tag
-            key={tag.key}
-            color={tag.color}
-            className={isActive ? 'history-issue-tag-active' : ''}
-          >
-            {t(`history.issueTag.${tag.key}`)}
-          </Tag>
-        );
-      })}
-      {hiddenCount > 0 ? <Tag>+{hiddenCount}</Tag> : null}
-    </Space>
-  );
-}
-
 function buildAssetPreviewRows(preview) {
   if (!Array.isArray(preview?.rows)) {
     return [];
@@ -1330,257 +790,11 @@ function getLocalizedPlaceholderText(t, item, kind) {
   return localized === key ? item[kind.toLowerCase()] : localized;
 }
 
-function EditableProfileForm({
-  profile,
-  providers,
-  assets,
-  assetImportRules,
-  supportedPlaceholders,
-  templateIssues,
-  onChange,
-  onSave,
-  onDiscard,
-  onDuplicate,
-  onDelete,
-  onInsertPlaceholder,
-  onImportAsset,
-  onDeleteAsset,
-  onToggleAssetBinding
-}) {
-  const { t } = useI18n();
-  const providerOptions = providers
-    .filter((provider) => isSelectableProfileProvider(provider))
-    .map((provider) => ({ label: provider.name, value: provider.id }));
-  const selectedProviderId = getProfileProviderId(profile);
-  const executionSelection = getProfileExecutionSelection(profile);
-  const selectedProvider = providers.find((provider) => provider.id === selectedProviderId && isSelectableProfileProvider(provider)) || null;
-  const preferredExecutionModel = getPreferredProviderModel(selectedProvider);
-  const selectedExecutionModelId = executionSelection?.split('::')[1] || '';
-  const visibleExecutionModelId = (selectedProvider?.models || []).some((model) => model.id === selectedExecutionModelId && model.enabled !== false)
-    ? selectedExecutionModelId
-    : (preferredExecutionModel?.id || undefined);
-  const executionModelOptions = (selectedProvider?.models || [])
-    .filter((model) => model?.enabled !== false)
-    .map((model) => ({ label: model.modelName, value: model.id }));
-  const boundAssetIds = new Set((profile?.assetBindings || []).map((binding) => binding.assetId));
-  const assetRows = Array.isArray(assets) ? assets : [];
-  const toggleItems = [
-    { field: 'useBestFuzzyTm', label: t('context.bestFuzzyLabel'), hint: t('context.bestFuzzyHint'), checked: profile?.useBestFuzzyTm },
-    { field: 'useMetadata', label: t('context.metadataLabel'), hint: t('context.metadataHint'), checked: profile?.useMetadata },
-    { field: 'cacheEnabled', label: t('context.cacheLabel'), hint: t('context.cacheHint'), checked: profile?.cacheEnabled !== false },
-    { field: 'usePreviewContext', label: t('context.previewContextLabel'), hint: t('context.previewContextToggleHint'), checked: profile?.usePreviewContext === true },
-    { field: 'usePreviewFullText', label: t('context.previewFullTextLabel'), hint: t('context.previewFullTextHint'), checked: profile?.usePreviewFullText === true, disabled: profile?.usePreviewContext !== true },
-    { field: 'usePreviewSummary', label: t('context.previewSummaryLabel'), hint: t('context.previewSummaryHint'), checked: profile?.usePreviewSummary === true, disabled: profile?.usePreviewContext !== true },
-    { field: 'usePreviewAboveBelow', label: t('context.previewWindowLabel'), hint: t('context.previewWindowHint'), checked: profile?.usePreviewAboveBelow === true, disabled: profile?.usePreviewContext !== true },
-    { field: 'usePreviewTargetText', label: t('context.currentTargetLabel'), hint: t('context.currentTargetHint'), checked: profile?.usePreviewTargetText === true, disabled: profile?.usePreviewContext !== true }
-  ];
-
-  return (
-    <Card
-      className="page-card"
-      title={t('context.profileEditor')}
-      extra={(
-        <Space wrap className="responsive-action-bar">
-          <Button onClick={onDuplicate}>{t('common.duplicate')}</Button>
-          <Button onClick={onDiscard}>{t('context.discardChanges')}</Button>
-          <Button danger onClick={onDelete}>{t('context.deleteProfile')}</Button>
-          <Button type="primary" icon={<SaveOutlined />} onClick={onSave}>{t('context.saveProfile')}</Button>
-        </Space>
-      )}
-    >
-      <Space direction="vertical" size={18} style={{ display: 'flex' }}>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} md={12}>
-            <Input addonBefore={t('context.name')} value={profile?.name} onChange={(event) => onChange('name', event.target.value)} />
-          </Col>
-          <Col xs={24} md={12}>
-            <Input addonBefore={t('context.description')} value={profile?.description} onChange={(event) => onChange('description', event.target.value)} />
-          </Col>
-        </Row>
-
-        <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-          <Text strong>{t('context.executionProvider')}</Text>
-          <Select
-            style={{ width: '100%' }}
-            value={selectedProviderId || undefined}
-            options={providerOptions}
-            onChange={(value) => onChange('providerId', value)}
-            placeholder={t('context.executionProviderPlaceholder')}
-          />
-          <Text strong>{t('context.executionModel')}</Text>
-          <Select
-            style={{ width: '100%' }}
-            value={visibleExecutionModelId}
-            options={executionModelOptions}
-            onChange={(modelId) => onChange('executionSelection', buildExecutionOptionValue(selectedProviderId, modelId))}
-            placeholder={t('context.executionModelPlaceholder')}
-            disabled={!selectedProviderId}
-          />
-          <Text type="secondary">{t('context.executionProviderHint')}</Text>
-        </Space>
-
-        <Alert
-          type="info"
-          showIcon
-          message={t('context.promptManagedTitle')}
-          description={t('context.promptManagedDescription')}
-        />
-        <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-          <Text strong>{t('context.translationStyleTitle')}</Text>
-          <Text type="secondary">{t('context.translationStyleHint')}</Text>
-          <Select
-            style={{ width: '100%' }}
-            allowClear
-            value={TRANSLATION_STYLE_PRESETS.find((item) => item.text === String(profile?.translationStyle || ''))?.key}
-            options={TRANSLATION_STYLE_PRESETS.map((item) => ({
-              value: item.key,
-              label: t(`context.translationStylePreset.${item.key}`)
-            }))}
-            placeholder={t('context.translationStylePresetPlaceholder')}
-            onChange={(value) => {
-              const selected = TRANSLATION_STYLE_PRESETS.find((item) => item.key === value);
-              if (selected) {
-                onChange('translationStyle', selected.text);
-              }
-            }}
-            onClear={() => onChange('translationStyle', '')}
-          />
-          <Input.TextArea
-            rows={4}
-            value={profile?.translationStyle || ''}
-            onChange={(event) => onChange('translationStyle', event.target.value)}
-            placeholder={t('context.translationStylePlaceholder')}
-          />
-        </Space>
-        <Card size="small" title={t('context.promptIncludedTitle')}>
-          <Space direction="vertical" size={12} style={{ display: 'flex' }}>
-            <Text type="secondary">{t('context.promptIncludedHint')}</Text>
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
-              <li>{t('context.promptIncludedItems.role')}</li>
-              <li>{t('context.promptIncludedItems.format')}</li>
-              <li>{t('context.promptIncludedItems.terminology')}</li>
-              <li>{t('context.promptIncludedItems.metadata')}</li>
-              <li>{t('context.promptIncludedItems.summary')}</li>
-              <li>{t('context.promptIncludedItems.segmentPayload')}</li>
-            </ul>
-          </Space>
-        </Card>
-        <Card size="small" title={t('context.advancedPromptTemplatesLabel')}>
-          <Space direction="vertical" size={12} style={{ display: 'flex' }}>
-            <Text type="secondary">{t('context.advancedPromptTemplatesHint')}</Text>
-            <Alert
-              type="info"
-              showIcon
-              message={t('context.promptManagedTitle')}
-              description={t('context.advancedPromptTemplatesHint')}
-            />
-          </Space>
-        </Card>
-        <Card size="small" title={t('context.placeholderPanelTitle')}>
-          <Space direction="vertical" size={12} style={{ display: 'flex' }}>
-            <Text type="secondary">{t('context.placeholderPanelHint')}</Text>
-            <List
-              size="small"
-              dataSource={supportedPlaceholders || []}
-              renderItem={(item) => (
-                <List.Item>
-                  <Space direction="vertical" size={2} style={{ width: '100%' }}>
-                    <Text strong>{`{{${item.token}}}`}</Text>
-                    <Text>{getLocalizedPlaceholderText(t, item, 'Label')}</Text>
-                    <Text type="secondary">{getLocalizedPlaceholderText(t, item, 'Description')}</Text>
-                  </Space>
-                </List.Item>
-              )}
-            />
-            <Text type="secondary">{t('context.placeholderRequiredHint')}</Text>
-            <Text type="secondary">{t('context.placeholderWrapperHint')}</Text>
-          </Space>
-        </Card>
-        <Card size="small" title={t('context.assetLibraryTitle')}>
-          <Space direction="vertical" size={12} style={{ display: 'flex' }}>
-            <Text type="secondary">{t('context.assetBindingHint')}</Text>
-            <Space wrap>
-              <Button onClick={() => onImportAsset('glossary')}>{t('context.uploadGlossary')}</Button>
-              <Button onClick={() => onImportAsset('custom_tm')}>{t('context.uploadCustomTm')}</Button>
-              <Button onClick={() => onImportAsset('brief')}>{t('context.uploadBrief')}</Button>
-            </Space>
-            <Text type="secondary">
-              {t('context.assetAllowedExtensions', {
-                glossary: (assetImportRules?.glossary?.extensions || []).join(', '),
-                customTm: (assetImportRules?.customTm?.extensions || []).join(', '),
-                brief: (assetImportRules?.brief?.extensions || []).join(', ')
-              })}
-            </Text>
-            {assetRows.length === 0 ? (
-              <Text type="secondary">{t('context.noAssets')}</Text>
-            ) : (
-              <List
-                size="small"
-                dataSource={assetRows}
-                renderItem={(asset) => (
-                  <List.Item
-                    className="responsive-list-actions"
-                    actions={[
-                      <Switch
-                        key={`bind-${asset.id}`}
-                        checked={boundAssetIds.has(asset.id)}
-                        onChange={(checked) => onToggleAssetBinding(asset, checked)}
-                      />,
-                      <Button key={`delete-${asset.id}`} danger type="text" onClick={() => onDeleteAsset(asset.id)}>
-                        {t('common.delete')}
-                      </Button>
-                    ]}
-                  >
-                    <Space direction="vertical" size={2} style={{ width: '100%' }}>
-                      <Text strong>{asset.name}</Text>
-                      <Text type="secondary">{t(`context.assetType.${asset.type}`)}</Text>
-                    </Space>
-                  </List.Item>
-                )}
-              />
-            )}
-          </Space>
-        </Card>
-
-        <Row gutter={[16, 16]}>
-          {toggleItems.map((item) => (
-            <Col xs={24} md={12} key={item.field}>
-              <div className="profile-toggle-card">
-                <div className="profile-toggle-head">
-                  <Text strong>{item.label}</Text>
-                  <Switch checked={item.checked} disabled={item.disabled} onChange={(checked) => onChange(item.field, checked)} />
-                </div>
-                <Text type="secondary">{item.hint}</Text>
-              </div>
-            </Col>
-          ))}
-        </Row>
-        {profile?.usePreviewContext === true && profile?.usePreviewAboveBelow === true && (
-          <>
-            <Text type="secondary">{t('context.previewContextHint')}</Text>
-            <Row gutter={[16, 16]}>
-              <Col xs={24} md={12} xl={6}><Input addonBefore={t('context.previewAboveSegments')} value={profile?.previewAboveSegments} onChange={(event) => onChange('previewAboveSegments', Number(event.target.value || 0))} /></Col>
-              <Col xs={24} md={12} xl={6}><Input addonBefore={t('context.previewAboveCharacters')} value={profile?.previewAboveCharacters} onChange={(event) => onChange('previewAboveCharacters', Number(event.target.value || 0))} /></Col>
-              <Col xs={24} md={12} xl={6}><div className="responsive-switch-line"><Switch checked={profile?.previewAboveIncludeSource === true} onChange={(checked) => onChange('previewAboveIncludeSource', checked)} /> <Text>{t('context.previewAboveIncludeSource')}</Text></div></Col>
-              <Col xs={24} md={12} xl={6}><div className="responsive-switch-line"><Switch checked={profile?.previewAboveIncludeTarget !== false} onChange={(checked) => onChange('previewAboveIncludeTarget', checked)} /> <Text>{t('context.previewAboveIncludeTarget')}</Text></div></Col>
-            </Row>
-            <Row gutter={[16, 16]}>
-              <Col xs={24} md={12} xl={6}><Input addonBefore={t('context.previewBelowSegments')} value={profile?.previewBelowSegments} onChange={(event) => onChange('previewBelowSegments', Number(event.target.value || 0))} /></Col>
-              <Col xs={24} md={12} xl={6}><Input addonBefore={t('context.previewBelowCharacters')} value={profile?.previewBelowCharacters} onChange={(event) => onChange('previewBelowCharacters', Number(event.target.value || 0))} /></Col>
-              <Col xs={24} md={12} xl={6}><div className="responsive-switch-line"><Switch checked={profile?.previewBelowIncludeSource === true} onChange={(checked) => onChange('previewBelowIncludeSource', checked)} /> <Text>{t('context.previewBelowIncludeSource')}</Text></div></Col>
-              <Col xs={24} md={12} xl={6}><div className="responsive-switch-line"><Switch checked={profile?.previewBelowIncludeTarget !== false} onChange={(checked) => onChange('previewBelowIncludeTarget', checked)} /> <Text>{t('context.previewBelowIncludeTarget')}</Text></div></Col>
-            </Row>
-          </>
-        )}
-
-      </Space>
-    </Card>
-  );
-}
 
 export default function App() {
   const api = useDesktopApi();
   const { t, locale, setLocale } = useI18n();
+  const { message, modal } = AntdApp.useApp();
   const initialShellStateRef = useRef(null);
   if (!initialShellStateRef.current) {
     initialShellStateRef.current = readShellState(globalThis.localStorage);
@@ -1595,6 +809,7 @@ export default function App() {
   const [historyDetailLoading, setHistoryDetailLoading] = useState(false);
   const [historyDetailError, setHistoryDetailError] = useState('');
   const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [handshaking, setHandshaking] = useState(false);
   const [checkingUpdates, setCheckingUpdates] = useState(false);
@@ -1602,6 +817,13 @@ export default function App() {
   const [logState, setLogState] = useState(null);
   const [logLoading, setLogLoading] = useState(false);
   const [logPruning, setLogPruning] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [duplicatingProfile, setDuplicatingProfile] = useState(false);
+  const [creatingProfileKind, setCreatingProfileKind] = useState('');
+  const [importingAssetType, setImportingAssetType] = useState('');
+  const [exportingHistoryFormat, setExportingHistoryFormat] = useState('');
+  const [deletingHistory, setDeletingHistory] = useState(false);
+  const [historyRefreshing, setHistoryRefreshing] = useState(false);
   const [savingProvider, setSavingProvider] = useState(false);
   const [testingProvider, setTestingProvider] = useState(false);
   const [discoveringProviderModels, setDiscoveringProviderModels] = useState(false);
@@ -1640,10 +862,24 @@ export default function App() {
   const autoUpdateCheckStartedRef = useRef(false);
   const pageScrollPositionsRef = useRef(initialShellStateRef.current.pageScrollPositions || {});
   const navCollapsedRef = useRef(navCollapsed);
+  const pendingOperationsRef = useRef(null);
 
   providerDraftsRef.current = providerDraftsById;
   profileDraftsRef.current = profileDraftsById;
   navCollapsedRef.current = navCollapsed;
+  if (!pendingOperationsRef.current) {
+    pendingOperationsRef.current = createPendingOperationRegistry();
+  }
+
+  function beginPendingOperation(key, setPending, pendingValue = true) {
+    const endOperation = pendingOperationsRef.current.begin(key);
+    if (!endOperation) return null;
+    setPending(pendingValue);
+    return () => {
+      endOperation();
+      setPending(typeof pendingValue === 'boolean' ? false : '');
+    };
+  }
 
   const navPageItems = [
     { key: 'dashboard', label: <span className="app-nav-label">{t('nav.dashboard')}</span>, title: t('nav.dashboard'), icon: <AppstoreOutlined className="app-nav-icon" /> },
@@ -1675,10 +911,15 @@ export default function App() {
   }
 
   async function refresh(filters = {}, options = {}) {
+    const endPending = options.trackPending
+      ? beginPendingOperation('app-refresh', setRefreshing)
+      : () => {};
+    if (!endPending) return false;
+
     try {
       setError('');
       if (!api?.getAppState) {
-        throw new Error('Desktop bridge is not available yet.');
+        throw new Error(t('app.desktopBridgeUnavailable'));
       }
 
       const includeHistoryExplorer = typeof options.includeHistoryExplorer === 'boolean'
@@ -1693,6 +934,7 @@ export default function App() {
         includeProviderHistoryMetrics
       };
       const remoteData = normalizeAppStatePayload(await api.getAppState(requestFilters));
+      setDashboardStatusSnapshot(remoteData);
       const providerRebase = rebaseDraftEntries(providerDraftsRef.current, remoteData?.providerHub?.providers || [], buildProviderFingerprint);
       const profileRebase = rebaseDraftEntries(profileDraftsRef.current, remoteData?.contextBuilder?.profiles || [], buildProfileFingerprint);
 
@@ -1740,9 +982,13 @@ export default function App() {
       if (profileRebase.removedIds.length) {
         message.warning(t('feedback.profileDraftRemoved'));
       }
+      return true;
     } catch (loadError) {
       setState((current) => current || normalizeAppStatePayload());
       notifyError(loadError);
+      return false;
+    } finally {
+      endPending();
     }
   }
 
@@ -1761,6 +1007,20 @@ export default function App() {
     }
   }
 
+  async function refreshDashboardStatus() {
+    if (!api?.getAppState) return;
+
+    try {
+      const remoteData = normalizeAppStatePayload(await api.getAppState({
+        includeHistoryExplorer: false,
+        includeProviderHistoryMetrics: false
+      }));
+      setDashboardStatusSnapshot(remoteData);
+    } catch (loadError) {
+      notifyError(loadError);
+    }
+  }
+
   async function pruneLogsNow() {
     if (!api?.pruneLogs) {
       return;
@@ -1776,6 +1036,18 @@ export default function App() {
     } finally {
       setLogPruning(false);
     }
+  }
+
+  function confirmPruneLogs() {
+    if (logPruning) return;
+    modal.confirm({
+      title: t('logs.cleanConfirmTitle'),
+      content: t('logs.cleanConfirmDescription'),
+      okText: t('logs.cleanNow'),
+      cancelText: t('common.cancel'),
+      okButtonProps: { danger: true },
+      onOk: pruneLogsNow
+    });
   }
 
   async function openLogsDirectory() {
@@ -1804,7 +1076,7 @@ export default function App() {
 
   async function copyLogDiagnostics() {
     try {
-      await navigator.clipboard.writeText(buildLogDiagnosticText(logState || {}, state || {}));
+      await navigator.clipboard.writeText(buildLogDiagnosticText(logState || {}, state || {}, t));
       message.success(t('logs.copySuccess'));
     } catch (copyError) {
       notifyError(copyError);
@@ -1819,6 +1091,10 @@ export default function App() {
     if (activePage === 'mapping') {
       setActivePage('dashboard');
     }
+  }, [activePage]);
+
+  useEffect(() => {
+    setError('');
   }, [activePage]);
 
   useEffect(() => {
@@ -1839,7 +1115,7 @@ export default function App() {
     }
 
     const timer = window.setInterval(() => {
-      refresh();
+      void refreshDashboardStatus();
     }, 3000);
 
     return () => window.clearInterval(timer);
@@ -1950,10 +1226,8 @@ export default function App() {
   const currentProfileTranslationCacheBypassPending = currentProfile
     ? translationCacheBypassProfileIds.has(currentProfile.id)
     : false;
-  const supportedPlaceholders = state?.contextBuilder?.supportedPlaceholders || [];
   const assetImportRules = state?.contextBuilder?.assetImportRules || {};
   const assets = state?.contextBuilder?.assets || [];
-  const currentProfileTemplateIssues = useMemo(() => [], []);
   const currentProvider = useMemo(
     () => providerItems.find((item) => item.id === providerId) || providerItems[0] || null,
     [providerItems, providerId],
@@ -2024,22 +1298,6 @@ export default function App() {
     [state, selectedHistoryId],
   );
   const currentHistoryRecord = historyDetailRecord || currentHistoryListItem;
-  const installOptions = useMemo(() => buildInstallOptions(state?.integration || {}), [state]);
-  const installPreviewPath = installDraft.mode === 'custom'
-    ? installDraft.customInstallDir
-    : getPresetInstallDir(installDraft.memoqVersion);
-  const visibleDashboardNotices = useMemo(
-    () => ((state?.dashboard?.notices) || []).filter((notice) => notice !== 'No mapping rule has been configured yet.'),
-    [state]
-  );
-  const dashboardChecklistItems = useMemo(
-    () => buildDashboardChecklist(state?.dashboard?.checklist || [], t),
-    [state?.dashboard?.checklist, t]
-  );
-  const dashboardRequiredSteps = dashboardChecklistItems.filter((item) => item?.optional !== true);
-  const dashboardCompletedSteps = dashboardRequiredSteps.filter((item) => item?.completed === true).length;
-  const dashboardJourneyComplete = dashboardRequiredSteps.length > 0
-    && dashboardCompletedSteps === dashboardRequiredSteps.length;
   const visibleHistoryItems = useMemo(
     () => filterHistoryItems(state?.historyExplorer?.items || [], historyFilters),
     [state, historyFilters]
@@ -2057,12 +1315,6 @@ export default function App() {
     const values = Array.from(new Set((state?.historyExplorer?.items || []).map((item) => String(item.model || '').trim()).filter(Boolean)));
     return values.map((value) => ({ label: value, value }));
   }, [state]);
-
-  useEffect(() => {
-    if (!installDraftDirty) {
-      setInstallDraft(buildInstallDraft(state?.integration || {}));
-    }
-  }, [state?.integration, installDraftDirty]);
 
   useEffect(() => {
     setProviderModelSelection([]);
@@ -2205,6 +1457,8 @@ export default function App() {
 
   async function saveCurrentProfile() {
     if (!currentProfile) return false;
+    const endPending = beginPendingOperation('profile-save', setSavingProfile);
+    if (!endPending) return false;
     try {
       const selectedProvider = providerItems.find((provider) => (
         provider.id === getProfileProviderId(currentProfile) && isSelectableProfileProvider(provider)
@@ -2227,21 +1481,39 @@ export default function App() {
     } catch (saveError) {
       notifyError(saveError);
       return false;
+    } finally {
+      endPending();
     }
   }
 
-  function discardCurrentProfileChanges() {
+  function discardCurrentProfileChangesNow() {
     if (!currentProfile) return;
     setProfileDraftsById((current) => discardDraftEntry(current, currentProfile.id));
   }
 
+  function confirmDiscardCurrentProfileChanges() {
+    if (!currentProfile || !currentProfileDirty) return;
+    modal.confirm({
+      title: t('navigation.discardProfileTitle'),
+      content: t('navigation.discardProfileDescription', { name: currentProfile.name || t('context.unnamedProfile') }),
+      okText: t('context.discardChanges'),
+      cancelText: t('common.cancel'),
+      okButtonProps: { danger: true },
+      onOk: discardCurrentProfileChangesNow
+    });
+  }
+
   async function duplicateCurrentProfile() {
     if (!currentProfile) return;
+    const endPending = beginPendingOperation('profile-duplicate', setDuplicatingProfile);
+    if (!endPending) return;
     try {
       await api.duplicateProfile(currentProfile.id);
       await refresh();
     } catch (duplicateError) {
       notifyError(duplicateError);
+    } finally {
+      endPending();
     }
   }
 
@@ -2276,7 +1548,7 @@ export default function App() {
       return;
     }
 
-    Modal.confirm({
+    modal.confirm({
       title: t('context.clearTranslationCacheTitle'),
       content: t('context.clearTranslationCacheConfirm'),
       okText: t('context.clearTranslationCacheAction'),
@@ -2294,8 +1566,12 @@ export default function App() {
   }
 
   async function importAsset(type) {
+    const normalizedType = String(type || '').trim();
+    if (!normalizedType) return;
+    const endPending = beginPendingOperation('asset-import', setImportingAssetType, normalizedType);
+    if (!endPending) return;
     try {
-      const importedAsset = await api.importAsset(type);
+      const importedAsset = await api.importAsset(normalizedType);
       await refresh();
       setActivePage('assets');
       if (importedAsset?.id) {
@@ -2303,6 +1579,8 @@ export default function App() {
       }
     } catch (assetError) {
       notifyError(assetError);
+    } finally {
+      endPending();
     }
   }
 
@@ -2538,15 +1816,8 @@ export default function App() {
     }
   }
 
-  async function confirmInstallIntegration() {
-    const selectedInstallDir = installDraft.mode === 'custom'
-      ? String(installDraft.customInstallDir || '').trim()
-      : getPresetInstallDir(installDraft.memoqVersion);
-
-    if (!selectedInstallDir) {
-      message.error(t('dashboard.installDirectoryRequired'));
-      return;
-    }
+  async function installIntegration(selectedInstallDir) {
+    if (installing) return;
 
     setInstalling(true);
     try {
@@ -2563,6 +1834,26 @@ export default function App() {
     } finally {
       setInstalling(false);
     }
+  }
+
+  function confirmInstallIntegration() {
+    const selectedInstallDir = installDraft.mode === 'custom'
+      ? String(installDraft.customInstallDir || '').trim()
+      : getPresetInstallDir(installDraft.memoqVersion);
+
+    if (!selectedInstallDir) {
+      message.error(t('dashboard.installDirectoryRequired'));
+      return;
+    }
+
+    modal.confirm({
+      title: t('dashboard.installConfirmTitle'),
+      content: t('dashboard.installConfirmDescription', { path: selectedInstallDir }),
+      okText: t('dashboard.installReinstall'),
+      cancelText: t('common.cancel'),
+      okButtonProps: { danger: true },
+      onOk: () => installIntegration(selectedInstallDir)
+    });
   }
 
   async function testHandshake() {
@@ -2603,23 +1894,37 @@ export default function App() {
     setCheckingUpdates(true);
     try {
       const result = await api.checkForUpdates({ manual });
-      setState((current) => current ? normalizeAppStatePayload({
-        ...current,
-        updateCenter: result,
-        dashboard: {
-          ...(current.dashboard || {}),
-          updateCenter: result
-        }
-      }) : current);
+      const dashboardStatus = getDashboardStatusSnapshot();
+      if (dashboardStatus) {
+        setDashboardStatusSnapshot({
+          ...dashboardStatus,
+          updateCenter: result,
+          dashboard: {
+            ...(dashboardStatus.dashboard || {}),
+            updateCenter: result
+          }
+        });
+      }
+      setState((current) => {
+        if (!current) return current;
+        return normalizeAppStatePayload({
+          ...current,
+          updateCenter: result,
+          dashboard: {
+            ...(current.dashboard || {}),
+            updateCenter: result
+          }
+        });
+      });
 
       if (manual) {
         if (result?.updateStatus === 'error') {
-          message.error(getUpdateErrorDisplay(result, t) || translateWithFallback(t, 'dashboard.updateStatusError', 'Error'));
+          message.error(getUpdateErrorDisplay(result, t) || t('dashboard.updateStatusError'));
         } else {
           message.success(
             result?.updateStatus === 'available'
-              ? translateWithFallback(t, 'dashboard.updateAvailableSuccess', `Update ${result?.latestVersion || '-'} is available.`, { version: result?.latestVersion || '-' })
-              : translateWithFallback(t, 'dashboard.updateUpToDateSuccess', 'You are already on the latest version.')
+              ? t('dashboard.updateAvailableSuccess', { version: result?.latestVersion || '-' })
+              : t('dashboard.updateUpToDateSuccess')
           );
         }
       }
@@ -2630,62 +1935,52 @@ export default function App() {
     }
   }
 
-  async function downloadInstallerUpdate() {
+  async function downloadInstallerUpdate(dashboardUpdateCenter = {}) {
     await runUpdateAction(
-      () => api.downloadInstallerUpdate(updateCenter.latestVersion || ''),
-      translateWithFallback(t, 'dashboard.updateDownloadStarted', 'Update downloaded successfully.')
+      () => api.downloadInstallerUpdate(dashboardUpdateCenter.latestVersion || ''),
+      t('dashboard.updateDownloadStarted')
     );
   }
 
-  async function openPortableDownloadPage() {
-    const portableDownloadUrl = portableDownloadPage;
+  async function openPortableDownloadPage(portableDownloadUrl = '') {
     if (!portableDownloadUrl || typeof api?.openExternalUrl !== 'function') {
       return;
     }
     await runUpdateAction(() => api.openExternalUrl(portableDownloadUrl));
   }
 
-  async function openUpdateReleaseNotes() {
-    if (!updateCenter.releaseNotesUrl || typeof api?.openExternalUrl !== 'function') {
+  async function openUpdateReleaseNotes(dashboardUpdateCenter = {}) {
+    if (!dashboardUpdateCenter.releaseNotesUrl || typeof api?.openExternalUrl !== 'function') {
       return;
     }
-    await runUpdateAction(() => api.openExternalUrl(updateCenter.releaseNotesUrl));
+    await runUpdateAction(() => api.openExternalUrl(dashboardUpdateCenter.releaseNotesUrl));
   }
 
-  async function launchDownloadedInstallerUpdate() {
-    if (!updateCenter.downloadedArtifactPath || typeof api?.launchDownloadedInstallerUpdate !== 'function') {
+  async function launchDownloadedInstallerUpdateNow(dashboardUpdateCenter = {}) {
+    if (!dashboardUpdateCenter.downloadedArtifactPath || typeof api?.launchDownloadedInstallerUpdate !== 'function') {
       return;
     }
     await runUpdateAction(
-      () => api.launchDownloadedInstallerUpdate(updateCenter.downloadedArtifactPath),
-      translateWithFallback(t, 'dashboard.updateInstallerLaunchSuccess', 'Installer launched. The app will close to continue the update.')
+      () => api.launchDownloadedInstallerUpdate(dashboardUpdateCenter.downloadedArtifactPath),
+      t('dashboard.updateInstallerLaunchSuccess')
     );
   }
 
-  const runtimeConnectionStatus = state?.dashboard?.runtimeStatus?.connectionStatus || '';
-  const connectionStatusLabel = getRuntimeConnectionLabel(runtimeConnectionStatus, t);
-  const connectionStatusColor = getRuntimeConnectionColor(runtimeConnectionStatus);
-  const previewBridgeStatus = state?.dashboard?.runtimeStatus?.previewStatus || {};
-  const previewBridgeStatusLabel = getRuntimeConnectionLabel(previewBridgeStatus.status, t);
-  const updateCenter = state?.updateCenter || state?.dashboard?.updateCenter || createFallbackAppState().updateCenter;
-  const safeUpdateStatus = getSafeUpdateStatus(updateCenter);
-  const effectiveUpdateStatus = checkingUpdates ? 'checking' : safeUpdateStatus;
-  const hasAvailableUpdate = !checkingUpdates && safeUpdateStatus === 'available';
-  const portableDownloadPage = hasAvailableUpdate
-    ? (updateCenter.portableDownloadUrl || updateCenter.releaseNotesUrl || updateCenter.availableAssets?.portable?.url || '')
-    : '';
-  const updateStatusLabel = getUpdateStatusLabel(effectiveUpdateStatus, t);
-  const latestVersionDisplay = updateCenter.latestVersion
-    || (effectiveUpdateStatus === 'checking' ? translateWithFallback(t, 'dashboard.updateCheckingLatestVersion', 'Checking...') : '');
-  const updateErrorDisplay = getUpdateErrorDisplay(updateCenter, t);
-  const packagingModeLabel = getPackagingModeLabel(updateCenter.packagingMode, t);
-  const selectedInstallVersionOptions = installOptions.map((option) => ({
-    label: option.label || `memoQ ${option.version}`,
-    value: option.version,
-    path: option.selectedInstallDir
-  }));
+  function confirmLaunchDownloadedInstallerUpdate(dashboardUpdateCenter = {}) {
+    if (!dashboardUpdateCenter.downloadedArtifactPath || updateActionLoading) return;
+    modal.confirm({
+      title: t('dashboard.restartUpdateConfirmTitle'),
+      content: t('dashboard.restartUpdateConfirmDescription'),
+      okText: t('dashboard.restartAndInstallUpdate'),
+      cancelText: t('common.cancel'),
+      okButtonProps: { danger: true },
+      onOk: () => launchDownloadedInstallerUpdateNow(dashboardUpdateCenter)
+    });
+  }
 
   async function exportHistory(format, scope) {
+    const endPending = beginPendingOperation('history-export', setExportingHistoryFormat, format);
+    if (!endPending) return;
     try {
       const result = await api.exportHistory({
         format,
@@ -2696,15 +1991,23 @@ export default function App() {
       message.success(t('history.exportSuccess', { count: result.count, path: result.path }));
     } catch (exportError) {
       notifyError(exportError);
+    } finally {
+      endPending();
     }
   }
 
   async function applyHistoryFilters() {
+    const endPending = beginPendingOperation('history-refresh', setHistoryRefreshing);
+    if (!endPending) return;
     setHistoryInsightFocus(null);
     setHistoryFilters(historyFilterDraft);
     setSelectedHistoryIds([]);
     setSelectedHistoryId('');
-    await refresh(historyFilterDraft, { includeHistoryExplorer: true });
+    try {
+      await refresh(historyFilterDraft, { includeHistoryExplorer: true });
+    } finally {
+      endPending();
+    }
   }
 
   function updateHistoryFilterDraftField(field, value) {
@@ -2713,6 +2016,8 @@ export default function App() {
   }
 
   async function applyHistoryInsightFilter(filter = {}, focus = {}) {
+    const endPending = beginPendingOperation('history-refresh', setHistoryRefreshing);
+    if (!endPending) return;
     const nextFilters = {
       ...createEmptyHistoryFilters(),
       ...(filter && typeof filter === 'object' ? filter : {})
@@ -2725,7 +2030,11 @@ export default function App() {
     setHistoryFilters(nextFilters);
     setSelectedHistoryIds([]);
     setSelectedHistoryId('');
-    await refresh(nextFilters, { includeHistoryExplorer: true });
+    try {
+      await refresh(nextFilters, { includeHistoryExplorer: true });
+    } finally {
+      endPending();
+    }
   }
 
   function persistCurrentPageScrollPosition() {
@@ -2805,6 +2114,8 @@ export default function App() {
   }
 
   async function resetHistoryFilters() {
+    const endPending = beginPendingOperation('history-refresh', setHistoryRefreshing);
+    if (!endPending) return;
     const emptyFilters = createEmptyHistoryFilters();
     setHistoryInsightFocus(null);
     setProviderInsightFocus(null);
@@ -2812,7 +2123,21 @@ export default function App() {
     setHistoryFilters(emptyFilters);
     setSelectedHistoryIds([]);
     setSelectedHistoryId('');
-    await refresh(emptyFilters, { includeHistoryExplorer: true });
+    try {
+      await refresh(emptyFilters, { includeHistoryExplorer: true });
+    } finally {
+      endPending();
+    }
+  }
+
+  async function refreshHistory() {
+    const endPending = beginPendingOperation('history-refresh', setHistoryRefreshing);
+    if (!endPending) return;
+    try {
+      await refresh(historyFilters, { includeHistoryExplorer: true });
+    } finally {
+      endPending();
+    }
   }
 
   function updateCurrentProviderDraft(updater, options = {}) {
@@ -2919,7 +2244,7 @@ export default function App() {
     }), { dirtyFields: ['defaultModelId'] });
   }
 
-  function discardCurrentProviderChanges() {
+  function discardCurrentProviderChangesNow() {
     if (!currentProvider) return;
     const currentProviderId = currentProvider.id;
     const nextProviders = providerItems.filter((item) => item.id !== currentProviderId);
@@ -2941,37 +2266,46 @@ export default function App() {
     }
   }
 
+  function confirmDiscardCurrentProviderChanges() {
+    if (!currentProvider || !currentProviderDirty) return;
+    modal.confirm({
+      title: t('navigation.discardProviderTitle'),
+      content: t('navigation.discardProviderDescription', { name: currentProvider.name || t('nav.providers') }),
+      okText: t('providers.discardChanges'),
+      cancelText: t('common.cancel'),
+      okButtonProps: { danger: true },
+      onOk: discardCurrentProviderChangesNow
+    });
+  }
+
   async function createNewProfile() {
+    const endPending = beginPendingOperation('profile-create', setCreatingProfileKind, 'preset');
+    if (!endPending) return;
     try {
-      const created = await api.saveProfile(createBlankProfile());
+      const created = await api.saveProfile(createBlankProfile(t));
       await refresh();
       requestNavigation('profile', created.id);
       message.success(t('feedback.profileCreatedFromPreset'));
     } catch (createError) {
       notifyError(createError);
+    } finally {
+      endPending();
     }
   }
 
   async function createEmptyProfile() {
+    const endPending = beginPendingOperation('profile-create', setCreatingProfileKind, 'blank');
+    if (!endPending) return;
     try {
-      const created = await api.saveProfile(createEmptyProfileDraft());
+      const created = await api.saveProfile(createEmptyProfileDraft(t));
       await refresh();
       requestNavigation('profile', created.id);
       message.success(t('feedback.actionSucceeded'));
     } catch (createError) {
       notifyError(createError);
+    } finally {
+      endPending();
     }
-  }
-
-  function insertPlaceholderIntoProfile(field, token) {
-    if (!currentProfile) {
-      return;
-    }
-
-    const existing = String(currentProfile[field] || '');
-    const needsSpacer = existing && !existing.endsWith('\n') && !existing.endsWith(' ');
-    const nextValue = `${existing}${needsSpacer ? '\n' : ''}${token}`;
-    void patchCurrentProfile(field, nextValue);
   }
 
   async function createProvider(type) {
@@ -3040,9 +2374,9 @@ export default function App() {
     if (!pendingNavigation) return;
     const navigation = pendingNavigation;
     if (navigation.dirtyKind === 'provider') {
-      discardCurrentProviderChanges();
+      discardCurrentProviderChangesNow();
     } else if (navigation.dirtyKind === 'profile') {
-      discardCurrentProfileChanges();
+      discardCurrentProfileChangesNow();
     }
     setPendingNavigation(null);
     commitNavigation(navigation);
@@ -3070,6 +2404,9 @@ export default function App() {
       return;
     }
 
+    const endPending = beginPendingOperation('history-delete', setDeletingHistory);
+    if (!endPending) return;
+
     try {
       const result = await api.deleteHistoryEntries(normalizedEntryIds);
       setSelectedHistoryIds((current) => current.filter((entryId) => !normalizedEntryIds.includes(entryId)));
@@ -3078,7 +2415,23 @@ export default function App() {
       await refresh(historyFilters, { includeHistoryExplorer: true });
     } catch (deleteError) {
       notifyError(deleteError);
+    } finally {
+      endPending();
     }
+  }
+
+  function confirmHistoryDeletion({ entryIds, title, content }) {
+    const normalizedEntryIds = Array.from(new Set((entryIds || []).filter(Boolean)));
+    if (!normalizedEntryIds.length || deletingHistory) return;
+
+    modal.confirm({
+      title,
+      content,
+      okText: t('common.delete'),
+      cancelText: t('common.cancel'),
+      okButtonProps: { danger: true },
+      onOk: () => deleteHistoryEntries(normalizedEntryIds)
+    });
   }
 
   function confirmDeleteSelectedHistoryEntries() {
@@ -3086,15 +2439,10 @@ export default function App() {
       return;
     }
 
-    Modal.confirm({
+    confirmHistoryDeletion({
+      entryIds: selectedHistoryIds,
       title: t('history.deleteSelected'),
-      content: t('history.confirmDeleteSelected', { count: selectedHistoryIds.length }),
-      okText: t('common.delete'),
-      cancelText: t('common.cancel'),
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        await deleteHistoryEntries(selectedHistoryIds);
-      }
+      content: t('history.confirmDeleteSelected', { count: selectedHistoryIds.length })
     });
   }
 
@@ -3103,21 +2451,22 @@ export default function App() {
       return;
     }
 
-    Modal.confirm({
+    confirmHistoryDeletion({
+      entryIds: [currentHistoryRecord.id],
       title: t('history.deleteEntry'),
-      content: t('history.confirmDeleteEntry', { id: currentHistoryRecord.requestId || currentHistoryRecord.id || '-' }),
-      okText: t('common.delete'),
-      cancelText: t('common.cancel'),
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        await deleteHistoryEntries([currentHistoryRecord.id]);
-      }
+      content: t('history.confirmDeleteEntry', { id: currentHistoryRecord.requestId || currentHistoryRecord.id || '-' })
     });
+  }
+
+  function closeHistoryDetail() {
+    setSelectedHistoryId('');
+    setHistoryDetailRecord(null);
+    setHistoryDetailError('');
   }
 
   function confirmDeleteProfile() {
     if (!currentProfile) return;
-    Modal.confirm({
+    modal.confirm({
       title: t('context.deleteProfile'),
       content: t('context.confirmDeleteProfile', { name: currentProfile.name }),
       okText: t('common.delete'),
@@ -3138,7 +2487,7 @@ export default function App() {
   function confirmDeleteAsset(assetId) {
     const asset = state?.contextBuilder?.assets?.find((item) => item.id === assetId);
     if (!asset) return;
-    Modal.confirm({
+    modal.confirm({
       title: t('context.deleteAsset'),
       content: t('context.confirmDeleteAsset', { name: asset.name }),
       okText: t('common.delete'),
@@ -3158,7 +2507,7 @@ export default function App() {
 
   function confirmDeleteProvider() {
     if (!currentProvider) return;
-    Modal.confirm({
+    modal.confirm({
       title: t('providers.deleteProvider'),
       content: t('providers.confirmDeleteProvider', { name: currentProvider.name }),
       okText: t('common.delete'),
@@ -3166,7 +2515,7 @@ export default function App() {
       okButtonProps: { danger: true },
       onOk: async () => {
         if (isDraftProvider(currentProvider)) {
-          discardCurrentProviderChanges();
+          discardCurrentProviderChangesNow();
           message.success(t('providers.providerDeleted'));
           return;
         }
@@ -3183,7 +2532,7 @@ export default function App() {
   }
 
   function confirmDeleteModel(model) {
-    Modal.confirm({
+    modal.confirm({
       title: t('providers.deleteModel'),
       content: t('providers.confirmDeleteModel', { name: model.modelName }),
       okText: t('common.delete'),
@@ -3202,7 +2551,7 @@ export default function App() {
 
   function confirmBulkDeleteModels() {
     if (!currentProvider || !providerModelSelection.length) return;
-    Modal.confirm({
+    modal.confirm({
       title: t('providers.deleteModel'),
       content: t('providers.confirmDeleteModels', { count: providerModelSelection.length }),
       okText: t('common.delete'),
@@ -3220,7 +2569,27 @@ export default function App() {
   }
 
   if (!state) {
-    return <div style={{ padding: 32 }}>{error || t('app.loading')}</div>;
+    if (error) {
+      return (
+        <Result
+          status="error"
+          title={t('app.startupErrorTitle')}
+          subTitle={error}
+          extra={(
+            <Button type="primary" onClick={() => refresh()}>
+              {t('common.retry')}
+            </Button>
+          )}
+        />
+      );
+    }
+
+    return (
+      <div className="app-initial-loading" role="status" aria-live="polite">
+        <Spin size="large" />
+        <Text type="secondary">{t('app.loading')}</Text>
+      </div>
+    );
   }
 
   return (
@@ -3229,11 +2598,10 @@ export default function App() {
         <Sider
           className={`app-sider ${(shellNavigationMode === 'compact' || navCollapsed) ? 'app-sider-collapsed' : ''}`}
           width={248}
-          collapsedWidth={72}
+          collapsedWidth={80}
           collapsed={shellNavigationMode === 'compact' || navCollapsed}
           trigger={null}
           theme="light"
-          style={{ background: '#ffffff', borderRight: '1px solid #e5e5e5' }}
         >
           <div className={`brand-block ${(shellNavigationMode === 'compact' || navCollapsed) ? 'brand-block-collapsed' : ''}`}>
             <div className="brand-block-top">
@@ -3259,7 +2627,6 @@ export default function App() {
             selectedKeys={[activePage]}
             items={navItems}
             onClick={({ key }) => requestPageNavigation(key)}
-            style={{ background: 'transparent' }}
           />
         </Sider>
       ) : null}
@@ -3281,12 +2648,11 @@ export default function App() {
             setMobileNavOpen(false);
             requestPageNavigation(key);
           }}
-          style={{ background: 'transparent' }}
         />
       </Drawer>
       <Layout>
-        <Header className="app-header" style={{ background: 'rgba(255,255,255,0.94)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #e5e5e5' }}>
-          <Space className="app-header-bar" style={{ width: '100%', justifyContent: 'space-between' }}>
+        <Header className="app-header">
+          <Space className="app-header-bar">
             <Space className="app-header-title">
               {shellNavigationMode === 'drawer' ? (
                 <Button
@@ -3297,16 +2663,12 @@ export default function App() {
                   onClick={() => setMobileNavOpen(true)}
                 />
               ) : null}
-              <div className="app-page-title-block">
-                <Text type="secondary" className="app-header-product">{t('app.title')}</Text>
-                <Title level={3} style={{ margin: 0 }}>{navPageItems.find((item) => item.key === activePage)?.title || t('nav.dashboard')}</Title>
-                <Text type="secondary" className="app-page-description">{pageDescriptions[activePage] || pageDescriptions.dashboard}</Text>
-              </div>
+              <Text strong className="app-header-product">{t('app.title')}</Text>
             </Space>
             <Space wrap className="app-header-controls">
               <Select
                 size="small"
-                style={{ width: 110 }}
+                className="app-language-select"
                 value={locale}
                 options={[{ value: 'en', label: 'English' }, { value: 'zh-CN', label: '中文' }]}
                 onChange={setLocale}
@@ -3317,236 +2679,58 @@ export default function App() {
                   size="small"
                   className="app-header-refresh"
                   icon={<ReloadOutlined />}
-                  onClick={() => refresh()}
+                  loading={refreshing}
+                  onClick={() => refresh({}, { trackPending: true })}
                   disabled={state?.startup?.status === 'starting'}
                   aria-label={t('app.refresh')}
                 />
               </Tooltip>
-              <Tag color={connectionStatusColor}>{connectionStatusLabel}</Tag>
+              <DashboardConnectionStatus initialState={state} t={t} />
             </Space>
           </Space>
         </Header>
         <Content className="content-wrap">
-          {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
+          <PageHeaderBlock
+            title={navPageItems.find((item) => item.key === activePage)?.title || t('nav.dashboard')}
+            description={pageDescriptions[activePage] || pageDescriptions.dashboard}
+          />
+          {error && (
+            <Alert
+              type="error"
+              showIcon
+              closable
+              message={error}
+              onClose={() => setError('')}
+              className="app-error-alert"
+            />
+          )}
 
-          <Suspense fallback={<Spin size="large" style={{ display: 'block', margin: '48px auto' }} />}>
+          <Suspense fallback={<Spin size="large" className="app-page-loading" />}>
           {activePage === 'dashboard' && (
-            <Space direction="vertical" size={18} style={{ display: 'flex' }}>
-              <Card
-                className="page-card dashboard-journey-card"
-                title={(
-                  <div className="dashboard-journey-heading">
-                    <Text strong>{t('dashboard.setupJourneyTitle')}</Text>
-                    <Text type="secondary">{t('dashboard.setupJourneyDescription')}</Text>
-                  </div>
-                )}
-                extra={(
-                  <Tag color={dashboardJourneyComplete ? 'green' : 'blue'}>
-                    {t('dashboard.setupJourneyProgress', {
-                      completed: dashboardCompletedSteps,
-                      total: dashboardRequiredSteps.length
-                    })}
-                  </Tag>
-                )}
-              >
-                <div className="dashboard-journey-grid">
-                {dashboardChecklistItems.map((item) => (
-                  <div className={`dashboard-journey-step ${item.completed ? 'dashboard-journey-step-complete' : ''}`} key={item.key}>
-                    <div className="dashboard-journey-step-heading">
-                      <Text strong>{item.title}</Text>
-                      <Tag bordered={false} color={item.completed ? 'green' : item.optional ? 'blue' : undefined}>
-                        {item.completed
-                          ? t('dashboard.stepComplete')
-                          : item.optional
-                            ? t('dashboard.stepOptional')
-                            : t('dashboard.stepTodo')}
-                      </Tag>
-                    </div>
-                    <Text type="secondary">{item.subtitle}</Text>
-                    <Button type="link" className="dashboard-journey-action" onClick={() => handleChecklistAction(item.key)}>{item.actionLabel}</Button>
-                  </div>
-                ))}
-                </div>
-              </Card>
-              <Row gutter={[16, 16]}>
-                <Col xs={24} xl={12}>
-                  <Card className="page-card" title={t('dashboard.runtimeStatus')}>
-                    <Descriptions column={1} className="wrap-descriptions">
-                      <Descriptions.Item label={t('dashboard.memoqPath')}><HoverText value={state.dashboard.runtimeStatus.memoqInstallPath} /></Descriptions.Item>
-                      <Descriptions.Item label={t('dashboard.pluginStatus')}><HoverText value={state.dashboard.runtimeStatus.pluginStatus} /></Descriptions.Item>
-                      <Descriptions.Item label={t('dashboard.connectionStatus')}><HoverText value={connectionStatusLabel} /></Descriptions.Item>
-                      <Descriptions.Item label={t('dashboard.previewStatus')}><HoverText value={previewBridgeStatusLabel} /></Descriptions.Item>
-                      <Descriptions.Item label={t('dashboard.previewLastError')}><HoverText value={previewBridgeStatus.lastError} /></Descriptions.Item>
-                    </Descriptions>
-                    <Space wrap className="responsive-action-bar" style={{ marginTop: 16 }}>
-                      <Button loading={handshaking} onClick={testHandshake} disabled={state?.startup?.status !== 'ready'}>{t('dashboard.testConnection')}</Button>
-                    </Space>
-                  </Card>
-                </Col>
-                <Col xs={24} xl={12}>
-                  <Card className="page-card" title={t('dashboard.installConfig')}>
-                    <Space direction="vertical" size={16} style={{ display: 'flex' }}>
-                      <Alert type="info" showIcon message={t('dashboard.installDialogHint')} />
-                      <Alert
-                        type="warning"
-                        showIcon
-                        message={t('dashboard.memoqParallelismNoticeTitle')}
-                        description={t('dashboard.memoqParallelismNotice')}
-                      />
-                      <Row gutter={[12, 12]}>
-                        <Col xs={24} md={12}>
-                          <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                            <Text strong>{t('dashboard.installMemoqVersion')}</Text>
-                            <Select
-                              value={installDraft.memoqVersion}
-                              options={selectedInstallVersionOptions.map((option) => ({
-                                value: option.value,
-                                label: option.label
-                              }))}
-                              onChange={(value) => {
-                                setInstallDraftDirty(true);
-                                setInstallDraft((current) => ({
-                                  ...current,
-                                  memoqVersion: value,
-                                  selectedInstallDir: current.mode === 'preset' ? getPresetInstallDir(value) : current.selectedInstallDir
-                                }));
-                              }}
-                            />
-                          </Space>
-                        </Col>
-                        <Col xs={24} md={12}>
-                          <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                            <Text strong>{t('dashboard.installMode')}</Text>
-                            <Radio.Group
-                              value={installDraft.mode}
-                              onChange={(event) => {
-                                const mode = event.target.value;
-                                setInstallDraftDirty(true);
-                                setInstallDraft((current) => ({
-                                  ...current,
-                                  mode,
-                                  customInstallDir: mode === 'preset' ? '' : current.customInstallDir,
-                                  selectedInstallDir: mode === 'preset'
-                                    ? getPresetInstallDir(current.memoqVersion)
-                                    : current.selectedInstallDir
-                                }));
-                              }}
-                            >
-                              <Radio value="preset">{t('dashboard.installPreset')}</Radio>
-                              <Radio value="custom">{t('dashboard.installCustom')}</Radio>
-                            </Radio.Group>
-                          </Space>
-                        </Col>
-                      </Row>
-                      {installDraft.mode === 'preset' ? (
-                        <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                          <Text strong>{t('dashboard.installTargetDir')}</Text>
-                          <div className="install-path-preview">{installPreviewPath}</div>
-                        </Space>
-                      ) : (
-                        <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                          <Text strong>{t('dashboard.installTargetDir')}</Text>
-                          <Input
-                            value={installDraft.customInstallDir}
-                            onChange={(event) => {
-                              const directory = event.target.value;
-                              setInstallDraftDirty(true);
-                              setInstallDraft((current) => ({ ...current, customInstallDir: directory, selectedInstallDir: directory }));
-                            }}
-                            addonAfter={<Button className="install-browse-button" onClick={chooseInstallDirectory}>{t('dashboard.browseDirectory')}</Button>}
-                          />
-                          <Text type="secondary">{t('dashboard.installCustomHint')}</Text>
-                        </Space>
-                      )}
-                      <Space wrap className="responsive-action-bar">
-                        <Button loading={installing} type="primary" icon={<DeploymentUnitOutlined />} onClick={confirmInstallIntegration}>
-                          {t('dashboard.installReinstall')}
-                        </Button>
-                      </Space>
-                    </Space>
-                  </Card>
-                </Col>
-              </Row>
-              <Collapse
-                className="dashboard-maintenance-collapse"
-                items={[{
-                  key: 'updates',
-                  label: <Text strong>{translateWithFallback(t, 'dashboard.updatesTitle', 'Updates')}</Text>,
-                  extra: <Tag>{updateStatusLabel}</Tag>,
-                  children: (
-                    <Space direction="vertical" size={16} style={{ display: 'flex' }}>
-                  <Descriptions column={1}>
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.currentVersion', 'Current version')}><HoverText value={updateCenter.currentVersion} /></Descriptions.Item>
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.packagingMode', 'Packaging mode')}><HoverText value={packagingModeLabel} /></Descriptions.Item>
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateState', 'Update state')}><HoverText value={updateStatusLabel} /></Descriptions.Item>
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.latestVersion', 'Latest version')}><HoverText value={latestVersionDisplay} /></Descriptions.Item>
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updatePublishedAt', 'Published at')}><HoverText value={formatLocalTimestamp(updateCenter.publishedAt)} /></Descriptions.Item>
-                    {updateCenter.packagingMode === 'portable' ? (
-                      <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateDownloadPage', 'Download page')}><HoverText value={portableDownloadPage} /></Descriptions.Item>
-                    ) : (
-                      <>
-                        <Descriptions.Item label={translateWithFallback(t, 'dashboard.updatePreparedDirectory', 'Prepared directory')}><HoverText value={updateCenter.preparedDirectory} /></Descriptions.Item>
-                        <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateDownloadedArtifact', 'Downloaded artifact')}><HoverText value={updateCenter.downloadedArtifactPath} /></Descriptions.Item>
-                      </>
-                    )}
-                    <Descriptions.Item label={translateWithFallback(t, 'dashboard.updateLastError', 'Update error')}><HoverText value={updateErrorDisplay} /></Descriptions.Item>
-                  </Descriptions>
-                  <Alert
-                    type="info"
-                    showIcon
-                    message={translateWithFallback(
-                      t,
-                      updateCenter.packagingMode === 'installed'
-                        ? 'dashboard.updateInstalledHint'
-                        : 'dashboard.updatePortableHint',
-                      updateCenter.packagingMode === 'installed'
-                        ? 'Installed builds download the Windows installer and let you restart into the update.'
-                        : 'Portable builds open the release download page in your browser. This avoids in-app self-update steps and provides a clearer, safer upgrade flow.'
-                    )}
-                    description={translateWithFallback(t, 'dashboard.updatePluginHint', 'If this release changes the memoQ plugin or preview helper, run Install / Reinstall once after upgrading.')}
-                  />
-                  <Space wrap>
-                    <Button icon={<ReloadOutlined />} loading={checkingUpdates} onClick={() => void checkForUpdates(true)}>
-                      {translateWithFallback(t, 'dashboard.checkForUpdates', 'Check for updates')}
-                    </Button>
-                    {updateCenter.packagingMode === 'portable' && hasAvailableUpdate ? (
-                      <Button type="primary" loading={updateActionLoading} onClick={() => void openPortableDownloadPage()}>
-                        {translateWithFallback(t, 'dashboard.openPortableDownloadPage', 'Open download page')}
-                      </Button>
-                    ) : null}
-                    {updateCenter.packagingMode === 'installed' && hasAvailableUpdate ? (
-                      <Button type="primary" loading={updateActionLoading} onClick={() => void downloadInstallerUpdate()}>
-                        {translateWithFallback(t, 'dashboard.downloadAndInstallUpdate', 'Download installer update')}
-                      </Button>
-                    ) : null}
-                    {updateCenter.packagingMode === 'installed' && updateCenter.downloadedArtifactPath ? (
-                      <Button danger loading={updateActionLoading} onClick={() => void launchDownloadedInstallerUpdate()}>
-                        {translateWithFallback(t, 'dashboard.restartAndInstallUpdate', 'Restart and install update')}
-                      </Button>
-                    ) : null}
-                    {updateCenter.packagingMode === 'installed' && updateCenter.downloadedArtifactPath ? (
-                      <Button loading={updateActionLoading} onClick={() => void runUpdateAction(() => api.showItemInFolder(updateCenter.downloadedArtifactPath))}>
-                        {translateWithFallback(t, 'dashboard.revealDownloadedUpdate', 'Show downloaded file')}
-                      </Button>
-                    ) : null}
-                    {updateCenter.releaseNotesUrl ? (
-                      <Button loading={updateActionLoading} onClick={() => void openUpdateReleaseNotes()}>
-                        {translateWithFallback(t, 'dashboard.viewReleaseNotes', 'View release notes')}
-                      </Button>
-                    ) : null}
-                  </Space>
-                    </Space>
-                  )
-                }]}
-              />
-              <Card className="page-card" title={t('dashboard.notices')}>
-                {visibleDashboardNotices.length ? (
-                  <List size="small" dataSource={visibleDashboardNotices} renderItem={(item) => <List.Item>{item}</List.Item>} />
-                ) : (
-                  <Empty description={t('dashboard.noNotices')} />
-                )}
-              </Card>
-            </Space>
+            <DashboardPage
+              api={api}
+              initialState={state}
+              installDraft={installDraft}
+              installDraftDirty={installDraftDirty}
+              checkingUpdates={checkingUpdates}
+              installing={installing}
+              handshaking={handshaking}
+              updateActionLoading={updateActionLoading}
+              checkForUpdates={checkForUpdates}
+              chooseInstallDirectory={chooseInstallDirectory}
+              confirmInstallIntegration={confirmInstallIntegration}
+              confirmLaunchDownloadedInstallerUpdate={confirmLaunchDownloadedInstallerUpdate}
+              downloadInstallerUpdate={downloadInstallerUpdate}
+              formatLocalTimestamp={formatLocalTimestamp}
+              handleChecklistAction={handleChecklistAction}
+              openPortableDownloadPage={openPortableDownloadPage}
+              openUpdateReleaseNotes={openUpdateReleaseNotes}
+              runUpdateAction={runUpdateAction}
+              setInstallDraft={setInstallDraft}
+              setInstallDraftDirty={setInstallDraftDirty}
+              testHandshake={testHandshake}
+              t={t}
+            />
           )}
 
           {activePage === 'builder' && (
@@ -3556,22 +2740,22 @@ export default function App() {
               currentProfile={currentProfile}
               providers={providerItems}
               assets={assets}
-              supportedPlaceholders={supportedPlaceholders}
-              templateIssues={currentProfileTemplateIssues}
               isDirty={currentProfileDirty}
               onSelectProfile={selectProfile}
               onCreateBlankProfile={createEmptyProfile}
               onCreatePresetProfile={createNewProfile}
+              creatingProfileKind={creatingProfileKind}
               onChangeProfile={patchCurrentProfile}
               onSaveProfile={saveCurrentProfile}
               onSetDefaultProfile={setCurrentProfileAsDefault}
               onBypassTranslationCacheOnce={bypassTranslationCacheForCurrentProfileOnce}
               onClearTranslationCache={confirmClearTranslationCache}
               translationCacheBypassPending={currentProfileTranslationCacheBypassPending}
-              onDiscardProfile={discardCurrentProfileChanges}
+              onDiscardProfile={confirmDiscardCurrentProfileChanges}
               onDuplicateProfile={duplicateCurrentProfile}
+              savingProfile={savingProfile}
+              duplicatingProfile={duplicatingProfile}
               onDeleteProfile={confirmDeleteProfile}
-              onInsertPlaceholder={insertPlaceholderIntoProfile}
             />
           )}
 
@@ -3580,6 +2764,7 @@ export default function App() {
               profileItems={profileItems}
               assets={assets}
               assetImportRules={assetImportRules}
+              importingAssetType={importingAssetType}
               onImportAsset={importAsset}
               onDeleteAsset={confirmDeleteAsset}
               onPreviewAsset={openAssetPreview}
@@ -3610,7 +2795,7 @@ export default function App() {
               onSelectProvider={selectProvider}
               onProviderSearchChange={setProviderSearch}
               onPatchProvider={patchCurrentProvider}
-              onDiscardProviderChanges={discardCurrentProviderChanges}
+              onDiscardProviderChanges={confirmDiscardCurrentProviderChanges}
               onDeleteProvider={confirmDeleteProvider}
               onSaveProvider={saveCurrentProvider}
               onTestProvider={testProvider}
@@ -3646,308 +2831,46 @@ export default function App() {
               pruning={logPruning}
               onRefresh={refreshLogs}
               onOpenLogsDir={openLogsDirectory}
-              onPruneLogs={pruneLogsNow}
+              onPruneLogs={confirmPruneLogs}
               onRevealFile={revealLogFile}
               onCopyDiagnostics={copyLogDiagnostics}
             />
           )}
 
           {activePage === 'history' && (
-            <Space direction="vertical" size={18} style={{ display: 'flex' }}>
-              <Card
-                className="page-card"
-                title={t('history.title')}
-                extra={(
-                  <Space wrap>
-                    <Button danger disabled={!selectedHistoryIds.length} onClick={confirmDeleteSelectedHistoryEntries}>
-                      {t('history.deleteSelected')}
-                    </Button>
-                    <Button onClick={() => exportHistory('csv', 'selected')}>{t('history.exportCsv')}</Button>
-                    <Button onClick={() => exportHistory('xlsx', 'filtered')}>{t('history.exportXlsx')}</Button>
-                  </Space>
-                )}
-              >
-                <Space direction="vertical" size={16} style={{ display: 'flex', marginBottom: 16 }}>
-                  <div className="history-insights-panel">
-                    <div className="history-insights-header">
-                      <div>
-                        <Text strong>{t('history.insights.title')}</Text>
-                        <div><Text type="secondary">{t('history.insights.subtitle')}</Text></div>
-                      </div>
-                      <Tag color="blue">{t('history.insights.scope', { count: historyInsights.totalRequests || 0 })}</Tag>
-                    </div>
-                    {activeHistoryFilterTags.length ? (
-                      <Space wrap size={[8, 8]} className="history-active-filter-bar">
-                        {activeHistoryFilterTags.map((item) => (
-                          <Tag key={item.field} color="blue">{item.label}</Tag>
-                        ))}
-                        <Button size="small" type="link" onClick={resetHistoryFilters}>
-                          {t('history.clearInsightFilters')}
-                        </Button>
-                      </Space>
-                    ) : null}
-                    {historyInsightFocus ? (
-                      <Alert
-                        className="history-insight-focus-alert"
-                        type="info"
-                        showIcon
-                        message={t('history.insights.focusTitle')}
-                        description={t('history.insights.focusDescription', {
-                          source: getHistoryInsightFocusMessage(t, historyInsightFocus),
-                          count: historyInsights.totalRequests || 0
-                        })}
-                        action={(
-                          <Button size="small" onClick={() => setHistoryInsightFocus(null)}>
-                            {t('common.dismiss')}
-                          </Button>
-                        )}
-                      />
-                    ) : null}
-                    {(historyInsights.totalRequests || 0) > 0 ? (
-                      <Space direction="vertical" size={14} style={{ display: 'flex' }}>
-                        <Row gutter={[12, 12]}>
-                          <Col xs={24} md={8}>
-                            <div className="history-insight-stat">
-                              <Statistic title={t('history.insights.avgLatency')} value={formatInsightLatency(historyInsights.avgLatencyMs)} />
-                              <Text type="secondary">{t('history.insights.scope', { count: historyInsights.totalRequests || 0 })}</Text>
-                            </div>
-                          </Col>
-                          <Col xs={24} md={8}>
-                            <div className="history-insight-stat">
-                              <Statistic title={t('history.insights.slowRequests')} value={historyInsights.slowRequestCount || 0} />
-                              <Text type="secondary">{t('history.issueTag.slow')}</Text>
-                            </div>
-                          </Col>
-                          <Col xs={24} md={8}>
-                            <div className="history-insight-stat">
-                              <Statistic title={t('history.insights.failedRequestsTitle')} value={historyInsights.failedCount || 0} />
-                              <Text type="secondary">{t('history.statusFailed')}</Text>
-                            </div>
-                          </Col>
-                        </Row>
-                      </Space>
-                    ) : (
-                      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('history.insights.empty')} />
-                    )}
-                  </div>
-                  <Row gutter={[12, 12]}>
-                    <Col xs={24} lg={12}>
-                      <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                        <Text strong>{t('history.search')}</Text>
-                        <Input.Search
-                          allowClear
-                          value={historyFilterDraft.search}
-                          onChange={(event) => updateHistoryFilterDraftField('search', event.target.value)}
-                          onSearch={applyHistoryFilters}
-                          placeholder={t('history.searchPlaceholder')}
-                        />
-                      </Space>
-                    </Col>
-                    <Col xs={24} sm={12} lg={6}>
-                      <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                        <Text strong>{t('history.providerFilter')}</Text>
-                        <Select
-                          allowClear
-                          showSearch
-                          value={historyFilterDraft.provider || undefined}
-                          options={historyFilterProviderOptions}
-                          onChange={(value) => updateHistoryFilterDraftField('provider', value || '')}
-                          placeholder={t('history.providerPlaceholder')}
-                        />
-                      </Space>
-                    </Col>
-                    <Col xs={24} sm={12} lg={6}>
-                      <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                        <Text strong>{t('history.modelFilter')}</Text>
-                        <Select
-                          allowClear
-                          showSearch
-                          value={historyFilterDraft.model || undefined}
-                          options={historyFilterModelOptions}
-                          onChange={(value) => updateHistoryFilterDraftField('model', value || '')}
-                          placeholder={t('history.modelPlaceholder')}
-                        />
-                      </Space>
-                    </Col>
-                  </Row>
-                  <Collapse
-                    className="history-advanced-filters"
-                    items={[{
-                      key: 'advanced',
-                      label: t('history.advancedFilters'),
-                      children: (
-                  <Row gutter={[12, 12]}>
-                    <Col xs={24} sm={12} lg={8} xl={4}>
-                      <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                        <Text strong>{t('history.projectIdFilter')}</Text>
-                        <Input
-                          allowClear
-                          value={historyFilterDraft.projectId}
-                          onChange={(event) => updateHistoryFilterDraftField('projectId', event.target.value)}
-                          placeholder={t('history.projectIdPlaceholder')}
-                        />
-                      </Space>
-                    </Col>
-                    <Col xs={24} sm={12} lg={8} xl={4}>
-                      <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                        <Text strong>{t('history.subjectFilter')}</Text>
-                        <Input
-                          allowClear
-                          value={historyFilterDraft.subject}
-                          onChange={(event) => updateHistoryFilterDraftField('subject', event.target.value)}
-                          placeholder={t('history.subjectPlaceholder')}
-                        />
-                      </Space>
-                    </Col>
-                    <Col xs={24} sm={12} lg={8} xl={4}>
-                      <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                        <Text strong>{t('history.statusFilter')}</Text>
-                        <Select
-                          allowClear
-                          value={historyFilterDraft.status || undefined}
-                          options={[
-                            { value: 'success', label: t('history.statusSuccess') },
-                            { value: 'failed', label: t('history.statusFailed') }
-                          ]}
-                          onChange={(value) => updateHistoryFilterDraftField('status', value || '')}
-                          placeholder={t('history.statusPlaceholder')}
-                        />
-                      </Space>
-                    </Col>
-                    <Col xs={24} sm={12} lg={8} xl={4}>
-                      <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                        <Text strong>{t('history.issueFilter')}</Text>
-                        <Select
-                          allowClear
-                          value={historyFilterDraft.issue || undefined}
-                          options={HISTORY_ISSUE_OPTIONS.map((issue) => ({
-                            value: issue,
-                            label: getHistoryIssueLabel(t, issue)
-                          }))}
-                          onChange={(value) => updateHistoryFilterDraftField('issue', value || '')}
-                          placeholder={t('history.issuePlaceholder')}
-                        />
-                      </Space>
-                    </Col>
-                    <Col xs={24} sm={12} lg={8} xl={4}>
-                      <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                        <Text strong>{t('history.dateFrom')}</Text>
-                        <Input
-                          allowClear
-                          value={historyFilterDraft.dateFrom}
-                          onChange={(event) => updateHistoryFilterDraftField('dateFrom', event.target.value)}
-                          placeholder="YYYY-MM-DD"
-                        />
-                      </Space>
-                    </Col>
-                    <Col xs={24} sm={12} lg={8} xl={4}>
-                      <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                        <Text strong>{t('history.dateTo')}</Text>
-                        <Input
-                          allowClear
-                          value={historyFilterDraft.dateTo}
-                          onChange={(event) => updateHistoryFilterDraftField('dateTo', event.target.value)}
-                          placeholder="YYYY-MM-DD"
-                        />
-                      </Space>
-                    </Col>
-                  </Row>
-                      )
-                    }]}
-                  />
-                  <Space wrap className="responsive-action-bar">
-                    <Button type="primary" onClick={applyHistoryFilters}>{t('history.applyFilters')}</Button>
-                    <Button onClick={resetHistoryFilters}>{t('history.resetFilters')}</Button>
-                    <Button onClick={() => refresh(historyFilters, { includeHistoryExplorer: true })}>{t('app.refresh')}</Button>
-                  </Space>
-                </Space>
-                <Table
-                  rowKey="id"
-                  scroll={{ x: TABLE_SCROLL_X }}
-                  rowSelection={{ selectedRowKeys: selectedHistoryIds, onChange: setSelectedHistoryIds }}
-                  dataSource={visibleHistoryItems}
-                  onRow={(record) => ({
-                    className: 'history-interactive-row',
-                    onClick: () => setSelectedHistoryId(record.id)
-                  })}
-                  columns={[
-                    {
-                      title: t('history.submittedId'),
-                      dataIndex: 'requestId',
-                      width: 220,
-                      render: (value) => <HoverText value={value} className="table-cell-ellipsis" />
-                    },
-                    {
-                      title: t('common.provider'),
-                      dataIndex: 'providerName',
-                      width: 180,
-                      render: (value) => <HoverText value={value} className="table-cell-ellipsis" />
-                    },
-                    {
-                      title: t('history.model'),
-                      dataIndex: 'model',
-                      width: 180,
-                      render: (value) => <HoverText value={value} className="table-cell-ellipsis" />
-                    },
-                    { title: t('history.segmentCount'), dataIndex: 'segmentCount', width: 120 },
-                    {
-                      title: t('history.status'),
-                      dataIndex: 'status',
-                      width: 120,
-                      render: (value) => <Tag color={value === 'success' ? 'green' : 'red'}>{value === 'success' ? t('history.statusSuccess') : t('history.statusFailed')}</Tag>
-                    },
-                    {
-                      title: t('history.issues'),
-                      width: 190,
-                      render: (_, record) => renderHistoryIssueTags(t, record, historyFilters.issue, { maxVisible: 3 })
-                    },
-                    {
-                      title: t('history.submittedAt'),
-                      dataIndex: 'submittedAt',
-                      width: 180,
-                      render: (value) => <HoverText value={formatLocalTimestamp(value)} className="table-cell-ellipsis" />
-                    },
-                    {
-                      title: t('common.actions'),
-                      width: 180,
-                      render: (_, record) => (
-                        <Space size={0}>
-                          <Button
-                            type="link"
-                            aria-label={t('history.openRecord', { id: record.requestId || record.id || '-' })}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setSelectedHistoryId(record.id);
-                            }}
-                          >
-                            {t('common.review')}
-                          </Button>
-                        <Button
-                          danger
-                          type="link"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            Modal.confirm({
-                              title: t('history.deleteEntry'),
-                              content: t('history.confirmDeleteEntry', { id: record.requestId || record.id || '-' }),
-                              okText: t('common.delete'),
-                              cancelText: t('common.cancel'),
-                              okButtonProps: { danger: true },
-                              onOk: async () => {
-                                await deleteHistoryEntries([record.id]);
-                              }
-                            });
-                          }}
-                        >
-                          {t('common.delete')}
-                        </Button>
-                        </Space>
-                      )
-                    }
-                  ]}
-                />
-              </Card>
-            </Space>
+            <HistoryPage
+              activeHistoryFilterTags={activeHistoryFilterTags}
+              applyHistoryFilters={applyHistoryFilters}
+              confirmDeleteCurrentHistoryEntry={confirmDeleteCurrentHistoryEntry}
+              confirmDeleteSelectedHistoryEntries={confirmDeleteSelectedHistoryEntries}
+              confirmHistoryDeletion={confirmHistoryDeletion}
+              currentHistoryListItem={currentHistoryListItem}
+              currentHistoryRecord={currentHistoryRecord}
+              deletingHistory={deletingHistory}
+              exportHistory={exportHistory}
+              exportingHistoryFormat={exportingHistoryFormat}
+              formatLocalTimestamp={formatLocalTimestamp}
+              historyDetailError={historyDetailError}
+              historyDetailLoading={historyDetailLoading}
+              historyFilterDraft={historyFilterDraft}
+              historyFilterModelOptions={historyFilterModelOptions}
+              historyFilterProviderOptions={historyFilterProviderOptions}
+              historyFilters={historyFilters}
+              historyInsightFocus={historyInsightFocus}
+              historyInsights={historyInsights}
+              historyRefreshing={historyRefreshing}
+              onCloseHistoryDetail={closeHistoryDetail}
+              refreshHistory={refreshHistory}
+              resetHistoryFilters={resetHistoryFilters}
+              selectedHistoryId={selectedHistoryId}
+              selectedHistoryIds={selectedHistoryIds}
+              setHistoryInsightFocus={setHistoryInsightFocus}
+              setSelectedHistoryId={setSelectedHistoryId}
+              setSelectedHistoryIds={setSelectedHistoryIds}
+              t={t}
+              updateHistoryFilterDraftField={updateHistoryFilterDraftField}
+              visibleHistoryItems={visibleHistoryItems}
+            />
           )}
           </Suspense>
         </Content>
@@ -3988,261 +2911,6 @@ export default function App() {
       </Modal>
 
       <Drawer
-        title={t('history.details')}
-        extra={currentHistoryListItem ? <Button danger onClick={confirmDeleteCurrentHistoryEntry}>{t('common.delete')}</Button> : null}
-        open={Boolean(selectedHistoryId)}
-        onClose={() => {
-          setSelectedHistoryId('');
-          setHistoryDetailRecord(null);
-          setHistoryDetailError('');
-        }}
-        width={WIDE_SIDE_DRAWER_WIDTH}
-        destroyOnClose
-      >
-        {historyDetailLoading ? (
-          <div style={{ padding: 32, textAlign: 'center' }}>
-            <Spin />
-          </div>
-        ) : historyDetailError ? (
-          <Alert type="error" showIcon message={historyDetailError} />
-        ) : currentHistoryRecord ? (
-          <Space direction="vertical" size={16} style={{ display: 'flex' }}>
-            <Card size="small" title={t('history.diagnosticSummary')} className="history-diagnostic-card">
-              {(() => {
-                const diagnosticSummary = buildHistoryDiagnosticSummary(currentHistoryRecord);
-                return (
-                  <Space direction="vertical" size={12} style={{ display: 'flex' }}>
-                    <Space wrap size={[8, 8]}>
-                      {renderHistoryIssueTags(t, currentHistoryRecord, historyFilters.issue)}
-                    </Space>
-                    <Descriptions bordered column={1} size="small">
-                      <Descriptions.Item label={t('history.diagnosticIssueCount')}>
-                        {diagnosticSummary.issueCount}
-                      </Descriptions.Item>
-                      <Descriptions.Item label={t('history.diagnosticTotalLatency')}>
-                        {formatInsightLatency(diagnosticSummary.totalLatencyMs)}
-                      </Descriptions.Item>
-                      <Descriptions.Item label={t('history.diagnosticAttemptCount')}>
-                        {diagnosticSummary.attemptCount}
-                      </Descriptions.Item>
-                      <Descriptions.Item label={t('history.diagnosticFallback')}>
-                        {diagnosticSummary.fallbackActive ? t('common.enabled') : t('common.disabled')}
-                      </Descriptions.Item>
-                      <Descriptions.Item label={t('history.diagnosticFallbackReasons')}>
-                        <HoverText value={diagnosticSummary.fallbackReasons.join(', ') || t('history.none')} />
-                      </Descriptions.Item>
-                      <Descriptions.Item label={t('history.diagnosticPrimaryError')}>
-                        <HoverText value={diagnosticSummary.primaryError || t('history.none')} />
-                      </Descriptions.Item>
-                    </Descriptions>
-                  </Space>
-                );
-              })()}
-            </Card>
-            <Collapse
-              className="history-detail-disclosure"
-              items={[{
-                key: 'technical-details',
-                label: t('history.technicalDetails'),
-                children: (
-                  <Space direction="vertical" size={16} style={{ display: 'flex' }}>
-            <Card size="small" title={t('history.attemptTimeline')}>
-              <Table
-                size="small"
-                pagination={false}
-                scroll={{ x: TABLE_SCROLL_X }}
-                rowKey="key"
-                dataSource={buildHistoryAttemptRows(currentHistoryRecord)}
-                locale={{ emptyText: t('history.noAttempts') }}
-                columns={[
-                  { title: '#', dataIndex: 'index', width: 56 },
-                  {
-                    title: t('history.attemptRoute'),
-                    width: 160,
-                    render: (_, record) => (
-                      <Space direction="vertical" size={0}>
-                        <Text>{record.route || t('history.unknown')}</Text>
-                        <Text type="secondary">{record.provider || t('history.unknown')}</Text>
-                      </Space>
-                    )
-                  },
-                  {
-                    title: t('history.model'),
-                    dataIndex: 'model',
-                    width: 150,
-                    render: (value) => <HoverText value={value || t('history.unknown')} className="table-cell-ellipsis" />
-                  },
-                  {
-                    title: t('history.attemptMode'),
-                    dataIndex: 'mode',
-                    width: 100,
-                    render: (value, record) => (
-                      <Space wrap size={[4, 4]}>
-                        <Tag>{value || t('history.unknown')}</Tag>
-                        {record.batchSize ? <Tag>{t('history.attemptBatchSize', { count: record.batchSize })}</Tag> : null}
-                      </Space>
-                    )
-                  },
-                  {
-                    title: t('history.status'),
-                    dataIndex: 'success',
-                    width: 100,
-                    render: (value) => (
-                      <Tag className="history-attempt-status-tag" color={value ? 'green' : 'red'}>
-                        {value ? t('history.statusSuccess') : t('history.statusFailed')}
-                      </Tag>
-                    )
-                  },
-                  {
-                    title: t('history.attemptLatency'),
-                    dataIndex: 'latencyMs',
-                    width: 100,
-                    render: (value) => formatInsightLatency(value)
-                  },
-                  {
-                    title: t('history.attemptCache'),
-                    dataIndex: 'cacheKind',
-                    width: 100,
-                    render: (value) => value ? <Tag color="green">{value}</Tag> : <Text type="secondary">-</Text>
-                  },
-                  {
-                    title: t('history.attemptError'),
-                    dataIndex: 'error',
-                    width: 180,
-                    render: (value) => <HoverText value={value || '-'} className="table-cell-ellipsis" />
-                  },
-                  {
-                    title: t('history.attemptFallbackStage'),
-                    dataIndex: 'fallbackStage',
-                    width: 130,
-                    render: (value) => value ? <Tag color="blue">{value}</Tag> : <Text type="secondary">-</Text>
-                  }
-                ]}
-              />
-            </Card>
-            <Descriptions bordered column={1} size="small">
-              <Descriptions.Item label={t('history.submittedId')}><HoverText value={currentHistoryRecord.requestId} /></Descriptions.Item>
-              <Descriptions.Item label={t('history.projectId')}><HoverText value={currentHistoryRecord.projectId} /></Descriptions.Item>
-              <Descriptions.Item label={t('history.client')}><HoverText value={currentHistoryRecord.client || currentHistoryRecord.metadata?.client} /></Descriptions.Item>
-              <Descriptions.Item label={t('history.domain')}><HoverText value={currentHistoryRecord.domain || currentHistoryRecord.metadata?.domain} /></Descriptions.Item>
-              <Descriptions.Item label={t('history.subject')}><HoverText value={currentHistoryRecord.subject} /></Descriptions.Item>
-              <Descriptions.Item label={t('history.documentId')}><HoverText value={currentHistoryRecord.documentId || currentHistoryRecord.metadata?.documentId} /></Descriptions.Item>
-              <Descriptions.Item label={t('history.projectGuid')}><HoverText value={currentHistoryRecord.projectGuid || currentHistoryRecord.metadata?.projectGuid} /></Descriptions.Item>
-              <Descriptions.Item label={t('history.model')}><HoverText value={currentHistoryRecord.model} /></Descriptions.Item>
-              <Descriptions.Item label={t('common.provider')}><HoverText value={currentHistoryRecord.providerName} /></Descriptions.Item>
-              <Descriptions.Item label={t('history.submittedAt')}><HoverText value={formatLocalTimestamp(currentHistoryRecord.submittedAt)} /></Descriptions.Item>
-              <Descriptions.Item label={t('history.completedAt')}><HoverText value={formatLocalTimestamp(currentHistoryRecord.completedAt)} /></Descriptions.Item>
-              <Descriptions.Item label={t('history.segmentCount')}><HoverText value={currentHistoryRecord.segmentCount ?? buildHistorySegments(currentHistoryRecord).length} /></Descriptions.Item>
-              <Descriptions.Item label={t('history.segmentSummary')}><HoverText value={currentHistoryRecord.segmentSummary} /></Descriptions.Item>
-              <Descriptions.Item label={t('history.throughputSummary')}><HoverText value={formatHistoryThroughputValue(currentHistoryRecord)} /></Descriptions.Item>
-            </Descriptions>
-            <Card size="small" title={t('history.promptViewTitle')}>
-              <Space direction="vertical" size={12} style={{ display: 'flex' }}>
-                <div>
-                  <Text strong>{t('history.renderedSystemPrompt')}</Text>
-                  <pre className="history-json">
-                    {String(
-                      getHistoryRenderedSystemPrompt(currentHistoryRecord)
-                      || t('history.promptUnavailable')
-                    )}
-                  </pre>
-                </div>
-                <div>
-                  <Text strong>{t('history.renderedUserPrompt')}</Text>
-                  <pre className="history-json">
-                    {String(
-                      getHistoryRenderedUserPrompt(currentHistoryRecord)
-                      || t('history.promptUnavailable')
-                    )}
-                  </pre>
-                </div>
-              </Space>
-            </Card>
-            <Card size="small" title={t('history.contextSourcesTitle')}>
-              <Descriptions bordered column={1} size="small">
-                <Descriptions.Item label={t('history.contextSourceTranslationStyle')}>
-                  <HoverText value={getHistoryContextSources(currentHistoryRecord).translationStyle} />
-                </Descriptions.Item>
-                <Descriptions.Item label={t('history.contextSourceDocumentSummary')}>
-                  <HoverText value={getHistoryContextSources(currentHistoryRecord).documentSummary} />
-                </Descriptions.Item>
-                <Descriptions.Item label={t('history.contextSourceTerminology')}>
-                  <HoverText value={getHistoryContextSources(currentHistoryRecord).terminology} />
-                </Descriptions.Item>
-                <Descriptions.Item label={t('history.contextSourceTmHints')}>
-                  <HoverText value={getHistoryContextSources(currentHistoryRecord).tmHints} />
-                </Descriptions.Item>
-                <Descriptions.Item label={t('history.contextSourceCustomTmMatches')}>
-                  <HoverText value={getHistoryContextSources(currentHistoryRecord).customTmMatches} />
-                </Descriptions.Item>
-                <Descriptions.Item label={t('history.contextSourceTmDiagnostics')}>
-                  <HoverText value={getHistoryContextSources(currentHistoryRecord).tmDiagnostics} />
-                </Descriptions.Item>
-                <Descriptions.Item label={t('history.contextSourceProjectMetadata')}>
-                  <HoverText value={getHistoryContextSources(currentHistoryRecord).projectMetadata} />
-                </Descriptions.Item>
-                <Descriptions.Item label={t('history.contextSourcePreviewContext')}>
-                  <HoverText value={getHistoryContextSources(currentHistoryRecord).previewContext} />
-                </Descriptions.Item>
-              </Descriptions>
-            </Card>
-            {shouldShowHistoryActualSentContent(currentHistoryRecord, buildHistorySegments(currentHistoryRecord)) ? (
-              <Card size="small" title={t('history.actualSentContent')}>
-                <List
-                  size="small"
-                  dataSource={buildHistoryPromptItems(currentHistoryRecord, buildHistorySegments(currentHistoryRecord))}
-                  renderItem={(item) => (
-                    <List.Item>
-                      <Space direction="vertical" size={6} style={{ width: '100%' }}>
-                        <Text strong>{t('history.batchItemLabel', { index: item.segmentIndex })}</Text>
-                        <div>
-                          <Text strong>{t('history.sentSourceText')}</Text>
-                          <pre className="history-json">{item.sourceText || '-'}</pre>
-                        </div>
-                        <div>
-                          <Text strong>{t('history.sentPromptInstructions')}</Text>
-                          <pre className="history-json">{item.promptInstructions || t('history.promptUnavailable')}</pre>
-                        </div>
-                      </Space>
-                    </List.Item>
-                  )}
-                />
-              </Card>
-            ) : null}
-            <Card size="small" title={t('history.segments')}>
-              <List
-                size="small"
-                dataSource={buildHistorySegments(currentHistoryRecord)}
-                renderItem={(segment) => (
-                  <List.Item>
-                    <Space direction="vertical" size={6} style={{ width: '100%' }}>
-                      <Text strong>{t('history.batchItemLabel', { index: segment.segmentIndex })}</Text>
-                      <Text>{`${t('history.source')}: ${segment.source || '-'}`}</Text>
-                      <Text>{`${t('history.target')}: ${segment.target || '-'}`}</Text>
-                      {(segment.tmSource || segment.tmTarget) ? (
-                        <Text type="secondary">{`${t('history.tmSource')}: ${segment.tmSource || '-'} | ${t('history.tmTarget')}: ${segment.tmTarget || '-'}`}</Text>
-                      ) : null}
-                      {segment.customTmMatches?.length ? (
-                        <Text type="secondary">
-                          {`${t('history.customTmMatches')}: ${segment.customTmMatches.map((match) => `${match.score || 0}% ${match.bucket || ''} ${match.assetName || ''}`.trim()).join(' | ')}`}
-                        </Text>
-                      ) : null}
-                    </Space>
-                  </List.Item>
-                )}
-              />
-            </Card>
-                  </Space>
-                )
-              }]}
-            />
-          </Space>
-        ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('history.noSelection')} />
-        )}
-      </Drawer>
-
-      <Drawer
         title={t('context.assetPreviewTitle')}
         placement="right"
         open={assetPreviewOpen}
@@ -4254,7 +2922,7 @@ export default function App() {
         width={WIDE_SIDE_DRAWER_WIDTH}
         destroyOnClose
       >
-        <Space direction="vertical" size={16} style={{ display: 'flex' }}>
+        <Space direction="vertical" size={16} className="app-block-space">
           {assetPreviewRecord ? (
             <Descriptions bordered column={1} size="small">
               <Descriptions.Item label={t('context.name')}>{assetPreviewRecord.name || '-'}</Descriptions.Item>
@@ -4315,7 +2983,7 @@ export default function App() {
           ) : null}
           {assetPreviewData?.manualMappingRequired ? (
             <Card size="small" title={t('context.assetPreviewManualMappingTitle')}>
-              <Space direction="vertical" size={12} style={{ display: 'flex' }}>
+              <Space direction="vertical" size={12} className="app-block-space">
                 <Text type="secondary">{t('context.assetPreviewManualMappingDescription')}</Text>
                 <Select
                   value={assetPreviewManualDraft.srcColumn || undefined}
@@ -4365,7 +3033,7 @@ export default function App() {
           ) : null}
           {canApplyTbStructurePreview(assetPreviewData) ? (
             <Card size="small" title={t('context.assetPreviewApplyDetectedTitle')}>
-              <Space direction="vertical" size={12} style={{ display: 'flex' }}>
+              <Space direction="vertical" size={12} className="app-block-space">
                 <Text type="secondary">{t('context.assetPreviewApplyDetectedDescription')}</Text>
                 <Button
                   type="primary"
