@@ -33,7 +33,6 @@ native/preview-helper/**/preview-helper/
 .claude/
 .codex/
 CLAUDE.md
-AGENTS.md
 IMPLEMENTATION_PLAN.md
 .infisical.json
 
