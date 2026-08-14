@@ -3,21 +3,26 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-  root: path.resolve(__dirname, 'src', 'renderer'),
+  root: path.resolve(import.meta.dirname, 'src', 'renderer'),
   plugins: [react()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src', 'renderer', 'src'),
+      '@': path.resolve(import.meta.dirname, 'src', 'renderer', 'src'),
     },
   },
   build: {
-    outDir: path.resolve(__dirname, '.vite', 'renderer', 'main_window'),
+    outDir: path.resolve(import.meta.dirname, '.vite', 'renderer', 'main_window'),
     emptyOutDir: true,
-    rollupOptions: {
+    rolldownOptions: {
       output: {
-        manualChunks: {
-          'ui-vendor': ['antd', '@ant-design/icons', 'dayjs', 'react', 'react-dom']
-        }
+        codeSplitting: {
+          groups: [
+            {
+              name: 'ui-vendor',
+              test: /node_modules[\\/](?:@ant-design[\\/]icons|antd|dayjs|react|react-dom)(?:[\\/]|$)/,
+            },
+          ],
+        },
       }
     }
   },

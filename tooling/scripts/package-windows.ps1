@@ -83,6 +83,23 @@ function Resolve-NodeExecutable() {
     throw "Unable to locate a real Node.js executable."
 }
 
+function Ensure-NodeVersion([string]$NodeExecutable, [version]$MinimumVersion) {
+    $rawVersion = (& $NodeExecutable --version | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to determine the active Node.js version."
+    }
+
+    try {
+        $activeVersion = [version]$rawVersion.TrimStart([char]"v")
+    } catch {
+        throw "Unable to parse the active Node.js version: $rawVersion"
+    }
+
+    if ($activeVersion -lt $MinimumVersion) {
+        throw "Node.js $MinimumVersion or newer is required; active version is $activeVersion."
+    }
+}
+
 function Get-DesktopVersion() {
     $packageJsonPath = Join-Path $repoRoot "apps\desktop\package.json"
     if (-not (Test-Path $packageJsonPath)) {
@@ -124,6 +141,8 @@ Write-Step "Validating toolchain"
 Ensure-Dotnet | Out-Null
 Ensure-Command "node" "Install Node.js 22.x and ensure it is available in PATH." | Out-Null
 Ensure-Command "pnpm" "Install pnpm and ensure it is available in PATH." | Out-Null
+$nodeExecutable = Resolve-NodeExecutable
+Ensure-NodeVersion $nodeExecutable ([version]"22.12.0")
 
 $desktopVersion = Get-DesktopVersion
 
@@ -157,7 +176,6 @@ try {
 }
 
 Write-Step "Writing update manifest"
-$nodeExecutable = Resolve-NodeExecutable
 & $nodeExecutable (Join-Path $repoRoot "tooling\scripts\release-metadata.mjs") write-manifest $updateManifestPath (Get-Date).ToUniversalTime().ToString("o")
 if ($LASTEXITCODE -ne 0) {
     throw "Unable to write update manifest."

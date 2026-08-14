@@ -3,6 +3,9 @@
   "private": true,
   "version": "1.0.7",
   "packageManager": "pnpm@10.6.2",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "license": "MIT",
   "description": "memoQ AI Hub monorepo with Electron desktop app and minimal memoQ plugin.",
   "pnpm": {
@@ -27,8 +30,13 @@
       "picomatch@^4": "^4.0.5",
       "postcss": "^8.5.26",
       "tmp": "^0.2.7",
-      "vite": "^7.3.6",
-      "qs": "^6.15.3"
+      "vite": "8.2.0",
+      "qs": "^6.15.3",
+      "body-parser": "1.20.6",
+      "@tootallnate/once": "2.0.1",
+      "esbuild": "0.28.1",
+      "@electron/packager": "18.4.4",
+      "extract-zip": "npm:@electron-internal/extract-zip@1.0.5"
     }
   },
   "scripts": {

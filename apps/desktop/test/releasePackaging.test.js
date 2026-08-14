@@ -34,43 +34,39 @@ test('packaged desktop bundle stores the shipped desktop version inside app.asar
   assert.equal(packagedPackageJson.version, expectedVersion);
 });
 
-test('packaged desktop bundle includes transitive runtime dependencies required by the background worker', {
+test('packaged desktop bundle loads governed runtime modules from ASAR', {
   skip: !packagedAppDir
 }, async () => {
   assert.equal(fs.existsSync(packagedAsarPath), true, `Expected packaged app.asar at ${packagedAsarPath}`);
 
   const archivedFiles = new Set(asar.listPackage(packagedAsarPath));
-  assert.equal(
-    archivedFiles.has('\\node_modules\\mime-db\\package.json'),
-    true,
-    'Expected packaged runtime dependency "\\node_modules\\mime-db\\package.json" inside app.asar'
-  );
   const extractedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'memoq-packaged-runtime-'));
   try {
     asar.extractAll(packagedAsarPath, extractedRoot);
-    const packagedRequire = (packageName) => require(path.join(extractedRoot, 'node_modules', packageName));
+    const packagedRequire = (bundlePath) => require(path.join(extractedRoot, '.vite', 'build', bundlePath));
 
-    const XLSX = packagedRequire('xlsx');
+    const XLSX = require('xlsx');
+    assert.equal(XLSX.version, '0.20.3');
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['source', 'target'], ['Hello', 'Bonjour']]), 'Terms');
-    const workbookBytes = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    assert.ok(workbookBytes.length > 0);
+    const workbookPath = path.join(extractedRoot, 'runtime-smoke.xlsx');
+    XLSX.writeFile(workbook, workbookPath);
 
-    const { XMLParser } = packagedRequire('fast-xml-parser');
-    assert.equal(new XMLParser().parse('<root><value>ok</value></root>').root.value, 'ok');
-
-    const OpenAI = packagedRequire('openai');
-    assert.equal(typeof OpenAI, 'function');
-
-    const initSqlJs = packagedRequire('sql.js');
-    const SQL = await initSqlJs({
-      locateFile: () => path.join(packagedAppDir, 'resources', 'sql-wasm.wasm')
+    const { parseAsset } = packagedRequire(path.join('asset', 'assetParseCache.js'));
+    const parsedWorkbook = parseAsset({
+      id: 'runtime-xlsx',
+      type: 'glossary',
+      fileName: 'runtime-smoke.xlsx',
+      storedPath: workbookPath,
+      sha256: 'runtime-smoke'
     });
-    const database = new SQL.Database();
-    database.run('CREATE TABLE smoke (value TEXT);');
-    database.run('INSERT INTO smoke VALUES (?);', ['ok']);
-    assert.equal(database.exec('SELECT value FROM smoke;')[0].values[0][0], 'ok');
-    database.close();
+    assert.equal(parsedWorkbook.entries[0].sourceTerm, 'Hello');
+    assert.equal(parsedWorkbook.entries[0].targetTerm, 'Bonjour');
+
+    const providerBundle = packagedRequire(path.join('provider', 'providerRegistry.js'));
+    const databaseBundle = packagedRequire('database.js');
+    assert.equal(typeof providerBundle.createProviderRegistry, 'function');
+    assert.equal(typeof databaseBundle.createDatabase, 'function');
 
     assert.equal(archivedFiles.has('\\node_modules\\sql.js\\dist\\sql-asm-debug.js'), false);
     assert.equal(archivedFiles.has('\\node_modules\\openai\\src\\index.ts'), false);

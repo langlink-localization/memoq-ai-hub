@@ -11,7 +11,8 @@ export default defineConfig({
     noExternal: true,
   },
   build: {
-    rollupOptions: {
+    rolldownOptions: {
+      preserveEntrySignatures: 'strict',
       input: {
         'asset/assetBriefParser': path.resolve(__dirname, 'src/asset/assetBriefParser.js'),
         'asset/assetContext': path.resolve(__dirname, 'src/asset/assetContext.js'),
@@ -64,6 +65,10 @@ export default defineConfig({
         workerLaunch: path.resolve(__dirname, 'src/workerLaunch.js')
       },
       external: ['electron', ...builtinModules, ...builtinModules.map((moduleName) => `node:${moduleName}`)],
+      output: {
+        preserveModules: true,
+        preserveModulesRoot: path.resolve(__dirname, 'src'),
+      },
     },
   },
 });

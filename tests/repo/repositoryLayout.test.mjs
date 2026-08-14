@@ -93,6 +93,7 @@ test('gitignore protects generated outputs and local scratch paths', () => {
 
 test('dependency and CI governance is reproducible', () => {
   const rootPackage = JSON.parse(readFile('package.json'));
+  const desktopPackage = JSON.parse(readFile('apps/desktop/package.json'));
   const lockfile = readFile('pnpm-lock.yaml');
   const ciWorkflow = readFile('.github/workflows/ci.yml');
   const releaseWorkflow = readFile('.github/workflows/release.yml');
@@ -103,8 +104,59 @@ test('dependency and CI governance is reproducible', () => {
     'electron-winstaller',
     'esbuild',
   ]);
+  assert.equal(rootPackage.engines?.node, '>=22.12.0');
+  assert.equal(desktopPackage.engines?.node, '>=22.12.0');
+  assert.match(packageWindowsScript, /Ensure-NodeVersion \$nodeExecutable \(\[version\]"22\.12\.0"\)/);
+  assert.equal(desktopPackage.dependencies?.['body-parser'], '1.20.6');
+  assert.equal(
+    desktopPackage.dependencies?.xlsx,
+    'https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz'
+  );
+  assert.deepEqual(
+    {
+      electron: desktopPackage.devDependencies?.electron,
+      forgeCli: desktopPackage.devDependencies?.['@electron-forge/cli'],
+      forgeSquirrel: desktopPackage.devDependencies?.['@electron-forge/maker-squirrel'],
+      forgeVite: desktopPackage.devDependencies?.['@electron-forge/plugin-vite'],
+      forgeZip: desktopPackage.devDependencies?.['@electron-forge/maker-zip'],
+      pluginReact: desktopPackage.devDependencies?.['@vitejs/plugin-react'],
+      vite: desktopPackage.devDependencies?.vite,
+    },
+    {
+      electron: '43.2.0',
+      forgeCli: '7.11.2',
+      forgeSquirrel: '7.11.2',
+      forgeVite: '7.11.2',
+      forgeZip: '7.11.2',
+      pluginReact: '6.0.5',
+      vite: '8.2.0',
+    }
+  );
+  assert.equal(rootPackage.pnpm?.overrides?.['body-parser'], '1.20.6');
+  assert.equal(rootPackage.pnpm?.overrides?.['@tootallnate/once'], '2.0.1');
+  assert.equal(rootPackage.pnpm?.overrides?.esbuild, '0.28.1');
+  assert.equal(rootPackage.pnpm?.overrides?.['@electron/packager'], '18.4.4');
+  assert.equal(
+    rootPackage.pnpm?.overrides?.['extract-zip'],
+    'npm:@electron-internal/extract-zip@1.0.5'
+  );
   assert.match(lockfile, /^lockfileVersion: '9\.0'$/m);
   assert.match(lockfile, /^  apps\/desktop:$/m);
+  for (const vulnerablePackage of [
+    '@babel/core@7.29.0',
+    '@tootallnate/once@2.0.0',
+    'body-parser@1.20.4',
+    'electron@30.5.1',
+    'esbuild@0.27.4',
+    'extract-zip@2.0.1',
+    'xlsx@0.18.5',
+  ]) {
+    assert.equal(
+      lockfile.includes(vulnerablePackage),
+      false,
+      `Vulnerable dependency version must not re-enter the lockfile: ${vulnerablePackage}`
+    );
+  }
 
   for (const workflow of [ciWorkflow, releaseWorkflow]) {
     assert.match(workflow, /cache-dependency-path: pnpm-lock\.yaml/);

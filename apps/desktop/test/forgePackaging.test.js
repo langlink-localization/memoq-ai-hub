@@ -8,8 +8,10 @@ const forgeConfig = require('../forge.config');
 
 test('Vite main-process inputs include every statically required local runtime module', async () => {
   const viteConfig = (await import('../vite.main.config.mjs')).default;
+  assert.equal(viteConfig.build.rolldownOptions.preserveEntrySignatures, 'strict');
+  assert.equal(viteConfig.build.rolldownOptions.output.preserveModules, true);
   const inputPaths = new Set(
-    Object.values(viteConfig.build.rollupOptions.input).map((inputPath) => path.resolve(inputPath))
+    Object.values(viteConfig.build.rolldownOptions.input).map((inputPath) => path.resolve(inputPath))
   );
   const localRequirePattern = /require\((['"])(\.\.?\/[^'"]+)\1\)/g;
   const missingInputs = [];
@@ -25,6 +27,17 @@ test('Vite main-process inputs include every statically required local runtime m
   }
 
   assert.deepEqual(missingInputs.sort(), []);
+});
+
+test('Vite renderer keeps UI dependencies in the governed Rolldown chunk', async () => {
+  const viteConfig = (await import('../vite.renderer.config.mjs')).default;
+  const groups = viteConfig.build.rolldownOptions.output.codeSplitting.groups;
+
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].name, 'ui-vendor');
+  assert.equal(groups[0].test.test('C:\\repo\\node_modules\\react\\index.js'), true);
+  assert.equal(groups[0].test.test('/repo/node_modules/@ant-design/icons/index.js'), true);
+  assert.equal(groups[0].test.test('/repo/src/renderer/App.jsx'), false);
 });
 
 test('forge packaging collects transitive runtime dependencies for discovered desktop modules', () => {
@@ -93,4 +106,9 @@ test('forge packaging keeps only runtime files for heavyweight dependencies', ()
   assert.equal(shouldCopy('openai', 'resources/responses/responses.js'), true);
   assert.equal(shouldCopy('openai', 'resources/responses/responses.d.ts'), false);
   assert.equal(shouldCopy('openai', 'src/resources/responses/responses.ts'), false);
+});
+
+test('forge packaging restores governed runtime dependencies after package-manager pruning', () => {
+  assert.equal(typeof forgeConfig.hooks.packageAfterPrune, 'function');
+  assert.equal(forgeConfig.hooks.packageAfterCopy, undefined);
 });

@@ -374,7 +374,7 @@ module.exports = {
         fs.copyFileSync(integrationDllSourcePath, integrationDllTargetPath);
       }
     },
-    packageAfterCopy: async (_forgeConfig, buildPath) => {
+    packageAfterPrune: async (_forgeConfig, buildPath) => {
       copyRuntimeNodeModules(buildPath);
       ensurePackagedRuntimeModules(buildPath);
     },

@@ -17,6 +17,14 @@ test('main process registers log diagnostics IPC handlers', () => {
   assert.match(source, /desktop:record-renderer-log/);
 });
 
+test('main process consumes the Electron 43 console-message details event', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, '../src/main.js'), 'utf8');
+  assert.match(source, /webContents\.on\('console-message', \(details\) =>/);
+  assert.match(source, /details\.level === 'warning' \|\| details\.level === 'error'/);
+  assert.match(source, /line:\s*details\.lineNumber/);
+  assert.doesNotMatch(source, /level\s*>=\s*2/);
+});
+
 test('main window supports the governed drawer breakpoint and content-width sizing', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../src/main.js'), 'utf8');
   assert.match(source, /minWidth:\s*720/);

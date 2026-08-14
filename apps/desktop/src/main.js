@@ -373,13 +373,13 @@ function createWindow() {
     logger.error('renderer-process-gone', 'Renderer process exited unexpectedly.', { details });
   });
 
-  mainWindow.webContents.on('console-message', (_event, level, messageText, line, sourceId) => {
-    if (level >= 2) {
+  mainWindow.webContents.on('console-message', (details) => {
+    if (details.level === 'warning' || details.level === 'error') {
       rendererLogger.warn('console-message', 'Renderer console warning or error.', {
-        level,
-        message: messageText,
-        line,
-        sourceId
+        level: details.level,
+        message: details.message,
+        line: details.lineNumber,
+        sourceId: details.sourceId
       });
     }
   });
