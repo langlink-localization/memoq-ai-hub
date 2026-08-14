@@ -17,22 +17,25 @@
 
 当前桌面端真正对操作人员开放的模块是：
 
-- `Dashboard`：安装或重装 memoQ 集成、查看运行状态和更新状态。
-- `Providers`：配置 OpenAI 或 OpenAI-compatible Provider，测试连通性并管理可用模型。
-- `Builder`：创建翻译 Profile、选择执行路由、绑定 TB 资产，并调整 v1 暴露出来的少量高级开关。
-- `Assets`：导入并预览 glossary / TB 资产。
-- `History`：查看翻译记录，并支持导出或删除历史记录。
-- `Logs`：查看本地诊断日志、打开日志文件、清理旧日志，并复制简短的排查摘要。
+- `概览`：安装或重装 memoQ 集成、查看运行状态和更新状态。
+- `AI 服务`：配置 OpenAI 或 OpenAI-compatible Provider，测试连通性并管理可用模型。
+- `设置`：创建翻译 Profile、选择执行路由、绑定术语和 Custom TM 资产、筛选 TM 匹配区间，并配置可选上下文能力。
+- `资产`：导入并预览 glossary、TB、TMX 和表格格式的 Custom TM 资产。
+- `翻译记录`：查看翻译记录、Custom TM 命中、提示词和诊断信息，并支持导出或删除记录。
+- `日志`：查看本地诊断日志、打开日志文件、清理旧日志，并复制简短的排查摘要。
 
 仓库里确实包含一些更底层的运行时能力，但当前版本并没有把所有内部模块都做成独立页面。本文档描述的是“当前交付界面”，不是所有内部实现细节。
 
-## 近期更新
+## 当前版本亮点
 
-`v1.0.20` 增加上传 TM/TMX 匹配能力，并在主资产页面中显示上传入口：
+`v1.0.28` 汇总了 `v1.0.20` 以来的产品、性能、安全和打包改进：
 
-- Custom TM 资产支持 TMX 文件，包括 memoQ 导出的 UTF-16 TMX 和相邻上下文 metadata。
-- 桌面端会计算可解释的 `AI Hub TM score`，并使用 memoQ 风格区间：`101%`、`100%`、`95-99`、`85-94`、`75-84`、`<75`。
-- 资产页面的新增菜单包含 Custom TM 上传，上传 TM 命中也会写入翻译历史，便于诊断。
+- Profile 可绑定上传的 TMX 或表格格式 Custom TM，并选择发送给 AI 的 `AI Hub TM score` 区间。带上下文的 TMX 命中最高可达 `101%`，memoQ 自带的模糊匹配提示仍作为独立参考。
+- 五步设置流程、响应式导航、未保存修改保护、键盘可访问控件和聚焦后的翻译记录视图，让日常配置与诊断更清晰。
+- 通过延迟加载和打包清理降低启动内存与包体积，同时保留标准 ZIP 和体积更小的 7z 便携包。
+- 本地网关仅监听 loopback，更新链接只接受 HTTPS，应用管理的下载会在启动前按 SHA-256 校验。
+- Electron 与桌面端依赖已升级到持续安全维护的版本；只有源码构建需要 Node.js 22.12 或更高版本。
+- 仓库和发布包不再包含 memoQ SDK 二进制、AddinSigner 或官方 SDK 示例；源码构建只会将两个必要的编译期程序集解析到 Git 忽略的本地缓存。
 
 ## 运行时结构
 
@@ -135,5 +138,3 @@ pnpm run package:windows
 ## 许可证
 
 LangLink 有权授权的部分采用 MIT 许可证。详见 [LICENSE](LICENSE)、[LICENSE_SCOPE.md](LICENSE_SCOPE.md) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。memoQ SDK 材料和商标不在 MIT 授权范围内，本项目也不是 memoQ 官方产品。
-
-公开 Release 默认禁止，只有仓库所有者通过 `PUBLIC_RELEASE_RISK_ACCEPTED` 明确接受发布风险后才会放行。该门禁仅记录内部发布决定，不代表已获得 memoQ 授权，也不消除第三方许可义务。
