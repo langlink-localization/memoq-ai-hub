@@ -73,12 +73,19 @@ If you are setting up the app for the first time, this is the path that matches 
 
 ## Local Development
 
+The repository does not contain memoQ SDK binaries. Plugin builds download the pinned memoQ MT SDK 2.4.4 archive from memoQ's official documentation site, verify its SHA-256 digest, and extract only the two required compile-time assemblies into the ignored `.memoq-sdk/` cache. To use an SDK or installed memoQ directory you already manage, set `MEMOQ_SDK_DIR` to a directory containing `MemoQ.Addins.Common.dll` and `MemoQ.MTInterfaces.dll`.
+
+Review the [memoQ EULA](https://www.memoq.com/legal/end-user-license-agreement/) before using the SDK. Downloading SDK files does not place them under this repository's MIT license.
+
+`pnpm run test:plugin` is a runtime regression test and requires a locally licensed memoQ installation. It auto-detects standard memoQ installations; set `MEMOQ_RUNTIME_DIR` to override the installation directory.
+
 Install dependencies and build from the repo root:
 
 ```powershell
 pnpm install
 pnpm run install:desktop
 pnpm run build:plugin
+pnpm run test:plugin
 pnpm run prepare:release
 ```
 
@@ -129,4 +136,6 @@ Repository Structure guidance lives under `docs/`; keep desktop code under `apps
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+LangLink-owned portions are available under the MIT License. See [LICENSE](LICENSE), [LICENSE_SCOPE.md](LICENSE_SCOPE.md), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). memoQ SDK materials and trademarks are not covered by the MIT license, and this is not an official memoQ product.
+
+Public release publishing is fail-closed and requires an explicit repository-owner risk decision through `PUBLIC_RELEASE_RISK_ACCEPTED`. This control records an internal decision to publish; it does not represent memoQ approval or remove third-party licensing obligations.

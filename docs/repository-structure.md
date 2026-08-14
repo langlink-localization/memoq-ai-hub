@@ -7,7 +7,7 @@ This repository follows a standard monorepo topology. Runtime code, shared contr
 - `apps/`: deployable application packages.
 - `apps/desktop/`: Electron desktop application, local HTTP gateway, renderer UI, and desktop tests.
 - `native/`: .NET and host-specific runtime integrations.
-- `native/plugin/`: memoQ MT plugin source and checked-in binary references.
+- `native/plugin/`: memoQ MT plugin source; SDK binaries are resolved into an ignored local cache.
 - `native/preview-helper/`: auxiliary .NET executable used by desktop preview flows.
 - `packages/`: cross-runtime contracts and reusable shared payloads.
 - `packages/contracts/`: versioned files shared across runtime boundaries.
@@ -15,7 +15,7 @@ This repository follows a standard monorepo topology. Runtime code, shared contr
 - `tooling/scripts/`: release and packaging scripts invoked from the repository root or CI.
 - `tooling/build/`: build-time staging helpers and packaging preparation scripts.
 - `tests/repo/`: repository-level contract, topology, and tooling tests.
-- `docs/`: contributor-facing documentation and vendor/reference material.
+- `docs/`: contributor-facing, project-authored documentation and links to external references.
 - `assets/`: checked-in static assets that are neither source code nor generated output.
 
 ## Placement Rules
@@ -24,13 +24,13 @@ This repository follows a standard monorepo topology. Runtime code, shared contr
 - New shared payloads, schemas, or runtime contracts belong in `packages/contracts/`.
 - New repo-owned automation belongs in `tooling/scripts/` or `tooling/build/`, not inside runtime modules.
 - New repository-level tests belong in `tests/repo/`.
-- New vendor or SDK reference material belongs in `docs/reference/`.
+- Do not mirror vendor SDKs, binaries, tools, sample source, or documentation. `docs/reference/` contains links to authoritative external sources only.
 - Root-level files stay minimal: workspace manifests, lockfiles, README, implementation plan, git metadata, and CI metadata only.
 
 ## Canonical Documentation Layout
 
 - `docs/repository-structure.md` is the structure policy and contributor entrypoint for repository layout.
-- `docs/reference/` holds curated memoQ SDK notes, reference configuration files, and lightweight supporting material that can live in a public repository.
+- `docs/reference/` points contributors to authoritative vendor sources without copying their content into this public repository.
 - New project documentation should be added under `docs/` unless it belongs inside a specific runtime module.
 
 ## Generated Output Policy
@@ -46,6 +46,7 @@ The following locations are generated outputs or local scratch space and must no
 - `.tmp/`
 - `.worktrees/`
 - `artifacts/`
+- `.memoq-sdk/`
 - `native/plugin/**/bin/`
 - `native/plugin/**/obj/`
 - `native/preview-helper/**/bin/`

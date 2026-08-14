@@ -42,6 +42,7 @@
   "scripts": {
     "install:desktop": "pnpm --dir apps/desktop install",
     "build:plugin": "powershell -ExecutionPolicy Bypass -File .\\tooling\\scripts\\build-windows.ps1 -Configuration Release",
+    "test:plugin": "powershell -ExecutionPolicy Bypass -File .\\tooling\\scripts\\test-plugin-regression.ps1 -Configuration Release",
     "prepare:release": "powershell -ExecutionPolicy Bypass -File .\\tooling\\build\\prepare-desktop-release.ps1 -Configuration Release",
     "test:repo": "node --test tests/repo/*.test.mjs",
     "test:desktop": "pnpm --dir apps/desktop run test",

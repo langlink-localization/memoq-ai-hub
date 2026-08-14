@@ -14,8 +14,13 @@ using MemoQAIHubPlugin;
 
 internal static class Program
 {
+    private static string memoQRuntimeDirectory;
+
     private static int Main()
     {
+        memoQRuntimeDirectory = Environment.GetEnvironmentVariable("MEMOQ_TEST_RUNTIME_DIR");
+        AppDomain.CurrentDomain.AssemblyResolve += ResolveMemoQRuntimeAssembly;
+
         try
         {
             RunEngineCapabilityScenario();
@@ -32,6 +37,22 @@ internal static class Program
             Console.Error.WriteLine(error);
             return 1;
         }
+        finally
+        {
+            AppDomain.CurrentDomain.AssemblyResolve -= ResolveMemoQRuntimeAssembly;
+        }
+    }
+
+    private static Assembly ResolveMemoQRuntimeAssembly(object sender, ResolveEventArgs args)
+    {
+        if (string.IsNullOrWhiteSpace(memoQRuntimeDirectory))
+        {
+            return null;
+        }
+
+        var assemblyName = new AssemblyName(args.Name).Name + ".dll";
+        var assemblyPath = Path.Combine(memoQRuntimeDirectory, assemblyName);
+        return File.Exists(assemblyPath) ? Assembly.LoadFrom(assemblyPath) : null;
     }
 
     private static void RunEngineCapabilityScenario()

@@ -29,10 +29,10 @@ Request flow:
 6. If an older DLL or `ClientDevConfig.xml` already exists, confirm the overwrite prompt.
 7. After completion, the dashboard should show a successful integration message.
 
-The installer writes these files into memoQ's `Addins` directory:
+The installer writes the plugin into memoQ's `Addins` directory and generates the unsigned-plugin configuration under `%ProgramData%\MemoQ`:
 
 - `MemoQ.AI.Hub.Plugin.dll`
-- `ClientDevConfig.xml`, which enables unsigned plugins through `<LoadUnsignedPlugins>true</LoadUnsignedPlugins>`
+- `%ProgramData%\MemoQ\ClientDevConfig.xml`, which enables unsigned plugins through `<LoadUnsignedPlugins>true</LoadUnsignedPlugins>`
 
 ### 1.2 Manual Install
 
@@ -41,13 +41,13 @@ The installer writes these files into memoQ's `Addins` directory:
 2. Extract it and locate:
    - `MemoQ.AI.Hub.Plugin.dll`
    - `ClientDevConfig.xml`
-3. Copy them into memoQ's `Addins` directory, for example:
+3. Copy `MemoQ.AI.Hub.Plugin.dll` into memoQ's `Addins` directory, for example:
 
 ```text
 C:\Program Files\memoQ\memoQ-11\Addins\
 ```
 
-4. Overwrite `ClientDevConfig.xml` if it already exists.
+4. Copy `ClientDevConfig.xml` to `%ProgramData%\MemoQ\ClientDevConfig.xml`, overwriting the existing file only after reviewing it.
 5. If memoQ reports `0x80131515` or `loadFromRemoteSources` on startup, run this from an elevated PowerShell prompt:
 
 ```powershell

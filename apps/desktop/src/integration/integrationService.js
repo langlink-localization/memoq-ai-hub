@@ -108,8 +108,7 @@ function resolveIntegrationAssets(paths) {
     clientDevConfig: [
       packagedResourcesRoot ? path.join(packagedResourcesRoot, INTEGRATION.clientDevConfigName) : '',
       packagedResourcesRoot ? path.join(packagedResourcesRoot, 'memoq-integration', INTEGRATION.clientDevConfigName) : '',
-      path.join(paths.repoRoot, 'apps', 'desktop', 'build-resources', 'memoq-integration', INTEGRATION.clientDevConfigName),
-      path.join(paths.repoRoot, 'docs', 'reference', INTEGRATION.clientDevConfigName)
+      path.join(paths.repoRoot, 'apps', 'desktop', 'build-resources', INTEGRATION.clientDevConfigName)
     ]
   };
 
