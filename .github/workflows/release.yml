@@ -18,6 +18,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Require recorded public release risk acceptance
+        shell: pwsh
+        env:
+          PUBLIC_RELEASE_RISK_ACCEPTED: ${{ vars.PUBLIC_RELEASE_RISK_ACCEPTED }}
+        run: |
+          if ($env:PUBLIC_RELEASE_RISK_ACCEPTED -ne "true") {
+            throw "Public release risk acceptance is not recorded. Set PUBLIC_RELEASE_RISK_ACCEPTED to true only after the repository owner approves publishing without representing memoQ authorization."
+          }
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
         with:

@@ -73,12 +73,19 @@
 
 ## 本地开发
 
+仓库不包含 memoQ SDK 二进制文件。插件构建会从 memoQ 官方文档站下载固定的 memoQ MT SDK 2.4.4，校验 SHA-256，并仅将两个编译期程序集提取到 Git 忽略的 `.memoq-sdk/` 缓存。如果需要使用自行管理的 SDK 或 memoQ 安装目录，可将 `MEMOQ_SDK_DIR` 指向同时包含 `MemoQ.Addins.Common.dll` 和 `MemoQ.MTInterfaces.dll` 的目录。
+
+使用 SDK 前请阅读 [memoQ EULA](https://www.memoq.com/legal/end-user-license-agreement/)。下载 SDK 文件不会使其自动适用本仓库的 MIT 许可证。
+
+`pnpm run test:plugin` 是运行时回归测试，需要本机已获得许可的 memoQ 安装。脚本会自动查找标准安装目录，也可通过 `MEMOQ_RUNTIME_DIR` 指定安装目录。
+
 在仓库根目录安装依赖并构建：
 
 ```powershell
 pnpm install
 pnpm run install:desktop
 pnpm run build:plugin
+pnpm run test:plugin
 pnpm run prepare:release
 ```
 
@@ -127,4 +134,6 @@ pnpm run package:windows
 
 ## 许可证
 
-MIT，详见 [LICENSE](LICENSE)。
+LangLink 有权授权的部分采用 MIT 许可证。详见 [LICENSE](LICENSE)、[LICENSE_SCOPE.md](LICENSE_SCOPE.md) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。memoQ SDK 材料和商标不在 MIT 授权范围内，本项目也不是 memoQ 官方产品。
+
+公开 Release 默认禁止，只有仓库所有者通过 `PUBLIC_RELEASE_RISK_ACCEPTED` 明确接受发布风险后才会放行。该门禁仅记录内部发布决定，不代表已获得 memoQ 授权，也不消除第三方许可义务。

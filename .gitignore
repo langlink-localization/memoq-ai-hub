@@ -10,6 +10,7 @@ apps/desktop/test-output/
 
 # Generated desktop release staging artifacts
 apps/desktop/build-resources/memoq-integration/
+apps/desktop/build-resources/ClientDevConfig.xml
 apps/desktop/helper/
 
 # Local agent/worktree scratch files
@@ -17,6 +18,7 @@ apps/desktop/helper/
 .tmp/
 .worktrees/
 artifacts/
+.memoq-sdk/
 native/plugin/**/artifacts/
 
 # .NET plugin build output

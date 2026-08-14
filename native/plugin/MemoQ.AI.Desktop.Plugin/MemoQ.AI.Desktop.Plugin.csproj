@@ -6,6 +6,7 @@
     <AssemblyName>MemoQ.AI.Hub.Plugin</AssemblyName>
     <RootNamespace>MemoQAIHubPlugin</RootNamespace>
     <LangVersion>latest</LangVersion>
+    <MemoQSdkDir Condition="'$(MemoQSdkDir)' == '' and '$(MEMOQ_SDK_DIR)' != ''">$(MEMOQ_SDK_DIR)</MemoQSdkDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,14 +18,22 @@
 
   <ItemGroup>
     <Reference Include="MemoQ.Addins.Common">
-      <HintPath>..\References\MemoQ.Addins.Common.dll</HintPath>
+      <HintPath>$(MemoQSdkDir)\MemoQ.Addins.Common.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="MemoQ.MTInterfaces">
-      <HintPath>..\References\MemoQ.MTInterfaces.dll</HintPath>
+      <HintPath>$(MemoQSdkDir)\MemoQ.MTInterfaces.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Web.Extensions" />
   </ItemGroup>
+
+  <Target Name="ValidateMemoQSdkReferences" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(MemoQSdkDir)' == ''" Text="MemoQSdkDir is required. Use tooling/scripts/build-windows.ps1 or set MEMOQ_SDK_DIR." />
+    <Error Condition="!Exists('$(MemoQSdkDir)\MemoQ.Addins.Common.dll')" Text="MemoQ.Addins.Common.dll was not found under MemoQSdkDir: $(MemoQSdkDir)" />
+    <Error Condition="!Exists('$(MemoQSdkDir)\MemoQ.MTInterfaces.dll')" Text="MemoQ.MTInterfaces.dll was not found under MemoQSdkDir: $(MemoQSdkDir)" />
+  </Target>
 
 </Project>

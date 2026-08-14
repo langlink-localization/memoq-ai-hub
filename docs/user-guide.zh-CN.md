@@ -29,10 +29,10 @@ memoQ AI Hub 由两部分协同工作：
 6. 如目录中已存在旧版 DLL 或 `ClientDevConfig.xml`，确认覆盖即可。
 7. 安装完成后，仪表盘会显示“集成安装成功”。
 
-安装操作会写入以下文件到 memoQ 的 `Addins` 目录：
+安装操作会将插件写入 memoQ 的 `Addins` 目录，并在 `%ProgramData%\MemoQ` 下生成未签名插件配置：
 
 - `MemoQ.AI.Hub.Plugin.dll`
-- `ClientDevConfig.xml`，其中包含 `<LoadUnsignedPlugins>true</LoadUnsignedPlugins>`，允许 memoQ 加载未签名插件
+- `%ProgramData%\MemoQ\ClientDevConfig.xml`，其中包含 `<LoadUnsignedPlugins>true</LoadUnsignedPlugins>`，允许 memoQ 加载未签名插件
 
 ### 1.2 手动安装
 
@@ -41,13 +41,13 @@ memoQ AI Hub 由两部分协同工作：
 2. 解压后找到以下文件：
    - `MemoQ.AI.Hub.Plugin.dll`
    - `ClientDevConfig.xml`
-3. 将它们复制到 memoQ 安装目录下的 `Addins` 文件夹，例如：
+3. 将 `MemoQ.AI.Hub.Plugin.dll` 复制到 memoQ 安装目录下的 `Addins` 文件夹，例如：
 
 ```text
 C:\Program Files\memoQ\memoQ-11\Addins\
 ```
 
-4. 如 `ClientDevConfig.xml` 已存在，覆盖即可。
+4. 将 `ClientDevConfig.xml` 复制到 `%ProgramData%\MemoQ\ClientDevConfig.xml`；如已存在，请先检查内容再覆盖。
 5. 如果 memoQ 启动时报 `0x80131515` 或 “loadFromRemoteSources”，请在管理员 PowerShell 中运行：
 
 ```powershell

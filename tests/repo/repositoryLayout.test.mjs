@@ -73,10 +73,12 @@ test('gitignore protects generated outputs and local scratch paths', () => {
     'apps/desktop/make/',
     'apps/desktop/test-output/',
     'apps/desktop/build-resources/memoq-integration/',
+    'apps/desktop/build-resources/ClientDevConfig.xml',
     'apps/desktop/helper/',
     '.tmp/',
     '.worktrees/',
     'artifacts/',
+    '.memoq-sdk/',
     'native/plugin/**/bin/',
     'native/plugin/**/obj/',
     'native/preview-helper/**/bin/',
@@ -213,7 +215,8 @@ test('path-sensitive entrypoints use the monorepo topology', () => {
 
   assert.match(integrationService, /native', 'plugin/);
   assert.match(integrationService, /apps', 'desktop', 'build-resources/);
-  assert.match(integrationService, /docs', 'reference', INTEGRATION\.clientDevConfigName/);
+  assert.match(integrationService, /apps', 'desktop', 'build-resources', INTEGRATION\.clientDevConfigName/);
+  assert.doesNotMatch(integrationService, /docs', 'reference', INTEGRATION\.clientDevConfigName/);
   assert.doesNotMatch(integrationService, /'doc'/);
 });
 

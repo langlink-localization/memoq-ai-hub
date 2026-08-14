@@ -1,0 +1,16 @@
+memoQ AI Hub
+Copyright (c) 2026 LangLink Localization
+
+This is an independent third-party compatibility project and is not an
+official memoQ product. "memoQ" is used descriptively and remains a trademark
+or product name of memoQ Ltd.
+
+The repository's MIT license covers only material that LangLink Localization
+owns or is authorized to license. It grants no rights to memoQ software, SDKs,
+APIs, samples, tools, assemblies, documentation, logos, or trademarks.
+
+Building, using, or distributing the memoQ integration may require rights or
+permission under terms supplied by memoQ Ltd. Repository release controls and
+internal risk decisions do not represent memoQ authorization.
+
+See LICENSE_SCOPE.md and THIRD_PARTY_NOTICES.md.

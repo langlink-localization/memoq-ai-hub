@@ -1,5 +1,7 @@
 param(
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [string]$SdkRoot = $env:MEMOQ_SDK_DIR
 )
 
-dotnet build (Join-Path $PSScriptRoot "MemoQ.AI.Desktop.Plugin.csproj") -c $Configuration
+$repoRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+& (Join-Path $repoRoot "tooling\scripts\build-windows.ps1") -Configuration $Configuration -SdkRoot $SdkRoot

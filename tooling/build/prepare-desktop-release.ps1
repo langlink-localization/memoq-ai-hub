@@ -18,7 +18,7 @@ $previewHelperProject = Join-Path $repoRoot "native\preview-helper\MemoQ.AI.Prev
 $previewHelperOutputDir = Join-Path $repoRoot "native\preview-helper\MemoQ.AI.Preview.Helper\bin\forge\$Configuration\net48"
 $previewHelperOutput = Join-Path $previewHelperOutputDir "MemoQ.AI.Preview.Helper.exe"
 $previewHelperIntermediate = Join-Path $repoRoot "native\preview-helper\MemoQ.AI.Preview.Helper\obj\forge\$Configuration"
-$clientDevConfig = Join-Path $repoRoot "docs\reference\ClientDevConfig.xml"
+$clientDevConfig = Join-Path $stagingRoot "ClientDevConfig.xml"
 $pluginSource = $pluginCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
@@ -31,14 +31,16 @@ if (-not $pluginSource) {
     throw "Built plugin DLL not found. Checked: $($pluginCandidates -join ', ')"
 }
 
-if (-not (Test-Path $clientDevConfig)) {
-    throw "ClientDevConfig.xml not found: $clientDevConfig"
-}
-
 New-Item -ItemType Directory -Force -Path $integrationDir | Out-Null
 New-Item -ItemType Directory -Force -Path $helperStagingDir | Out-Null
 Copy-Item -Force $pluginSource (Join-Path $integrationDir "MemoQ.AI.Hub.Plugin.dll")
-Copy-Item -Force $clientDevConfig (Join-Path $integrationDir "ClientDevConfig.xml")
+$clientDevConfigContent = @"
+<?xml version="1.0" encoding="utf-8"?>
+<ClientDevConfig>
+  <LoadUnsignedPlugins>true</LoadUnsignedPlugins>
+</ClientDevConfig>
+"@
+[System.IO.File]::WriteAllText($clientDevConfig, $clientDevConfigContent, $utf8NoBom)
 
 if (Test-Path $previewHelperProject) {
     New-Item -ItemType Directory -Force -Path $previewHelperIntermediate | Out-Null
@@ -55,6 +57,7 @@ if (Test-Path $previewHelperProject) {
 Write-Host "Prepared desktop release resources:"
 Write-Host "  - Plugin: $pluginSource"
 Write-Host "  - Staging: $integrationDir"
+Write-Host "  - Generated config: $clientDevConfig"
 if (Test-Path $previewHelperOutput) {
     Write-Host "  - Preview helper: $previewHelperOutput"
 }

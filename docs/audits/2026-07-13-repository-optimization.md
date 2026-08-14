@@ -12,7 +12,7 @@ This audit selected and implemented three initial implementation slices:
 
 The `v1.0.25` follow-up implements the remaining P1 item U1: release-generated SHA-256 metadata plus fail-closed verification of application-managed installer bytes before persistence and again immediately before launch.
 
-No browser or external web source was used. “Industry practice” comparisons are stable engineering principles applied to the current code, while memoQ capability conclusions use only the bundled official SDK material under `docs/reference/`.
+No browser or external web source was used when this historical audit was written. Its memoQ capability conclusions used a then-bundled SDK snapshot that has since been removed from the public repository for license hygiene; current work must verify those conclusions against memoQ's official SDK downloads.
 
 ## Scope and Evidence
 
@@ -63,7 +63,7 @@ The native plugin follows the documented director/engine/session model:
 - Engine/session construction, batch translation overloads, metadata overloads, `MTException`, and `StoreTranslation` are implemented.
 - `MaxDegreeOfParallelism = 8` is valid but should continue to be treated as a per-language upper bound; the SDK explicitly warns that parallelism multiplies across target languages and can trigger rate limits.
 
-Evidence anchors: `docs/reference/memoQ-MT-SDK-2.4.3/mt-sdk.md:352-370` documents director capabilities and the local-only language-pair check; `:406-413` documents lookup/store sessions and parallelism; `:623-631` documents single and batch `StoreTranslation`.
+Historical evidence came from the memoQ MT SDK 2.4.3 snapshot available when the audit ran. The repository no longer mirrors that material; use the [official memoQ SDK downloads](https://docs.memoq.com/current/sdk-docs/) for current verification.
 
 No immediate SDK-contract correction is justified. Future changes should keep plugin errors inside `TranslationResult.Exception`/`MTException` and retain result-array cardinality for batch calls.
 
@@ -71,13 +71,13 @@ No immediate SDK-contract correction is justified. Future changes should keep pl
 
 The helper uses the documented named-pipe topology, terminal-session suffix, protocol negotiation, registration/connection, content updates, active preview parts, and preview-part-id requests. Named pipes are a good fit for the current local-only design and avoid running a second unauthenticated callback HTTP service.
 
-Evidence anchors: `docs/reference/Preview_SDK_9_1/preview-sdk.md:220-287` describes endpoints, events, named pipes, and the terminal-session suffix; `:295-307` requires protocol negotiation before registration; `:367-380` defines active preview-part and preview-part-id messages.
+Historical evidence came from the Preview SDK 9.1 documentation available when the audit ran. That vendor documentation is no longer mirrored here.
 
 ### QA SDK 2.4.3 and terminology boundary
 
 The QA SDK describes quick and batch QA add-ins that emit memoQ-native warnings/errors. The repository's terminology QA is instead an advisory runtime result; it is not a memoQ QA add-in. This is a deliberate product boundary, not a defect.
 
-Evidence anchor: `docs/reference/memoQ-QA-SDK-2.4.3/qa-sdk.md:47-58` distinguishes quick and batch QA add-ins and their memoQ-native execution model.
+Historical evidence came from the memoQ QA SDK 2.4.3 documentation available when the audit ran. That vendor documentation is no longer mirrored here.
 
 The bundled MT, QA, and Preview documentation exposes no public TBX/term-base API. A case-insensitive `rg` search for `TBX`, `term base`, `glossary`, and `terminology` across all three SDK documents found only a QA problem category, not an integration API. Current TBX support is therefore correctly implemented as local file import and matching, not represented as memoQ term-base integration.
 

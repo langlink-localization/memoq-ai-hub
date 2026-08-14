@@ -48,6 +48,37 @@ function Ensure-Dotnet() {
     throw "dotnet is not available. Install the .NET SDK or add C:\Program Files\dotnet to PATH before running tooling/scripts/package-windows.ps1."
 }
 
+function Get-RequiredPnpmVersion() {
+    $packageJson = Get-Content (Join-Path $repoRoot "package.json") -Raw | ConvertFrom-Json
+    $packageManager = [string]$packageJson.packageManager
+    if ($packageManager -notmatch '^pnpm@(?<version>.+)$') {
+        throw "Root package.json must pin pnpm with packageManager."
+    }
+    return $Matches.version
+}
+
+function Initialize-PnpmCommand() {
+    $script:requiredPnpmVersion = Get-RequiredPnpmVersion
+    $installedVersion = $null
+    if (Get-Command "pnpm" -ErrorAction SilentlyContinue) {
+        $installedVersion = (& pnpm --version 2>$null | Select-Object -First 1).Trim()
+    }
+
+    if ($installedVersion -eq $script:requiredPnpmVersion) {
+        $script:pnpmCommand = "pnpm"
+        $script:pnpmPrefix = @()
+        return
+    }
+
+    Ensure-Command "npx" "Install Node.js with npm/npx or install pnpm $script:requiredPnpmVersion." | Out-Null
+    $script:pnpmCommand = "npx"
+    $script:pnpmPrefix = @("--yes", "pnpm@$script:requiredPnpmVersion")
+}
+
+function Invoke-Pnpm([string[]]$Arguments) {
+    & $script:pnpmCommand @script:pnpmPrefix @Arguments
+}
+
 function Resolve-NodeExecutable() {
     $candidates = @()
     $nodeCommand = Get-Command "node" -ErrorAction SilentlyContinue
@@ -140,7 +171,7 @@ function Get-UnpackedAppDir() {
 Write-Step "Validating toolchain"
 Ensure-Dotnet | Out-Null
 Ensure-Command "node" "Install Node.js 22.x and ensure it is available in PATH." | Out-Null
-Ensure-Command "pnpm" "Install pnpm and ensure it is available in PATH." | Out-Null
+Initialize-PnpmCommand
 $nodeExecutable = Resolve-NodeExecutable
 Ensure-NodeVersion $nodeExecutable ([version]"22.12.0")
 
@@ -155,7 +186,7 @@ Write-Step "Preparing packaged desktop resources"
 Write-Step "Installing workspace dependencies"
 Push-Location $repoRoot
 try {
-    Invoke-NativeStep "pnpm install --frozen-lockfile" { pnpm install --frozen-lockfile }
+    Invoke-NativeStep "pnpm install --frozen-lockfile" { Invoke-Pnpm @("install", "--frozen-lockfile") }
 } finally {
     Pop-Location
 }
@@ -163,13 +194,13 @@ try {
 Push-Location $desktopDir
 try {
     Write-Step "Running desktop tests"
-    Invoke-NativeStep "pnpm test" { pnpm test }
+    Invoke-NativeStep "pnpm test" { Invoke-Pnpm @("test") }
 
     Write-Step "Packaging unpacked desktop application"
-    Invoke-NativeStep "pnpm run package" { pnpm run package }
+    Invoke-NativeStep "pnpm run package" { Invoke-Pnpm @("run", "package") }
 
     Write-Step "Creating packaged desktop zip"
-    Invoke-NativeStep "pnpm run zip:win-unpacked" { pnpm run zip:win-unpacked }
+    Invoke-NativeStep "pnpm run zip:win-unpacked" { Invoke-Pnpm @("run", "zip:win-unpacked") }
 
 } finally {
     Pop-Location
