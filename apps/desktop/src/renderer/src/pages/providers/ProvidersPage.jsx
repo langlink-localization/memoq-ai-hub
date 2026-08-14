@@ -383,7 +383,6 @@ function ProviderModelLibraryModal({
       onCancel={onCloseProviderModelManager}
       footer={null}
       width={MODEL_LIBRARY_MODAL_WIDTH}
-      destroyOnClose={false}
     >
       <Space direction="vertical" size={16} className="app-block-space">
         <div className="provider-model-manager-toolbar">

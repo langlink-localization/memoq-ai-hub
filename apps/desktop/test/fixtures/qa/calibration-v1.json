@@ -1,0 +1,12 @@
+{
+  "version": "1",
+  "anonymized": true,
+  "languages": ["en-zh-CN", "de-en", "ja-en"],
+  "samples": [
+    { "id": "clean-en-zh", "source": "Total: 20 USD.", "target": "总计：20 美元。", "expected": [] },
+    { "id": "number-en-zh", "source": "Total: 20 USD.", "target": "总计：30 美元。", "expected": [{ "ruleId": "numbers", "severity": "major" }] },
+    { "id": "tag-de-en", "source": "Bitte <b>jetzt</b> speichern.", "target": "Please save now.", "expected": [{ "ruleId": "tags", "severity": "major" }] },
+    { "id": "omission-ja-en", "source": "この設定を削除しないでください。", "target": "Delete this setting.", "expectedAi": [{ "category": "accuracy", "severity": "major", "phenomenon": "negation" }] },
+    { "id": "empty-en-zh", "source": "Continue", "target": "", "expected": [{ "ruleId": "empty-target", "severity": "critical" }] }
+  ]
+}

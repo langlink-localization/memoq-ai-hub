@@ -208,6 +208,27 @@ const requestHandlers = {
   clearTranslationCache() {
     return requireRuntime().clearTranslationCache();
   },
+  getQaStatus() {
+    return requireRuntime().getQaStatus();
+  },
+  checkQaSegment(payload) {
+    return requireRuntime().checkQaSegment(payload || {});
+  },
+  checkQaDocument(payload) {
+    return requireRuntime().checkQaDocument(payload || {});
+  },
+  cancelQa(payload) {
+    return requireRuntime().cancelQa(payload || {});
+  },
+  saveQaFeedback(payload) {
+    return requireRuntime().saveQaFeedback(payload || {});
+  },
+  getQaResults(payload) {
+    return requireRuntime().getQaResults(payload?.documentId || payload);
+  },
+  inspectBilingualFile(payload) {
+    return requireRuntime().inspectBilingualFile(payload || {});
+  },
   getUpdateStatus() {
     return requireRuntime().getUpdateStatus();
   },

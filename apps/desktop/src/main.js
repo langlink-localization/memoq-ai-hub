@@ -1,6 +1,7 @@
 const path = require('path');
+const fs = require('fs');
 const { fork } = require('child_process');
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, screen, clipboard } = require('electron');
 const { createAppPaths } = require('./shared/paths');
 const {
   DEFAULT_LOG_POLICY,
@@ -19,6 +20,7 @@ const appPaths = createAppPaths();
 const logger = createLogger({ source: 'desktop-main', logsDir: appPaths.logsDir });
 const rendererLogger = createLogger({ source: 'renderer', logsDir: appPaths.logsDir });
 let mainWindow;
+let qualityWindow;
 let backgroundWorker;
 let workerRequestId = 0;
 let appIsQuitting = false;
@@ -165,6 +167,14 @@ function buildPlaceholderAppState() {
         portable: null,
         installer: null
       }
+    },
+    quality: {
+      enabled: true,
+      aiDefaultEnabled: false,
+      activeRequestCount: 0,
+      retentionDays: 30,
+      latestResult: null,
+      lastError: ''
     }
   };
 }
@@ -417,6 +427,68 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, `../renderer/${rendererName}/index.html`));
 }
 
+function getQualityBoundsPath() {
+  return path.join(app.getPath('userData'), 'quality-window-bounds.json');
+}
+
+function readQualityBounds() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(getQualityBoundsPath(), 'utf8'));
+    const bounds = { x: Number(parsed.x), y: Number(parsed.y), width: Number(parsed.width), height: Number(parsed.height) };
+    if (Object.values(bounds).every(Number.isFinite)) {
+      const workArea = screen.getDisplayMatching(bounds).workArea;
+      const width = Math.max(360, Math.min(bounds.width, workArea.width));
+      const height = Math.max(420, Math.min(bounds.height, workArea.height));
+      return {
+        width,
+        height,
+        x: Math.max(workArea.x, Math.min(bounds.x, workArea.x + workArea.width - width)),
+        y: Math.max(workArea.y, Math.min(bounds.y, workArea.y + workArea.height - height))
+      };
+    }
+  } catch {
+  }
+  return { width: 400, height: 560 };
+}
+
+function saveQualityBounds() {
+  if (!qualityWindow || qualityWindow.isDestroyed()) return;
+  try {
+    fs.mkdirSync(path.dirname(getQualityBoundsPath()), { recursive: true });
+    fs.writeFileSync(getQualityBoundsPath(), JSON.stringify(qualityWindow.getBounds()), 'utf8');
+  } catch (error) {
+    logger.warn('quality-window-bounds-save-failed', 'Could not save quality window bounds.', { error });
+  }
+}
+
+function createQualityWindow() {
+  if (qualityWindow && !qualityWindow.isDestroyed()) {
+    qualityWindow.showInactive();
+    return qualityWindow;
+  }
+  const rendererDevServerUrl = typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined' ? MAIN_WINDOW_VITE_DEV_SERVER_URL : null;
+  qualityWindow = new BrowserWindow({
+    ...readQualityBounds(),
+    minWidth: 360,
+    minHeight: 420,
+    alwaysOnTop: true,
+    title: `${PRODUCT_NAME} - Quality`,
+    show: false,
+    backgroundColor: '#ffffff',
+    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, 'preload.js') }
+  });
+  qualityWindow.on('close', saveQualityBounds);
+  qualityWindow.on('closed', () => { qualityWindow = null; });
+  qualityWindow.once('ready-to-show', () => qualityWindow?.showInactive());
+  if (rendererDevServerUrl) {
+    qualityWindow.loadURL(`${rendererDevServerUrl}${rendererDevServerUrl.includes('?') ? '&' : '?'}window=quality-float`);
+  } else {
+    const rendererName = typeof MAIN_WINDOW_VITE_NAME !== 'undefined' ? MAIN_WINDOW_VITE_NAME : 'main_window';
+    qualityWindow.loadFile(path.join(__dirname, `../renderer/${rendererName}/index.html`), { query: { window: 'quality-float' } });
+  }
+  return qualityWindow;
+}
+
 function registerIpcHandlers() {
   ipcMain.handle('desktop:get-gateway-base-url', () => `http://${DEFAULT_HOST}:${DEFAULT_PORT}`);
   ipcMain.handle('desktop:get-log-state', () => getLogState(appPaths.logsDir, DEFAULT_LOG_POLICY));
@@ -528,6 +600,48 @@ function registerIpcHandlers() {
   ipcMain.handle('desktop:clear-translation-cache', () => {
     requireWorkerReady();
     return invokeWorker('clearTranslationCache');
+  });
+  ipcMain.handle('desktop:get-qa-status', () => {
+    requireWorkerReady();
+    return invokeWorker('getQaStatus');
+  });
+  ipcMain.handle('desktop:check-qa-segment', (_event, payload) => {
+    requireWorkerReady();
+    return invokeWorker('checkQaSegment', payload || {});
+  });
+  ipcMain.handle('desktop:check-qa-document', (_event, payload) => {
+    requireWorkerReady();
+    return invokeWorker('checkQaDocument', payload || {});
+  });
+  ipcMain.handle('desktop:cancel-qa', (_event, payload) => {
+    requireWorkerReady();
+    return invokeWorker('cancelQa', payload || {});
+  });
+  ipcMain.handle('desktop:save-qa-feedback', (_event, payload) => {
+    requireWorkerReady();
+    return invokeWorker('saveQaFeedback', payload || {});
+  });
+  ipcMain.handle('desktop:get-qa-results', (_event, documentId) => {
+    requireWorkerReady();
+    return invokeWorker('getQaResults', { documentId });
+  });
+  ipcMain.handle('desktop:import-bilingual-qa', async (_event, payload) => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select an MQXLIFF or XLIFF file to inspect',
+      properties: ['openFile'],
+      filters: [{ name: 'Bilingual files', extensions: ['mqxliff', 'xlf', 'xliff'] }]
+    });
+    if (result.canceled || !result.filePaths.length) return null;
+    requireWorkerReady();
+    return invokeWorker('inspectBilingualFile', { ...(payload || {}), filePath: result.filePaths[0] });
+  });
+  ipcMain.handle('desktop:open-quality-window', () => {
+    createQualityWindow();
+    return { ok: true };
+  });
+  ipcMain.handle('desktop:copy-text', (_event, value) => {
+    clipboard.writeText(String(value || ''));
+    return { ok: true };
   });
   ipcMain.handle('desktop:get-update-status', () => {
     requireWorkerReady();
@@ -667,6 +781,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   appIsQuitting = true;
+  saveQualityBounds();
   logger.info('app-before-quit', 'Electron app is shutting down.');
 
   if (backgroundWorker) {

@@ -28,6 +28,8 @@ const {
 const { summarizeRuleConditions } = require('../shared/memoqMetadata');
 const { normalizeMemoQMetadata, normalizeSegmentMetadataItem } = require('../shared/memoqMetadataNormalizer');
 const { createPreviewContextClient } = require('../preview/previewContextClient');
+const { enrichTranslationResult } = require('./translationConfidence');
+const { createQaCoordinator, createSummary } = require('../qa/qaCoordinator');
 const {
   buildPreviewContextBundle,
   buildPreviewStatusSnapshot,
@@ -311,6 +313,202 @@ async function createRuntime(options = {}) {
   function saveState(state) {
     return persistence.saveConfigState(state);
   }
+
+  const qaCoordinator = createQaCoordinator({
+    persistence,
+    invokeAi: async ({ snapshot, providerId, model, terminology, tmMatches, naturalLanguageRules, repairInstruction, signal }) => {
+      const state = loadState();
+      const provider = state.providers.find((item) => item.id === providerId && item.enabled !== false)
+        || state.providers.find((item) => item.enabled !== false);
+      if (!provider) {
+        const error = new Error('No enabled AI provider is available for quality checking.');
+        error.code = ERROR_CODES.qaProviderUnavailable;
+        throw error;
+      }
+      const selectedModel = (provider.models || []).find((item) => (item.id === model || item.modelName === model) && item.enabled !== false)
+        || selectModel(provider);
+      const apiKey = secretStore.get(provider.secretRef);
+      if (!selectedModel || !apiKey || typeof providerRegistry.checkQuality !== 'function') {
+        const error = new Error('The selected provider is not ready for AI quality checking.');
+        error.code = ERROR_CODES.qaProviderUnavailable;
+        throw error;
+      }
+      return providerRegistry.checkQuality({
+        provider,
+        apiKey,
+        modelName: selectedModel.modelName,
+        snapshot,
+        terminology,
+        tmMatches,
+        naturalLanguageRules,
+        repairInstruction,
+        signal,
+        timeoutMs: 30000
+      });
+    }
+  });
+
+  function buildActivePreviewQaPayload() {
+    const document = previewContextClient?.readActiveDocument?.();
+    if (!document) return null;
+    const activeIds = Array.isArray(document.activePreviewPartIds) ? document.activePreviewPartIds : [];
+    const parts = Array.isArray(document.parts) ? document.parts : [];
+    const activePart = activeIds.length === 1
+      ? parts.find((part) => String(part.previewPartId || '') === String(activeIds[0]))
+      : null;
+    if (!activePart) {
+      return {
+        document: { id: String(document.documentId || ''), name: String(document.documentName || '') },
+        mappingCertain: false
+      };
+    }
+    const ordered = [...parts].sort((left, right) => Number(left.order || 0) - Number(right.order || 0));
+    const activeIndex = ordered.findIndex((part) => String(part.previewPartId || '') === String(activePart.previewPartId || ''));
+    return {
+      trigger: 'preview-target-changed',
+      document: { id: String(document.documentId || ''), name: String(document.documentName || '') },
+      segment: {
+        previewPartId: String(activePart.previewPartId || ''),
+        segmentIndex: Number.isFinite(Number(activePart.segmentIndex)) ? Number(activePart.segmentIndex) : Math.max(0, activeIndex),
+        source: String(activePart.sourceText || ''),
+        target: String(activePart.targetText || ''),
+        sourceFocusedRange: activePart.sourceFocusedRange || null,
+        targetFocusedRange: activePart.targetFocusedRange || null
+      },
+      languages: {
+        source: String(document.sourceLanguage || ''),
+        target: String(document.targetLanguage || '')
+      },
+      context: {
+        above: ordered.slice(Math.max(0, activeIndex - 2), activeIndex).map((part) => String(part.sourceText || '')).filter(Boolean).join('\n'),
+        below: ordered.slice(activeIndex + 1, activeIndex + 3).map((part) => String(part.sourceText || '')).filter(Boolean).join('\n'),
+        summary: `Document: ${String(document.documentName || '')}\nCurrent source: ${String(activePart.sourceText || '').slice(0, 500)}\nCurrent target: ${String(activePart.targetText || '').slice(0, 500)}`,
+        fullText: ordered.map((part) => String(part.sourceText || '')).filter(Boolean).join('\n')
+      },
+      revision: {
+        previewRevision: Number(document.revision || 0),
+        capturedAt: String(document.updatedAt || nowIso())
+      },
+      mappingCertain: true
+    };
+  }
+
+  function prepareQaPayload(payload = {}) {
+    const activePayload = (!String(payload.segment?.source ?? payload.source ?? '').trim())
+      ? buildActivePreviewQaPayload()
+      : null;
+    const effectivePayload = activePayload ? { ...activePayload, ...payload, segment: { ...(activePayload.segment || {}), ...(payload.segment || {}) } } : payload;
+    const state = loadState();
+    const profileId = String(effectivePayload.profileId || effectivePayload.configuration?.profileId || '').trim();
+    const profile = state.profiles.find((item) => item.id === profileId)
+      || state.profiles.find((item) => item.id === state.defaultProfileId)
+      || null;
+    let assetContext = createEmptyAssetContext();
+    if (profile) {
+      assetContext = buildAssetContext({
+        assets: state.assets,
+        assetBindings: profile.assetBindings,
+        profile: { ...profile, smartTbParsingAvailable: hasSmartTbParsingCapability(state) },
+        cache: parsedAssetCache
+      });
+    }
+    const segment = {
+      sourceText: String(effectivePayload.segment?.source ?? effectivePayload.source ?? ''),
+      plainText: String(effectivePayload.segment?.source ?? effectivePayload.source ?? ''),
+      targetText: String(effectivePayload.segment?.target ?? effectivePayload.target ?? '')
+    };
+    const languagePayload = {
+      sourceLanguage: String(effectivePayload.languages?.source || effectivePayload.sourceLanguage || ''),
+      targetLanguage: String(effectivePayload.languages?.target || effectivePayload.targetLanguage || '')
+    };
+    const tbContext = buildSegmentTbContext({ assetContext, segment, payload: languagePayload, metadata: payload.metadata || {} });
+    const customTm = buildSegmentCustomTmContext({ assetContext, segment, payload: languagePayload, profile });
+    const rules = [
+      ...(Array.isArray(effectivePayload.rules) ? effectivePayload.rules : []),
+      ...(Array.isArray(profile?.qaRules) ? profile.qaRules.filter((rule) => rule.type !== 'natural-language') : [])
+    ];
+    const naturalLanguageRules = Array.isArray(profile?.qaRules)
+      ? profile.qaRules.filter((rule) => rule.type === 'natural-language').map((rule) => ({ id: rule.id, instruction: rule.instruction || rule.value || '' }))
+      : [];
+    return {
+      ...effectivePayload,
+      profileId: profile?.id || profileId,
+      sourceLanguage: languagePayload.sourceLanguage,
+      targetLanguage: languagePayload.targetLanguage,
+      terminologyMatches: tbContext.matches,
+      rules,
+      configuration: {
+        ...(effectivePayload.configuration || {}),
+        profileId: profile?.id || profileId,
+        glossaryFingerprint: tbContext.fingerprint,
+        tmFingerprint: customTm.fingerprint
+      },
+      contextPolicy: {
+        ...(effectivePayload.contextPolicy || {}),
+        includeSummary: effectivePayload.contextPolicy?.includeSummary === true || profile?.qaIncludeSummary === true,
+        includeFullText: effectivePayload.contextPolicy?.includeFullText === true || profile?.qaIncludeFullText === true,
+        maxAdjacentCharacters: Number(effectivePayload.contextPolicy?.maxAdjacentCharacters || 1200)
+      },
+      ai: {
+        ...(effectivePayload.ai || {}),
+        enabled: effectivePayload.ai?.enabled === true,
+        terminology: tbContext.termHits,
+        tmMatches: customTm.matches,
+        naturalLanguageRules
+      }
+    };
+  }
+
+  async function checkQaSegmentsWithConcurrency(payload, segments, concurrency = 3) {
+    const items = Array.isArray(segments) ? segments : [];
+    const results = new Array(items.length);
+    let cursor = 0;
+    async function worker() {
+      while (cursor < items.length) {
+        const index = cursor++;
+        results[index] = await qaCoordinator.checkSegment(prepareQaPayload({
+          ...payload,
+          requestId: crypto.randomUUID(),
+          segment: { ...items[index], segmentIndex: items[index].segmentIndex ?? index }
+        }));
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(Math.max(1, concurrency), items.length) }, () => worker()));
+    return results;
+  }
+
+  let lastAutomaticQaRevision = -1;
+  let pendingAutomaticQaRevision = -1;
+  const previewQaTimer = typeof previewContextClient?.readActiveDocument === 'function'
+    ? setInterval(() => {
+      try {
+        const activePayload = buildActivePreviewQaPayload();
+        if (qaCoordinator.getStatus().paused) return;
+        const revision = Number(activePayload?.revision?.previewRevision || 0);
+        if (!activePayload?.mappingCertain || !revision || revision === lastAutomaticQaRevision) return;
+        if (revision !== pendingAutomaticQaRevision) {
+          pendingAutomaticQaRevision = revision;
+          return;
+        }
+        lastAutomaticQaRevision = revision;
+        pendingAutomaticQaRevision = -1;
+        const state = loadState();
+        const profile = state.profiles.find((item) => item.id === state.defaultProfileId) || null;
+        void qaCoordinator.checkSegment(prepareQaPayload({
+          ...activePayload,
+          profileId: profile?.id || '',
+          ai: {
+            enabled: profile?.qaRealtimeAiEnabled === true,
+            providerId: profile?.interactiveProviderId || profile?.providerId || '',
+            model: profile?.interactiveModelId || ''
+          }
+        }));
+      } catch (error) {
+        runtimeLogger.warn('qa-preview-check-skipped', 'Automatic local QA could not inspect the active Preview segment.', { error });
+      }
+    }, 750)
+    : null;
+  previewQaTimer?.unref?.();
 
   function normalizeProfileId(value) {
     return String(value || '').trim();
@@ -3429,12 +3627,19 @@ async function createRuntime(options = {}) {
         terminalError = terminalError || { code: ERROR_CODES.translationFailed, message: 'Translation failed for one or more segments.' };
         continue;
       }
-      translations.push({ index: segment.index, text: translated.text });
       segment.qaSummary = evaluateTerminologyQa({
         sourceText: segment.sourceText,
         translatedText: translated.text,
         matches: segment.tbContext?.matches || []
       });
+      translations.push(payload?.capabilities?.mtConfidenceInfo === true
+        ? enrichTranslationResult({
+          segment,
+          translation: translated,
+          targetLanguage: payload.targetLanguage,
+          providerScoreComparable: winningRoute?.provider?.capabilities?.normalizedConfidenceScore === true
+        })
+        : { index: segment.index, text: translated.text });
     }
 
     if (translations.length === incomingSegments.length) {
@@ -3822,7 +4027,9 @@ async function createRuntime(options = {}) {
             previewContext: true,
             mappingRules: true,
             history: true,
-            aggregation: true
+            aggregation: true,
+            mtConfidenceInfo: true,
+            qa: true
           }
         },
         preview: syncPreviewBridgeStatusFromClient()
@@ -3831,6 +4038,53 @@ async function createRuntime(options = {}) {
     getIntegrationStatus() {
       const state = loadState();
       return getIntegrationStatus(paths, buildIntegrationConfig(state));
+    },
+    getQaStatus() {
+      return qaCoordinator.getStatus();
+    },
+    checkQaSegment(payload = {}) {
+      return qaCoordinator.checkSegment(prepareQaPayload(payload));
+    },
+    checkQaDocument(payload = {}) {
+      const segments = Array.isArray(payload.segments) ? payload.segments : [];
+      if (!segments.length) {
+        const error = new Error('At least one segment is required for a document quality check.');
+        error.code = ERROR_CODES.qaInvalidRequest;
+        throw error;
+      }
+      return checkQaSegmentsWithConcurrency(payload, segments, payload.ai?.enabled ? 3 : 8).then((results) => ({
+        document: payload.document || { id: payload.documentId || 'imported-document', name: payload.documentName || '' },
+        status: results.some((item) => item.status === 'local-only') ? 'local-only' : 'complete',
+        summary: createSummary(results.flatMap((item) => item.findings)),
+        results
+      }));
+    },
+    cancelQa(payload = {}) {
+      return qaCoordinator.cancel(payload);
+    },
+    saveQaFeedback(payload = {}) {
+      return qaCoordinator.saveFeedback(payload);
+    },
+    getQaResults(documentId) {
+      return qaCoordinator.listResults(documentId);
+    },
+    async inspectBilingualFile(payload = {}) {
+      const { parseBilingualFile } = require('../bilingual/bilingualFile');
+      const { writeQaReports } = require('../bilingual/qaReport');
+      const imported = parseBilingualFile(payload.filePath);
+      const results = await checkQaSegmentsWithConcurrency({
+        ...payload,
+        document: imported.document,
+        languages: imported.languages
+      }, imported.segments, payload.ai?.enabled ? 3 : 8);
+      const result = {
+        document: imported.document,
+        status: results.some((item) => item.status === 'local-only') ? 'local-only' : 'complete',
+        summary: createSummary(results.flatMap((item) => item.findings)),
+        results
+      };
+      const reports = writeQaReports(result, paths.exportsDir, `qa-${path.parse(imported.document.name).name}-${Date.now()}`);
+      return { imported, result, reports, containsCustomerText: true };
     },
     installIntegration(config) {
       const state = loadState();
@@ -4276,6 +4530,8 @@ async function createRuntime(options = {}) {
         }
       }
       previewContextClient?.dispose?.();
+      if (previewQaTimer) clearInterval(previewQaTimer);
+      qaCoordinator.dispose();
       db.close?.();
       runtimeLogger.info('runtime-disposed', 'Runtime disposed.');
       return { ok: true };

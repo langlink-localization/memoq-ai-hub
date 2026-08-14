@@ -46,6 +46,8 @@ test('desktop contract exposes expected core fields', () => {
   assert.equal(ROUTES.mtTranslate, '/mt/translate');
   assert.equal(ROUTES.mtTranslateAggregate, '/mt/translate-aggregate');
   assert.equal(ROUTES.mtTranslateAggregateResult, '/mt/translate-aggregate/result');
+  assert.equal(ROUTES.qaStatus, '/qa/status');
+  assert.equal(ROUTES.qaCheckSegment, '/qa/check-segment');
 });
 
 test('desktop contract keeps the unauthenticated gateway on loopback', () => {

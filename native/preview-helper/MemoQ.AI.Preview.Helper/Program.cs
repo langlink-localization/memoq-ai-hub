@@ -75,6 +75,7 @@ namespace MemoQAIHubPreviewHelper
         private string _lastError = string.Empty;
         private string _lastConnectedAt = string.Empty;
         private string _lastUpdatedAt = string.Empty;
+        private long _revision;
 
         public PreviewMirrorApp(string dataDir, string logsDir)
         {
@@ -390,6 +391,7 @@ namespace MemoQAIHubPreviewHelper
                     document.DocumentName = documentName;
                     document.ImportPath = importPath;
                     document.UpdatedAt = DateTime.UtcNow.ToString("o");
+                    document.Revision = NextRevision();
                     document.UpsertPreviewPart(new PreviewPartCache
                     {
                         PreviewPartId = previewPartId,
@@ -519,6 +521,7 @@ namespace MemoQAIHubPreviewHelper
                     document.CurrentRange = null;
                 }
                 document.UpdatedAt = DateTime.UtcNow.ToString("o");
+                document.Revision = NextRevision();
             }
 
             PersistDocument(document);
@@ -563,6 +566,7 @@ namespace MemoQAIHubPreviewHelper
                 ["sourceLanguage"] = document.SourceLanguage ?? string.Empty,
                 ["targetLanguage"] = document.TargetLanguage ?? string.Empty,
                 ["updatedAt"] = document.UpdatedAt ?? DateTime.UtcNow.ToString("o"),
+                ["revision"] = document.Revision,
                 ["currentRange"] = document.CurrentRange == null
                     ? null
                     : new Dictionary<string, object>
@@ -598,7 +602,36 @@ namespace MemoQAIHubPreviewHelper
 
             var fileName = $"{SanitizeToken(document.DocumentId)}__{SanitizeToken(document.SourceLanguage)}__{SanitizeToken(document.TargetLanguage)}.json";
             var filePath = Path.Combine(_documentsDir, fileName);
-            File.WriteAllText(filePath, _serializer.Serialize(payload), Encoding.UTF8);
+            WriteJsonAtomically(filePath, payload);
+        }
+
+        private long NextRevision()
+        {
+            return Interlocked.Increment(ref _revision);
+        }
+
+        private void WriteJsonAtomically(string filePath, object payload)
+        {
+            var tempPath = filePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                File.WriteAllText(tempPath, _serializer.Serialize(payload), Encoding.UTF8);
+                if (File.Exists(filePath))
+                {
+                    File.Replace(tempPath, filePath, null);
+                }
+                else
+                {
+                    File.Move(tempPath, filePath);
+                }
+            }
+            finally
+            {
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+            }
         }
 
         private static int ResolveSegmentIndex(DocumentCache document, string previewPartId)
@@ -674,10 +707,25 @@ namespace MemoQAIHubPreviewHelper
                     ["state"] = _state,
                     ["lastError"] = _lastError,
                     ["lastConnectedAt"] = _lastConnectedAt,
-                    ["lastUpdatedAt"] = _lastUpdatedAt
+                    ["lastUpdatedAt"] = _lastUpdatedAt,
+                    ["revision"] = NextRevision()
                 };
 
-                File.WriteAllText(_statusPath, _serializer.Serialize(payload), Encoding.UTF8);
+                var activeDocument = _documents.Values
+                    .Where(document => document.ActivePreviewPartIds.Count > 0)
+                    .OrderByDescending(document => document.UpdatedAt)
+                    .FirstOrDefault();
+                if (activeDocument != null)
+                {
+                    payload["activeDocumentId"] = activeDocument.DocumentId ?? string.Empty;
+                    payload["activeDocumentName"] = activeDocument.DocumentName ?? string.Empty;
+                    payload["activeSourceLanguage"] = activeDocument.SourceLanguage ?? string.Empty;
+                    payload["activeTargetLanguage"] = activeDocument.TargetLanguage ?? string.Empty;
+                    payload["activeDocumentRevision"] = activeDocument.Revision;
+                    payload["activePreviewPartIds"] = activeDocument.ActivePreviewPartIds.ToArray();
+                }
+
+                WriteJsonAtomically(_statusPath, payload);
             }
         }
 
@@ -1008,6 +1056,7 @@ namespace MemoQAIHubPreviewHelper
         public string SourceLanguage { get; set; }
         public string TargetLanguage { get; set; }
         public string UpdatedAt { get; set; }
+        public long Revision { get; set; }
         public RangeCache CurrentRange { get; set; }
         public List<string> ActivePreviewPartIds { get; set; } = new List<string>();
         public List<PreviewPartCache> PreviewParts { get; } = new List<PreviewPartCache>();

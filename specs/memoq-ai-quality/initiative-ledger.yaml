@@ -1,0 +1,28 @@
+id: memoq-ai-quality
+title: memoQ MT confidence and AI quality checks
+status: active
+owner: LangLink Localization
+repos:
+  - path: .
+    role: source-of-truth
+source_plan: docs/specs/memoq-ai-quality/spec.md
+spec_link: docs/specs/memoq-ai-quality/spec.md
+github_links:
+  project: pending
+  issues: []
+current_stage: real-host validation and release authorization
+last_verified_commit: memoq-ai-hub@4cc4192b416f1303896b1f5d56c52bc1f7ed0b2c
+last_verified_worktree: 2026-08-15 local implementation; see docs/specs/memoq-ai-quality/delivery.md
+next_action: run memoQ 12 translator acceptance and attach written distribution permission before any public release
+allowed_interruptions:
+  - emergency production fix
+  - security or data correctness issue
+drift_guard:
+  ui_contract: docs/ui-governance.md
+  toolchain_contract: AGENTS.md
+  validation_command: pnpm run test:desktop && pnpm run test:repo && pnpm run build:plugin
+  source_of_truth: repository tests, Windows runtime smoke, and GitHub CI
+intentional_divergences: []
+resume_prompt: >
+  Use active-initiative-governance. Read this ledger, verify the current repository
+  state, then continue from next_action unless the drift_guard no longer matches.

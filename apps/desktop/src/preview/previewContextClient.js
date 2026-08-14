@@ -146,6 +146,12 @@ function hasPartFocusedRange(part) {
   return Boolean(part?.sourceFocusedRange || part?.targetFocusedRange);
 }
 
+function deepFreeze(value) {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  Object.values(value).forEach(deepFreeze);
+  return Object.freeze(value);
+}
+
 function getPartTextVariants(part) {
   return [part?.sourceText];
 }
@@ -650,7 +656,14 @@ function createPreviewContextClient(options = {}) {
       lastConnectedAt: String(payload.lastConnectedAt || ''),
       lastUpdatedAt: String(payload.lastUpdatedAt || ''),
       lastError: String(payload.lastError || ''),
-      previewToolId: String(payload.previewToolId || '')
+      previewToolId: String(payload.previewToolId || ''),
+      revision: Number.isFinite(Number(payload.revision)) ? Number(payload.revision) : 0,
+      activeDocumentId: String(payload.activeDocumentId || ''),
+      activeDocumentName: String(payload.activeDocumentName || ''),
+      activeSourceLanguage: String(payload.activeSourceLanguage || ''),
+      activeTargetLanguage: String(payload.activeTargetLanguage || ''),
+      activeDocumentRevision: Number.isFinite(Number(payload.activeDocumentRevision)) ? Number(payload.activeDocumentRevision) : 0,
+      activePreviewPartIds: Array.isArray(payload.activePreviewPartIds) ? payload.activePreviewPartIds.map((item) => String(item || '')) : []
     };
   }
 
@@ -662,7 +675,7 @@ function createPreviewContextClient(options = {}) {
         continue;
       }
 
-      return {
+      return deepFreeze({
         ...payload,
         activePreviewPartIds: Array.isArray(payload.activePreviewPartIds)
           ? payload.activePreviewPartIds.map((item) => String(item || '').trim()).filter(Boolean)
@@ -670,10 +683,25 @@ function createPreviewContextClient(options = {}) {
         currentRange: normalizeRange(payload.currentRange),
         parts: cloneParts(payload.parts || []),
         segments: cloneSegments(payload.segments || [])
-      };
+      });
     }
 
     return null;
+  }
+
+  function readActiveDocument() {
+    const status = getStatus();
+    if (status.activeDocumentId) {
+      const active = readDocument(status.activeDocumentId, status.activeSourceLanguage, status.activeTargetLanguage);
+      if (active) return active;
+    }
+    if (!fs.existsSync(documentsDir)) return null;
+    const candidates = fs.readdirSync(documentsDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+      .map((entry) => path.join(documentsDir, entry.name))
+      .map((filePath) => ({ filePath, updatedAtMs: fs.statSync(filePath).mtimeMs }))
+      .sort((left, right) => right.updatedAtMs - left.updatedAtMs);
+    return candidates.length ? deepFreeze(safeReadJson(candidates[0].filePath, null)) : null;
   }
 
   function getContext({
@@ -993,6 +1021,7 @@ function createPreviewContextClient(options = {}) {
     start,
     dispose,
     getStatus,
+    readActiveDocument,
     getContext,
     recordTranslation,
     readDocument,

@@ -6,6 +6,7 @@ import {
   DeploymentUnitOutlined,
   FileSearchOutlined,
   FileTextOutlined,
+  SafetyCertificateOutlined,
   MenuOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -30,6 +31,7 @@ import {
   Result,
   Row,
   Select,
+  Skeleton,
   Space,
   Spin,
   Table,
@@ -90,6 +92,7 @@ const HistoryPage = lazy(() => import('./pages/history/HistoryPage.jsx'));
 const BuilderPage = lazy(() => import('./pages/builder/BuilderPage.jsx'));
 const AssetsPage = lazy(() => import('./pages/assets/AssetsPage.jsx'));
 const LogsPage = lazy(() => import('./pages/logs/LogsPage.jsx'));
+const QualityPage = lazy(() => import('./pages/quality/QualityPage.jsx'));
 
 const { Content, Header, Sider } = Layout;
 const { Text, Title } = Typography;
@@ -887,13 +890,14 @@ export default function App() {
     { key: 'assets', label: <span className="app-nav-label">{t('nav.assets')}</span>, title: t('nav.assets'), icon: <DatabaseOutlined className="app-nav-icon" /> },
     { key: 'builder', label: <span className="app-nav-label">{t('nav.builder')}</span>, title: t('nav.builder'), icon: <DeploymentUnitOutlined className="app-nav-icon" /> },
     { key: 'history', label: <span className="app-nav-label">{t('nav.history')}</span>, title: t('nav.history'), icon: <FileSearchOutlined className="app-nav-icon" /> },
+    { key: 'quality', label: <span className="app-nav-label">{t('nav.quality')}</span>, title: t('nav.quality'), icon: <SafetyCertificateOutlined className="app-nav-icon" /> },
     { key: 'logs', label: <span className="app-nav-label">{t('nav.logs')}</span>, title: t('nav.logs'), icon: <FileTextOutlined className="app-nav-icon" /> }
   ];
   const navItems = [
     navPageItems[0],
     { type: 'group', label: <span className="app-nav-group-label">{t('nav.configure')}</span>, children: navPageItems.slice(1, 4) },
-    { type: 'group', label: <span className="app-nav-group-label">{t('nav.activity')}</span>, children: [navPageItems[4]] },
-    { type: 'group', label: <span className="app-nav-group-label">{t('nav.support')}</span>, children: [navPageItems[5]] }
+    { type: 'group', label: <span className="app-nav-group-label">{t('nav.activity')}</span>, children: navPageItems.slice(4, 6) },
+    { type: 'group', label: <span className="app-nav-group-label">{t('nav.support')}</span>, children: [navPageItems[6]] }
   ];
   const pageDescriptions = {
     dashboard: t('nav.dashboardDescription'),
@@ -901,6 +905,7 @@ export default function App() {
     assets: t('nav.assetsDescription'),
     builder: t('nav.builderDescription'),
     history: t('nav.historyDescription'),
+    quality: t('nav.qualityDescription'),
     logs: t('nav.logsDescription')
   };
 
@@ -2619,15 +2624,17 @@ export default function App() {
               ) : null}
             </div>
           </div>
-          <Menu
-            className="app-nav-menu"
-            theme="light"
-            mode="inline"
-            inlineCollapsed={shellNavigationMode === 'compact' || navCollapsed}
-            selectedKeys={[activePage]}
-            items={navItems}
-            onClick={({ key }) => requestPageNavigation(key)}
-          />
+          <nav aria-label={t('navigation.primary')}>
+            <Menu
+              className="app-nav-menu"
+              theme="light"
+              mode="inline"
+              inlineCollapsed={shellNavigationMode === 'compact' || navCollapsed}
+              selectedKeys={[activePage]}
+              items={navItems}
+              onClick={({ key }) => requestPageNavigation(key)}
+            />
+          </nav>
         </Sider>
       ) : null}
       <Drawer
@@ -2638,17 +2645,19 @@ export default function App() {
         open={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
       >
-        <Menu
-          className="app-nav-menu"
-          theme="light"
-          mode="inline"
-          selectedKeys={[activePage]}
-          items={navItems}
-          onClick={({ key }) => {
-            setMobileNavOpen(false);
-            requestPageNavigation(key);
-          }}
-        />
+        <nav aria-label={t('navigation.primary')}>
+          <Menu
+            className="app-nav-menu"
+            theme="light"
+            mode="inline"
+            selectedKeys={[activePage]}
+            items={navItems}
+            onClick={({ key }) => {
+              setMobileNavOpen(false);
+              requestPageNavigation(key);
+            }}
+          />
+        </nav>
       </Drawer>
       <Layout>
         <Header className="app-header">
@@ -2705,7 +2714,7 @@ export default function App() {
             />
           )}
 
-          <Suspense fallback={<Spin size="large" className="app-page-loading" />}>
+          <Suspense fallback={<Skeleton active paragraph={{ rows: 10 }} className="app-page-loading" />}>
           {activePage === 'dashboard' && (
             <DashboardPage
               api={api}
@@ -2871,6 +2880,10 @@ export default function App() {
               updateHistoryFilterDraftField={updateHistoryFilterDraftField}
               visibleHistoryItems={visibleHistoryItems}
             />
+          )}
+
+          {activePage === 'quality' && (
+            <QualityPage api={api} profiles={profileItems} providers={providerItems} />
           )}
           </Suspense>
         </Content>

@@ -45,6 +45,24 @@ function writeDocumentWithBom(tempRoot, documentId, sourceLanguage, targetLangua
   fs.writeFileSync(filePath, `\uFEFF${json}`, 'utf8');
 }
 
+test('preview context client exposes revisioned immutable active document snapshots', () => {
+  const tempRoot = createTempRoot();
+  try {
+    const client = createClient(tempRoot);
+    writeDocument(tempRoot, 'DOC-R', 'en', 'zh-CN', { revision: 7, activePreviewPartIds: ['part-1'], parts: [{ previewPartId: 'part-1', sourceText: 'A', targetText: 'B', order: 0 }] });
+    fs.mkdirSync(path.dirname(client.paths.statusFilePath), { recursive: true });
+    fs.writeFileSync(client.paths.statusFilePath, JSON.stringify({ connected: true, revision: 9, activeDocumentId: 'DOC-R', activeSourceLanguage: 'en', activeTargetLanguage: 'zh-CN', activeDocumentRevision: 7, activePreviewPartIds: ['part-1'] }));
+    assert.equal(client.getStatus().revision, 9);
+    const active = client.readActiveDocument();
+    assert.equal(active.revision, 7);
+    assert.equal(active.activePreviewPartIds[0], 'part-1');
+    assert.equal(Object.isFrozen(active), true);
+    assert.equal(Object.isFrozen(active.parts), true);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('preview context client prefers active part substring matching over exact text fallback', () => {
   const tempRoot = createTempRoot();
 

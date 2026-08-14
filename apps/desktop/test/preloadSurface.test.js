@@ -10,6 +10,11 @@ test('preload exposes log diagnostics actions', () => {
   assert.match(source, /recordRendererLog/);
 });
 
+test('preload exposes only explicit quality-check operations', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, '../src/preload.js'), 'utf8');
+  ['getQaStatus', 'checkQaSegment', 'checkQaDocument', 'cancelQa', 'saveQaFeedback', 'getQaResults', 'importBilingualQa', 'openQualityWindow', 'copyText'].forEach((name) => assert.match(source, new RegExp(`\\b${name}:`)));
+});
+
 test('main process registers log diagnostics IPC handlers', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../src/main.js'), 'utf8');
   assert.match(source, /desktop:get-log-state/);

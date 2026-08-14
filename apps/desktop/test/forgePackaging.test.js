@@ -111,4 +111,6 @@ test('forge packaging keeps only runtime files for heavyweight dependencies', ()
 test('forge packaging restores governed runtime dependencies after package-manager pruning', () => {
   assert.equal(typeof forgeConfig.hooks.packageAfterPrune, 'function');
   assert.equal(forgeConfig.hooks.packageAfterCopy, undefined);
+  const source = fs.readFileSync(path.join(__dirname, '..', 'forge.config.js'), 'utf8');
+  assert.match(source, /packageAfterPrune:[\s\S]*ensurePackagedRuntimeModules\(buildPath\);\s*copyRuntimeNodeModules\(buildPath\);/);
 });

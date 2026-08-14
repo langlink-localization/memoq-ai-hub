@@ -375,8 +375,8 @@ module.exports = {
       }
     },
     packageAfterPrune: async (_forgeConfig, buildPath) => {
-      copyRuntimeNodeModules(buildPath);
       ensurePackagedRuntimeModules(buildPath);
+      copyRuntimeNodeModules(buildPath);
     },
     postPackage: async (_forgeConfig, options) => {
       prunePackagedLocalesFromOutputs(options?.outputPaths);

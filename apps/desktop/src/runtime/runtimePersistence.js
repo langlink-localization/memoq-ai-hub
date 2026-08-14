@@ -3,6 +3,7 @@ const TRANSLATION_CACHE_LIMIT = 2000;
 const PROMPT_RESPONSE_CACHE_LIMIT = 500;
 const DOCUMENT_SUMMARY_CACHE_LIMIT = 300;
 const GLOBAL_STATE_ID = 'global';
+const QA_RETENTION_DAYS = 30;
 
 function createSchema(db) {
   db.exec(`
@@ -19,6 +20,25 @@ function createSchema(db) {
     CREATE TABLE IF NOT EXISTS translation_cache (cache_key TEXT PRIMARY KEY, text_value TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS prompt_response_cache (cache_key TEXT PRIMARY KEY, text_value TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS document_summary_cache (cache_key TEXT PRIMARY KEY, text_value TEXT NOT NULL, updated_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS qa_results (
+      request_id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
+      status TEXT NOT NULL,
+      result_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS qa_results_document_idx ON qa_results (document_id, updated_at);
+    CREATE TABLE IF NOT EXISTS qa_feedback (
+      id TEXT PRIMARY KEY,
+      request_id TEXT NOT NULL,
+      finding_id TEXT NOT NULL,
+      feedback_state TEXT NOT NULL,
+      feedback_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `);
 
   ensureColumn(db, 'translation_history', 'provider_id TEXT DEFAULT \'\'');
@@ -321,6 +341,15 @@ function normalizeLegacyCacheEntries(entries = [], limit = 0) {
 }
 
 function createRuntimePersistence(db, { nowIso, normalizeState }) {
+  function pruneQaData(referenceTime = new Date()) {
+    const referenceIso = referenceTime instanceof Date ? referenceTime.toISOString() : String(referenceTime || nowIso());
+    db.run('DELETE FROM qa_results WHERE expires_at <= $referenceIso', { $referenceIso: referenceIso });
+    db.run(`
+      DELETE FROM qa_feedback
+      WHERE request_id NOT IN (SELECT request_id FROM qa_results)
+    `);
+  }
+
   function saveConfigState(state) {
     const normalized = normalizeConfigState(state, normalizeState);
     const payload = JSON.stringify(normalized);
@@ -477,12 +506,77 @@ function createRuntimePersistence(db, { nowIso, normalizeState }) {
     },
     writeDocumentSummaryCache(key, text, updatedAt = nowIso()) {
       return writeCacheEntry(db, 'document_summary_cache', key, text, updatedAt, DOCUMENT_SUMMARY_CACHE_LIMIT);
-    }
+    },
+    saveQaResult(result, retentionDays = QA_RETENTION_DAYS) {
+      const requestId = String(result?.requestId || '').trim();
+      const documentId = String(result?.document?.id || result?.documentId || '').trim();
+      const contentHash = String(result?.contentHash || '').trim();
+      if (!requestId || !documentId || !contentHash) {
+        throw new Error('QA result requires requestId, documentId, and contentHash.');
+      }
+      const timestamp = nowIso();
+      const expiresAt = new Date(Date.parse(timestamp) + Math.max(1, Number(retentionDays) || QA_RETENTION_DAYS) * 86400000).toISOString();
+      db.run(`
+        INSERT OR REPLACE INTO qa_results (
+          request_id, document_id, content_hash, status, result_json, created_at, updated_at, expires_at
+        ) VALUES (
+          $requestId, $documentId, $contentHash, $status, $resultJson,
+          COALESCE((SELECT created_at FROM qa_results WHERE request_id = $requestId), $timestamp),
+          $timestamp, $expiresAt
+        )
+      `, {
+        $requestId: requestId,
+        $documentId: documentId,
+        $contentHash: contentHash,
+        $status: String(result?.status || 'complete'),
+        $resultJson: JSON.stringify(result),
+        $timestamp: timestamp,
+        $expiresAt: expiresAt
+      });
+      pruneQaData(new Date(timestamp));
+      return result;
+    },
+    listQaResults(documentId) {
+      pruneQaData();
+      const normalizedDocumentId = String(documentId || '').trim();
+      if (!normalizedDocumentId) return [];
+      return db.all(`
+        SELECT result_json FROM qa_results
+        WHERE document_id = $documentId
+        ORDER BY updated_at DESC, request_id DESC
+      `, { $documentId: normalizedDocumentId })
+        .map((row) => parseJson(row?.result_json, null))
+        .filter(Boolean);
+    },
+    saveQaFeedback(feedback) {
+      const id = String(feedback?.id || '').trim();
+      const requestId = String(feedback?.requestId || '').trim();
+      const findingId = String(feedback?.findingId || '').trim();
+      const feedbackState = String(feedback?.state || '').trim();
+      if (!id || !requestId || !findingId || !feedbackState) {
+        throw new Error('QA feedback requires id, requestId, findingId, and state.');
+      }
+      db.run(`
+        INSERT OR REPLACE INTO qa_feedback (
+          id, request_id, finding_id, feedback_state, feedback_json, created_at
+        ) VALUES ($id, $requestId, $findingId, $feedbackState, $feedbackJson, $createdAt)
+      `, {
+        $id: id,
+        $requestId: requestId,
+        $findingId: findingId,
+        $feedbackState: feedbackState,
+        $feedbackJson: JSON.stringify(feedback),
+        $createdAt: nowIso()
+      });
+      return feedback;
+    },
+    pruneQaData
   };
 }
 
 module.exports = {
   createSchema,
   createInitialState,
-  createRuntimePersistence
+  createRuntimePersistence,
+  QA_RETENTION_DAYS
 };

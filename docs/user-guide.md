@@ -195,6 +195,14 @@ In memoQ MT settings, point these features to **memoQ AI Hub**:
 - Open **History** in the desktop app to inspect source text, target text, latency, and success data
 - Use **Dashboard** to monitor gateway status, memoQ connectivity, and recent notifications
 
+### Quality Checks
+
+- Open **Quality Checks** to inspect the current Preview segment. Deterministic checks are local and available by default; real-time AI is off by default.
+- AI sends the current segment, minimal adjacent context, relevant terminology, and top TM matches. Document summary and full text are separate opt-ins in the selected profile.
+- Findings use severity counts and evidence; there is no overall quality score. Copy a suggestion to the clipboard or save feedback locally. Version one never writes changes back to memoQ.
+- If Preview is unavailable or its mapping is ambiguous, real-time AI stops. Use **Select bilingual file** to inspect MQXLIFF/XLF/XLIFF read-only and export matching HTML, CSV, and JSON reports.
+- QA results and feedback are retained locally for 30 days. Exported reports can contain customer text and must follow the project data policy.
+
 ### Navigation, Drafts, and Detail Views
 
 - The app restores the last valid page, navigation preference, and per-page scroll position.

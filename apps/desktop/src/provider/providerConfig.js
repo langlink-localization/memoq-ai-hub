@@ -161,6 +161,7 @@ function getProviderCapabilities(provider = {}) {
   return {
     supportsBatch: provided.supportsBatch ?? defaults.supportsBatch,
     supportsStreaming: provided.supportsStreaming ?? defaults.supportsStreaming,
+    normalizedConfidenceScore: provided.normalizedConfidenceScore === true,
     responseFormat: normalizeResponseFormat(provided.responseFormat, defaultResponseFormat),
     throughputMode: normalizeThroughputMode(provided.throughputMode, defaults.throughputMode),
     maxBatchSegments: Number.isFinite(Number(provided.maxBatchSegments))

@@ -65,7 +65,7 @@ test('feature pages load behind explicit renderer boundaries', () => {
   assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/builder\/BuilderPage\.jsx'\)\)/);
   assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/assets\/AssetsPage\.jsx'\)\)/);
   assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/logs\/LogsPage\.jsx'\)\)/);
-  assert.match(appSource, /<Suspense fallback=\{<Spin/);
+  assert.match(appSource, /<Suspense fallback=\{<Skeleton active/);
   assert.doesNotMatch(appSource, /dashboard-journey-grid/);
   assert.doesNotMatch(appSource, /history\.diagnosticSummary/);
   assert.match(dashboardSource, /dashboard-journey-grid/);
@@ -408,7 +408,8 @@ test('dashboard install path browse button stays horizontal inside input addon',
   const cssSource = readRendererSource('index.css');
 
   assert.match(appSource, /className="install-browse-button"/);
-  assert.match(appSource, /addonAfter=\{<Button className="install-browse-button" onClick=\{chooseInstallDirectory\}>/);
+  assert.match(appSource, /<Space\.Compact block>/);
+  assert.match(appSource, /<Button className="install-browse-button" onClick=\{chooseInstallDirectory\}>/);
   assert.match(cssSource, /min-width:\s*max-content/);
   assert.match(cssSource, /\.install-browse-button > span:not\(\.anticon\)/);
   assert.match(cssSource, /white-space:\s*nowrap/);

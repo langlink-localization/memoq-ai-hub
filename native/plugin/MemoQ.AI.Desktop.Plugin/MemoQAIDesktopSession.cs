@@ -473,6 +473,10 @@ namespace MemoQAIHubPlugin
                     useCase = BuildUseCase(segs),
                     profileId = (_options?.GeneralSettings?.PreferredProfileId ?? string.Empty).Trim()
                 },
+                capabilities = new MemoQAIHubClientCapabilities
+                {
+                    mtConfidenceInfo = true
+                },
                 segments = BuildSegments(segs, tmSources, tmTargets, formattingMode)
             };
         }
@@ -700,6 +704,9 @@ namespace MemoQAIHubPlugin
                 {
                     var translationText = translation.text ?? string.Empty;
                     results[index].Translation = BuildSegmentFromResult(segs[index], translationText, formattingMode);
+                    results[index].Confidence = Math.Max(0d, Math.Min(1d, translation.confidence));
+                    results[index].ConfidenceProviderName = results[index].Confidence > 0d ? "memoQ AI Hub" : null;
+                    results[index].Info = string.IsNullOrWhiteSpace(translation.info) ? null : translation.info;
                     results[index].Exception = null;
                     LogDebug($"Segment conversion success index={index}");
                 }

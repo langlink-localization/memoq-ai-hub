@@ -1,0 +1,31 @@
+name: Ant Design lint
+
+on:
+  pull_request:
+    paths:
+      - 'apps/desktop/src/renderer/**'
+      - 'tooling/scripts/validate-antd-lint.mjs'
+      - '.github/workflows/antd-lint.yml'
+  push:
+    branches: [master, main]
+    paths:
+      - 'apps/desktop/src/renderer/**'
+      - 'tooling/scripts/validate-antd-lint.mjs'
+      - '.github/workflows/antd-lint.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb821342643114d606b45e70b20978c9903 # v7.0.0
+      - uses: actions/setup-node@8207622a0ca63f9921b58575d1ebd78e3b8d5c2d # v7.0.0
+        with:
+          node-version: '24.14.1'
+      - name: Install governed Ant Design CLI
+        run: npm install --global @ant-design/cli@6.5.4 --before=2026-08-15T23:59:59Z
+      - name: Run fail-closed Ant Design audit
+        run: antd lint apps/desktop/src/renderer/src --format json | node tooling/scripts/validate-antd-lint.mjs

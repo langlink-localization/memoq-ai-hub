@@ -211,15 +211,17 @@ export default function DashboardPage({
                       ) : (
                         <Space direction="vertical" size={8} className="app-block-space">
                           <Text strong>{t('dashboard.installTargetDir')}</Text>
-                          <Input
-                            value={installDraft.customInstallDir}
-                            onChange={(event) => {
-                              const directory = event.target.value;
-                              setInstallDraftDirty(true);
-                              setInstallDraft((current) => ({ ...current, customInstallDir: directory, selectedInstallDir: directory }));
-                            }}
-                            addonAfter={<Button className="install-browse-button" onClick={chooseInstallDirectory}>{t('dashboard.browseDirectory')}</Button>}
-                          />
+                          <Space.Compact block>
+                            <Input
+                              value={installDraft.customInstallDir}
+                              onChange={(event) => {
+                                const directory = event.target.value;
+                                setInstallDraftDirty(true);
+                                setInstallDraft((current) => ({ ...current, customInstallDir: directory, selectedInstallDir: directory }));
+                              }}
+                            />
+                            <Button className="install-browse-button" onClick={chooseInstallDirectory}>{t('dashboard.browseDirectory')}</Button>
+                          </Space.Compact>
                           <Text type="secondary">{t('dashboard.installCustomHint')}</Text>
                         </Space>
                       )}

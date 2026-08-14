@@ -31,6 +31,16 @@ test('runtimeState maps role-based asset selections into legacy bindings', () =>
   assert.deepEqual(profile.customTmMatchBuckets, ['101%', '100%', '95-99', '85-94', '75-84']);
 });
 
+test('runtimeState keeps QA opt-ins off by default and normalizes project rules', () => {
+  const defaults = ensureProfile({});
+  assert.equal(defaults.qaRealtimeAiEnabled, false);
+  assert.equal(defaults.qaIncludeSummary, false);
+  assert.equal(defaults.qaIncludeFullText, false);
+  const profile = ensureProfile({ qaRealtimeAiEnabled: true, qaIncludeSummary: true, qaRules: [{ id: 'r', type: 'regex', pattern: 'TODO', severity: 'major', category: 'style' }] });
+  assert.equal(profile.qaRealtimeAiEnabled, true);
+  assert.equal(profile.qaRules[0].id, 'r');
+});
+
 test('runtimeState normalizes custom TM match bucket selections', () => {
   assert.deepEqual(ensureProfile({ customTmMatchBuckets: ['95-99', 'invalid', '95-99', '<75'] }).customTmMatchBuckets, ['95-99', '<75']);
   assert.deepEqual(ensureProfile({ customTmMatchBuckets: [] }).customTmMatchBuckets, ['101%', '100%', '95-99', '85-94', '75-84']);
@@ -70,7 +80,7 @@ test('runtimeState normalizes providers, rules, assets, and integration preferen
     type: 'openai-compatible',
     baseUrl: 'https://example.com',
     requestPath: 'chat/completions',
-    capabilities: { responseFormat: 'json-object', throughputMode: 'fast' },
+    capabilities: { responseFormat: 'json-object', throughputMode: 'fast', normalizedConfidenceScore: true },
     models: [{ modelName: 'custom-model', concurrencyLimit: 0, retryAttempts: -1, responseFormat: 'text', throughputMode: 'custom', maxBatchSegments: 12, maxBatchCharacters: 24000, providerConcurrency: 2, contextWindowTokens: 256000, maxOutputTokens: 8192 }]
   });
   const openaiProvider = ensureProvider({
@@ -92,6 +102,7 @@ test('runtimeState normalizes providers, rules, assets, and integration preferen
   assert.equal(provider.requestPath, '/chat/completions');
   assert.equal(provider.capabilities.responseFormat, 'json_object');
   assert.equal(provider.capabilities.throughputMode, 'fast');
+  assert.equal(provider.capabilities.normalizedConfidenceScore, true);
   assert.equal(provider.models[0].responseFormat, 'text');
   assert.equal(provider.models[0].throughputMode, 'custom');
   assert.equal(provider.models[0].maxBatchSegments, 12);

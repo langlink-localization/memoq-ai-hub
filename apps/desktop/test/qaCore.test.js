@@ -1,0 +1,73 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { createQaSnapshot } = require('../src/qa/qaContracts');
+const { runDeterministicChecks } = require('../src/qa/deterministicRules');
+const { applyConfidenceThreshold, runAiQualityCheck } = require('../src/qa/aiQualityChecker');
+const { createQaCoordinator, mergeFindings } = require('../src/qa/qaCoordinator');
+
+function snapshot(target = 'Total: 10 USD on 2026-08-15.') {
+  return createQaSnapshot({ document: { id: 'doc-1' }, segment: { source: 'Total: 10 USD on 2026-08-15.', target } });
+}
+
+test('QA content hash changes with target, rules, assets, and context policy', () => {
+  const base = { document: { id: 'doc-1' }, segment: { source: 'A', target: 'B' }, configuration: { ruleSetVersion: '1', glossaryFingerprint: 'g1' } };
+  const first = createQaSnapshot(base);
+  const second = createQaSnapshot({ ...base, segment: { source: 'A', target: 'C' } });
+  const third = createQaSnapshot({ ...base, configuration: { ...base.configuration, ruleSetVersion: '2' } });
+  assert.notEqual(first.revision.contentHash, second.revision.contentHash);
+  assert.notEqual(first.revision.contentHash, third.revision.contentHash);
+  assert.equal(Object.isFrozen(first), true);
+});
+
+test('deterministic QA catches structural data, whitespace, length, terminology, and custom rules', () => {
+  const findings = runDeterministicChecks(snapshot('  Total: 11 EUR  '), {
+    terminologyMatches: [{ entry: { id: 'term-1', sourceTerm: 'Total', targetTerm: 'Sum' } }],
+    rules: [{ id: 'rule-1', name: 'No EUR', type: 'contains', scope: 'target', value: 'EUR', severity: 'major', category: 'locale-convention' }]
+  });
+  const ids = new Set(findings.map((finding) => finding.ruleId));
+  ['numbers', 'dates', 'currencies', 'outer-whitespace', 'required-term', 'rule-1'].forEach((id) => assert.equal(ids.has(id), true, id));
+});
+
+test('AI thresholds hide low confidence and downgrade uncertain findings', () => {
+  assert.equal(applyConfidenceThreshold({ severity: 'minor', confidence: 0.54 }), null);
+  assert.equal(applyConfidenceThreshold({ severity: 'minor', confidence: 0.69 }).severity, 'info');
+  assert.equal(applyConfidenceThreshold({ severity: 'major', confidence: 0.79, sourceEvidence: 'a', targetEvidence: 'b' }).severity, 'info');
+  assert.equal(applyConfidenceThreshold({ severity: 'major', confidence: 0.8, sourceEvidence: 'a', targetEvidence: 'b' }).severity, 'major');
+});
+
+test('AI schema is repaired once and deterministic evidence wins duplicate merge', async () => {
+  let calls = 0;
+  const result = await runAiQualityCheck({
+    snapshot: snapshot(),
+    invoke: async () => ({ output: ++calls === 1 ? '{}' : JSON.stringify({ findings: [{ category: 'accuracy', severity: 'minor', title: 'Issue', message: 'Message', confidence: 0.7 }] }) })
+  });
+  assert.equal(result.repairAttempted, true);
+  assert.equal(calls, 2);
+  const duplicate = { ...result.findings[0], ruleId: 'same', sourceEvidence: 'x' };
+  const deterministic = { ...duplicate, id: 'det', origin: 'deterministic' };
+  assert.equal(mergeFindings([deterministic], [{ ...duplicate, id: 'ai', origin: 'ai' }])[0].id, 'det');
+});
+
+test('coordinator cancels an active AI request and discards stale response', async () => {
+  let release;
+  const pending = new Promise((resolve) => { release = resolve; });
+  const coordinator = createQaCoordinator({ invokeAi: async () => pending });
+  const request = coordinator.checkSegment({ ...snapshot(), requestId: 'request-1', ai: { enabled: true } });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(coordinator.cancel({ requestId: 'request-1' }).cancelled, 1);
+  release({ output: JSON.stringify({ findings: [] }) });
+  assert.equal((await request).status, 'stale');
+});
+
+test('coordinator opens a bounded circuit after repeated AI failures', async () => {
+  const coordinator = createQaCoordinator({ invokeAi: async () => { throw new Error('offline'); } });
+  for (let index = 0; index < 3; index += 1) {
+    const result = await coordinator.checkSegment({ document: { id: 'circuit-doc' }, segment: { source: 'A', target: `B${index}` }, ai: { enabled: true } });
+    assert.equal(result.status, 'local-only');
+  }
+  const status = coordinator.getStatus();
+  assert.equal(status.consecutiveAiFailures, 3);
+  assert.notEqual(status.circuitOpenUntil, '');
+});

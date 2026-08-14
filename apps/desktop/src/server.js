@@ -90,6 +90,12 @@ function createGatewayServer(runtime) {
   app.post(ROUTES.mtTranslateAggregate, createRuntimeRoute((payload) => runtime.submitAggregateTranslation(payload), 'TRANSLATION_FAILED'));
   app.post(ROUTES.mtTranslateAggregateResult, createRuntimeRoute((payload) => runtime.waitAggregateTranslation(payload), 'TRANSLATION_FAILED'));
   app.post(ROUTES.mtStoreTranslations, createRuntimeRoute((payload) => runtime.storeTranslations(payload), 'TRANSLATION_FAILED'));
+  app.get(ROUTES.qaStatus, (_req, res) => res.json(runtime.getQaStatus()));
+  app.post(ROUTES.qaCheckSegment, createRuntimeRoute((payload) => runtime.checkQaSegment(payload), 'QA_CHECK_FAILED'));
+  app.post(ROUTES.qaCheckDocument, createRuntimeRoute((payload) => runtime.checkQaDocument(payload), 'QA_CHECK_FAILED'));
+  app.post(ROUTES.qaCancel, createRuntimeRoute((payload) => runtime.cancelQa(payload), 'QA_CANCEL_FAILED'));
+  app.post(ROUTES.qaFeedback, createRuntimeRoute((payload) => runtime.saveQaFeedback(payload), 'QA_FEEDBACK_FAILED'));
+  app.get(ROUTES.qaResults, (req, res) => res.json(runtime.getQaResults(req.params.documentId)));
 
   return { app };
 }

@@ -119,6 +119,12 @@ namespace MemoQAIHubPlugin
         public Dictionary<string, object> metadata { get; set; }
         public MemoQAIHubProfileResolution profileResolution { get; set; }
         public List<MemoQAIHubSegment> segments { get; set; }
+        public MemoQAIHubClientCapabilities capabilities { get; set; }
+    }
+
+    internal class MemoQAIHubClientCapabilities
+    {
+        public bool mtConfidenceInfo { get; set; }
     }
 
     internal class MemoQAIHubProfileResolution
@@ -209,6 +215,9 @@ namespace MemoQAIHubPlugin
     {
         public int index { get; set; }
         public string text { get; set; }
+        public double confidence { get; set; }
+        public string info { get; set; }
+        public Dictionary<string, object> confidenceSignals { get; set; }
     }
 
     internal class MemoQAIHubError

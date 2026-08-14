@@ -64,6 +64,33 @@ const BATCH_TRANSLATIONS_SCHEMA = {
 
 const SINGLE_TRANSLATION_SCHEMA = BATCH_TRANSLATIONS_SCHEMA;
 
+const QA_FINDINGS_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['findings'],
+  properties: {
+    findings: {
+      type: 'array',
+      maxItems: 20,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['category', 'severity', 'title', 'message', 'sourceEvidence', 'targetEvidence', 'suggestedTranslation', 'confidence'],
+        properties: {
+          category: { type: 'string', enum: ['accuracy', 'completeness', 'terminology', 'fluency', 'style', 'locale-convention', 'formatting', 'other'] },
+          severity: { type: 'string', enum: ['critical', 'major', 'minor', 'info'] },
+          title: { type: 'string' },
+          message: { type: 'string' },
+          sourceEvidence: { type: 'string' },
+          targetEvidence: { type: 'string' },
+          suggestedTranslation: { type: 'string' },
+          confidence: { type: 'number', minimum: 0, maximum: 1 }
+        }
+      }
+    }
+  }
+};
+
 const DEFAULT_PROFILE_SYSTEM_PROMPT = 'You are a precise translation assistant.';
 
 async function loadSdkModules() {
@@ -343,8 +370,8 @@ function createRequestOptions(timeoutMs, signal) {
   return requestOptions;
 }
 
-async function withAbortableTimeout(executor, timeoutMs) {
-  if (!timeoutMs || timeoutMs <= 0) {
+async function withAbortableTimeout(executor, timeoutMs, externalSignal) {
+  if ((!timeoutMs || timeoutMs <= 0) && !externalSignal) {
     return executor({
       signal: undefined,
       requestOptions: {}
@@ -353,10 +380,13 @@ async function withAbortableTimeout(executor, timeoutMs) {
 
   const controller = new AbortController();
   let timedOut = false;
-  const timeoutId = setTimeout(() => {
+  const relayAbort = () => controller.abort(externalSignal?.reason);
+  externalSignal?.addEventListener?.('abort', relayAbort, { once: true });
+  if (externalSignal?.aborted) relayAbort();
+  const timeoutId = timeoutMs > 0 ? setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, timeoutMs);
+  }, timeoutMs) : null;
 
   try {
     return await executor({
@@ -369,7 +399,8 @@ async function withAbortableTimeout(executor, timeoutMs) {
     }
     throw error;
   } finally {
-    clearTimeout(timeoutId);
+    if (timeoutId) clearTimeout(timeoutId);
+    externalSignal?.removeEventListener?.('abort', relayAbort);
   }
 }
 
@@ -517,7 +548,8 @@ function createProviderRegistry(options = {}) {
     schema,
     name,
     description,
-    requestOptions = {}
+    requestOptions = {},
+    signal
   }) {
     const sdk = await sdkLoader();
     const sanitizedProvider = sanitizeProvider(provider);
@@ -559,7 +591,7 @@ function createProviderRegistry(options = {}) {
             } catch (error) {
               throw attachRetryAfter(error, error?.headers || error?.response?.headers);
             }
-          }, timeoutMs);
+          }, timeoutMs, signal);
 
           return {
             output: JSON.parse(extractJsonText(extractChatText(completion))),
@@ -588,7 +620,7 @@ function createProviderRegistry(options = {}) {
           } catch (error) {
             throw attachRetryAfter(error, error?.headers || error?.response?.headers);
           }
-        }, timeoutMs);
+        }, timeoutMs, signal);
 
         return {
           output: responseFormat === 'json_schema' && response?.output_parsed
@@ -658,6 +690,53 @@ function createProviderRegistry(options = {}) {
       temperature,
       timeoutMs
     });
+  }
+
+  async function checkQuality({
+    provider,
+    apiKey,
+    modelName,
+    snapshot,
+    terminology = [],
+    tmMatches = [],
+    naturalLanguageRules = [],
+    repairInstruction = '',
+    timeoutMs = 30000,
+    signal
+  }) {
+    const promptPayload = {
+      languages: snapshot.languages,
+      segment: {
+        source: snapshot.segment.source,
+        target: snapshot.segment.target
+      },
+      context: snapshot.context,
+      terminology: terminology.slice(0, 30),
+      tmMatches: tmMatches.slice(0, 5),
+      rules: naturalLanguageRules.slice(0, 20)
+    };
+    const result = await callStructuredModel({
+      provider,
+      apiKey,
+      modelName,
+      systemPrompt: [
+        'You are a translation quality reviewer.',
+        'Report only material issues supported by explicit source and target evidence.',
+        'Do not produce an overall score. Return an empty findings array when no issue is supported.',
+        String(repairInstruction || '')
+      ].join(' '),
+      prompt: JSON.stringify(promptPayload),
+      timeoutMs,
+      schema: QA_FINDINGS_SCHEMA,
+      name: 'translation_quality_findings',
+      description: 'Evidence-based MQM-aligned translation quality findings.',
+      signal
+    });
+    return {
+      output: result.output,
+      latencyMs: result.latencyMs,
+      providerMetadata: result.providerMetadata || null
+    };
   }
 
   async function streamText({
@@ -1120,6 +1199,7 @@ function createProviderRegistry(options = {}) {
     validateProviderRequestInput,
     validateCompatibleRequestPath,
     generateText,
+    checkQuality,
     streamText,
     testConnection,
     discoverModels,
@@ -1129,6 +1209,7 @@ function createProviderRegistry(options = {}) {
 }
 
 module.exports = {
+  QA_FINDINGS_SCHEMA,
   buildPrompt,
   createProviderRegistry,
   getDefaultBaseUrl,

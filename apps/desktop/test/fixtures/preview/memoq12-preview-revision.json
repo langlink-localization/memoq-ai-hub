@@ -1,0 +1,17 @@
+{
+  "fixtureVersion": 1,
+  "host": "memoQ 12",
+  "verifiedOnRealHost": false,
+  "document": {
+    "documentId": "anonymous-doc-1",
+    "documentName": "anonymous-sample.mqxliff",
+    "sourceLanguage": "en",
+    "targetLanguage": "zh-CN",
+    "revision": 3,
+    "activePreviewPartIds": ["part-2"],
+    "parts": [
+      { "previewPartId": "part-1", "order": 0, "sourceText": "Invoice 100", "targetText": "发票 100" },
+      { "previewPartId": "part-2", "order": 1, "sourceText": "Pay 20 USD", "targetText": "支付 20 美元" }
+    ]
+  }
+}
