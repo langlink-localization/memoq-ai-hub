@@ -25,6 +25,12 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24.14.1'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install governed pnpm
+        run: npm install --global pnpm@10.6.2
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
       - name: Install governed Ant Design CLI
         run: npm install --global @ant-design/cli@6.5.4 --before=2026-08-15T23:59:59Z
       - name: Run fail-closed Ant Design audit
