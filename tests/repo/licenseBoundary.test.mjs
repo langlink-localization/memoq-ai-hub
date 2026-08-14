@@ -6,7 +6,12 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
-const removedMemoQSampleIconSha256 = 'f64e6a29e306553396fe09bf3e07d8614a90b9cb747d7d6e2c2a500ddcc5076a';
+const knownMemoQAssetSha256 = new Set([
+  'f64e6a29e306553396fe09bf3e07d8614a90b9cb747d7d6e2c2a500ddcc5076a',
+  '3b36616fc74b504d2443a49a02f4944f3fc96eaae1786082ee848ece80b0b9e4',
+  '6c9fe052b9ae14702deeded21eea20658fb5afe72154286698433e092586888a',
+  'd1ac0196fb1404dfd7e36d11f8a9a168b422c031a8e71e63fba751031a31e007',
+]);
 
 function readFile(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8').replace(/\r\n?/g, '\n');
@@ -25,19 +30,32 @@ test('tracked files exclude vendored memoQ SDK material and restricted binaries'
   const forbidden = files.filter((file) => (
     /^docs\/reference\/(?:memoQ-|Preview_SDK_)/i.test(file)
     || /^native\/plugin\/References\//i.test(file)
-    || /(?:^|\/)(?:MemoQ\.Addins\.Common|MemoQ\.MTInterfaces|MemoQ\.AddinSigner|Kilgray\.[^/]+)\.(?:dll|exe)$/i.test(file)
+    || /(?:^|\/)(?:MemoQ\.[^/]+\.dll|Kilgray\.[^/]+\.dll|MemoQ\.AddinSigner\.exe)$/i.test(file)
     || /memoQ-(?:MT|QA|TB|TM)-SDK-[^/]+\.zip$/i.test(file)
   ));
 
   assert.deepEqual(forbidden, []);
 });
 
-test('plugin icon is not the removed memoQ Dummy MT SDK sample asset', () => {
+test('plugin icon matches the original project asset', () => {
   const iconPath = path.join(repoRoot, 'native', 'plugin', 'MemoQ.AI.Desktop.Plugin', 'Icon.bmp');
   const iconHash = crypto.createHash('sha256').update(fs.readFileSync(iconPath)).digest('hex');
 
-  assert.notEqual(iconHash, removedMemoQSampleIconSha256);
   assert.equal(iconHash, '181c3dc29719cfcccba0366062eda16e745a1a9a5e5bed0741d97d6fcc307c71');
+});
+
+test('tracked files exclude known memoQ sample asset hashes', () => {
+  const matches = trackedFiles()
+    .map((file) => ({
+      file,
+      hash: crypto
+        .createHash('sha256')
+        .update(fs.readFileSync(path.join(repoRoot, file)))
+        .digest('hex'),
+    }))
+    .filter(({ hash }) => knownMemoQAssetSha256.has(hash));
+
+  assert.deepEqual(matches, []);
 });
 
 test('license scope and SDK resolver preserve the third-party boundary', () => {
