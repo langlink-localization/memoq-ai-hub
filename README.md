@@ -18,21 +18,24 @@ This keeps fast-changing AI logic out of the memoQ plugin itself and makes local
 The current desktop app exposes these operator-facing modules:
 
 - `Dashboard`: install or reinstall the memoQ integration, check runtime status, and review update state.
-- `Providers`: configure OpenAI or OpenAI-compatible providers, test connectivity, and manage enabled models.
-- `Builder`: create translation profiles, choose provider routes, bind a TB asset, and adjust the limited v1 advanced switches.
-- `Assets`: import and preview glossary or TB assets.
-- `History`: inspect translation runs and export or delete history records.
+- `AI Services`: configure OpenAI or OpenAI-compatible providers, test connectivity, and manage enabled models.
+- `Setup`: create translation profiles, choose provider routes, bind terminology and Custom TM assets, select TM score buckets, and configure optional context features.
+- `Assets`: import and preview glossary, TB, TMX, and table-based Custom TM assets.
+- `Translation Records`: inspect translation runs, Custom TM matches, prompts, and diagnostics, then export or delete records.
 - `Logs`: review local diagnostic logs, open log files, clean old logs, and copy a short support summary.
 
 The repository contains runtime code for more advanced capabilities, but not every internal/runtime concept is exposed as a dedicated top-level UI page in the current build. The README and user flow below describe the shipped surface, not every internal module.
 
-## Recent Updates
+## Current Release Highlights
 
-`v1.0.20` adds uploaded TM/TMX matching and makes the upload entry visible from the main Assets page:
+`v1.0.28` includes the product, performance, security, and packaging improvements delivered from `v1.0.20` through `v1.0.28`:
 
-- Custom TM assets can include TMX files, including memoQ-exported UTF-16 TMX with neighbor context metadata.
-- The desktop runtime calculates an explainable `AI Hub TM score` and memoQ-style buckets (`101%`, `100%`, `95-99`, `85-94`, `75-84`, `<75`).
-- The Assets page add menu includes Custom TM upload, and uploaded TM matches are recorded in translation history for diagnostics.
+- Profiles can bind uploaded TMX or table-based Custom TM assets and choose which `AI Hub TM score` buckets are sent to AI. Context-aware TMX matches can reach `101%`, while memoQ's own fuzzy hint remains a separate reference.
+- The five-step setup journey, responsive navigation, protected unsaved edits, accessible controls, and focused Translation Records views make day-to-day configuration and diagnostics easier.
+- Lazy loading and packaging cleanup reduce startup memory and package size; both the standard ZIP and smaller 7z portable packages remain available.
+- The local gateway is restricted to loopback, update navigation is HTTPS-only, and managed downloads are verified against SHA-256 metadata before launch.
+- Electron and desktop dependencies have been moved to security-maintained versions, with Node.js 22.12 or newer required only for source builds.
+- The repository and release packages no longer include memoQ SDK binaries, AddinSigner, or official SDK samples. Source builds resolve the two required compile-time assemblies into an ignored local cache.
 
 ## Runtime Layout
 
@@ -137,5 +140,3 @@ Repository Structure guidance lives under `docs/`; keep desktop code under `apps
 ## License
 
 LangLink-owned portions are available under the MIT License. See [LICENSE](LICENSE), [LICENSE_SCOPE.md](LICENSE_SCOPE.md), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). memoQ SDK materials and trademarks are not covered by the MIT license, and this is not an official memoQ product.
-
-Public release publishing is fail-closed and requires an explicit repository-owner risk decision through `PUBLIC_RELEASE_RISK_ACCEPTED`. This control records an internal decision to publish; it does not represent memoQ approval or remove third-party licensing obligations.
