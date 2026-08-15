@@ -835,7 +835,7 @@ test('runtime rejects first-release placeholders that are hidden from saved prof
   }
 });
 
-test('runtime strips prompt template fields from saved profiles and keeps translation style as the main prompt control', async () => {
+test('runtime strips translation prompt templates while retaining the isolated QA template', async () => {
   const tempRoot = createTempAppRoot();
   try {
     const runtime = await createRuntime({
@@ -860,11 +860,14 @@ test('runtime strips prompt template fields from saved profiles and keeps transl
     assert.equal(profile.translationStyle, 'Use concise UI wording.');
     assert.equal('systemPrompt' in profile, false);
     assert.equal('userPrompt' in profile, false);
-    assert.equal('promptTemplates' in profile, false);
+    assert.deepEqual(Object.keys(profile.promptTemplates), ['qa']);
+    assert.equal('single' in profile.promptTemplates, false);
+    assert.equal('batch' in profile.promptTemplates, false);
+    assert.match(profile.promptTemplates.qa.systemPrompt, /quality reviewer/i);
 
     const state = runtime.getAppState();
     assert.equal(state.contextBuilder.profiles[0].translationStyle, 'Use concise UI wording.');
-    assert.equal('promptTemplates' in state.contextBuilder.profiles[0], false);
+    assert.deepEqual(Object.keys(state.contextBuilder.profiles[0].promptTemplates), ['qa']);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -4804,7 +4807,7 @@ test('runtime translation cache changes when bound glossary content changes', as
   }
 });
 
-test('runtime saveProfile aligns prompt templates and legacy prompt fields', async () => {
+test('runtime saveProfile drops translation templates and keeps only QA templates', async () => {
   const tempRoot = createTempAppRoot();
   try {
     const runtime = await createRuntime({
@@ -4829,12 +4832,14 @@ test('runtime saveProfile aligns prompt templates and legacy prompt fields', asy
 
     assert.equal('systemPrompt' in saved, false);
     assert.equal('userPrompt' in saved, false);
-    assert.equal('promptTemplates' in saved, false);
+    assert.deepEqual(Object.keys(saved.promptTemplates), ['qa']);
+    assert.equal('single' in saved.promptTemplates, false);
+    assert.equal('batch' in saved.promptTemplates, false);
 
     const state = runtime.getAppState();
     assert.equal('systemPrompt' in state.contextBuilder.profiles[0], false);
     assert.equal('userPrompt' in state.contextBuilder.profiles[0], false);
-    assert.equal('promptTemplates' in state.contextBuilder.profiles[0], false);
+    assert.deepEqual(Object.keys(state.contextBuilder.profiles[0].promptTemplates), ['qa']);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -6162,6 +6167,55 @@ test('runtime rejects unsupported asset imports', async () => {
       () => runtime.importAssetFromPath('brief', unsupportedPath),
       /unsupported brief file type/i
     );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Preview Assistant translates and polishes the active immutable segment through the internal provider route', async () => {
+  const tempRoot = createTempAppRoot();
+  const calls = [];
+  const document = {
+    documentId: 'assistant-doc', documentName: 'Assistant doc', sourceLanguage: 'ZH', targetLanguage: 'JA', revision: 7,
+    updatedAt: '2026-08-15T00:00:00.000Z', activePreviewPartIds: ['part-1'],
+    parts: [{ previewPartId: 'part-1', segmentIndex: 3, order: 1, sourceText: '请确认订单。', targetText: '注文を確認してください。' }]
+  };
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      previewContextClient: {
+        start() {}, dispose() {}, getStatus() { return { state: 'ready' }; },
+        readActiveDocument() { return document; },
+        getContext() { return { available: true, ...document, previewPartId: 'part-1', activePreviewPartIds: ['part-1'] }; }
+      },
+      providerRegistry: {
+        testConnection: async () => ({ ok: true, latencyMs: 1, message: 'ok' }),
+        translateSegment: async (payload) => {
+          calls.push(payload);
+          return { text: payload.operation === 'polish' ? '注文をご確認ください。' : '注文を確認してください。', latencyMs: 12 };
+        }
+      }
+    });
+    const provider = await runtime.saveProvider({ name: 'Assistant Provider', type: 'openai', baseUrl: 'https://api.openai.com/v1', apiKey: 'test-key', models: [{ modelName: 'assistant-model', enabled: true }] });
+    const defaultProfile = await runtime.saveProfile({ name: 'Default Profile', providerId: provider.id, cacheEnabled: false });
+    const profile = await runtime.saveProfile({ name: 'Assistant Profile', providerId: provider.id, interactiveProviderId: provider.id, interactiveModelId: provider.models[0].id, cacheEnabled: false });
+    runtime.setDefaultProfile(defaultProfile.id);
+
+    const qaResult = await runtime.checkQaSegment({ profileId: profile.id, ai: { enabled: false } });
+    const qaStatus = runtime.getQaStatus();
+    assert.equal(qaStatus.currentSnapshot.contentHash, qaResult.contentHash);
+    assert.equal(qaStatus.latestResult.contentHash, qaResult.contentHash);
+
+    const translated = await runtime.runPreviewAssistant({ operation: 'translate', requestId: 'assistant-translate', profileId: profile.id });
+    const polished = await runtime.runPreviewAssistant({ operation: 'polish', requestId: 'assistant-polish', profileId: profile.id });
+
+    assert.equal(translated.contentHash, polished.contentHash);
+    assert.equal(translated.text, '注文を確認してください。');
+    assert.equal(polished.text, '注文をご確認ください。');
+    assert.deepEqual(calls.map((call) => call.operation), ['translate', 'polish']);
+    assert.equal(calls[1].segmentPreviewContext.targetText, '注文を確認してください。');
+    assert.equal(polished.providerId, provider.id);
+    assert.equal(polished.revision.previewRevision, 7);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

@@ -59,14 +59,19 @@ async function runAiQualityCheck({ invoke, snapshot, context = {} } = {}) {
     }
   }
   const payload = validatePayload(parseOutput(response.output));
+  const visibleFindings = payload.findings
+    .map(applyConfidenceThreshold)
+    .filter(Boolean);
   return {
-    findings: payload.findings
-      .map(applyConfidenceThreshold)
-      .filter(Boolean)
-      .map((finding) => normalizeFinding(finding, snapshot.revision.contentHash)),
+    findings: visibleFindings.map((finding) => normalizeFinding(finding, snapshot.revision.contentHash)),
     latencyMs: Number(response.latencyMs || 0),
     status: 'complete',
-    repairAttempted
+    repairAttempted,
+    candidateCount: payload.findings.length,
+    displayedCount: visibleFindings.length,
+    filteredCount: payload.findings.length - visibleFindings.length,
+    providerId: String(response.providerId || ''),
+    model: String(response.model || '')
   };
 }
 

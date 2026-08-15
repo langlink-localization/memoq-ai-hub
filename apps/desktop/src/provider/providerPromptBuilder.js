@@ -436,6 +436,7 @@ function buildStableSystemPrompt({
   profile,
   templateContext,
   mode,
+  operation = 'translate',
   helpers = {}
 }) {
   const normalizedRequestType = helpers.normalizeRequestType
@@ -451,7 +452,10 @@ function buildStableSystemPrompt({
   const lines = ['# Translation Request'];
 
   pushMarkdownSection(lines, 'Task', [
-    `- ${renderedSystemPrompt}`
+    `- ${renderedSystemPrompt}`,
+    operation === 'polish'
+      ? '- Polish the current target text against the source. Preserve its meaning, improve fluency and correctness, and do not translate from scratch unless correction requires it.'
+      : '- Translate the source text faithfully.'
   ]);
   pushMarkdownSection(lines, 'Output', [
     '- Return only JSON that matches the requested schema.',
@@ -514,7 +518,8 @@ function buildRequestPayload({
   previewContext,
   profile,
   segments,
-  assetContext
+  assetContext,
+  operation = 'translate'
 }) {
   const normalizedSegments = Array.isArray(segments) ? segments : [];
   const mode = normalizedSegments.length > 1 ? 'batch' : 'single';
@@ -538,6 +543,7 @@ function buildRequestPayload({
 
   return {
     schemaVersion: STRUCTURED_PROMPT_SCHEMA_VERSION,
+    operation,
     requestType: String(requestType || 'Plaintext'),
     sourceLanguage: String(sourceLanguage || ''),
     targetLanguage: String(targetLanguage || ''),
@@ -569,7 +575,8 @@ function buildPrompt(args, helpers = {}) {
     tbContext,
     customTmMatches,
     segmentMetadata,
-    neighborContext
+    neighborContext,
+    operation = 'translate'
   } = args;
   const normalizedTbContext = {
     ...(tbContext || {}),
@@ -607,7 +614,8 @@ function buildPrompt(args, helpers = {}) {
     previewContext,
     profile,
     segments: [segment],
-    assetContext
+    assetContext,
+    operation
   });
 
   return {
@@ -620,6 +628,7 @@ function buildPrompt(args, helpers = {}) {
       profile,
       templateContext,
       mode: 'single',
+      operation,
       helpers
     }),
     prompt: JSON.stringify(payload, null, 2),

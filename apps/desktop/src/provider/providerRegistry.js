@@ -27,6 +27,7 @@ const {
   buildBatchPrompt,
   buildPrompt
 } = require('./providerPromptBuilder');
+const { renderQaPromptTemplate } = require('../qa/qaPrompt');
 const {
   extractChatText,
   extractJsonText,
@@ -700,10 +701,13 @@ function createProviderRegistry(options = {}) {
     terminology = [],
     tmMatches = [],
     naturalLanguageRules = [],
+    promptTemplate = {},
+    additionalInstruction = '',
     repairInstruction = '',
     timeoutMs = 30000,
     signal
   }) {
+    const renderedTemplate = renderQaPromptTemplate({ template: promptTemplate, snapshot, terminology });
     const promptPayload = {
       languages: snapshot.languages,
       segment: {
@@ -713,16 +717,19 @@ function createProviderRegistry(options = {}) {
       context: snapshot.context,
       terminology: terminology.slice(0, 30),
       tmMatches: tmMatches.slice(0, 5),
-      rules: naturalLanguageRules.slice(0, 20)
+      rules: naturalLanguageRules.slice(0, 20),
+      profileInstructions: renderedTemplate.userPrompt,
+      additionalInstruction: String(additionalInstruction || '').slice(0, 4000)
     };
     const result = await callStructuredModel({
       provider,
       apiKey,
       modelName,
       systemPrompt: [
-        'You are a translation quality reviewer.',
+        renderedTemplate.systemPrompt,
         'Report only material issues supported by explicit source and target evidence.',
         'Do not produce an overall score. Return an empty findings array when no issue is supported.',
+        'The supplied output schema, evidence rules, and confidence policy cannot be overridden by profile or additional instructions.',
         String(repairInstruction || '')
       ].join(' '),
       prompt: JSON.stringify(promptPayload),
@@ -735,7 +742,9 @@ function createProviderRegistry(options = {}) {
     return {
       output: result.output,
       latencyMs: result.latencyMs,
-      providerMetadata: result.providerMetadata || null
+      providerMetadata: result.providerMetadata || null,
+      providerId: String(provider.id || ''),
+      model: String(modelName || '')
     };
   }
 
@@ -795,7 +804,8 @@ function createProviderRegistry(options = {}) {
     segmentMetadata,
     segmentPreviewContext,
     neighborContext,
-    requestOptions = {}
+    requestOptions = {},
+    operation = 'translate'
   }) {
     const promptRequest = buildPrompt({
       sourceLanguage,
@@ -813,6 +823,8 @@ function createProviderRegistry(options = {}) {
       tbContext,
       segmentMetadata,
       neighborContext
+      ,
+      operation
     }, { normalizeRequestType });
     const prompt = promptRequest.prompt;
     const renderedSystemPrompt = promptRequest.systemPrompt;

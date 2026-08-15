@@ -62,7 +62,10 @@ function createQaCoordinator(options = {}) {
     });
     const fastCheckMs = Date.now() - fastStartedAt;
     const cacheKey = sha256(`${QA_CHECKER_VERSION}:${snapshot.revision.contentHash}:${payload.ai?.providerId || ''}:${payload.ai?.model || ''}`);
-    let aiResult = { findings: [], latencyMs: 0, status: payload.ai?.enabled === true ? 'pending' : 'disabled', repairAttempted: false };
+    let aiResult = {
+      findings: [], latencyMs: 0, status: payload.ai?.enabled === true ? 'pending' : 'disabled', repairAttempted: false,
+      candidateCount: 0, displayedCount: 0, filteredCount: 0, providerId: '', model: ''
+    };
     let result = {
       requestId: snapshot.requestId,
       contentHash: snapshot.revision.contentHash,
@@ -73,9 +76,29 @@ function createQaCoordinator(options = {}) {
         source: snapshot.segment.source,
         target: snapshot.segment.target
       },
+      revision: snapshot.revision,
+      configuration: snapshot.configuration,
+      contextPolicy: snapshot.contextPolicy,
       status: payload.ai?.enabled === true ? 'checking-ai' : 'complete',
       summary: createSummary(deterministicFindings),
       findings: deterministicFindings,
+      execution: {
+        deterministic: { status: 'complete', durationMs: fastCheckMs, findingCount: deterministicFindings.length },
+        ai: {
+          requested: payload.ai?.enabled === true,
+          executed: false,
+          status: payload.ai?.enabled === true ? 'pending' : 'disabled',
+          cacheHit: false,
+          providerId: String(payload.ai?.providerId || ''),
+          model: String(payload.ai?.model || ''),
+          durationMs: 0,
+          candidateCount: 0,
+          displayedCount: 0,
+          filteredCount: 0,
+          repairAttempted: false,
+          errorCode: ''
+        }
+      },
       diagnostics: { fastCheckMs, aiCheckMs: 0, cacheHit: false, checkerVersion: QA_CHECKER_VERSION }
     };
     persistence?.saveQaResult?.(result);
@@ -102,7 +125,9 @@ function createQaCoordinator(options = {}) {
               model: payload.ai.model,
               terminology: payload.ai.terminology || [],
               tmMatches: payload.ai.tmMatches || [],
-              naturalLanguageRules: payload.ai.naturalLanguageRules || []
+              naturalLanguageRules: payload.ai.naturalLanguageRules || [],
+              promptTemplate: payload.ai.promptTemplate || {},
+              additionalInstruction: payload.ai.additionalInstruction || ''
             }
           });
           resultCache.set(cacheKey, aiResult);
@@ -112,7 +137,14 @@ function createQaCoordinator(options = {}) {
         circuitOpenUntil = 0;
       }
       if (controller.signal.aborted || currentHashes.get(key) !== snapshot.revision.contentHash) {
-        return { ...result, status: 'stale', findings: [], summary: createSummary([]) };
+        return {
+          ...result,
+          status: 'stale', findings: [], summary: createSummary([]),
+          execution: {
+            ...result.execution,
+            ai: { ...result.execution.ai, status: 'stale', executed: payload.ai?.enabled === true }
+          }
+        };
       }
       const findings = mergeFindings(deterministicFindings, aiResult.findings);
       result = {
@@ -120,6 +152,23 @@ function createQaCoordinator(options = {}) {
         status: 'complete',
         summary: createSummary(findings),
         findings,
+        execution: {
+          deterministic: result.execution.deterministic,
+          ai: {
+            requested: payload.ai?.enabled === true,
+            executed: payload.ai?.enabled === true,
+            status: payload.ai?.enabled === true ? 'complete' : 'disabled',
+            cacheHit: result.diagnostics.cacheHit === true,
+            providerId: String(aiResult.providerId || payload.ai?.providerId || ''),
+            model: String(aiResult.model || payload.ai?.model || ''),
+            durationMs: Number(aiResult.latencyMs || 0),
+            candidateCount: Number(aiResult.candidateCount || 0),
+            displayedCount: Number(aiResult.displayedCount || 0),
+            filteredCount: Number(aiResult.filteredCount || 0),
+            repairAttempted: aiResult.repairAttempted === true,
+            errorCode: ''
+          }
+        },
         diagnostics: {
           ...result.diagnostics,
           aiCheckMs: Number(aiResult.latencyMs || 0),
@@ -146,6 +195,15 @@ function createQaCoordinator(options = {}) {
       result = {
         ...result,
         status: 'local-only',
+        execution: {
+          deterministic: result.execution.deterministic,
+          ai: {
+            ...result.execution.ai,
+            executed: payload.ai?.enabled === true,
+            status: error?.name === 'AbortError' ? 'cancelled' : 'failed',
+            errorCode: String(error?.code || 'QA_PROVIDER_UNAVAILABLE')
+          }
+        },
         diagnostics: { ...result.diagnostics, aiErrorCode: String(error?.code || 'QA_PROVIDER_UNAVAILABLE'), totalMs: Date.now() - startedAt }
       };
       persistence?.saveQaResult?.(result);

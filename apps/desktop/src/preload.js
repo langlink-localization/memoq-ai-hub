@@ -1,5 +1,24 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+function normalizeAssistantPayload(payload = {}) {
+  const operation = payload.operation === 'polish' ? 'polish' : payload.operation === 'translate' ? 'translate' : '';
+  if (!operation) throw new Error('Preview Assistant operation must be translate or polish.');
+  const glossaryAssetIds = [...new Set((Array.isArray(payload.assets?.glossaryAssetIds) ? payload.assets.glossaryAssetIds : [])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean))].slice(0, 50);
+  return {
+    operation,
+    requestId: String(payload.requestId || '').slice(0, 160),
+    profileId: String(payload.profileId || '').slice(0, 160),
+    providerId: String(payload.providerId || '').slice(0, 160),
+    model: String(payload.model || '').slice(0, 240),
+    assets: {
+      mode: payload.assets?.mode === 'override' ? 'override' : 'inherit',
+      glossaryAssetIds
+    }
+  };
+}
+
 contextBridge.exposeInMainWorld('memoqDesktop', {
   getGatewayBaseUrl: () => ipcRenderer.invoke('desktop:get-gateway-base-url'),
   getAppState: (filters) => ipcRenderer.invoke('desktop:get-app-state', filters),
@@ -40,6 +59,9 @@ contextBridge.exposeInMainWorld('memoqDesktop', {
   getQaResults: (documentId) => ipcRenderer.invoke('desktop:get-qa-results', documentId),
   importBilingualQa: (payload) => ipcRenderer.invoke('desktop:import-bilingual-qa', payload || {}),
   openQualityWindow: () => ipcRenderer.invoke('desktop:open-quality-window'),
+  openAssistantWindow: () => ipcRenderer.invoke('desktop:open-assistant-window'),
+  runPreviewAssistant: (payload) => ipcRenderer.invoke('desktop:run-preview-assistant', normalizeAssistantPayload(payload)),
+  cancelPreviewAssistant: (requestId) => ipcRenderer.invoke('desktop:cancel-preview-assistant', { requestId: String(requestId || '').slice(0, 160) }),
   copyText: (value) => ipcRenderer.invoke('desktop:copy-text', value),
   getUpdateStatus: () => ipcRenderer.invoke('desktop:get-update-status'),
   checkForUpdates: (options) => ipcRenderer.invoke('desktop:check-for-updates', options),

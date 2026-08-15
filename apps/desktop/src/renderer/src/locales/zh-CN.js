@@ -59,6 +59,7 @@ const zhCN = {
     suggestionCopied: '建议已复制。',
     feedbackSaved: '反馈已保存在本地。',
     settingsSaved: '质量设置已保存。',
+    settingsSaveFailed: '质量设置保存失败，已恢复为之前的值。',
     severity: '严重度', issue: '问题', category: '类别',
     copySuggestion: '复制建议', feedbackAccepted: '已采纳', feedbackFalsePositive: '误报',
     feedbackFixed: '已修复', feedbackIgnored: '已忽略', feedbackDisableRule: '停用此规则', moreFeedback: '更多反馈',
@@ -70,7 +71,21 @@ const zhCN = {
     recheck: '重新检查', pause: '暂停', resume: '继续', openFloating: '打开紧凑浮窗', saveSettings: '保存设置', seriousIssues: '严重或致命', noFindings: '未发现问题',
     projectRules: '项目质量规则', ruleName: '规则名称', ruleType: '规则类型', ruleScope: '检查字段', ruleExpression: '表达式或指令',
     ruleMessage: '问题说明', sampleText: '用示例文本测试此规则', sampleMatched: '示例文本命中此规则。', sampleNotMatched: '示例文本未命中此规则。', addRule: '添加规则',
-    sourceEvidence: '原文证据', targetEvidence: '译文证据', suggestion: '建议', origin: '来源'
+    sourceEvidence: '原文证据', targetEvidence: '译文证据', suggestion: '建议', origin: '来源',
+    executionSummary: '执行摘要', deterministicChecks: '确定性检查', deterministicFindings: '确定性问题数', aiChecks: 'AI 检查',
+    providerModel: 'AI 服务 / 模型', duration: '耗时', candidateFindings: 'AI 候选问题', displayedFindings: '已展示', filteredFindings: '阈值过滤',
+    checkCompleteNoFindings: '检查完成，未发现可报告问题。', aiFailedDescription: '确定性检查已完成，但 AI 检查失败或已降级。可重试再次运行 AI。',
+    aiNotRequestedDescription: '本次未请求 AI，仅包含确定性检查结果。',
+    qaPromptTemplates: 'QA 提示词模板', qaSystemPrompt: 'QA 系统提示词', qaUserPrompt: 'QA 用户提示词', restoreDefault: '恢复默认',
+    qaPromptRestored: '已恢复默认 QA 提示词。', qaPromptGuardrails: '模板可调整检查要求；响应 Schema、证据规则、阈值和“不输出总分”规则始终固定。',
+    executionStatus: { complete: '已完成', disabled: '未请求', pending: '等待中', 'cache-hit': '命中缓存', failed: '失败', 'circuit-open': '熔断', cancelled: '已取消', stale: '已过期', skipped: '已跳过', 'not-run': '未运行', 'not-requested': '未请求', degraded: '已降级' }
+  },
+  assistant: {
+    title: 'memoQ 助手', translatePolish: '翻译 / 润色', qa: 'QA 检查', translate: '翻译', polish: '润色',
+    terminologyAssets: '本次请求使用的术语资源', additionalInstruction: '本次 QA 的附加检查指令（不会修改方案）',
+    generatedResult: '生成结果', copy: '复制结果', copied: '已复制。', termMatches: '命中 {{count}} 条术语',
+    runQaHint: '运行 QA 检查后可查看问题和执行详情。', previewChanged: 'Preview 活动句段已变化，旧请求已取消或丢弃；请重新运行。',
+    loadFailed: '无法加载助手状态。', runFailed: '助手请求失败。'
   },
   common: {
     save: '保存',

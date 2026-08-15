@@ -217,6 +217,12 @@ const requestHandlers = {
   checkQaDocument(payload) {
     return requireRuntime().checkQaDocument(payload || {});
   },
+  runPreviewAssistant(payload) {
+    return requireRuntime().runPreviewAssistant(payload || {});
+  },
+  cancelPreviewAssistant(payload) {
+    return requireRuntime().cancelPreviewAssistant(payload || {});
+  },
   cancelQa(payload) {
     return requireRuntime().cancelQa(payload || {});
   },

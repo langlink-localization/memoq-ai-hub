@@ -200,6 +200,9 @@ In memoQ MT settings, point these features to **memoQ AI Hub**:
 - Open **Quality Checks** to inspect the current Preview segment. Deterministic checks are local and available by default; real-time AI is off by default.
 - AI sends the current segment, minimal adjacent context, relevant terminology, and top TM matches. Document summary and full text are separate opt-ins in the selected profile.
 - Findings use severity counts and evidence; there is no overall quality score. Copy a suggestion to the clipboard or save feedback locally. Version one never writes changes back to memoQ.
+- The execution summary separates deterministic completion from AI execution, cache hits, provider failures, and confidence-threshold filtering. A zero-finding result therefore states whether AI actually ran.
+- **Open assistant window** opens the always-on-top Preview Assistant. **Translate** and **Polish** are separate actions that reuse the selected profile, provider route, Preview context, terminology, and TM; **QA Check** supports a request-only additional instruction and request-only terminology override.
+- QA prompt templates are stored per profile. Custom templates may change review guidance, but cannot replace the fixed output schema, evidence policy, thresholds, or no-score rule.
 - If Preview is unavailable or its mapping is ambiguous, real-time AI stops. Use **Select bilingual file** to inspect MQXLIFF/XLF/XLIFF read-only and export matching HTML, CSV, and JSON reports.
 - QA results and feedback are retained locally for 30 days. Exported reports can contain customer text and must follow the project data policy.
 

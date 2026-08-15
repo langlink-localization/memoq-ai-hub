@@ -71,3 +71,42 @@ test('coordinator opens a bounded circuit after repeated AI failures', async () 
   assert.equal(status.consecutiveAiFailures, 3);
   assert.notEqual(status.circuitOpenUntil, '');
 });
+
+test('coordinator reports deterministic-only completion separately from AI execution', async () => {
+  const coordinator = createQaCoordinator();
+  const result = await coordinator.checkSegment({ document: { id: 'clean-doc' }, segment: { source: 'Hello', target: '你好' }, ai: { enabled: false } });
+  assert.equal(result.execution.deterministic.status, 'complete');
+  assert.equal(result.execution.deterministic.findingCount, 0);
+  assert.equal(result.execution.ai.requested, false);
+  assert.equal(result.execution.ai.executed, false);
+  assert.equal(result.execution.ai.status, 'disabled');
+});
+
+test('coordinator exposes candidate, displayed, filtered, route, and cache diagnostics without filtered finding text', async () => {
+  let calls = 0;
+  const coordinator = createQaCoordinator({
+    invokeAi: async () => {
+      calls += 1;
+      return {
+        output: JSON.stringify({ findings: [
+          { category: 'accuracy', severity: 'major', title: 'Visible', message: 'Visible issue', confidence: 0.9, sourceEvidence: 'a', targetEvidence: 'b' },
+          { category: 'style', severity: 'minor', title: 'Hidden secret finding', message: 'Hidden body', confidence: 0.4 }
+        ] }),
+        providerId: 'provider-1',
+        model: 'model-1'
+      };
+    }
+  });
+  const payload = { ...snapshot(), ai: { enabled: true, providerId: 'provider-1', model: 'model-1' } };
+  const first = await coordinator.checkSegment(payload);
+  assert.deepEqual({
+    candidate: first.execution.ai.candidateCount,
+    displayed: first.execution.ai.displayedCount,
+    filtered: first.execution.ai.filteredCount
+  }, { candidate: 2, displayed: 1, filtered: 1 });
+  assert.equal(first.execution.ai.providerId, 'provider-1');
+  assert.equal(JSON.stringify(first).includes('Hidden secret finding'), false);
+  const second = await coordinator.checkSegment(payload);
+  assert.equal(second.execution.ai.cacheHit, true);
+  assert.equal(calls, 1);
+});

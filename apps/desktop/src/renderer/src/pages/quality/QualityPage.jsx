@@ -37,8 +37,11 @@ import {
   theme
 } from 'antd';
 import { useI18n } from '../../i18n';
+import QualityExecutionSummary from './QualityExecutionSummary.jsx';
+import qaPromptModule from '../../../../qa/qaPrompt.js';
 
 const { Paragraph, Text, Title } = Typography;
+const { DEFAULT_QA_SYSTEM_PROMPT, DEFAULT_QA_USER_PROMPT } = qaPromptModule;
 
 const SEVERITY_ICON = {
   critical: ExclamationCircleOutlined,
@@ -85,11 +88,17 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
   const [rules, setRules] = useState([]);
   const [includeSummary, setIncludeSummary] = useState(false);
   const [includeFullText, setIncludeFullText] = useState(false);
+  const [qaSystemPrompt, setQaSystemPrompt] = useState(DEFAULT_QA_SYSTEM_PROMPT);
+  const [qaUserPrompt, setQaUserPrompt] = useState(DEFAULT_QA_USER_PROMPT);
+  const [savingField, setSavingField] = useState('');
+  const [settingsError, setSettingsError] = useState('');
   const [sampleText, setSampleText] = useState('');
   const [ruleTestMatched, setRuleTestMatched] = useState(null);
+  const [savedProfiles, setSavedProfiles] = useState({});
   const [ruleForm] = Form.useForm();
 
-  const profile = profiles.find((item) => item.id === selectedProfileId) || profiles[0] || null;
+  const sourceProfile = profiles.find((item) => item.id === selectedProfileId) || profiles[0] || null;
+  const profile = sourceProfile ? (savedProfiles[sourceProfile.id] || sourceProfile) : null;
   const provider = providers.find((item) => item.id === selectedProviderId) || providers[0] || null;
   const latestResult = status?.latestResult || null;
   const findings = latestResult?.findings || [];
@@ -104,6 +113,8 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
     setAiEnabled(profile.qaRealtimeAiEnabled === true);
     setIncludeSummary(profile.qaIncludeSummary === true);
     setIncludeFullText(profile.qaIncludeFullText === true);
+    setQaSystemPrompt(profile.promptTemplates?.qa?.systemPrompt || DEFAULT_QA_SYSTEM_PROMPT);
+    setQaUserPrompt(profile.promptTemplates?.qa?.userPrompt || DEFAULT_QA_USER_PROMPT);
     const nextProviderId = profile.interactiveProviderId || profile.providerId || providers[0]?.id || '';
     setSelectedProviderId(nextProviderId);
   }, [profile?.id]);
@@ -143,7 +154,11 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
         contextPolicy: { includeSummary, includeFullText, maxAdjacentCharacters: 1200 },
         ai: { enabled: aiEnabled, providerId: selectedProviderId, model: selectedModel }
       });
-      setStatus((current) => ({ ...(current || {}), latestResult: result }));
+      const currentStatus = await api.getQaStatus();
+      setStatus(currentStatus);
+      if (currentStatus?.currentSnapshot?.contentHash !== result.contentHash) {
+        setError(t('assistant.previewChanged'));
+      }
     } catch (checkError) {
       setError(String(checkError?.message || t('quality.checkFailed')));
     } finally {
@@ -190,14 +205,54 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
 
   async function saveQualitySettings() {
     if (!profile) return;
-    await api.saveProfile({
+    const saved = await api.saveProfile({
       ...profile,
       qaRealtimeAiEnabled: aiEnabled,
       qaIncludeSummary: includeSummary,
       qaIncludeFullText: includeFullText,
-      qaRules: rules
+      qaRules: rules,
+      promptTemplates: {
+        ...(profile.promptTemplates || {}),
+        qa: { systemPrompt: qaSystemPrompt, userPrompt: qaUserPrompt }
+      }
     });
+    if (saved?.id) setSavedProfiles((current) => ({ ...current, [saved.id]: saved }));
     message.success(t('quality.settingsSaved'));
+  }
+
+  async function saveToggle(field, nextValue, setter, previousValue) {
+    if (!profile) return;
+    setter(nextValue);
+    setSavingField(field);
+    setSettingsError('');
+    try {
+      const saved = await api.saveProfile({
+        ...profile,
+        qaRealtimeAiEnabled: field === 'qaRealtimeAiEnabled' ? nextValue : aiEnabled,
+        qaIncludeSummary: field === 'qaIncludeSummary' ? nextValue : includeSummary,
+        qaIncludeFullText: field === 'qaIncludeFullText' ? nextValue : includeFullText,
+        qaRules: rules,
+        promptTemplates: { ...(profile.promptTemplates || {}), qa: { systemPrompt: qaSystemPrompt, userPrompt: qaUserPrompt } }
+      });
+      if (saved?.id) setSavedProfiles((current) => ({ ...current, [saved.id]: saved }));
+    } catch (saveError) {
+      setter(previousValue);
+      setSettingsError(String(saveError?.message || t('quality.settingsSaveFailed')));
+    } finally {
+      setSavingField('');
+    }
+  }
+
+  async function restoreDefaultQaPrompt() {
+    setQaSystemPrompt(DEFAULT_QA_SYSTEM_PROMPT);
+    setQaUserPrompt(DEFAULT_QA_USER_PROMPT);
+    if (!profile) return;
+    const saved = await api.saveProfile({
+      ...profile,
+      promptTemplates: { ...(profile.promptTemplates || {}), qa: {} }
+    });
+    if (saved?.id) setSavedProfiles((current) => ({ ...current, [saved.id]: saved }));
+    message.success(t('quality.qaPromptRestored'));
   }
 
   function addRule(values) {
@@ -249,6 +304,7 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
   const content = (
     <Space direction="vertical" size="large" className={compact ? 'quality-float-content' : 'quality-page'}>
       {error ? <Alert type="error" showIcon closable message={error} onClose={() => setError('')} /> : null}
+      {settingsError ? <Alert type="error" showIcon closable message={settingsError} onClose={() => setSettingsError('')} /> : null}
       <Alert
         type={latestResult?.status === 'local-only' ? 'warning' : status?.activeRequestCount ? 'info' : 'success'}
         showIcon
@@ -266,13 +322,13 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
               <Select value={selectedModel} onChange={setSelectedModel} placeholder={t('quality.model')} options={(provider?.models || []).filter((item) => item.enabled !== false).map((item) => ({ value: item.id || item.modelName, label: item.modelName }))} className="quality-select" />
             </Space>
             <Space wrap>
-              <Switch checked={aiEnabled} onChange={setAiEnabled} /> <Text>{t('quality.realtimeAi')}</Text>
-              <Switch checked={includeSummary} onChange={setIncludeSummary} /> <Text>{t('quality.includeSummary')}</Text>
-              <Switch checked={includeFullText} onChange={setIncludeFullText} /> <Text>{t('quality.includeFullText')}</Text>
+              <label className="quality-switch-row"><Switch loading={savingField === 'qaRealtimeAiEnabled'} disabled={Boolean(savingField)} checked={aiEnabled} onChange={(value) => saveToggle('qaRealtimeAiEnabled', value, setAiEnabled, aiEnabled)} /><Text>{t('quality.realtimeAi')}</Text></label>
+              <label className="quality-switch-row"><Switch loading={savingField === 'qaIncludeSummary'} checked={includeSummary} disabled={!aiEnabled || Boolean(savingField)} onChange={(value) => saveToggle('qaIncludeSummary', value, setIncludeSummary, includeSummary)} /><Text type={!aiEnabled ? 'secondary' : undefined}>{t('quality.includeSummary')}</Text></label>
+              <label className="quality-switch-row"><Switch loading={savingField === 'qaIncludeFullText'} checked={includeFullText} disabled={!aiEnabled || Boolean(savingField)} onChange={(value) => saveToggle('qaIncludeFullText', value, setIncludeFullText, includeFullText)} /><Text type={!aiEnabled ? 'secondary' : undefined}>{t('quality.includeFullText')}</Text></label>
             </Space>
             <Space wrap>
               {mode === 'current' ? <Button type="primary" icon={<ReloadOutlined />} loading={checking} onClick={runCurrentCheck}>{t('quality.recheck')}</Button> : <Button type="primary" icon={<ExportOutlined />} onClick={confirmBatchImport}>{t('quality.selectFile')}</Button>}
-              <Button icon={<EyeOutlined />} onClick={() => api.openQualityWindow()}>{t('quality.openFloating')}</Button>
+              <Button icon={<EyeOutlined />} onClick={() => api.openAssistantWindow?.() || api.openQualityWindow()}>{t('quality.openFloating')}</Button>
               <Button onClick={saveQualitySettings}>{t('quality.saveSettings')}</Button>
             </Space>
           </Space>
@@ -291,12 +347,35 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
             <Paragraph ellipsis={{ rows: compact ? 2 : 3, expandable: !compact }}>{latestResult.segment?.source || '-'}</Paragraph>
             <Text type="secondary">{latestResult.segment?.target || '-'}</Text>
           </Card>
-          <Table rowKey="id" size="small" columns={compact ? columns.slice(0, 2) : columns} dataSource={compact ? findings.slice(0, 3) : findings} pagination={compact ? false : { pageSize: 25 }} scroll={compact ? undefined : { x: 760 }} locale={{ emptyText: <Empty description={t('quality.noFindings')} /> }} />
+          <QualityExecutionSummary compact={compact} execution={latestResult.execution} />
+          {latestResult.execution?.ai?.status === 'failed' && findings.length > 0 ? <Alert type="warning" showIcon message={t('quality.aiFailedDescription')} action={<Button size="small" onClick={runCurrentCheck}>{t('common.retry')}</Button>} /> : null}
+          {findings.length === 0 ? (
+            <Alert
+              type={latestResult.execution?.ai?.status === 'failed' ? 'warning' : 'success'}
+              showIcon
+              message={t('quality.checkCompleteNoFindings')}
+              description={latestResult.execution?.ai?.status === 'failed' ? t('quality.aiFailedDescription') : latestResult.execution?.ai?.status === 'disabled' ? t('quality.aiNotRequestedDescription') : undefined}
+              action={latestResult.execution?.ai?.status === 'failed' ? <Button size="small" onClick={runCurrentCheck}>{t('common.retry')}</Button> : null}
+            />
+          ) : <Table rowKey="id" size="small" columns={compact ? columns.slice(0, 2) : columns} dataSource={compact ? findings.slice(0, 3) : findings} pagination={compact ? false : { pageSize: 25 }} scroll={compact ? undefined : { x: 760 }} />}
         </>
       ) : <Empty description={t('quality.waitingForPreview')} />}
 
       {!compact ? (
-        <Collapse items={[{
+        <Collapse items={[
+          {
+            key: 'prompt', label: t('quality.qaPromptTemplates'), children: (
+              <Space direction="vertical" className="quality-rules" size="middle">
+                <Alert type="info" showIcon message={t('quality.qaPromptGuardrails')} />
+                <Form layout="vertical">
+                  <Form.Item label={t('quality.qaSystemPrompt')}><Input.TextArea rows={5} value={qaSystemPrompt} onChange={(event) => setQaSystemPrompt(event.target.value)} /></Form.Item>
+                  <Form.Item label={t('quality.qaUserPrompt')}><Input.TextArea rows={8} value={qaUserPrompt} onChange={(event) => setQaUserPrompt(event.target.value)} /></Form.Item>
+                  <Space><Button type="primary" onClick={saveQualitySettings}>{t('common.save')}</Button><Button onClick={restoreDefaultQaPrompt}>{t('quality.restoreDefault')}</Button></Space>
+                </Form>
+              </Space>
+            )
+          },
+          {
           key: 'rules', label: t('quality.projectRules'), children: (
             <Space direction="vertical" className="quality-rules" size="middle">
               <Form form={ruleForm} layout="vertical" onFinish={addRule} initialValues={{ type: 'contains', scope: 'target', category: 'style', severity: 'minor' }}>

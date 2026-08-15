@@ -76,7 +76,15 @@ function buildAssetContext({
         smartParsingAvailable: profile?.smartTbParsingAvailable === true
       });
       if (purpose === ASSET_PURPOSES.glossary) {
-        glossaryEntries.push(parsed);
+        glossaryEntries.push({
+          ...parsed,
+          entries: (parsed.entries || []).map((term, termIndex) => ({
+            ...term,
+            id: `${entry.asset.id}:${term.id || `tb-${termIndex + 1}`}`,
+            assetId: entry.asset.id,
+            assetName: entry.asset.name
+          }))
+        });
       } else if (purpose === ASSET_PURPOSES.brief) {
         briefEntries.push(parsed);
       } else {

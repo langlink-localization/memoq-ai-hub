@@ -62,7 +62,9 @@ function collectFirstReleaseProfilePlaceholderViolations(profile = {}) {
     profile?.promptTemplates?.single?.systemPrompt,
     profile?.promptTemplates?.single?.userPrompt,
     profile?.promptTemplates?.batch?.systemPrompt,
-    profile?.promptTemplates?.batch?.userPrompt
+    profile?.promptTemplates?.batch?.userPrompt,
+    profile?.promptTemplates?.qa?.systemPrompt,
+    profile?.promptTemplates?.qa?.userPrompt
   ];
 
   for (const template of templates) {

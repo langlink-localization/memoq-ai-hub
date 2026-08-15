@@ -8,6 +8,7 @@ const {
   validateTemplate,
   SYSTEM_PROMPT_FORBIDDEN_PLACEHOLDERS
 } = require('../src/shared/promptTemplate');
+const { normalizeQaPromptTemplate, renderQaPromptTemplate } = require('../src/qa/qaPrompt');
 
 test('prompt template exposes supported placeholders', () => {
   const placeholders = getSupportedPlaceholders();
@@ -105,4 +106,24 @@ test('prompt template rejects volatile tm and terminology placeholders in system
     }),
     /cannot use \{\{glossary-text\}\}/i
   );
+});
+
+test('QA prompt defaults render source, target, and terminology through the shared placeholder system', () => {
+  const normalized = normalizeQaPromptTemplate({});
+  assert.match(normalized.systemPrompt, /quality reviewer/i);
+  const rendered = renderQaPromptTemplate({
+    template: normalized,
+    snapshot: { languages: { source: 'zh-CN', target: 'ja-JP' }, segment: { source: '订单', target: '注文' }, context: {} },
+    terminology: [{ entry: { sourceTerm: '订单', targetTerm: '注文' } }]
+  });
+  assert.match(rendered.userPrompt, /订单/);
+  assert.match(rendered.userPrompt, /注文/);
+  assert.match(rendered.userPrompt, /订单 => 注文/);
+});
+
+test('QA system prompts cannot move volatile segment content into the stable system layer', () => {
+  assert.throws(() => renderQaPromptTemplate({
+    template: { systemPrompt: 'Inspect {{glossary-text}}', userPrompt: '{{source-text}}' },
+    snapshot: { languages: {}, segment: { source: 'secret', target: '' }, context: {} }
+  }), /cannot use/i);
 });

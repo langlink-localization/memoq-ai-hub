@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { normalizeAssetBinding } = require('../asset/assetRules');
 const { applyFirstReleaseProfilePolicy } = require('../shared/profilePolicy');
+const { normalizeQaPromptTemplate } = require('../qa/qaPrompt');
 const { validateProfileTemplates } = require('../shared/promptTemplate');
 const {
   isSupportedProviderType,
@@ -70,6 +71,8 @@ function normalizeProfilePromptTemplates(profile = {}, legacySystemPrompt = DEFA
       systemPrompt: DEFAULT_BATCH_SYSTEM_PROMPT,
       userPrompt: DEFAULT_BATCH_USER_PROMPT
     });
+
+  next.qa = normalizeQaPromptTemplate(rawPromptTemplates.qa);
 
   return next;
 }
@@ -254,6 +257,7 @@ function ensureProfile(profile = {}) {
     qaRealtimeAiEnabled: profile.qaRealtimeAiEnabled === true,
     qaIncludeSummary: profile.qaIncludeSummary === true,
     qaIncludeFullText: profile.qaIncludeFullText === true,
+    promptTemplates: { qa: promptTemplates.qa },
     qaRules: (Array.isArray(profile.qaRules) ? profile.qaRules : []).map((rule, index) => ({
       id: String(rule?.id || `qa-rule-${index + 1}`),
       name: String(rule?.name || `QA rule ${index + 1}`).trim(),

@@ -472,7 +472,7 @@ function createQualityWindow() {
     minWidth: 360,
     minHeight: 420,
     alwaysOnTop: true,
-    title: `${PRODUCT_NAME} - Quality`,
+    title: `${PRODUCT_NAME} - Assistant`,
     show: false,
     backgroundColor: '#ffffff',
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, 'preload.js') }
@@ -481,10 +481,10 @@ function createQualityWindow() {
   qualityWindow.on('closed', () => { qualityWindow = null; });
   qualityWindow.once('ready-to-show', () => qualityWindow?.showInactive());
   if (rendererDevServerUrl) {
-    qualityWindow.loadURL(`${rendererDevServerUrl}${rendererDevServerUrl.includes('?') ? '&' : '?'}window=quality-float`);
+    qualityWindow.loadURL(`${rendererDevServerUrl}${rendererDevServerUrl.includes('?') ? '&' : '?'}window=assistant-float`);
   } else {
     const rendererName = typeof MAIN_WINDOW_VITE_NAME !== 'undefined' ? MAIN_WINDOW_VITE_NAME : 'main_window';
-    qualityWindow.loadFile(path.join(__dirname, `../renderer/${rendererName}/index.html`), { query: { window: 'quality-float' } });
+    qualityWindow.loadFile(path.join(__dirname, `../renderer/${rendererName}/index.html`), { query: { window: 'assistant-float' } });
   }
   return qualityWindow;
 }
@@ -638,6 +638,18 @@ function registerIpcHandlers() {
   ipcMain.handle('desktop:open-quality-window', () => {
     createQualityWindow();
     return { ok: true };
+  });
+  ipcMain.handle('desktop:open-assistant-window', () => {
+    createQualityWindow();
+    return { ok: true };
+  });
+  ipcMain.handle('desktop:run-preview-assistant', (_event, payload) => {
+    requireWorkerReady();
+    return invokeWorker('runPreviewAssistant', payload || {});
+  });
+  ipcMain.handle('desktop:cancel-preview-assistant', (_event, payload) => {
+    requireWorkerReady();
+    return invokeWorker('cancelPreviewAssistant', payload || {});
   });
   ipcMain.handle('desktop:copy-text', (_event, value) => {
     clipboard.writeText(String(value || ''));

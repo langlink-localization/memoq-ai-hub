@@ -123,6 +123,8 @@ function normalizeForMatch(value, entry = {}) {
 function normalizeTbEntry(entry = {}, index = 0) {
   const normalized = {
     id: String(entry.id || `tb-${index + 1}`).trim() || `tb-${index + 1}`,
+    assetId: String(entry.assetId || '').trim(),
+    assetName: String(entry.assetName || '').trim(),
     sourceTerm: normalizeWhitespace(entry.sourceTerm),
     targetTerm: normalizeWhitespace(entry.targetTerm),
     srcLang: normalizeWhitespace(entry.srcLang),

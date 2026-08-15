@@ -59,6 +59,7 @@ const en = {
     suggestionCopied: 'Suggestion copied.',
     feedbackSaved: 'Feedback saved locally.',
     settingsSaved: 'Quality settings saved.',
+    settingsSaveFailed: 'Could not save the quality setting. The previous value was restored.',
     severity: 'Severity', issue: 'Finding', category: 'Category',
     copySuggestion: 'Copy suggestion', feedbackAccepted: 'Accepted', feedbackFalsePositive: 'False positive',
     feedbackFixed: 'Fixed', feedbackIgnored: 'Ignored', feedbackDisableRule: 'Disable this rule', moreFeedback: 'More feedback',
@@ -70,7 +71,21 @@ const en = {
     recheck: 'Check again', pause: 'Pause', resume: 'Resume', openFloating: 'Open compact window', saveSettings: 'Save settings', seriousIssues: 'Major or critical', noFindings: 'No findings',
     projectRules: 'Project quality rules', ruleName: 'Rule name', ruleType: 'Rule type', ruleScope: 'Check field', ruleExpression: 'Expression or instruction',
     ruleMessage: 'Finding message', sampleText: 'Test this rule with sample text', sampleMatched: 'The sample matches this rule.', sampleNotMatched: 'The sample does not match this rule.', addRule: 'Add rule',
-    sourceEvidence: 'Source evidence', targetEvidence: 'Target evidence', suggestion: 'Suggestion', origin: 'Origin'
+    sourceEvidence: 'Source evidence', targetEvidence: 'Target evidence', suggestion: 'Suggestion', origin: 'Origin',
+    executionSummary: 'Execution summary', deterministicChecks: 'Deterministic checks', deterministicFindings: 'Deterministic findings', aiChecks: 'AI checks',
+    providerModel: 'AI service / model', duration: 'Duration', candidateFindings: 'AI candidates', displayedFindings: 'Displayed', filteredFindings: 'Filtered by threshold',
+    checkCompleteNoFindings: 'Check complete. No reportable issues were found.', aiFailedDescription: 'Deterministic checks completed, but the AI check failed or degraded. Retry to run AI again.',
+    aiNotRequestedDescription: 'AI was not requested. This result contains deterministic checks only.',
+    qaPromptTemplates: 'QA prompt templates', qaSystemPrompt: 'QA system prompt', qaUserPrompt: 'QA user prompt', restoreDefault: 'Restore default',
+    qaPromptRestored: 'The default QA prompt was restored.', qaPromptGuardrails: 'Your template controls review guidance. The response schema, evidence rules, thresholds, and no-score policy remain fixed.',
+    executionStatus: { complete: 'Completed', disabled: 'Not requested', pending: 'Pending', 'cache-hit': 'Cache hit', failed: 'Failed', 'circuit-open': 'Circuit open', cancelled: 'Cancelled', stale: 'Stale', skipped: 'Skipped', 'not-run': 'Not run', 'not-requested': 'Not requested', degraded: 'Degraded' }
+  },
+  assistant: {
+    title: 'memoQ Assistant', translatePolish: 'Translate / Polish', qa: 'QA Check', translate: 'Translate', polish: 'Polish',
+    terminologyAssets: 'Terminology assets for this request', additionalInstruction: 'Additional QA instruction for this request (does not change the profile)',
+    generatedResult: 'Generated result', copy: 'Copy result', copied: 'Copied.', termMatches: '{{count}} terminology match(es)',
+    runQaHint: 'Run a QA check to see findings and execution details.', previewChanged: 'The active Preview segment changed. The previous request was cancelled or discarded; run it again.',
+    loadFailed: 'Could not load the assistant state.', runFailed: 'The assistant request failed.'
   },
   common: {
     save: 'Save',

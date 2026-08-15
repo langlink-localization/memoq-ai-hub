@@ -321,6 +321,15 @@ function validateProfileTemplates(profile = {}) {
     });
     validateTemplate(promptTemplates.batch.userPrompt, { fieldLabel: 'Batch processing user prompt', fieldName: 'promptTemplates.batch.userPrompt' });
   }
+
+  if (promptTemplates?.qa) {
+    validateTemplate(promptTemplates.qa.systemPrompt, {
+      fieldLabel: 'QA system prompt',
+      fieldName: 'promptTemplates.qa.systemPrompt',
+      disallowedTokens: SYSTEM_PROMPT_FORBIDDEN_PLACEHOLDERS
+    });
+    validateTemplate(promptTemplates.qa.userPrompt, { fieldLabel: 'QA user prompt', fieldName: 'promptTemplates.qa.userPrompt' });
+  }
 }
 
 module.exports = {

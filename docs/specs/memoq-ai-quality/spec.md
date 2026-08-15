@@ -17,6 +17,9 @@
 - AI output must validate against the repository schema. One repair attempt is allowed; invalid output is otherwise discarded.
 - AI critical/major findings require confidence >= 0.80, minor >= 0.70, 0.55-0.69 is downgraded to info, and lower confidence is hidden.
 - Results are current only while their content hash matches the latest immutable Preview or imported-document snapshot.
+- Every result exposes separate deterministic and AI execution summaries, including route, elapsed time, cache state, candidate count, displayed count, and threshold-filtered count. Filtered finding text is never returned.
+- Profile QA templates use the existing placeholder renderer; fixed schema, evidence, threshold, and no-overall-score protections are appended outside the editable template.
+- The compact Preview Assistant has explicit Translate, Polish, and QA actions. It may temporarily override terminology assets and add a request-only QA instruction, but it only copies output and never writes into memoQ.
 
 ## Privacy and retention
 

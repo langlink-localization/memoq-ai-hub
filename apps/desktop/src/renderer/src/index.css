@@ -773,10 +773,30 @@ body,
   border-radius: 0;
 }
 
-.quality-page button,
-.quality-page [role='button'],
-.quality-float-card button,
-.quality-float-card [role='button'] {
+.quality-switch-row {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.assistant-window {
+  width: 100%;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.assistant-route-controls > * {
+  min-width: min(220px, 100%);
+  flex: 1 1 180px;
+}
+
+.assistant-glossary-select {
+  width: 100%;
+}
+
+.assistant-action-button {
   min-height: 40px;
 }
 
@@ -876,7 +896,8 @@ body,
 
 @media (prefers-reduced-motion: reduce) {
   .quality-page *,
-  .quality-float-card * {
+  .quality-float-card *,
+  .assistant-window * {
     scroll-behavior: auto;
     transition-duration: 0.01ms;
     animation-duration: 0.01ms;

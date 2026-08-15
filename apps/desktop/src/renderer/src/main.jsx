@@ -8,7 +8,7 @@ import 'antd/dist/reset.css';
 import './index.css';
 import App from './App';
 import { I18nProvider, useI18n } from './i18n';
-import QualityPage from './pages/quality/QualityPage.jsx';
+import AssistantWindow from './pages/quality/AssistantWindow.jsx';
 
 const { Paragraph, Text } = Typography;
 
@@ -108,12 +108,13 @@ window.addEventListener('unhandledrejection', (event) => {
 
 function LocalizedAntdRoot() {
   const { locale } = useI18n();
-  const compactQualityWindow = new URLSearchParams(globalThis.location?.search || '').get('window') === 'quality-float';
+  const windowMode = new URLSearchParams(globalThis.location?.search || '').get('window');
+  const compactAssistantWindow = windowMode === 'assistant-float' || windowMode === 'quality-float';
   return (
     <ConfigProvider theme={appTheme} locale={locale === 'zh-CN' ? zhCN : enUS}>
       <AntdApp>
         <RenderErrorBoundary>
-          {compactQualityWindow ? <QualityPage compact /> : <App />}
+          {compactAssistantWindow ? <AssistantWindow /> : <App />}
         </RenderErrorBoundary>
       </AntdApp>
     </ConfigProvider>

@@ -22,7 +22,7 @@ The current desktop app exposes these operator-facing modules:
 - `Setup`: create translation profiles, choose provider routes, bind terminology and Custom TM assets, select TM score buckets, and configure optional context features.
 - `Assets`: import and preview glossary, TB, TMX, and table-based Custom TM assets.
 - `Translation Records`: inspect translation runs, Custom TM matches, prompts, and diagnostics, then export or delete records.
-- `Quality Checks`: inspect the active Preview segment with local deterministic rules, optionally opt in to AI checks, import MQXLIFF/XLIFF files read-only, and export HTML/CSV/JSON reports.
+- `Quality Checks`: inspect the active Preview segment with observable deterministic/AI execution details, edit profile QA guidance, open the two-mode Translate/Polish and QA Assistant, import MQXLIFF/XLIFF files read-only, and export HTML/CSV/JSON reports.
 - `Logs`: review local diagnostic logs, open log files, clean old logs, and copy a short support summary.
 
 The repository contains runtime code for more advanced capabilities, but not every internal/runtime concept is exposed as a dedicated top-level UI page in the current build. The README and user flow below describe the shipped surface, not every internal module.

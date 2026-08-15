@@ -2,9 +2,11 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const {
+  ASSET_PURPOSES,
   buildAssetContext,
   buildAssetPreview,
   getAssetImportRules,
+  normalizeAssetPurpose,
   validateAssetImport
 } = require('../asset/assetContext');
 const {
@@ -30,6 +32,7 @@ const { normalizeMemoQMetadata, normalizeSegmentMetadataItem } = require('../sha
 const { createPreviewContextClient } = require('../preview/previewContextClient');
 const { enrichTranslationResult } = require('./translationConfidence');
 const { createQaCoordinator, createSummary } = require('../qa/qaCoordinator');
+const { createQaSnapshot } = require('../qa/qaContracts');
 const {
   buildPreviewContextBundle,
   buildPreviewStatusSnapshot,
@@ -316,7 +319,7 @@ async function createRuntime(options = {}) {
 
   const qaCoordinator = createQaCoordinator({
     persistence,
-    invokeAi: async ({ snapshot, providerId, model, terminology, tmMatches, naturalLanguageRules, repairInstruction, signal }) => {
+    invokeAi: async ({ snapshot, providerId, model, terminology, tmMatches, naturalLanguageRules, promptTemplate, additionalInstruction, repairInstruction, signal }) => {
       const state = loadState();
       const provider = state.providers.find((item) => item.id === providerId && item.enabled !== false)
         || state.providers.find((item) => item.enabled !== false);
@@ -341,12 +344,15 @@ async function createRuntime(options = {}) {
         terminology,
         tmMatches,
         naturalLanguageRules,
+        promptTemplate,
+        additionalInstruction,
         repairInstruction,
         signal,
         timeoutMs: 30000
       });
     }
   });
+  const assistantRequests = new Map();
 
   function buildActivePreviewQaPayload() {
     const document = previewContextClient?.readActiveDocument?.();
@@ -404,10 +410,30 @@ async function createRuntime(options = {}) {
       || state.profiles.find((item) => item.id === state.defaultProfileId)
       || null;
     let assetContext = createEmptyAssetContext();
+    let effectiveAssetBindings = Array.isArray(profile?.assetBindings) ? profile.assetBindings : [];
+    const assetSelection = effectivePayload.assets && typeof effectivePayload.assets === 'object' ? effectivePayload.assets : {};
+    if (assetSelection.mode === 'override') {
+      const selectedGlossaryIds = [...new Set((Array.isArray(assetSelection.glossaryAssetIds) ? assetSelection.glossaryAssetIds : [])
+        .map((value) => String(value || '').trim())
+        .filter(Boolean))];
+      const validGlossaryIds = new Set(state.assets
+        .filter((asset) => normalizeAssetPurpose(asset.type) === ASSET_PURPOSES.glossary)
+        .map((asset) => String(asset.id)));
+      const invalidId = selectedGlossaryIds.find((assetId) => !validGlossaryIds.has(assetId));
+      if (invalidId) {
+        const error = new Error(`Glossary asset "${invalidId}" is not available.`);
+        error.code = ERROR_CODES.qaInvalidRequest;
+        throw error;
+      }
+      effectiveAssetBindings = [
+        ...effectiveAssetBindings.filter((binding) => binding?.purpose !== ASSET_PURPOSES.glossary),
+        ...selectedGlossaryIds.map((assetId) => ({ assetId, purpose: ASSET_PURPOSES.glossary }))
+      ];
+    }
     if (profile) {
       assetContext = buildAssetContext({
         assets: state.assets,
-        assetBindings: profile.assetBindings,
+        assetBindings: effectiveAssetBindings,
         profile: { ...profile, smartTbParsingAvailable: hasSmartTbParsingCapability(state) },
         cache: parsedAssetCache
       });
@@ -430,6 +456,9 @@ async function createRuntime(options = {}) {
     const naturalLanguageRules = Array.isArray(profile?.qaRules)
       ? profile.qaRules.filter((rule) => rule.type === 'natural-language').map((rule) => ({ id: rule.id, instruction: rule.instruction || rule.value || '' }))
       : [];
+    const additionalInstruction = String(effectivePayload.prompt?.additionalInstruction || '').slice(0, 4000);
+    const qaPromptTemplate = profile?.promptTemplates?.qa || {};
+    const promptVersion = crypto.createHash('sha256').update(JSON.stringify({ qaPromptTemplate, additionalInstruction })).digest('hex');
     return {
       ...effectivePayload,
       profileId: profile?.id || profileId,
@@ -441,7 +470,8 @@ async function createRuntime(options = {}) {
         ...(effectivePayload.configuration || {}),
         profileId: profile?.id || profileId,
         glossaryFingerprint: tbContext.fingerprint,
-        tmFingerprint: customTm.fingerprint
+        tmFingerprint: customTm.fingerprint,
+        promptVersion
       },
       contextPolicy: {
         ...(effectivePayload.contextPolicy || {}),
@@ -454,9 +484,165 @@ async function createRuntime(options = {}) {
         enabled: effectivePayload.ai?.enabled === true,
         terminology: tbContext.termHits,
         tmMatches: customTm.matches,
-        naturalLanguageRules
+        naturalLanguageRules,
+        promptTemplate: qaPromptTemplate,
+        additionalInstruction
       }
     };
+  }
+
+  function resolveAssistantProfileAndRoute(payload = {}) {
+    const state = loadState();
+    const requestedProfileId = String(payload.profileId || '').trim();
+    const profile = state.profiles.find((item) => item.id === requestedProfileId)
+      || state.profiles.find((item) => item.id === state.defaultProfileId)
+      || null;
+    if (!profile) {
+      const error = new Error('No profile is configured for the Preview Assistant.');
+      error.code = ERROR_CODES.providerNotConfigured;
+      throw error;
+    }
+    const providerId = String(payload.providerId || profile.interactiveProviderId || profile.providerId || '').trim();
+    const provider = state.providers.find((item) => item.id === providerId && item.enabled !== false)
+      || state.providers.find((item) => item.enabled !== false);
+    const modelId = String(payload.model || profile.interactiveModelId || '').trim();
+    const model = provider
+      ? ((provider.models || []).find((item) => (item.id === modelId || item.modelName === modelId) && item.enabled !== false)
+        || selectModel(provider))
+      : null;
+    if (!provider || !model) {
+      const error = new Error('No enabled provider and model are available for the Preview Assistant.');
+      error.code = ERROR_CODES.providerNotConfigured;
+      throw error;
+    }
+    let assetBindings = Array.isArray(profile.assetBindings) ? [...profile.assetBindings] : [];
+    if (payload.assets?.mode === 'override') {
+      const requestedIds = [...new Set((Array.isArray(payload.assets.glossaryAssetIds) ? payload.assets.glossaryAssetIds : [])
+        .map((value) => String(value || '').trim())
+        .filter(Boolean))];
+      const glossaryIds = new Set(state.assets
+        .filter((asset) => normalizeAssetPurpose(asset.type) === ASSET_PURPOSES.glossary)
+        .map((asset) => String(asset.id)));
+      const invalidId = requestedIds.find((assetId) => !glossaryIds.has(assetId));
+      if (invalidId) {
+        const error = new Error(`Glossary asset "${invalidId}" is not available.`);
+        error.code = ERROR_CODES.qaInvalidRequest;
+        throw error;
+      }
+      assetBindings = [
+        ...assetBindings.filter((binding) => binding?.purpose !== ASSET_PURPOSES.glossary),
+        ...requestedIds.map((assetId) => ({ assetId, purpose: ASSET_PURPOSES.glossary }))
+      ];
+    }
+    return {
+      state,
+      profile: { ...profile, assetBindings },
+      route: {
+        provider,
+        model,
+        routeKind: 'assistant',
+        capabilities: getProviderCapabilities(provider)
+      }
+    };
+  }
+
+  async function runPreviewAssistant(payload = {}) {
+    const operation = payload.operation === 'polish' ? 'polish' : payload.operation === 'translate' ? 'translate' : '';
+    if (!operation) {
+      const error = new Error('Preview Assistant operation must be translate or polish.');
+      error.code = ERROR_CODES.qaInvalidRequest;
+      throw error;
+    }
+    const activePayload = buildActivePreviewQaPayload();
+    if (!activePayload?.mappingCertain) {
+      const error = new Error('The active memoQ segment could not be mapped with confidence.');
+      error.code = ERROR_CODES.qaMappingUncertain;
+      throw error;
+    }
+    if (operation === 'polish' && !String(activePayload.segment?.target || '').trim()) {
+      const error = new Error('A current target translation is required for polishing.');
+      error.code = ERROR_CODES.qaInvalidRequest;
+      throw error;
+    }
+    const requestId = String(payload.requestId || crypto.randomUUID());
+    const { profile, route } = resolveAssistantProfileAndRoute(payload);
+    const snapshotPayload = prepareQaPayload({
+      ...activePayload,
+      profileId: profile.id,
+      assets: payload.assets || { mode: 'inherit' }
+    });
+    const snapshot = createQaSnapshot(snapshotPayload);
+    const requestState = { cancelled: false, contentHash: snapshot.revision.contentHash };
+    assistantRequests.set(requestId, requestState);
+    try {
+      const response = await performTranslation({
+        contractVersion: CONTRACT_VERSION,
+        requestId,
+        traceId: `assistant-${requestId}`,
+        sourceLanguage: snapshot.languages.source,
+        targetLanguage: snapshot.languages.target,
+        requestType: 'Plaintext',
+        profileResolution: { profileId: profile.id, useCase: 'interactive' },
+        metadata: {
+          documentId: snapshot.document.id,
+          documentName: snapshot.document.name
+        },
+        segments: [{ index: snapshot.segment.segmentIndex, text: snapshot.segment.source, plainText: snapshot.segment.source }],
+        assistantOperation: operation,
+        assistantTargetText: snapshot.segment.target
+      }, {
+        profileOverride: profile,
+        routeOverride: route,
+        includeDiagnostics: true
+      });
+      if (requestState.cancelled) {
+        const error = new Error('The Preview Assistant request was cancelled.');
+        error.code = ERROR_CODES.qaRequestCancelled;
+        throw error;
+      }
+      const currentPayload = prepareQaPayload({ profileId: profile.id, assets: payload.assets || { mode: 'inherit' } });
+      const currentSnapshot = createQaSnapshot(currentPayload);
+      if (currentSnapshot.revision.contentHash !== requestState.contentHash) {
+        const error = new Error('The active memoQ segment changed before the Preview Assistant completed.');
+        error.code = ERROR_CODES.qaRequestCancelled;
+        throw error;
+      }
+      if (response.statusCode !== 200 || response.body?.success !== true) {
+        const error = new Error(response.body?.error?.message || 'The Preview Assistant request failed.');
+        error.code = response.body?.error?.code || ERROR_CODES.translationFailed;
+        throw error;
+      }
+      return {
+        requestId,
+        operation,
+        contentHash: snapshot.revision.contentHash,
+        revision: snapshot.revision,
+        text: String(response.body.translations?.[0]?.text || ''),
+        providerId: String(response.body.providerId || route.provider.id || ''),
+        model: String(response.body.model || route.model.modelName || ''),
+        latencyMs: Number(response.body.diagnostics?.latencyMs || 0),
+        fromCache: response.body.diagnostics?.fromCache === true,
+        terminology: {
+          assetIds: profile.assetBindings.filter((binding) => binding.purpose === ASSET_PURPOSES.glossary).map((binding) => binding.assetId),
+          matchCount: Array.isArray(snapshotPayload.terminologyMatches) ? snapshotPayload.terminologyMatches.length : 0
+        },
+        segment: snapshot.segment
+      };
+    } finally {
+      assistantRequests.delete(requestId);
+    }
+  }
+
+  function cancelPreviewAssistant(payload = {}) {
+    const requestId = String(payload.requestId || '').trim();
+    let cancelled = 0;
+    for (const [activeRequestId, request] of assistantRequests.entries()) {
+      if (!requestId || activeRequestId === requestId) {
+        request.cancelled = true;
+        cancelled += 1;
+      }
+    }
+    return { ok: true, cancelled };
   }
 
   async function checkQaSegmentsWithConcurrency(payload, segments, concurrency = 3) {
@@ -2762,6 +2948,7 @@ async function createRuntime(options = {}) {
         previewContext,
         profile,
         requestType: payload.requestType,
+        operation: payload.assistantOperation || 'translate',
         timeoutMs: attemptTimeoutMs,
         assetContext,
         requestOptions: {
@@ -2852,6 +3039,7 @@ async function createRuntime(options = {}) {
             previewContext,
             profile,
             requestType: payload.requestType,
+            operation: payload.assistantOperation || 'translate',
             timeoutMs: attemptTimeoutMs,
             assetContext,
             tbContext: segment.tbContext || null,
@@ -3242,7 +3430,7 @@ async function createRuntime(options = {}) {
     };
   }
 
-  async function performTranslation(payload) {
+  async function performTranslation(payload, internalOptions = {}) {
     const state = loadState();
     const requestId = payload.requestId || createId('req');
     const traceId = payload.traceId || createId('trace');
@@ -3261,11 +3449,13 @@ async function createRuntime(options = {}) {
 
     const normalizedMetadata = normalizeMemoQMetadata(payload.metadata || {});
 
-    const resolved = resolveProfile(state, {
-      ...normalizedMetadata,
-      sourceLanguage: payload.sourceLanguage,
-      targetLanguage: payload.targetLanguage
-    }, payload.profileResolution?.profileId || '');
+    const resolved = internalOptions.profileOverride
+      ? { profile: internalOptions.profileOverride, matchedRule: null }
+      : resolveProfile(state, {
+        ...normalizedMetadata,
+        sourceLanguage: payload.sourceLanguage,
+        targetLanguage: payload.targetLanguage
+      }, payload.profileResolution?.profileId || '');
     const profile = resolved.profile;
 
     if (!profile) {
@@ -3283,7 +3473,9 @@ async function createRuntime(options = {}) {
     const requestBypassTranslationCache = payload?.bypassTranslationCache === true
       || consumeTranslationCacheBypass(profile.id);
 
-    const routes = await resolveProviderRoute(state, profile);
+    const routes = internalOptions.routeOverride
+      ? [internalOptions.routeOverride]
+      : await resolveProviderRoute(state, profile);
     if (!routes.length) {
       return {
         statusCode: 400,
@@ -3387,6 +3579,12 @@ async function createRuntime(options = {}) {
         payload,
         metadata: normalizedMetadata
       });
+      if (payload.assistantOperation && payload.assistantTargetText) {
+        segment.previewContext = {
+          ...(segment.previewContext || {}),
+          targetText: String(payload.assistantTargetText)
+        };
+      }
     }
 
     if (!requestPreviewContext && !incomingSegments.some((segment) => segment.previewContext)) {
@@ -3485,7 +3683,8 @@ async function createRuntime(options = {}) {
             previewContext: effectiveRequestPreviewContext,
             segmentPreviewContext: segment.previewContext,
             previewCacheContext: requestPreviewDebug,
-            segmentPreviewCacheContext: segment.previewDebugContext
+            segmentPreviewCacheContext: segment.previewDebugContext,
+            operation: payload.assistantOperation || 'translate'
           });
         }
         if (!segment.adaptiveCacheKey) {
@@ -3493,7 +3692,8 @@ async function createRuntime(options = {}) {
             sourceLanguage: payload.sourceLanguage,
             targetLanguage: payload.targetLanguage,
             requestType: payload.requestType,
-            sourceText: segment.sourceText
+            sourceText: segment.sourceText,
+            operation: payload.assistantOperation || 'translate'
           });
         }
       }
@@ -3824,7 +4024,15 @@ async function createRuntime(options = {}) {
           ruleId: resolved.matchedRule?.id || '',
           ruleName: resolved.matchedRule?.ruleName || ''
         },
-        translations
+        translations,
+        ...(internalOptions.includeDiagnostics ? {
+          diagnostics: {
+            latencyMs: totalLatencyMs,
+            requestMode,
+            effectiveExecutionMode,
+            fromCache: attempts.length > 0 && attempts.every((attempt) => ['cache', 'adaptive-cache'].includes(attempt.providerId))
+          }
+        } : {})
       }
     };
   }
@@ -4040,10 +4248,53 @@ async function createRuntime(options = {}) {
       return getIntegrationStatus(paths, buildIntegrationConfig(state));
     },
     getQaStatus() {
-      return qaCoordinator.getStatus();
+      const status = qaCoordinator.getStatus();
+      let currentSnapshot = null;
+      try {
+        const activePreview = buildActivePreviewQaPayload();
+        if (activePreview?.mappingCertain && String(activePreview.segment?.source || '').trim()) {
+          const prepared = prepareQaPayload({
+            ...activePreview,
+            profileId: status.latestResult?.configuration?.profileId || '',
+            contextPolicy: status.latestResult?.contextPolicy || {}
+          });
+          const snapshot = createQaSnapshot({
+            ...prepared,
+            configuration: status.latestResult?.configuration || prepared.configuration
+          });
+          currentSnapshot = {
+            documentId: snapshot.document.id,
+            documentName: snapshot.document.name,
+            previewPartId: snapshot.segment.previewPartId,
+            segmentIndex: snapshot.segment.segmentIndex,
+            source: snapshot.segment.source,
+            target: snapshot.segment.target,
+            languages: snapshot.languages,
+            previewRevision: snapshot.revision.previewRevision,
+            contentHash: snapshot.revision.contentHash
+          };
+        }
+      } catch {
+      }
+      const latestMatchesCurrent = Boolean(
+        currentSnapshot?.contentHash
+        && status.latestResult?.contentHash === currentSnapshot.contentHash
+      );
+      return {
+        ...status,
+        currentSnapshot,
+        latestResultStale: Boolean(status.latestResult && currentSnapshot && !latestMatchesCurrent),
+        latestResult: latestMatchesCurrent ? status.latestResult : null
+      };
     },
     checkQaSegment(payload = {}) {
       return qaCoordinator.checkSegment(prepareQaPayload(payload));
+    },
+    runPreviewAssistant(payload = {}) {
+      return runPreviewAssistant(payload);
+    },
+    cancelPreviewAssistant(payload = {}) {
+      return cancelPreviewAssistant(payload);
     },
     checkQaDocument(payload = {}) {
       const segments = Array.isArray(payload.segments) ? payload.segments : [];
@@ -4531,6 +4782,8 @@ async function createRuntime(options = {}) {
       }
       previewContextClient?.dispose?.();
       if (previewQaTimer) clearInterval(previewQaTimer);
+      cancelPreviewAssistant();
+      assistantRequests.clear();
       qaCoordinator.dispose();
       db.close?.();
       runtimeLogger.info('runtime-disposed', 'Runtime disposed.');

@@ -92,7 +92,8 @@ function createTranslationCacheKey({
   previewContext,
   segmentPreviewContext,
   previewCacheContext,
-  segmentPreviewCacheContext
+  segmentPreviewCacheContext,
+  operation = 'translate'
 }) {
   const normalizedMetadata = normalizeMemoQMetadata(metadata || {});
   const payload = JSON.stringify({
@@ -102,6 +103,7 @@ function createTranslationCacheKey({
     sourceLanguage: String(sourceLanguage || ''),
     targetLanguage: String(targetLanguage || ''),
     requestType: String(requestType || ''),
+    operation: String(operation || 'translate'),
     sourceText: String(sourceText || ''),
     tmSource: String(tmSource || ''),
     tmTarget: String(tmTarget || ''),
@@ -149,13 +151,15 @@ function createAdaptiveTranslationCacheKey({
   sourceLanguage,
   targetLanguage,
   requestType,
-  sourceText
+  sourceText,
+  operation = 'translate'
 }) {
   return crypto.createHash('sha256').update(JSON.stringify({
     kind: 'adaptive',
     sourceLanguage: String(sourceLanguage || ''),
     targetLanguage: String(targetLanguage || ''),
     requestType: String(requestType || ''),
+    operation: String(operation || 'translate'),
     sourceText: String(sourceText || '')
   })).digest('hex');
 }

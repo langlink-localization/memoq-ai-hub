@@ -83,6 +83,9 @@ test('asset context assembler builds glossary, brief, and tb payloads without ch
   assert.equal(context.tb.structureFingerprint, 'tb-structure-fingerprint');
   assert.equal(context.tb.structuringMode, 'explicitly_inferred');
   assert.deepEqual(context.tb.languagePair, { source: 'en', target: 'fr' });
+  assert.equal(context.tb.entries[0].id, 'glossary-1:tb-1');
+  assert.equal(context.tb.entries[0].assetId, 'glossary-1');
+  assert.equal(context.tb.entries[0].assetName, 'glossary.csv');
   assert.deepEqual(context.assetHints, ['glossary:glossary.csv', 'brief:brief.txt']);
 });
 

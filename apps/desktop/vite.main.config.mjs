@@ -56,6 +56,7 @@ export default defineConfig({
         'qa/deterministicRules': path.resolve(__dirname, 'src/qa/deterministicRules.js'),
         'qa/qaContracts': path.resolve(__dirname, 'src/qa/qaContracts.js'),
         'qa/qaCoordinator': path.resolve(__dirname, 'src/qa/qaCoordinator.js'),
+        'qa/qaPrompt': path.resolve(__dirname, 'src/qa/qaPrompt.js'),
         server: path.resolve(__dirname, 'src/server.js'),
         'shared/desktopContract': path.resolve(__dirname, 'src/shared/desktopContract.js'),
         'shared/desktopMetadata': path.resolve(__dirname, 'src/shared/desktopMetadata.js'),
