@@ -454,7 +454,7 @@ function buildStableSystemPrompt({
   pushMarkdownSection(lines, 'Task', [
     `- ${renderedSystemPrompt}`,
     operation === 'polish'
-      ? '- Polish the current target text against the source. Preserve its meaning, improve fluency and correctness, and do not translate from scratch unless correction requires it.'
+      ? '- Polish the current target text against the source. Actively correct unnatural literal wording, fluency, grammar, terminology, and target-locale conventions. Return the best revised target; do not echo it unchanged when any linguistic or stylistic improvement is possible.'
       : '- Translate the source text faithfully.'
   ]);
   pushMarkdownSection(lines, 'Output', [

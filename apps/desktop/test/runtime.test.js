@@ -6218,6 +6218,7 @@ test('Preview Assistant translates and polishes the active immutable segment thr
     assert.equal(translated.text, '注文を確認してください。');
     assert.equal(polished.text, '注文をご確認ください。');
     assert.deepEqual(calls.map((call) => call.operation), ['translate', 'polish']);
+    assert.deepEqual(calls.map((call) => call.requestOptions.localPromptCacheEnabled), [false, false]);
     assert.equal(calls[0].profile.usePreviewTargetText, false);
     assert.equal(String(calls[0].segmentPreviewContext?.targetText || ''), '');
     assert.equal(calls[1].segmentPreviewContext.targetText, '注文を確認してください。');

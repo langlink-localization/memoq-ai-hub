@@ -611,6 +611,7 @@ async function createRuntime(options = {}) {
       }, {
         profileOverride: operationProfile,
         routeOverride: route,
+        assistantOperation: operation,
         includeDiagnostics: true
       });
       if (requestState.cancelled) {
@@ -2971,7 +2972,7 @@ async function createRuntime(options = {}) {
         timeoutMs: attemptTimeoutMs,
         assetContext,
         requestOptions: {
-          localPromptCacheEnabled: true,
+          localPromptCacheEnabled: !payload.assistantOperation,
           readPromptCache: (key) => persistence.readPromptResponseCache(key),
           writePromptCache: (key, text) => persistence.writePromptResponseCache(key, text, nowIso()),
           providerPromptCacheEnabled: route.model.promptCacheEnabled === true,
@@ -3066,7 +3067,7 @@ async function createRuntime(options = {}) {
             segmentPreviewContext: segment.previewContext || null,
             neighborContext: segment.neighborContext || null,
             requestOptions: {
-              localPromptCacheEnabled: true,
+              localPromptCacheEnabled: !payload.assistantOperation,
               readPromptCache: (key) => persistence.readPromptResponseCache(key),
               writePromptCache: (key, text) => persistence.writePromptResponseCache(key, text, nowIso()),
               providerPromptCacheEnabled: route.model.promptCacheEnabled === true,
@@ -3450,6 +3451,14 @@ async function createRuntime(options = {}) {
   }
 
   async function performTranslation(payload, internalOptions = {}) {
+    const internalAssistantOperation = internalOptions.assistantOperation === 'polish'
+      ? 'polish'
+      : internalOptions.assistantOperation === 'translate'
+        ? 'translate'
+        : '';
+    if (internalAssistantOperation) {
+      payload = { ...payload, assistantOperation: internalAssistantOperation, bypassTranslationCache: true };
+    }
     const state = loadState();
     const requestId = payload.requestId || createId('req');
     const traceId = payload.traceId || createId('trace');
