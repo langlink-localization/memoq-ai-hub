@@ -35,14 +35,39 @@ function applyConfidenceThreshold(finding) {
   return { ...finding, severity, confidence, origin: 'ai' };
 }
 
+function isInvalidQaOutputError(error) {
+  if (error instanceof SyntaxError) return true;
+  if (String(error?.code || '') === 'QA_INVALID_AI_OUTPUT') return true;
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('ai qa response')
+    || message.includes('ai qa finding')
+    || message.includes('not valid json')
+    || message.includes('unexpected token')
+    || message.includes('invalid category')
+    || message.includes('invalid severity');
+}
+
+function attachFailureDiagnostics(error, diagnostics = {}) {
+  const failure = error instanceof Error ? error : new Error(String(error || 'AI QA request failed.'));
+  failure.repairAttempted = diagnostics.repairAttempted === true;
+  failure.durationMs = Number.isFinite(Number(failure.durationMs))
+    ? Number(failure.durationMs)
+    : Math.max(0, Date.now() - Number(diagnostics.startedAt || Date.now()));
+  return failure;
+}
+
 async function runAiQualityCheck({ invoke, snapshot, context = {} } = {}) {
   if (typeof invoke !== 'function') return { findings: [], latencyMs: 0, status: 'disabled', repairAttempted: false };
+  const startedAt = Date.now();
   let repairAttempted = false;
   let response;
   try {
     response = await invoke({ snapshot, ...context, repairInstruction: '' });
     validatePayload(parseOutput(response.output));
   } catch (firstError) {
+    if (!isInvalidQaOutputError(firstError)) {
+      throw attachFailureDiagnostics(firstError, { repairAttempted: false, startedAt });
+    }
     repairAttempted = true;
     try {
       response = await invoke({
@@ -52,10 +77,16 @@ async function runAiQualityCheck({ invoke, snapshot, context = {} } = {}) {
       });
       validatePayload(parseOutput(response.output));
     } catch (secondError) {
+      if (!isInvalidQaOutputError(secondError)) {
+        throw attachFailureDiagnostics(secondError, { repairAttempted: true, startedAt });
+      }
       const error = new Error(`AI QA output failed schema validation after one repair attempt: ${secondError.message}`);
       error.code = 'QA_INVALID_AI_OUTPUT';
       error.cause = firstError;
-      throw error;
+      error.providerId = String(secondError?.providerId || firstError?.providerId || '');
+      error.providerName = String(secondError?.providerName || firstError?.providerName || '');
+      error.model = String(secondError?.model || firstError?.model || '');
+      throw attachFailureDiagnostics(error, { repairAttempted: true, startedAt });
     }
   }
   const payload = validatePayload(parseOutput(response.output));
@@ -71,8 +102,9 @@ async function runAiQualityCheck({ invoke, snapshot, context = {} } = {}) {
     displayedCount: visibleFindings.length,
     filteredCount: payload.findings.length - visibleFindings.length,
     providerId: String(response.providerId || ''),
+    providerName: String(response.providerName || ''),
     model: String(response.model || '')
   };
 }
 
-module.exports = { applyConfidenceThreshold, parseOutput, runAiQualityCheck, validatePayload };
+module.exports = { applyConfidenceThreshold, isInvalidQaOutputError, parseOutput, runAiQualityCheck, validatePayload };

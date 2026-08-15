@@ -336,20 +336,29 @@ async function createRuntime(options = {}) {
         error.code = ERROR_CODES.qaProviderUnavailable;
         throw error;
       }
-      return providerRegistry.checkQuality({
-        provider,
-        apiKey,
-        modelName: selectedModel.modelName,
-        snapshot,
-        terminology,
-        tmMatches,
-        naturalLanguageRules,
-        promptTemplate,
-        additionalInstruction,
-        repairInstruction,
-        signal,
-        timeoutMs: 30000
-      });
+      try {
+        return await providerRegistry.checkQuality({
+          provider,
+          apiKey,
+          modelName: selectedModel.modelName,
+          snapshot,
+          terminology,
+          tmMatches,
+          naturalLanguageRules,
+          promptTemplate,
+          additionalInstruction,
+          repairInstruction,
+          signal,
+          timeoutMs: 30000
+        });
+      } catch (error) {
+        if (error && typeof error === 'object') {
+          error.providerId = String(provider.id || '');
+          error.providerName = String(provider.name || '');
+          error.model = String(selectedModel.modelName || '');
+        }
+        throw error;
+      }
     }
   });
   const assistantRequests = new Map();
@@ -459,6 +468,10 @@ async function createRuntime(options = {}) {
     const additionalInstruction = String(effectivePayload.prompt?.additionalInstruction || '').slice(0, 4000);
     const qaPromptTemplate = profile?.promptTemplates?.qa || {};
     const promptVersion = crypto.createHash('sha256').update(JSON.stringify({ qaPromptTemplate, additionalInstruction })).digest('hex');
+    const requestedAiProviderId = String(effectivePayload.ai?.providerId || '').trim();
+    const requestedAiModel = String(effectivePayload.ai?.model || '').trim();
+    const aiProvider = state.providers.find((item) => item.id === requestedAiProviderId) || null;
+    const aiModel = (aiProvider?.models || []).find((item) => item.id === requestedAiModel || item.modelName === requestedAiModel) || null;
     return {
       ...effectivePayload,
       profileId: profile?.id || profileId,
@@ -482,6 +495,8 @@ async function createRuntime(options = {}) {
       ai: {
         ...(effectivePayload.ai || {}),
         enabled: effectivePayload.ai?.enabled === true,
+        providerName: String(aiProvider?.name || ''),
+        model: String(aiModel?.modelName || requestedAiModel),
         terminology: tbContext.termHits,
         tmMatches: customTm.matches,
         naturalLanguageRules,
@@ -566,6 +581,9 @@ async function createRuntime(options = {}) {
     }
     const requestId = String(payload.requestId || crypto.randomUUID());
     const { profile, route } = resolveAssistantProfileAndRoute(payload);
+    const operationProfile = operation === 'translate'
+      ? { ...profile, usePreviewTargetText: false }
+      : profile;
     const snapshotPayload = prepareQaPayload({
       ...activePayload,
       profileId: profile.id,
@@ -589,9 +607,9 @@ async function createRuntime(options = {}) {
         },
         segments: [{ index: snapshot.segment.segmentIndex, text: snapshot.segment.source, plainText: snapshot.segment.source }],
         assistantOperation: operation,
-        assistantTargetText: snapshot.segment.target
+        assistantTargetText: operation === 'polish' ? snapshot.segment.target : ''
       }, {
-        profileOverride: profile,
+        profileOverride: operationProfile,
         routeOverride: route,
         includeDiagnostics: true
       });
@@ -619,6 +637,7 @@ async function createRuntime(options = {}) {
         revision: snapshot.revision,
         text: String(response.body.translations?.[0]?.text || ''),
         providerId: String(response.body.providerId || route.provider.id || ''),
+        providerName: String(route.provider.name || ''),
         model: String(response.body.model || route.model.modelName || ''),
         latencyMs: Number(response.body.diagnostics?.latencyMs || 0),
         fromCache: response.body.diagnostics?.fromCache === true,

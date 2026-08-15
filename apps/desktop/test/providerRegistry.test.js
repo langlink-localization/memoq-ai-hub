@@ -337,6 +337,36 @@ test('provider registry renders prompt placeholders for single-segment translati
   assert.match(calls.responses[0].request.input, /"sharedInstructions": \{\s+"profileInstructions": "Source=Hello TM=Bonjour Current=Salut Summary=A greeting section\."/);
 });
 
+test('provider registry removes current target text when target preview context is disabled', async () => {
+  const { MockOpenAI, calls } = createMockOpenAI({
+    responsesCreate: async () => ({
+      output_parsed: { translations: [{ index: 0, text: 'Bonjour' }] },
+      output_text: '{"translations":[{"index":0,"text":"Bonjour"}]}'
+    })
+  });
+
+  await withMockedModules({ openai: MockOpenAI }, async () => {
+    const { createProviderRegistry: loadRegistry } = require(providerRegistryModulePath);
+    const registry = loadRegistry();
+    await registry.translateSegment({
+      provider: { type: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', models: [] },
+      apiKey: 'test',
+      modelName: 'gpt-4.1-mini',
+      sourceLanguage: 'EN',
+      targetLanguage: 'FR',
+      sourceText: 'Hello',
+      metadata: {},
+      segmentPreviewContext: { targetText: 'Do not copy this target' },
+      profile: { usePreviewContext: true, usePreviewTargetText: false },
+      requestType: 'Plaintext'
+    });
+  });
+
+  const promptPayload = JSON.parse(calls.responses[0].request.input);
+  assert.equal(promptPayload.segments[0].previewContext.targetText, '');
+  assert.doesNotMatch(calls.responses[0].request.input, /Do not copy this target/);
+});
+
 test('provider registry keeps QA schema and no-score protections outside editable profile instructions', async () => {
   const { MockOpenAI, calls } = createMockOpenAI({
     responsesCreate: async () => ({ output_parsed: { findings: [] }, output_text: '{"findings":[]}' })

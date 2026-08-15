@@ -110,7 +110,7 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
     const nextModel = (nextProvider?.models || []).find((item) => item.id === profile?.interactiveModelId)
       || (nextProvider?.models || []).find((item) => item.enabled !== false)
       || nextProvider?.models?.[0];
-    setModel(nextModel?.id || nextModel?.modelName || '');
+    setModel(nextModel?.modelName || nextModel?.id || '');
   }, [providerId, profile?.interactiveModelId, providers]);
 
   function assetOverride() {
@@ -189,6 +189,8 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
   if (loading) return <Skeleton active paragraph={{ rows: 10 }} />;
 
   const findings = qaResult?.findings || [];
+  const aiStatus = qaResult?.execution?.ai?.status || '';
+  const aiUnavailable = ['failed', 'circuit-open', 'cancelled'].includes(aiStatus);
   return (
     <Space direction="vertical" size="middle" className="assistant-window">
       <Title level={4}>{t('assistant.title')}</Title>
@@ -201,7 +203,7 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
       <Space wrap className="assistant-route-controls">
         <Select value={profileId} onChange={setProfileId} placeholder={t('quality.profile')} options={profiles.map((item) => ({ value: item.id, label: item.name }))} />
         <Select value={providerId} onChange={setProviderId} placeholder={t('common.provider')} options={providers.map((item) => ({ value: item.id, label: item.name }))} />
-        <Select value={model} onChange={setModel} placeholder={t('quality.model')} options={(provider?.models || []).filter((item) => item.enabled !== false).map((item) => ({ value: item.id || item.modelName, label: item.modelName }))} />
+        <Select value={model} onChange={setModel} placeholder={t('quality.model')} options={(provider?.models || []).filter((item) => item.enabled !== false).map((item) => ({ value: item.modelName || item.id, label: item.modelName }))} />
       </Space>
       <Select
         mode="multiple"
@@ -227,7 +229,7 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
           {assistantResult ? (
             <Card size="small" title={t('assistant.generatedResult')} extra={<Button type="text" icon={<CopyOutlined />} aria-label={t('assistant.copy')} onClick={() => copy(assistantResult.text)} />}>
               <Paragraph copyable={false}>{assistantResult.text}</Paragraph>
-              <Space wrap><Tag>{assistantResult.providerId} / {assistantResult.model}</Tag><Tag>{assistantResult.durationMs ?? assistantResult.latencyMs ?? 0} ms</Tag><Tag>{t('assistant.termMatches', { count: assistantResult.terminology?.matchCount || 0 })}</Tag></Space>
+              <Space wrap><Tag>{assistantResult.providerName || assistantResult.providerId} / {assistantResult.model}</Tag><Tag>{assistantResult.durationMs ?? assistantResult.latencyMs ?? 0} ms</Tag><Tag>{t(assistantResult.fromCache ? 'assistant.cacheHit' : 'assistant.providerGenerated')}</Tag><Tag>{t('assistant.termMatches', { count: assistantResult.terminology?.matchCount || 0 })}</Tag></Space>
             </Card>
           ) : null}
         </>
@@ -239,7 +241,8 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
             {busy ? <Button className="assistant-action-button" danger icon={<StopOutlined />} onClick={cancel}>{t('common.cancel')}</Button> : null}
           </Space>
           {qaResult ? <QualityExecutionSummary compact execution={qaResult.execution} /> : null}
-          {qaResult && findings.length === 0 ? <Alert type="success" showIcon message={t('quality.checkCompleteNoFindings')} /> : null}
+          {qaResult && aiUnavailable ? <Alert type="warning" showIcon message={t('quality.aiFailedTitle')} description={t('quality.aiFailedDescription')} action={<Button size="small" onClick={runQa}>{t('common.retry')}</Button>} /> : null}
+          {qaResult && findings.length === 0 && !aiUnavailable ? <Alert type="success" showIcon message={t('quality.checkCompleteNoFindings')} /> : null}
           {findings.length ? <Table size="small" rowKey="id" pagination={false} dataSource={findings} columns={[
             { title: t('quality.severity'), dataIndex: 'severity', width: 100, render: (value) => <Tag>{value}</Tag> },
             { title: t('quality.issue'), dataIndex: 'title', render: (value, finding) => <Space direction="vertical" size={0}><Text>{value}</Text><Text type="secondary">{finding.message}</Text></Space> },

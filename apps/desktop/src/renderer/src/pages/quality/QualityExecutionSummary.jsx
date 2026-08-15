@@ -13,7 +13,7 @@ export default function QualityExecutionSummary({ execution, compact = false }) 
   if (!execution) return null;
   const deterministic = execution.deterministic || {};
   const ai = execution.ai || {};
-  const aiRoute = [ai.providerId, ai.model].filter(Boolean).join(' / ') || '-';
+  const aiRoute = [ai.providerName || ai.providerId, ai.model].filter(Boolean).join(' / ') || '-';
 
   return (
     <Descriptions
@@ -38,7 +38,8 @@ export default function QualityExecutionSummary({ execution, compact = false }) 
         { key: 'aiDuration', label: t('quality.duration'), children: ai.executed || ai.cacheHit ? `${ai.durationMs ?? 0} ms` : '-' },
         { key: 'candidate', label: t('quality.candidateFindings'), children: ai.candidateCount ?? 0 },
         { key: 'displayed', label: t('quality.displayedFindings'), children: ai.displayedCount ?? 0 },
-        { key: 'filtered', label: t('quality.filteredFindings'), children: ai.filteredCount ?? 0 }
+        { key: 'filtered', label: t('quality.filteredFindings'), children: ai.filteredCount ?? 0 },
+        ...(ai.errorCode ? [{ key: 'aiError', label: t('quality.aiError'), children: <Tag color="error">{ai.errorCode}</Tag> }] : [])
       ]}
     />
   );

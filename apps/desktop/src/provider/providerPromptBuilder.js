@@ -410,7 +410,7 @@ function buildSegmentPayload({
       ? null
       : normalizeSegmentMetadataItem(segment.segmentMetadata || {}, Number(segment.index)),
     previewContext: profile?.usePreviewContext === false ? null : {
-      targetText: String(segment?.previewContext?.targetText || ''),
+      targetText: profile?.usePreviewTargetText === false ? '' : String(segment?.previewContext?.targetText || ''),
       previewPartId: String(segment?.previewContext?.previewPartId || '')
     },
     profileInstructions: String(profileInstructions || '')

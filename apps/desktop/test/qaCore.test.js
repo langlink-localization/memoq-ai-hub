@@ -50,6 +50,39 @@ test('AI schema is repaired once and deterministic evidence wins duplicate merge
   assert.equal(mergeFindings([deterministic], [{ ...duplicate, id: 'ai', origin: 'ai' }])[0].id, 'det');
 });
 
+test('AI finding validation failures receive the single repair attempt', async () => {
+  let calls = 0;
+  const result = await runAiQualityCheck({
+    snapshot: snapshot(),
+    invoke: async () => ({
+      output: JSON.stringify({
+        findings: ++calls === 1
+          ? [{ category: 'accuracy', severity: 'minor', title: 'Issue', message: 'Message' }]
+          : []
+      })
+    })
+  });
+  assert.equal(result.repairAttempted, true);
+  assert.equal(calls, 2);
+});
+
+test('AI provider failures are not mislabeled or retried as invalid output', async () => {
+  let calls = 0;
+  const providerError = new Error('provider unavailable');
+  providerError.code = 'PROVIDER_REQUEST_FAILED';
+  await assert.rejects(
+    () => runAiQualityCheck({
+      snapshot: snapshot(),
+      invoke: async () => {
+        calls += 1;
+        throw providerError;
+      }
+    }),
+    (error) => error.code === 'PROVIDER_REQUEST_FAILED'
+  );
+  assert.equal(calls, 1);
+});
+
 test('coordinator cancels an active AI request and discards stale response', async () => {
   let release;
   const pending = new Promise((resolve) => { release = resolve; });
@@ -70,6 +103,28 @@ test('coordinator opens a bounded circuit after repeated AI failures', async () 
   const status = coordinator.getStatus();
   assert.equal(status.consecutiveAiFailures, 3);
   assert.notEqual(status.circuitOpenUntil, '');
+});
+
+test('coordinator preserves resolved route, repair state, and elapsed time for invalid AI output', async () => {
+  const coordinator = createQaCoordinator({
+    invokeAi: async () => {
+      const error = new SyntaxError('response is not valid JSON');
+      error.providerId = 'provider-resolved';
+      error.model = 'model-resolved';
+      throw error;
+    }
+  });
+  const result = await coordinator.checkSegment({
+    ...snapshot(),
+    ai: { enabled: true, providerId: 'provider-requested', model: 'draft_model_internal' }
+  });
+  assert.equal(result.status, 'local-only');
+  assert.equal(result.execution.ai.status, 'failed');
+  assert.equal(result.execution.ai.errorCode, 'QA_INVALID_AI_OUTPUT');
+  assert.equal(result.execution.ai.providerId, 'provider-resolved');
+  assert.equal(result.execution.ai.model, 'model-resolved');
+  assert.equal(result.execution.ai.repairAttempted, true);
+  assert.ok(result.execution.ai.durationMs >= 0);
 });
 
 test('coordinator reports deterministic-only completion separately from AI execution', async () => {

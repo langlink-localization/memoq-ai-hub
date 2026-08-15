@@ -74,7 +74,7 @@ const zhCN = {
     sourceEvidence: '原文证据', targetEvidence: '译文证据', suggestion: '建议', origin: '来源',
     executionSummary: '执行摘要', deterministicChecks: '确定性检查', deterministicFindings: '确定性问题数', aiChecks: 'AI 检查',
     providerModel: 'AI 服务 / 模型', duration: '耗时', candidateFindings: 'AI 候选问题', displayedFindings: '已展示', filteredFindings: '阈值过滤',
-    checkCompleteNoFindings: '检查完成，未发现可报告问题。', aiFailedDescription: '确定性检查已完成，但 AI 检查失败或已降级。可重试再次运行 AI。',
+    checkCompleteNoFindings: '检查完成，未发现可报告问题。', aiFailedTitle: 'AI 检查失败，无法得出 AI 检查结论。', aiFailedDescription: '确定性检查已完成，但 AI 检查失败或已降级。可重试再次运行 AI。', aiError: 'AI 错误',
     aiNotRequestedDescription: '本次未请求 AI，仅包含确定性检查结果。',
     qaPromptTemplates: 'QA 提示词模板', qaSystemPrompt: 'QA 系统提示词', qaUserPrompt: 'QA 用户提示词', restoreDefault: '恢复默认',
     qaPromptRestored: '已恢复默认 QA 提示词。', qaPromptGuardrails: '模板可调整检查要求；响应 Schema、证据规则、阈值和“不输出总分”规则始终固定。',
@@ -83,7 +83,7 @@ const zhCN = {
   assistant: {
     title: 'memoQ 助手', translatePolish: '翻译 / 润色', qa: 'QA 检查', translate: '翻译', polish: '润色',
     terminologyAssets: '本次请求使用的术语资源', additionalInstruction: '本次 QA 的附加检查指令（不会修改方案）',
-    generatedResult: '生成结果', copy: '复制结果', copied: '已复制。', termMatches: '命中 {{count}} 条术语',
+    generatedResult: '生成结果', copy: '复制结果', copied: '已复制。', cacheHit: '缓存结果', providerGenerated: '模型生成', termMatches: '命中 {{count}} 条术语',
     runQaHint: '运行 QA 检查后可查看问题和执行详情。', previewChanged: 'Preview 活动句段已变化，旧请求已取消或丢弃；请重新运行。',
     loadFailed: '无法加载助手状态。', runFailed: '助手请求失败。'
   },

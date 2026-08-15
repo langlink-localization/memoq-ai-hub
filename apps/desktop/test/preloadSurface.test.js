@@ -33,6 +33,7 @@ test('quality UI preserves native switch sizing and renders the two-mode assista
   assert.match(assistant, /value: 'translate'/);
   assert.match(assistant, /value: 'qa'/);
   assert.match(assistant, /runAssistant\('polish'\)/);
+  assert.doesNotMatch(assistant, /qaResult && findings\.length === 0 \? <Alert type="success"/);
 });
 
 test('main process registers log diagnostics IPC handlers', () => {

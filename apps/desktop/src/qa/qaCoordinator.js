@@ -90,6 +90,7 @@ function createQaCoordinator(options = {}) {
           status: payload.ai?.enabled === true ? 'pending' : 'disabled',
           cacheHit: false,
           providerId: String(payload.ai?.providerId || ''),
+          providerName: String(payload.ai?.providerName || ''),
           model: String(payload.ai?.model || ''),
           durationMs: 0,
           candidateCount: 0,
@@ -160,6 +161,7 @@ function createQaCoordinator(options = {}) {
             status: payload.ai?.enabled === true ? 'complete' : 'disabled',
             cacheHit: result.diagnostics.cacheHit === true,
             providerId: String(aiResult.providerId || payload.ai?.providerId || ''),
+            providerName: String(aiResult.providerName || payload.ai?.providerName || ''),
             model: String(aiResult.model || payload.ai?.model || ''),
             durationMs: Number(aiResult.latencyMs || 0),
             candidateCount: Number(aiResult.candidateCount || 0),
@@ -192,6 +194,9 @@ function createQaCoordinator(options = {}) {
         }
       }
       lastError = String(error?.message || error);
+      const errorCode = String(error?.code || 'QA_PROVIDER_UNAVAILABLE');
+      const circuitOpen = errorCode === 'QA_CIRCUIT_OPEN';
+      const cancelled = error?.name === 'AbortError';
       result = {
         ...result,
         status: 'local-only',
@@ -199,12 +204,17 @@ function createQaCoordinator(options = {}) {
           deterministic: result.execution.deterministic,
           ai: {
             ...result.execution.ai,
-            executed: payload.ai?.enabled === true,
-            status: error?.name === 'AbortError' ? 'cancelled' : 'failed',
-            errorCode: String(error?.code || 'QA_PROVIDER_UNAVAILABLE')
+            executed: payload.ai?.enabled === true && !circuitOpen,
+            status: cancelled ? 'cancelled' : circuitOpen ? 'circuit-open' : 'failed',
+            providerId: String(error?.providerId || payload.ai?.providerId || ''),
+            providerName: String(error?.providerName || payload.ai?.providerName || ''),
+            model: String(error?.model || payload.ai?.model || ''),
+            durationMs: circuitOpen ? 0 : Math.max(0, Number(error?.durationMs ?? (Date.now() - startedAt)) || 0),
+            repairAttempted: error?.repairAttempted === true,
+            errorCode
           }
         },
-        diagnostics: { ...result.diagnostics, aiErrorCode: String(error?.code || 'QA_PROVIDER_UNAVAILABLE'), totalMs: Date.now() - startedAt }
+        diagnostics: { ...result.diagnostics, aiErrorCode: errorCode, totalMs: Date.now() - startedAt }
       };
       persistence?.saveQaResult?.(result);
       latestResult = result;

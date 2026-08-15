@@ -74,7 +74,7 @@ const en = {
     sourceEvidence: 'Source evidence', targetEvidence: 'Target evidence', suggestion: 'Suggestion', origin: 'Origin',
     executionSummary: 'Execution summary', deterministicChecks: 'Deterministic checks', deterministicFindings: 'Deterministic findings', aiChecks: 'AI checks',
     providerModel: 'AI service / model', duration: 'Duration', candidateFindings: 'AI candidates', displayedFindings: 'Displayed', filteredFindings: 'Filtered by threshold',
-    checkCompleteNoFindings: 'Check complete. No reportable issues were found.', aiFailedDescription: 'Deterministic checks completed, but the AI check failed or degraded. Retry to run AI again.',
+    checkCompleteNoFindings: 'Check complete. No reportable issues were found.', aiFailedTitle: 'AI check failed; no AI conclusion is available.', aiFailedDescription: 'Deterministic checks completed, but the AI check failed or degraded. Retry to run AI again.', aiError: 'AI error',
     aiNotRequestedDescription: 'AI was not requested. This result contains deterministic checks only.',
     qaPromptTemplates: 'QA prompt templates', qaSystemPrompt: 'QA system prompt', qaUserPrompt: 'QA user prompt', restoreDefault: 'Restore default',
     qaPromptRestored: 'The default QA prompt was restored.', qaPromptGuardrails: 'Your template controls review guidance. The response schema, evidence rules, thresholds, and no-score policy remain fixed.',
@@ -83,7 +83,7 @@ const en = {
   assistant: {
     title: 'memoQ Assistant', translatePolish: 'Translate / Polish', qa: 'QA Check', translate: 'Translate', polish: 'Polish',
     terminologyAssets: 'Terminology assets for this request', additionalInstruction: 'Additional QA instruction for this request (does not change the profile)',
-    generatedResult: 'Generated result', copy: 'Copy result', copied: 'Copied.', termMatches: '{{count}} terminology match(es)',
+    generatedResult: 'Generated result', copy: 'Copy result', copied: 'Copied.', cacheHit: 'Cache result', providerGenerated: 'Provider result', termMatches: '{{count}} terminology match(es)',
     runQaHint: 'Run a QA check to see findings and execution details.', previewChanged: 'The active Preview segment changed. The previous request was cancelled or discarded; run it again.',
     loadFailed: 'Could not load the assistant state.', runFailed: 'The assistant request failed.'
   },

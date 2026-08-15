@@ -124,7 +124,7 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
     const nextModel = (nextProvider?.models || []).find((item) => item.id === profile?.interactiveModelId)
       || (nextProvider?.models || []).find((item) => item.enabled !== false)
       || nextProvider?.models?.[0];
-    setSelectedModel(nextModel?.id || nextModel?.modelName || '');
+    setSelectedModel(nextModel?.modelName || nextModel?.id || '');
   }, [selectedProviderId, profile?.interactiveModelId, providers]);
 
   async function refreshStatus(silent = false) {
@@ -319,7 +319,7 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
             <Space wrap>
               <Select value={selectedProfileId} onChange={setSelectedProfileId} placeholder={t('quality.profile')} options={profiles.map((item) => ({ value: item.id, label: item.name }))} className="quality-select" />
               <Select value={selectedProviderId} onChange={setSelectedProviderId} placeholder={t('common.provider')} options={providers.map((item) => ({ value: item.id, label: item.name }))} className="quality-select" />
-              <Select value={selectedModel} onChange={setSelectedModel} placeholder={t('quality.model')} options={(provider?.models || []).filter((item) => item.enabled !== false).map((item) => ({ value: item.id || item.modelName, label: item.modelName }))} className="quality-select" />
+              <Select value={selectedModel} onChange={setSelectedModel} placeholder={t('quality.model')} options={(provider?.models || []).filter((item) => item.enabled !== false).map((item) => ({ value: item.modelName || item.id, label: item.modelName }))} className="quality-select" />
             </Space>
             <Space wrap>
               <label className="quality-switch-row"><Switch loading={savingField === 'qaRealtimeAiEnabled'} disabled={Boolean(savingField)} checked={aiEnabled} onChange={(value) => saveToggle('qaRealtimeAiEnabled', value, setAiEnabled, aiEnabled)} /><Text>{t('quality.realtimeAi')}</Text></label>
@@ -348,14 +348,14 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
             <Text type="secondary">{latestResult.segment?.target || '-'}</Text>
           </Card>
           <QualityExecutionSummary compact={compact} execution={latestResult.execution} />
-          {latestResult.execution?.ai?.status === 'failed' && findings.length > 0 ? <Alert type="warning" showIcon message={t('quality.aiFailedDescription')} action={<Button size="small" onClick={runCurrentCheck}>{t('common.retry')}</Button>} /> : null}
+          {['failed', 'circuit-open', 'cancelled'].includes(latestResult.execution?.ai?.status) && findings.length > 0 ? <Alert type="warning" showIcon message={t('quality.aiFailedTitle')} description={t('quality.aiFailedDescription')} action={<Button size="small" onClick={runCurrentCheck}>{t('common.retry')}</Button>} /> : null}
           {findings.length === 0 ? (
             <Alert
-              type={latestResult.execution?.ai?.status === 'failed' ? 'warning' : 'success'}
+              type={['failed', 'circuit-open', 'cancelled'].includes(latestResult.execution?.ai?.status) ? 'warning' : 'success'}
               showIcon
-              message={t('quality.checkCompleteNoFindings')}
-              description={latestResult.execution?.ai?.status === 'failed' ? t('quality.aiFailedDescription') : latestResult.execution?.ai?.status === 'disabled' ? t('quality.aiNotRequestedDescription') : undefined}
-              action={latestResult.execution?.ai?.status === 'failed' ? <Button size="small" onClick={runCurrentCheck}>{t('common.retry')}</Button> : null}
+              message={['failed', 'circuit-open', 'cancelled'].includes(latestResult.execution?.ai?.status) ? t('quality.aiFailedTitle') : t('quality.checkCompleteNoFindings')}
+              description={['failed', 'circuit-open', 'cancelled'].includes(latestResult.execution?.ai?.status) ? t('quality.aiFailedDescription') : latestResult.execution?.ai?.status === 'disabled' ? t('quality.aiNotRequestedDescription') : undefined}
+              action={['failed', 'circuit-open', 'cancelled'].includes(latestResult.execution?.ai?.status) ? <Button size="small" onClick={runCurrentCheck}>{t('common.retry')}</Button> : null}
             />
           ) : <Table rowKey="id" size="small" columns={compact ? columns.slice(0, 2) : columns} dataSource={compact ? findings.slice(0, 3) : findings} pagination={compact ? false : { pageSize: 25 }} scroll={compact ? undefined : { x: 760 }} />}
         </>

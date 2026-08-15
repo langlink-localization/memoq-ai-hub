@@ -6190,6 +6190,7 @@ test('Preview Assistant translates and polishes the active immutable segment thr
       },
       providerRegistry: {
         testConnection: async () => ({ ok: true, latencyMs: 1, message: 'ok' }),
+        checkQuality: async () => ({ output: JSON.stringify({ findings: [] }), latencyMs: 2 }),
         translateSegment: async (payload) => {
           calls.push(payload);
           return { text: payload.operation === 'polish' ? '注文をご確認ください。' : '注文を確認してください。', latencyMs: 12 };
@@ -6206,6 +6207,10 @@ test('Preview Assistant translates and polishes the active immutable segment thr
     assert.equal(qaStatus.currentSnapshot.contentHash, qaResult.contentHash);
     assert.equal(qaStatus.latestResult.contentHash, qaResult.contentHash);
 
+    const aiQaResult = await runtime.checkQaSegment({ profileId: profile.id, ai: { enabled: true, providerId: provider.id, model: provider.models[0].id } });
+    assert.equal(aiQaResult.execution.ai.model, 'assistant-model');
+    assert.equal(aiQaResult.execution.ai.providerName, 'Assistant Provider');
+
     const translated = await runtime.runPreviewAssistant({ operation: 'translate', requestId: 'assistant-translate', profileId: profile.id });
     const polished = await runtime.runPreviewAssistant({ operation: 'polish', requestId: 'assistant-polish', profileId: profile.id });
 
@@ -6213,6 +6218,8 @@ test('Preview Assistant translates and polishes the active immutable segment thr
     assert.equal(translated.text, '注文を確認してください。');
     assert.equal(polished.text, '注文をご確認ください。');
     assert.deepEqual(calls.map((call) => call.operation), ['translate', 'polish']);
+    assert.equal(calls[0].profile.usePreviewTargetText, false);
+    assert.equal(String(calls[0].segmentPreviewContext?.targetText || ''), '');
     assert.equal(calls[1].segmentPreviewContext.targetText, '注文を確認してください。');
     assert.equal(polished.providerId, provider.id);
     assert.equal(polished.revision.previewRevision, 7);

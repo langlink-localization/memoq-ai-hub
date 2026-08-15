@@ -744,6 +744,7 @@ function createProviderRegistry(options = {}) {
       latencyMs: result.latencyMs,
       providerMetadata: result.providerMetadata || null,
       providerId: String(provider.id || ''),
+      providerName: String(provider.name || ''),
       model: String(modelName || '')
     };
   }
