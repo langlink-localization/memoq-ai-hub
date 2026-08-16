@@ -2,6 +2,7 @@ const zhCN = {
   app: {
     title: 'memoQ AI Hub',
     refresh: '刷新',
+    openAssistant: '打开悬浮助手',
     loading: '加载中...',
     startupErrorTitle: 'memoQ AI Hub 无法启动',
     renderErrorTitle: 'memoQ AI Hub 无法显示',
@@ -15,7 +16,6 @@ const zhCN = {
   nav: {
     dashboard: '概览',
     configure: '配置',
-    activity: '运行记录',
     support: '支持',
     dashboardDescription: '完成首次配置、检查应用健康状态并处理需要关注的问题。',
     providersDescription: '连接 AI 服务、测试凭据并管理可用模型。',
@@ -49,6 +49,16 @@ const zhCN = {
     providerMustTestBeforeSave: '请先成功测试此 AI 服务再保存，或丢弃更改。'
   },
   quality: {
+    tabs: { check: '检查', history: '检查历史' },
+    history: {
+      loadFailed: '无法加载质量检查历史。', detailLoadFailed: '无法加载这条质量检查结果。', detailNotFound: '这条质量检查结果已不存在。',
+      allDocuments: '全部文档', allSources: '全部来源', showAutomatic: '显示自动 Preview 检查', deleteSelected: '删除所选',
+      checkCount: '检查次数', findingCount: '问题总数', aiParticipation: 'AI 参与率', checkedAt: '检查时间', document: '文档', source: '来源', segment: '句段摘要', findings: '问题分布', status: '状态',
+      empty: '没有符合当前筛选条件的质量检查历史。', detailTitle: '质量检查详情', feedback: '反馈状态',
+      deleteTitle: '删除质量检查历史？', deleteDescription: '将删除所选的 {{count}} 条结果及其反馈。', deleteSuccess: '已删除 {{count}} 条质量检查结果。',
+      exportSuccess: '质量检查历史已导出到 {{path}}。', exportFailed: '无法导出质量检查历史。',
+      trigger: { manual: '手动检查', batch: '文档检查', import: '双语文件导入', 'preview-target-changed': '自动 Preview' }
+    },
     statusFailed: '无法加载质量检查状态。',
     checkFailed: '质量检查失败。',
     batchPrivacyTitle: '导入此双语文件进行只读质量检查？',
@@ -68,7 +78,7 @@ const zhCN = {
     statusDescription: '只显示与当前不可变快照一致的结果。',
     currentSegment: '当前句段', batchFile: 'MQXLIFF / XLIFF 文件', profile: '翻译方案', model: '模型',
     realtimeAi: '实时检查使用 AI', includeSummary: '包含文档摘要', includeFullText: '包含文档全文',
-    recheck: '重新检查', pause: '暂停', resume: '继续', openFloating: '打开紧凑浮窗', saveSettings: '保存设置', seriousIssues: '严重或致命', noFindings: '未发现问题',
+    recheck: '重新检查', pause: '暂停', resume: '继续', saveSettings: '保存设置', seriousIssues: '严重或致命', noFindings: '未发现问题',
     projectRules: '项目质量规则', ruleName: '规则名称', ruleType: '规则类型', ruleScope: '检查字段', ruleExpression: '表达式或指令',
     ruleMessage: '问题说明', sampleText: '用示例文本测试此规则', sampleMatched: '示例文本命中此规则。', sampleNotMatched: '示例文本未命中此规则。', addRule: '添加规则',
     sourceEvidence: '原文证据', targetEvidence: '译文证据', suggestion: '建议', origin: '来源',
@@ -82,10 +92,18 @@ const zhCN = {
   },
   assistant: {
     title: 'memoQ 助手', translatePolish: '翻译 / 润色', qa: 'QA 检查', translate: '翻译', polish: '润色',
-    terminologyAssets: '本次请求使用的术语资源', additionalInstruction: '本次 QA 的附加检查指令（不会修改方案）',
+    terminologyAssets: '本次请求使用的术语资源', additionalInstruction: '本次请求的附加指令（不会修改方案或预设）',
     generatedResult: '生成结果', copy: '复制结果', copied: '已复制。', cacheHit: '缓存结果', providerGenerated: '模型生成', termMatches: '命中 {{count}} 条术语',
     runQaHint: '运行 QA 检查后可查看问题和执行详情。', previewChanged: 'Preview 活动句段已变化，旧请求已取消或丢弃；请重新运行。',
     loadFailed: '无法加载助手状态。', runFailed: '助手请求失败。'
+  },
+  promptPresets: {
+    select: '选择提示词预设', edit: '查看或编辑预设', editorTitle: '提示词预设', name: '名称', scope: '作用域', builtin: '内置', style: '翻译风格',
+    systemPrompt: '系统提示词', userPrompt: '用户提示词', rules: '附加 QA 规则', rulesHint: '每行一条自然语言规则。',
+    placeholderHint: '可使用受支持的 {{placeholders}}；系统提示词不能使用易变的术语或 TM 占位符。',
+    guardrails: 'Provider Schema、证据要求、阈值及“不输出总分”规则始终固定。',
+    saveCopy: '另存为副本', saved: '提示词预设已保存。', saveFailed: '无法保存提示词预设。', restored: '已恢复内置预设。', deleteTitle: '删除此提示词预设？',
+    qaPreset: 'QA 提示词预设', translatePreset: '翻译提示词预设', polishPreset: '润色提示词预设'
   },
   common: {
     save: '保存',

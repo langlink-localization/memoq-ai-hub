@@ -60,6 +60,7 @@ function createInitialState() {
     assets: [],
     mappingRules: [],
     providers: [],
+    promptPresets: [],
     history: [],
     translationCache: [],
     promptResponseCache: [],
@@ -110,6 +111,7 @@ function normalizeConfigState(state, normalizeState) {
     assets: normalized.assets,
     mappingRules: normalized.mappingRules,
     providers: normalized.providers,
+    promptPresets: normalized.promptPresets,
     integrationPreferences: normalized.integrationPreferences
   };
 }
@@ -340,6 +342,48 @@ function normalizeLegacyCacheEntries(entries = [], limit = 0) {
   return nextEntries;
 }
 
+function buildQaHistoryItem(row, result) {
+  const findings = Array.isArray(result.findings) ? result.findings : [];
+  const severityCounts = { critical: 0, major: 0, minor: 0, info: 0 };
+  for (const finding of findings) {
+    if (Object.prototype.hasOwnProperty.call(severityCounts, finding?.severity)) {
+      severityCounts[finding.severity] += 1;
+    }
+  }
+  const execution = result.execution || {};
+  const segment = result.segment || {};
+  const languages = result.languages || {};
+  return {
+    requestId: String(result.requestId || row.request_id || ''),
+    documentId: String(result.document?.id || row.document_id || ''),
+    documentName: String(result.document?.name || ''),
+    trigger: String(result.trigger || 'manual'),
+    status: String(result.status || row.status || 'complete'),
+    contentHash: String(result.contentHash || row.content_hash || ''),
+    createdAt: String(row.created_at || ''),
+    updatedAt: String(row.updated_at || ''),
+    expiresAt: String(row.expires_at || ''),
+    segment: {
+      previewPartId: String(segment.previewPartId || ''),
+      source: String(segment.source || '').slice(0, 120),
+      target: String(segment.target || '').slice(0, 120),
+      languages: {
+        source: String(languages.source || ''),
+        target: String(languages.target || '')
+      }
+    },
+    findingCounts: { ...severityCounts, total: findings.length },
+    execution: {
+      deterministicStatus: String(execution.deterministic?.status || ''),
+      deterministicDurationMs: Number(execution.deterministic?.durationMs ?? 0),
+      aiStatus: String(execution.ai?.status || ''),
+      aiModel: String(execution.ai?.model || ''),
+      aiProviderName: String(execution.ai?.providerName || ''),
+      aiDurationMs: Number(execution.ai?.durationMs ?? 0)
+    }
+  };
+}
+
 function createRuntimePersistence(db, { nowIso, normalizeState }) {
   function pruneQaData(referenceTime = new Date()) {
     const referenceIso = referenceTime instanceof Date ? referenceTime.toISOString() : String(referenceTime || nowIso());
@@ -547,6 +591,81 @@ function createRuntimePersistence(db, { nowIso, normalizeState }) {
       `, { $documentId: normalizedDocumentId })
         .map((row) => parseJson(row?.result_json, null))
         .filter(Boolean);
+    },
+    listQaResultsAll(filters = {}) {
+      pruneQaData();
+      const documentId = String(filters.documentId || '').trim();
+      const trigger = String(filters.trigger || '').trim();
+      const status = String(filters.status || '').trim();
+      const dateFrom = String(filters.dateFrom || '').trim();
+      const dateTo = String(filters.dateTo || '').trim();
+      const limit = Math.max(1, Math.min(500, Number(filters.limit) || 200));
+
+      const rows = documentId
+        ? db.all(`
+            SELECT * FROM qa_results WHERE document_id = $documentId
+            ORDER BY updated_at DESC LIMIT 500
+          `, { $documentId: documentId })
+        : db.all('SELECT * FROM qa_results ORDER BY updated_at DESC LIMIT 500');
+
+      const items = [];
+      for (const row of rows) {
+        const result = parseJson(row?.result_json, null);
+        if (!result) {
+          continue;
+        }
+        if (trigger && String(result.trigger || 'manual') !== trigger) {
+          continue;
+        }
+        if (status && String(row.status || 'complete') !== status) {
+          continue;
+        }
+        if (dateFrom && String(row.updated_at || '') < dateFrom) {
+          continue;
+        }
+        if (dateTo && String(row.updated_at || '') > dateTo) {
+          continue;
+        }
+        items.push(buildQaHistoryItem(row, result));
+        if (items.length >= limit) {
+          break;
+        }
+      }
+      return items;
+    },
+    readQaResult(requestId) {
+      const normalizedRequestId = String(requestId || '').trim();
+      if (!normalizedRequestId) return null;
+      const row = db.get('SELECT result_json FROM qa_results WHERE request_id = $requestId', {
+        $requestId: normalizedRequestId
+      });
+      return parseJson(row?.result_json, null);
+    },
+    listQaFeedback(requestId) {
+      const normalizedRequestId = String(requestId || '').trim();
+      if (!normalizedRequestId) return [];
+      return db.all(
+        'SELECT feedback_json FROM qa_feedback WHERE request_id = $requestId ORDER BY created_at ASC',
+        { $requestId: normalizedRequestId }
+      )
+        .map((row) => parseJson(row?.feedback_json, null))
+        .filter(Boolean);
+    },
+    deleteQaResults(requestIds = []) {
+      const ids = [...new Set((Array.isArray(requestIds) ? requestIds : [])
+        .map((id) => String(id || '').trim())
+        .filter(Boolean))];
+      if (!ids.length) {
+        return { deletedCount: 0 };
+      }
+      let deletedCount = 0;
+      db.transaction(() => {
+        for (const id of ids) {
+          deletedCount += db.run('DELETE FROM qa_results WHERE request_id = $requestId', { $requestId: id });
+          db.run('DELETE FROM qa_feedback WHERE request_id = $requestId', { $requestId: id });
+        }
+      });
+      return { deletedCount };
     },
     saveQaFeedback(feedback) {
       const id = String(feedback?.id || '').trim();

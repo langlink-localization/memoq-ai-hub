@@ -2,6 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const initSqlJs = require('sql.js');
 
+const DEFAULT_PERSIST_DEBOUNCE_MS = 500;
+const DEFAULT_PERSIST_MAX_DIRTY_MS = 3000;
+
 function buildSqlWasmCandidates(baseDir = __dirname, resourcesPath = process.resourcesPath || '') {
   return [
     path.join(baseDir, '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
@@ -14,7 +17,6 @@ function buildSqlWasmCandidates(baseDir = __dirname, resourcesPath = process.res
 
 function resolveSqlWasmPath() {
   const candidates = buildSqlWasmCandidates();
-
   const found = candidates.find((candidate) => fs.existsSync(candidate));
   if (!found) {
     throw new Error('sql-wasm.wasm not found');
@@ -22,7 +24,7 @@ function resolveSqlWasmPath() {
   return found;
 }
 
-async function createDatabase(paths) {
+async function createDatabase(paths, options = {}) {
   const SQL = await initSqlJs({
     locateFile() {
       return resolveSqlWasmPath();
@@ -35,20 +37,109 @@ async function createDatabase(paths) {
   let closed = false;
   let transactionDepth = 0;
 
+  const eagerPersist = String(process.env.MEMOQ_AI_DESKTOP_EAGER_DB_PERSIST || '') === '1';
+  const persistDebounceMs = Number.isFinite(Number(options.persistDebounceMs))
+    ? Math.max(0, Number(options.persistDebounceMs))
+    : DEFAULT_PERSIST_DEBOUNCE_MS;
+  const persistMaxDirtyMs = Math.max(
+    Number.isFinite(Number(options.persistMaxDirtyMs)) ? Number(options.persistMaxDirtyMs) : DEFAULT_PERSIST_MAX_DIRTY_MS,
+    1
+  );
+
+  let persistScheduled = false;
+  let persistFirstDirtyAtMs = 0;
+  let persistDebounceTimer = null;
+  let persistMaxTimer = null;
+
   function assertOpen() {
     if (closed) {
       throw new Error('Database is already closed.');
     }
   }
 
+  function writeDatabaseNow() {
+    fs.writeFileSync(paths.dbPath, Buffer.from(db.export()));
+  }
+
+  function clearPersistTimers() {
+    if (persistDebounceTimer) {
+      clearTimeout(persistDebounceTimer);
+      persistDebounceTimer = null;
+    }
+    if (persistMaxTimer) {
+      clearTimeout(persistMaxTimer);
+      persistMaxTimer = null;
+    }
+  }
+
+  function flushPersist() {
+    if (!persistScheduled) {
+      return;
+    }
+
+    try {
+      writeDatabaseNow();
+      persistScheduled = false;
+      persistFirstDirtyAtMs = 0;
+      clearPersistTimers();
+    } catch (error) {
+      console.error('[database] deferred persist failed; a retry is scheduled.', error);
+      if (!persistMaxTimer) {
+        persistMaxTimer = setTimeout(() => {
+          persistMaxTimer = null;
+          flushPersist();
+        }, persistMaxDirtyMs);
+        persistMaxTimer.unref?.();
+      }
+    }
+  }
+
+  function schedulePersist() {
+    if (closed) {
+      return;
+    }
+    if (eagerPersist) {
+      clearPersistTimers();
+      persistScheduled = false;
+      persistFirstDirtyAtMs = 0;
+      writeDatabaseNow();
+      return;
+    }
+
+    persistScheduled = true;
+    const now = Date.now();
+    if (!persistFirstDirtyAtMs) {
+      persistFirstDirtyAtMs = now;
+    }
+
+    if (!persistDebounceTimer) {
+      persistDebounceTimer = setTimeout(() => {
+        persistDebounceTimer = null;
+        flushPersist();
+      }, persistDebounceMs);
+      persistDebounceTimer.unref?.();
+    }
+    if (!persistMaxTimer) {
+      const remainingMs = Math.max(0, persistMaxDirtyMs - (now - persistFirstDirtyAtMs));
+      persistMaxTimer = setTimeout(() => {
+        persistMaxTimer = null;
+        flushPersist();
+      }, remainingMs);
+      persistMaxTimer.unref?.();
+    }
+  }
+
   function persist() {
     assertOpen();
-    fs.writeFileSync(paths.dbPath, Buffer.from(db.export()));
+    persistScheduled = false;
+    persistFirstDirtyAtMs = 0;
+    clearPersistTimers();
+    writeDatabaseNow();
   }
 
   function persistIfNeeded() {
     if (transactionDepth === 0) {
-      persist();
+      schedulePersist();
     }
   }
 
@@ -95,12 +186,12 @@ async function createDatabase(paths) {
       const result = callback();
       transactionDepth -= 1;
       db.exec('COMMIT');
-      persist();
+      schedulePersist();
       return result;
     } catch (error) {
       transactionDepth = Math.max(0, transactionDepth - 1);
       db.exec('ROLLBACK');
-      persist();
+      schedulePersist();
       throw error;
     }
   }
@@ -109,7 +200,10 @@ async function createDatabase(paths) {
     if (closed) {
       return;
     }
-    persist();
+    clearPersistTimers();
+    persistScheduled = false;
+    persistFirstDirtyAtMs = 0;
+    writeDatabaseNow();
     db.close();
     closed = true;
   }
@@ -122,7 +216,11 @@ async function createDatabase(paths) {
     get,
     persist,
     transaction,
-    close
+    close,
+    flush: flushPersist,
+    hasPendingPersist() {
+      return persistScheduled;
+    }
   };
 }
 

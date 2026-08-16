@@ -114,3 +114,41 @@ test('forge packaging restores governed runtime dependencies after package-manag
   const source = fs.readFileSync(path.join(__dirname, '..', 'forge.config.js'), 'utf8');
   assert.match(source, /packageAfterPrune:[\s\S]*ensurePackagedRuntimeModules\(buildPath\);\s*copyRuntimeNodeModules\(buildPath\);/);
 });
+
+test('forge packaging flips Electron fuses while keeping run-as-node available for the worker', () => {
+  assert.equal(typeof forgeConfig.hooks.postPackage, 'function');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'forge.config.js'), 'utf8');
+  assert.match(source, /EnableCookieEncryption\]: true/);
+  assert.match(source, /OnlyLoadAppFromAsar\]: true/);
+  assert.match(source, /EnableNodeCliInspectArguments\]: false/);
+  assert.match(source, /EnableNodeOptionsEnvironmentVariable\]: false/);
+  assert.doesNotMatch(source, /RunAsNode\]\s*:\s*false/);
+});
+
+test('forge makers keep the zip distribution and add the Squirrel Windows installer', () => {
+  const makerNames = forgeConfig.makers.map((maker) => maker.name);
+  assert.equal(makerNames.includes('@electron-forge/maker-zip'), true);
+  assert.equal(makerNames.includes('@electron-forge/maker-squirrel'), true);
+
+  const squirrel = forgeConfig.makers.find((maker) => maker.name === '@electron-forge/maker-squirrel');
+  assert.deepEqual(squirrel.platforms, ['win32']);
+  assert.equal(squirrel.config.noDelta, true);
+  assert.equal(squirrel.config.setupExe, 'memoq-ai-hub-setup.exe');
+  assert.equal(squirrel.config.name, 'memoQAIHub');
+});
+
+test('renderer production build injects a strict CSP without touching dev mode', async () => {
+  const { default: viteConfig, rendererProductionCsp } = await import('../vite.renderer.config.mjs');
+  const cspPlugin = viteConfig.plugins.find((plugin) => plugin.name === rendererProductionCsp.pluginName);
+
+  assert.ok(cspPlugin, 'production CSP plugin should be registered');
+  assert.equal(cspPlugin.apply, 'build');
+
+  const html = cspPlugin.transformIndexHtml('<html><head><title>memoQ AI Hub</title></head><body></body></html>');
+  assert.match(html, /<meta http-equiv="Content-Security-Policy" content="[^"]*default-src 'self'[^"]*">/);
+  assert.match(html, /script-src 'self'/);
+  assert.match(html, /connect-src 'self' ws:/);
+
+  const groups = viteConfig.build.rolldownOptions.output.codeSplitting.groups;
+  assert.equal(groups.length, 1, 'vendor chunk governance must stay unchanged');
+});

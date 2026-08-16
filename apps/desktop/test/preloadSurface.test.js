@@ -12,7 +12,7 @@ test('preload exposes log diagnostics actions', () => {
 
 test('preload exposes only explicit quality-check operations', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../src/preload.js'), 'utf8');
-  ['getQaStatus', 'checkQaSegment', 'checkQaDocument', 'cancelQa', 'saveQaFeedback', 'getQaResults', 'importBilingualQa', 'openQualityWindow', 'openAssistantWindow', 'runPreviewAssistant', 'cancelPreviewAssistant', 'copyText'].forEach((name) => assert.match(source, new RegExp(`\\b${name}:`)));
+  ['getQaStatus', 'checkQaSegment', 'checkQaDocument', 'cancelQa', 'saveQaFeedback', 'getQaResults', 'getQaHistory', 'getQaHistoryEntry', 'deleteQaHistory', 'exportQaHistory', 'importBilingualQa', 'openQualityWindow', 'openAssistantWindow', 'runPreviewAssistant', 'cancelPreviewAssistant', 'copyText', 'savePromptPreset', 'deletePromptPreset', 'restoreBuiltinPromptPreset'].forEach((name) => assert.match(source, new RegExp(`\\b${name}:`)));
 });
 
 test('assistant preload validates operation and bounds glossary overrides', () => {
@@ -21,12 +21,16 @@ test('assistant preload validates operation and bounds glossary overrides', () =
   assert.match(source, /operation === 'translate'/);
   assert.match(source, /\.slice\(0, 50\)/);
   assert.match(source, /mode: payload\.assets\?\.mode === 'override' \? 'override' : 'inherit'/);
+  assert.match(source, /additionalInstruction: String\(payload\.prompt\?\.additionalInstruction/);
+  assert.match(source, /presetId: String\(payload\.prompt\?\.presetId/);
 });
 
 test('quality UI preserves native switch sizing and renders the two-mode assistant', () => {
   const css = fs.readFileSync(path.resolve(__dirname, '../src/renderer/src/index.css'), 'utf8');
   const page = fs.readFileSync(path.resolve(__dirname, '../src/renderer/src/pages/quality/QualityPage.jsx'), 'utf8');
   const assistant = fs.readFileSync(path.resolve(__dirname, '../src/renderer/src/pages/quality/AssistantWindow.jsx'), 'utf8');
+  const history = fs.readFileSync(path.resolve(__dirname, '../src/renderer/src/pages/quality/QaHistoryPanel.jsx'), 'utf8');
+  const presets = fs.readFileSync(path.resolve(__dirname, '../src/renderer/src/pages/quality/PromptPresetSelector.jsx'), 'utf8');
   assert.doesNotMatch(css, /\.quality-page button[\s\S]{0,160}min-height:\s*40px/);
   assert.match(css, /\.quality-switch-row[\s\S]{0,120}min-height:\s*40px/);
   assert.match(page, /loading=\{savingField === 'qaRealtimeAiEnabled'\}/);
@@ -34,6 +38,13 @@ test('quality UI preserves native switch sizing and renders the two-mode assista
   assert.match(assistant, /value: 'qa'/);
   assert.match(assistant, /runAssistant\('polish'\)/);
   assert.doesNotMatch(assistant, /qaResult && findings\.length === 0 \? <Alert type="success"/);
+  assert.match(page, /key: 'history'/);
+  assert.match(history, /showAutomatic/);
+  assert.match(history, /exportQaHistory/);
+  assert.match(assistant, /scope="translate"/);
+  assert.match(assistant, /scope="polish"/);
+  assert.match(assistant, /scope="qa"/);
+  assert.match(presets, /restoreBuiltinPromptPreset/);
 });
 
 test('main process registers log diagnostics IPC handlers', () => {

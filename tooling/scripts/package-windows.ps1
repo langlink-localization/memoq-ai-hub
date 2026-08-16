@@ -196,8 +196,10 @@ try {
     Write-Step "Running desktop tests"
     Invoke-NativeStep "pnpm test" { Invoke-Pnpm @("test") }
 
-    Write-Step "Packaging unpacked desktop application"
-    Invoke-NativeStep "pnpm run package" { Invoke-Pnpm @("run", "package") }
+    Write-Step "Packaging desktop application and Squirrel installer"
+    # make runs forge package first (its prePackage hook wipes out/), then the
+    # squirrel maker; the zip step below must therefore always run AFTER this.
+    Invoke-NativeStep "pnpm run make:squirrel" { Invoke-Pnpm @("run", "make:squirrel") }
 
     Write-Step "Creating packaged desktop zip"
     Invoke-NativeStep "pnpm run zip:win-unpacked" { Invoke-Pnpm @("run", "zip:win-unpacked") }
@@ -241,6 +243,11 @@ if (-not $compactFiles.Count) {
     throw "Compact 7z artifact was not produced at $expectedCompactPath."
 }
 
+$squirrelSetupPath = Join-Path $desktopOutDir "make\squirrel.windows\x64\memoq-ai-hub-setup.exe"
+if (-not (Test-Path $squirrelSetupPath)) {
+    throw "Squirrel Windows installer was not produced at $squirrelSetupPath."
+}
+
 if (-not (Test-Path $updateManifestPath)) {
     throw "Update manifest was not produced at $updateManifestPath."
 }
@@ -266,6 +273,7 @@ Write-Host "Version     : $desktopVersion"
 Write-Host "Output root : $desktopOutDir"
 Write-Host "App dir     : $($unpackedAppDir[0].FullName)"
 Write-Host "Portable EXE: $($portableExe[0].FullName)"
+Write-Host "Installer   : $squirrelSetupPath"
 Write-Host "Manifest    : $updateManifestPath"
 Write-Host "ZIP files   :"
 foreach ($zipFile in $zipFiles) {

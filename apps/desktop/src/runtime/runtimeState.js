@@ -3,6 +3,7 @@ const { normalizeAssetBinding } = require('../asset/assetRules');
 const { applyFirstReleaseProfilePolicy } = require('../shared/profilePolicy');
 const { normalizeQaPromptTemplate } = require('../qa/qaPrompt');
 const { validateProfileTemplates } = require('../shared/promptTemplate');
+const { normalizePromptPresets } = require('../shared/promptPresets');
 const {
   isSupportedProviderType,
   sanitizeProvider,
@@ -516,6 +517,7 @@ function normalizeState(rawState) {
     assets: Array.isArray(state.assets) ? state.assets.map((asset) => ensureAsset(asset)) : [],
     mappingRules: Array.isArray(state.mappingRules) ? state.mappingRules.map((rule) => ensureRule(rule)) : [],
     providers: nextProviders,
+    promptPresets: normalizePromptPresets(state.promptPresets),
     history: Array.isArray(state.history) ? state.history : [],
     translationCache: Array.isArray(state.translationCache) ? state.translationCache : [],
     promptResponseCache: Array.isArray(state.promptResponseCache) ? state.promptResponseCache : [],

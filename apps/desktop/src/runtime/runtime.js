@@ -16,6 +16,7 @@ const { createAppPaths } = require('../shared/paths');
 const { createLogger } = require('../shared/logging');
 const { createDatabase } = require('../database');
 const { createSecretStore } = require('../secretStore');
+const { settleActivePreviewSnapshot, DEFAULT_PREVIEW_SETTLE_MS, DEFAULT_PREVIEW_SETTLE_MAX_WAITS } = require('./previewSnapshotSettle');
 const { resolveRuleMatch } = require('./runtimeRuleEngine');
 const {
   createProviderRegistry,
@@ -133,6 +134,11 @@ const {
 const {
   createUpdateService
 } = require('../update/updateService');
+const {
+  createPresetId,
+  normalizePromptPreset,
+  restoreBuiltinPromptPreset: buildRestoredBuiltinPromptPreset
+} = require('../shared/promptPresets');
 
 function nowIso() {
   return new Date().toISOString();
@@ -225,6 +231,12 @@ async function createRuntime(options = {}) {
   const previewContextWaitMs = Number.isFinite(Number(options.previewContextWaitMs))
     ? Number(options.previewContextWaitMs)
     : DEFAULT_PREVIEW_CONTEXT_WAIT_MS;
+  const previewSettleMs = Number.isFinite(Number(options.previewSettleMs))
+    ? Math.max(0, Number(options.previewSettleMs))
+    : DEFAULT_PREVIEW_SETTLE_MS;
+  const previewSettleMaxWaits = Number.isFinite(Number(options.previewSettleMaxWaits))
+    ? Math.max(1, Math.floor(Number(options.previewSettleMaxWaits)))
+    : DEFAULT_PREVIEW_SETTLE_MAX_WAITS;
   const previewContextPollMs = Number.isFinite(Number(options.previewContextPollMs))
     ? Number(options.previewContextPollMs)
     : DEFAULT_PREVIEW_CONTEXT_POLL_MS;
@@ -330,7 +342,7 @@ async function createRuntime(options = {}) {
       }
       const selectedModel = (provider.models || []).find((item) => (item.id === model || item.modelName === model) && item.enabled !== false)
         || selectModel(provider);
-      const apiKey = secretStore.get(provider.secretRef);
+      const apiKey = await secretStore.get(provider.secretRef);
       if (!selectedModel || !apiKey || typeof providerRegistry.checkQuality !== 'function') {
         const error = new Error('The selected provider is not ready for AI quality checking.');
         error.code = ERROR_CODES.qaProviderUnavailable;
@@ -408,9 +420,17 @@ async function createRuntime(options = {}) {
     };
   }
 
-  function prepareQaPayload(payload = {}) {
+  function readSettledActivePreviewPayload() {
+    return settleActivePreviewSnapshot({
+      readActive: () => buildActivePreviewQaPayload(),
+      settleMs: previewSettleMs,
+      maxWaits: previewSettleMaxWaits
+    });
+  }
+
+  function prepareQaPayload(payload = {}, options = {}) {
     const activePayload = (!String(payload.segment?.source ?? payload.source ?? '').trim())
-      ? buildActivePreviewQaPayload()
+      ? ('activePreviewPayload' in options ? options.activePreviewPayload : buildActivePreviewQaPayload())
       : null;
     const effectivePayload = activePayload ? { ...activePayload, ...payload, segment: { ...(activePayload.segment || {}), ...(payload.segment || {}) } } : payload;
     const state = loadState();
@@ -462,12 +482,19 @@ async function createRuntime(options = {}) {
       ...(Array.isArray(effectivePayload.rules) ? effectivePayload.rules : []),
       ...(Array.isArray(profile?.qaRules) ? profile.qaRules.filter((rule) => rule.type !== 'natural-language') : [])
     ];
-    const naturalLanguageRules = Array.isArray(profile?.qaRules)
-      ? profile.qaRules.filter((rule) => rule.type === 'natural-language').map((rule) => ({ id: rule.id, instruction: rule.instruction || rule.value || '' }))
-      : [];
+    const requestedPresetId = String(effectivePayload.prompt?.presetId || '').trim();
+    const promptPreset = state.promptPresets.find((item) => item.id === requestedPresetId && item.scope === 'qa') || null;
+    const naturalLanguageRules = [
+      ...(Array.isArray(profile?.qaRules)
+        ? profile.qaRules.filter((rule) => rule.type === 'natural-language').map((rule) => ({ id: rule.id, instruction: rule.instruction || rule.value || '' }))
+        : []),
+      ...(promptPreset?.rules || []).map((rule, index) => ({ id: `${promptPreset.id}-rule-${index + 1}`, instruction: rule.instruction }))
+    ];
     const additionalInstruction = String(effectivePayload.prompt?.additionalInstruction || '').slice(0, 4000);
-    const qaPromptTemplate = profile?.promptTemplates?.qa || {};
-    const promptVersion = crypto.createHash('sha256').update(JSON.stringify({ qaPromptTemplate, additionalInstruction })).digest('hex');
+    const qaPromptTemplate = promptPreset
+      ? { systemPrompt: promptPreset.systemPrompt, userPrompt: promptPreset.userPrompt }
+      : (profile?.promptTemplates?.qa || {});
+    const promptVersion = crypto.createHash('sha256').update(JSON.stringify({ presetId: promptPreset?.id || '', qaPromptTemplate, naturalLanguageRules, additionalInstruction })).digest('hex');
     const requestedAiProviderId = String(effectivePayload.ai?.providerId || '').trim();
     const requestedAiModel = String(effectivePayload.ai?.model || '').trim();
     const aiProvider = state.providers.find((item) => item.id === requestedAiProviderId) || null;
@@ -504,6 +531,14 @@ async function createRuntime(options = {}) {
         additionalInstruction
       }
     };
+  }
+
+  async function prepareQaPayloadForCheck(payload = {}) {
+    if (String(payload.segment?.source ?? payload.source ?? '').trim()) {
+      return prepareQaPayload(payload);
+    }
+    const activePreviewPayload = await readSettledActivePreviewPayload();
+    return prepareQaPayload(payload, { activePreviewPayload });
   }
 
   function resolveAssistantProfileAndRoute(payload = {}) {
@@ -568,7 +603,7 @@ async function createRuntime(options = {}) {
       error.code = ERROR_CODES.qaInvalidRequest;
       throw error;
     }
-    const activePayload = buildActivePreviewQaPayload();
+    const activePayload = await readSettledActivePreviewPayload();
     if (!activePayload?.mappingCertain) {
       const error = new Error('The active memoQ segment could not be mapped with confidence.');
       error.code = ERROR_CODES.qaMappingUncertain;
@@ -580,10 +615,21 @@ async function createRuntime(options = {}) {
       throw error;
     }
     const requestId = String(payload.requestId || crypto.randomUUID());
-    const { profile, route } = resolveAssistantProfileAndRoute(payload);
+    const { state, profile, route } = resolveAssistantProfileAndRoute(payload);
+    const requestedPresetId = String(payload.prompt?.presetId || '').trim();
+    const promptPreset = state.promptPresets.find((item) => item.id === requestedPresetId && item.scope === operation) || null;
+    const additionalInstruction = String(payload.prompt?.additionalInstruction || '').slice(0, 4000);
     const operationProfile = operation === 'translate'
       ? { ...profile, usePreviewTargetText: false }
-      : profile;
+      : { ...profile };
+    if (promptPreset) {
+      operationProfile.translationStyle = promptPreset.style || operationProfile.translationStyle;
+      operationProfile.promptTemplates = {
+        ...(operationProfile.promptTemplates || {}),
+        single: { systemPrompt: promptPreset.systemPrompt, userPrompt: promptPreset.userPrompt }
+      };
+    }
+    operationProfile.assistantAdditionalInstruction = additionalInstruction;
     const snapshotPayload = prepareQaPayload({
       ...activePayload,
       profileId: profile.id,
@@ -1839,7 +1885,7 @@ async function createRuntime(options = {}) {
     if (previewPolicy.includeSummary === true && sharedLookup.available && sharedLookup.fullText) {
       const summarizationRoute = routes.find((candidate) => secretStore.has(candidate.provider.secretRef));
       if (summarizationRoute) {
-        const secret = secretStore.get(summarizationRoute.provider.secretRef);
+        const secret = await secretStore.get(summarizationRoute.provider.secretRef);
         const summaryCacheKey = createDocumentSummaryCacheKey({
           providerId: summarizationRoute.provider.id,
           modelName: summarizationRoute.model.modelName,
@@ -2762,7 +2808,7 @@ async function createRuntime(options = {}) {
     });
     const testedAt = nowIso();
     const secret = String(providerDraft.apiKey || '').trim()
-      || (currentProvider ? secretStore.get(currentProvider.secretRef) : '');
+      || (currentProvider ? await secretStore.get(currentProvider.secretRef) : '');
     const model = selectModel(provider);
 
     if (!secret) {
@@ -2798,7 +2844,7 @@ async function createRuntime(options = {}) {
       secretRef: providerDraft.secretRef || currentProvider?.secretRef
     });
     const secret = String(providerDraft.apiKey || '').trim()
-      || (currentProvider ? secretStore.get(currentProvider.secretRef) : '');
+      || (currentProvider ? await secretStore.get(currentProvider.secretRef) : '');
 
     if (!secret) {
       return { ok: false, code: 'PROVIDER_AUTH_FAILED', message: 'API key has not been saved yet.', models: [] };
@@ -2856,6 +2902,7 @@ async function createRuntime(options = {}) {
         assetImportRules: getAssetImportRules(),
         translationCacheBypassProfileIds: Array.from(bypassTranslationCacheProfileIds)
       },
+      promptPresets: filters.includePromptPresets === false ? [] : state.promptPresets,
       memoqMetadataMapping: {
         rules: [...state.mappingRules]
           .sort((a, b) => Number(a.priority || 999) - Number(b.priority || 999))
@@ -3765,7 +3812,7 @@ async function createRuntime(options = {}) {
         break;
       }
 
-      const secret = secretStore.get(route.provider.secretRef);
+      const secret = await secretStore.get(route.provider.secretRef);
 
       if (!secret) {
         terminalError = { code: 'PROVIDER_AUTH_FAILED', message: `${route.provider.name} API key is missing.` };
@@ -4315,8 +4362,8 @@ async function createRuntime(options = {}) {
         latestResult: latestMatchesCurrent ? status.latestResult : null
       };
     },
-    checkQaSegment(payload = {}) {
-      return qaCoordinator.checkSegment(prepareQaPayload(payload));
+    async checkQaSegment(payload = {}) {
+      return qaCoordinator.checkSegment(await prepareQaPayloadForCheck({ trigger: 'manual', ...payload }));
     },
     runPreviewAssistant(payload = {}) {
       return runPreviewAssistant(payload);
@@ -4331,7 +4378,7 @@ async function createRuntime(options = {}) {
         error.code = ERROR_CODES.qaInvalidRequest;
         throw error;
       }
-      return checkQaSegmentsWithConcurrency(payload, segments, payload.ai?.enabled ? 3 : 8).then((results) => ({
+      return checkQaSegmentsWithConcurrency({ trigger: 'batch', ...payload }, segments, payload.ai?.enabled ? 3 : 8).then((results) => ({
         document: payload.document || { id: payload.documentId || 'imported-document', name: payload.documentName || '' },
         status: results.some((item) => item.status === 'local-only') ? 'local-only' : 'complete',
         summary: createSummary(results.flatMap((item) => item.findings)),
@@ -4347,11 +4394,60 @@ async function createRuntime(options = {}) {
     getQaResults(documentId) {
       return qaCoordinator.listResults(documentId);
     },
+    getQaHistory(filters = {}) {
+      return { items: persistence.listQaResultsAll(filters || {}) };
+    },
+    getQaHistoryEntry(payload = {}) {
+      const requestId = String(payload?.requestId || '').trim();
+      const result = persistence.readQaResult(requestId);
+      if (!result) {
+        return null;
+      }
+      const item = persistence.listQaResultsAll({ limit: 500 }).find((entry) => entry.requestId === requestId) || null;
+      return { result, item, feedback: persistence.listQaFeedback(requestId) };
+    },
+    deleteQaHistory(requestIds = []) {
+      return persistence.deleteQaResults(requestIds);
+    },
+    exportQaHistory(options = {}) {
+      const XLSX = require('xlsx');
+      const items = options.scope === 'selected'
+        ? persistence.listQaResultsAll({ limit: 500 })
+          .filter((item) => (options.selectedIds || []).includes(item.requestId))
+        : persistence.listQaResultsAll(options.filters || {});
+      const rows = items.map((item) => ({
+        requestId: item.requestId,
+        checkedAt: item.updatedAt,
+        document: item.documentName || item.documentId,
+        trigger: item.trigger,
+        status: item.status,
+        source: item.segment?.source || '',
+        target: item.segment?.target || '',
+        critical: item.findingCounts?.critical || 0,
+        major: item.findingCounts?.major || 0,
+        minor: item.findingCounts?.minor || 0,
+        info: item.findingCounts?.info || 0,
+        aiStatus: item.execution?.aiStatus || '',
+        aiModel: item.execution?.aiModel || ''
+      }));
+      const format = options.format === 'xlsx' ? 'xlsx' : 'csv';
+      const outputPath = path.join(paths.exportsDir, `qa-history-export-${Date.now()}.${format}`);
+      if (format === 'csv') {
+        const sheet = XLSX.utils.json_to_sheet(rows);
+        fs.writeFileSync(outputPath, XLSX.utils.sheet_to_csv(sheet), 'utf8');
+      } else {
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), 'QA History');
+        XLSX.writeFile(workbook, outputPath);
+      }
+      return { path: outputPath, count: rows.length };
+    },
     async inspectBilingualFile(payload = {}) {
       const { parseBilingualFile } = require('../bilingual/bilingualFile');
       const { writeQaReports } = require('../bilingual/qaReport');
       const imported = parseBilingualFile(payload.filePath);
       const results = await checkQaSegmentsWithConcurrency({
+        trigger: 'import',
         ...payload,
         document: imported.document,
         languages: imported.languages
@@ -4414,6 +4510,39 @@ async function createRuntime(options = {}) {
       else state.profiles.push(nextProfile);
       saveState(state);
       return nextProfile;
+    },
+    savePromptPreset(preset = {}) {
+      const state = loadState();
+      const existing = state.promptPresets.find((item) => item.id === String(preset.id || '')) || null;
+      const next = normalizePromptPreset({
+        ...preset,
+        id: String(preset.id || '').trim() || createPresetId(),
+        builtin: existing?.builtin === true,
+        updatedAt: nowIso()
+      }, existing || {});
+      const index = state.promptPresets.findIndex((item) => item.id === next.id);
+      if (index >= 0) state.promptPresets[index] = next;
+      else state.promptPresets.push(next);
+      saveState(state);
+      return next;
+    },
+    deletePromptPreset(presetId) {
+      const state = loadState();
+      const preset = state.promptPresets.find((item) => item.id === String(presetId || ''));
+      if (!preset) return { ok: true, deleted: false };
+      if (preset.builtin) throw new Error('Built-in prompt presets cannot be deleted; restore the default instead.');
+      state.promptPresets = state.promptPresets.filter((item) => item.id !== preset.id);
+      saveState(state);
+      return { ok: true, deleted: true };
+    },
+    restoreBuiltinPromptPreset(presetId) {
+      const state = loadState();
+      const restored = buildRestoredBuiltinPromptPreset(presetId);
+      const index = state.promptPresets.findIndex((item) => item.id === restored.id);
+      if (index >= 0) state.promptPresets[index] = restored;
+      else state.promptPresets.push(restored);
+      saveState(state);
+      return restored;
     },
     setDefaultProfile(profileId) {
       const state = loadState();
@@ -4527,7 +4656,7 @@ async function createRuntime(options = {}) {
     ingestPreviewPartIds(payload) {
       return ingestPreviewPartIds(payload || {});
     },
-    saveProvider(provider) {
+    async saveProvider(provider) {
       const state = loadState();
       const currentProvider = state.providers.find((item) => item.id === provider.id);
       assertSupportedProviderDraft({ ...currentProvider, ...provider });
@@ -4553,7 +4682,7 @@ async function createRuntime(options = {}) {
       }
 
       if (provider.apiKey) {
-        secretStore.set(nextProvider.secretRef, provider.apiKey);
+        await secretStore.set(nextProvider.secretRef, provider.apiKey);
       }
       delete nextProvider.apiKey;
       const index = state.providers.findIndex((item) => item.id === nextProvider.id);
@@ -4571,7 +4700,7 @@ async function createRuntime(options = {}) {
       const state = loadState();
       return discoverProviderModelsAgainstState(state, providerDraft || {});
     },
-    deleteProvider(providerId) {
+    async deleteProvider(providerId) {
       const state = loadState();
       const provider = state.providers.find((item) => item.id === providerId);
       if (!provider) throw new Error(`Provider ${providerId} not found`);
@@ -4588,7 +4717,7 @@ async function createRuntime(options = {}) {
 
       state.providers = state.providers.filter((item) => item.id !== providerId);
       saveState(state);
-      secretStore.delete(provider.secretRef);
+      await secretStore.delete(provider.secretRef);
       return { ok: true };
     },
     deleteProviderModel(providerId, modelId) {

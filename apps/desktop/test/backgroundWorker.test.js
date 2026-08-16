@@ -402,7 +402,7 @@ test('background worker boots and proxies runtime requests', async (t) => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  const provider = runtime.saveProvider({
+  const provider = await runtime.saveProvider({
     name: 'OpenAI',
     type: 'openai',
     baseUrl: 'https://api.openai.com/v1',
@@ -452,7 +452,7 @@ test('background worker proxies discovery for official and compatible providers'
     fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  const provider = runtime.saveProvider({
+  const provider = await runtime.saveProvider({
     name: 'OpenAI Compatible',
     type: 'openai-compatible',
     baseUrl: 'https://api.example.com/v1',
@@ -499,7 +499,7 @@ test('background worker keeps a default model when saving a provider without exp
     fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  const provider = runtime.saveProvider({
+  const provider = await runtime.saveProvider({
     name: 'OpenAI',
     type: 'openai',
     baseUrl: 'https://api.openai.com/v1',
@@ -550,7 +550,7 @@ test('background worker runtime harness exposes translation cache bypass and cle
     fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  const provider = runtime.saveProvider({
+  const provider = await runtime.saveProvider({
     name: 'OpenAI',
     type: 'openai',
     baseUrl: 'https://api.openai.com/v1',

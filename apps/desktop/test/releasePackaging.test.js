@@ -76,3 +76,14 @@ test('packaged desktop bundle loads governed runtime modules from ASAR', {
     fs.rmSync(extractedRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });
+
+test('packaged release includes the Squirrel Windows installer beside the portable zip', {
+  skip: !packagedAppDir
+}, () => {
+  const squirrelSetupPath = path.join(path.dirname(packagedAppDir), 'make', 'squirrel.windows', 'x64', 'memoq-ai-hub-setup.exe');
+  assert.equal(
+    fs.existsSync(squirrelSetupPath),
+    true,
+    `Expected Squirrel installer at ${squirrelSetupPath}`
+  );
+});

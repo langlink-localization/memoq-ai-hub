@@ -94,8 +94,12 @@ function createQaSnapshot(payload = {}) {
     }
   };
   snapshot.revision.contentHash = sha256(stableSerialize({
-    document: snapshot.document,
-    segment: snapshot.segment,
+    document: { id: snapshot.document.id },
+    segment: {
+      previewPartId: snapshot.segment.previewPartId,
+      source: snapshot.segment.source,
+      target: snapshot.segment.target
+    },
     languages: snapshot.languages,
     context: snapshot.context,
     contextPolicy: snapshot.contextPolicy,

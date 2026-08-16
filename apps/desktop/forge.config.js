@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { builtinModules, createRequire } = require('module');
+const { flipFuses, FuseVersion, FuseV1Options } = require('@electron/fuses');
 
 const desktopNodeModulesPath = path.join(__dirname, 'node_modules');
 const workspaceNodeModulesPath = path.join(__dirname, '..', '..', 'node_modules');
@@ -283,6 +284,30 @@ function prunePackagedLocalesFromOutputs(outputPaths = []) {
   }
 }
 
+// RunAsNode stays enabled on purpose: the desktop worker is forked from the
+// packaged executable with ELECTRON_RUN_AS_NODE=1.
+async function applyElectronFuses(executablePath) {
+  await flipFuses(executablePath, {
+    version: FuseVersion.V1,
+    force: true,
+    [FuseV1Options.EnableCookieEncryption]: true,
+    [FuseV1Options.OnlyLoadAppFromAsar]: true,
+    [FuseV1Options.EnableNodeCliInspectArguments]: false,
+    [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false
+  });
+}
+
+async function hardenPackagedOutputs(outputPaths = []) {
+  for (const outputPath of outputPaths) {
+    const executablePath = path.join(outputPath, 'memoQ AI Hub.exe');
+    if (fs.existsSync(executablePath)) {
+      await applyElectronFuses(executablePath);
+    } else {
+      console.warn(`Skipping Electron fuses: executable not found at ${executablePath}`);
+    }
+  }
+}
+
 function copyMissingRuntimeModules(sourceDir, targetDir) {
   if (!fs.existsSync(sourceDir)) {
     return;
@@ -380,12 +405,24 @@ module.exports = {
     },
     postPackage: async (_forgeConfig, options) => {
       prunePackagedLocalesFromOutputs(options?.outputPaths);
+      await hardenPackagedOutputs(options?.outputPaths);
     }
   },
   makers: [
     {
       name: '@electron-forge/maker-zip',
       platforms: ['win32']
+    },
+    {
+      name: '@electron-forge/maker-squirrel',
+      platforms: ['win32'],
+      config: {
+        // Squirrel package identity; deltas stay off because Squirrel Windows
+        // delta updates are unreliable — full nupkg updates are used instead.
+        name: 'memoQAIHub',
+        setupExe: 'memoq-ai-hub-setup.exe',
+        noDelta: true
+      }
     }
   ],
   plugins: [

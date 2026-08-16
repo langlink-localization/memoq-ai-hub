@@ -489,6 +489,10 @@ function buildStableSystemPrompt({
     ]);
   }
 
+  if (String(profile?.assistantAdditionalInstruction || '').trim()) {
+    pushMarkdownSection(lines, 'Additional Instructions', [`- ${String(profile.assistantAdditionalInstruction).trim()}`]);
+  }
+
   if (documentContext.projectMetadata.length) {
     pushMarkdownSection(lines, 'Project Metadata', documentContext.projectMetadata.map((item) => `- ${item.label}: ${item.value}`));
   }

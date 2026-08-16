@@ -10,6 +10,7 @@ import {
   MenuOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  SelectOutlined,
   ReloadOutlined
 } from '@ant-design/icons';
 import {
@@ -222,6 +223,7 @@ function createFallbackAppState() {
       assetImportRules: {},
       translationCacheBypassProfileIds: []
     },
+    promptPresets: [],
     memoqMetadataMapping: { rules: [] },
     providerHub: { providers: [], summary: { enabled: 0, healthy: 0 } },
     historyExplorer: {
@@ -307,6 +309,7 @@ function normalizeAppStatePayload(data = {}) {
         ? nextState.contextBuilder.assetImportRules
         : fallback.contextBuilder.assetImportRules
     },
+    promptPresets: Array.isArray(nextState.promptPresets) ? nextState.promptPresets : fallback.promptPresets,
     memoqMetadataMapping: {
       ...fallback.memoqMetadataMapping,
       ...(nextState.memoqMetadataMapping || {}),
@@ -889,14 +892,15 @@ export default function App() {
     { key: 'providers', label: <span className="app-nav-label">{t('nav.providers')}</span>, title: t('nav.providers'), icon: <CloudServerOutlined className="app-nav-icon" /> },
     { key: 'assets', label: <span className="app-nav-label">{t('nav.assets')}</span>, title: t('nav.assets'), icon: <DatabaseOutlined className="app-nav-icon" /> },
     { key: 'builder', label: <span className="app-nav-label">{t('nav.builder')}</span>, title: t('nav.builder'), icon: <DeploymentUnitOutlined className="app-nav-icon" /> },
-    { key: 'history', label: <span className="app-nav-label">{t('nav.history')}</span>, title: t('nav.history'), icon: <FileSearchOutlined className="app-nav-icon" /> },
     { key: 'quality', label: <span className="app-nav-label">{t('nav.quality')}</span>, title: t('nav.quality'), icon: <SafetyCertificateOutlined className="app-nav-icon" /> },
+    { key: 'history', label: <span className="app-nav-label">{t('nav.history')}</span>, title: t('nav.history'), icon: <FileSearchOutlined className="app-nav-icon" /> },
     { key: 'logs', label: <span className="app-nav-label">{t('nav.logs')}</span>, title: t('nav.logs'), icon: <FileTextOutlined className="app-nav-icon" /> }
   ];
   const navItems = [
     navPageItems[0],
     { type: 'group', label: <span className="app-nav-group-label">{t('nav.configure')}</span>, children: navPageItems.slice(1, 4) },
-    { type: 'group', label: <span className="app-nav-group-label">{t('nav.activity')}</span>, children: navPageItems.slice(4, 6) },
+    navPageItems[4],
+    navPageItems[5],
     { type: 'group', label: <span className="app-nav-group-label">{t('nav.support')}</span>, children: [navPageItems[6]] }
   ];
   const pageDescriptions = {
@@ -1108,6 +1112,9 @@ export default function App() {
     }
 
     const timer = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
       refresh();
     }, 1000);
 
@@ -1120,6 +1127,9 @@ export default function App() {
     }
 
     const timer = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
       void refreshDashboardStatus();
     }, 3000);
 
@@ -2682,6 +2692,16 @@ export default function App() {
                 options={[{ value: 'en', label: 'English' }, { value: 'zh-CN', label: '中文' }]}
                 onChange={setLocale}
               />
+              <Tooltip title={t('app.openAssistant')}>
+                <Button
+                  type="text"
+                  size="small"
+                  className="app-header-assistant"
+                  icon={<SelectOutlined />}
+                  onClick={() => api.openAssistantWindow?.()}
+                  aria-label={t('app.openAssistant')}
+                />
+              </Tooltip>
               <Tooltip title={t('app.refresh')}>
                 <Button
                   type="text"
@@ -2883,7 +2903,7 @@ export default function App() {
           )}
 
           {activePage === 'quality' && (
-            <QualityPage api={api} profiles={profileItems} providers={providerItems} />
+            <QualityPage api={api} profiles={profileItems} providers={providerItems} promptPresets={state?.promptPresets || []} />
           )}
           </Suspense>
         </Content>

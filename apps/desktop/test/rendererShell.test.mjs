@@ -43,11 +43,22 @@ function collectLocaleKeys(value, prefix = '') {
   });
 }
 
-test('app sections expose assets and logs as first-class top-level modules', () => {
+test('app sections expose quality and history as first-class top-level modules', () => {
   assert.deepEqual(
     APP_SECTIONS.map((item) => item.key),
-    ['dashboard', 'providers', 'assets', 'builder', 'history', 'logs']
+    ['dashboard', 'providers', 'assets', 'builder', 'quality', 'history', 'logs']
   );
+});
+
+test('navigation separates quality from translation history with a header-level assistant entry', () => {
+  const appSource = readRendererSource('App.jsx');
+
+  assert.match(appSource, /navItems = \[[\s\S]*?navPageItems\[0\],\s*\{ type: 'group', label: <span className="app-nav-group-label">\{t\('nav\.configure'\)\}<\/span>, children: navPageItems\.slice\(1, 4\) \},\s*navPageItems\[4\],\s*navPageItems\[5\],\s*\{ type: 'group'/);
+  assert.doesNotMatch(appSource, /nav\.activity/);
+  assert.match(appSource, /api\.openAssistantWindow\?\.\(\)/);
+  assert.match(appSource, /app-header-assistant/);
+  const qualitySource = readRendererSource('pages/quality/QualityPage.jsx');
+  assert.doesNotMatch(qualitySource, /openFloating|openAssistantWindow/);
 });
 
 test('feature pages load behind explicit renderer boundaries', () => {

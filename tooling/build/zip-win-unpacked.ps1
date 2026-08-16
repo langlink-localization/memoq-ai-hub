@@ -33,19 +33,19 @@ function Get-SevenZipCommand() {
 }
 
 function Get-TarCommand() {
+    # Prefer the Windows bsdtar: MSYS/Git tar interprets drive-letter paths as
+    # remote hosts and fails with "Cannot connect to D: resolve failed".
+    $pathCandidates = @(
+        (Join-Path $env:SystemRoot "System32\tar.exe")
+    ) | Where-Object { Test-Path $_ }
+
+    foreach ($candidate in $pathCandidates) {
+        return $candidate
+    }
+
     $command = Get-Command "tar.exe" -ErrorAction SilentlyContinue
     if ($command) {
         return $command.Source
-    }
-
-    $pathCandidates = @(
-        (Join-Path $env:SystemRoot "System32\tar.exe")
-    ) | Where-Object { $_ }
-
-    foreach ($candidate in $pathCandidates) {
-        if (Test-Path $candidate) {
-            return $candidate
-        }
     }
 
     return $null

@@ -64,7 +64,7 @@ function createRuntimeStub(overrides = {}) {
 test('gateway health returns the same desktop version as the desktop version payload', async () => {
   const runtime = createRuntimeStub();
 
-  const { app } = createGatewayServer(runtime);
+  const { app } = createGatewayServer(runtime, { guard: false });
   const { server, baseUrl } = await listen(app);
 
   try {
@@ -92,7 +92,7 @@ test('gateway aggregate submit success passes through runtime status and body', 
       };
     }
   });
-  const { app } = createGatewayServer(runtime);
+  const { app } = createGatewayServer(runtime, { guard: false });
   const { server, baseUrl } = await listen(app);
 
   try {
@@ -127,7 +127,7 @@ test('gateway aggregate result success passes through runtime status and body', 
       };
     }
   });
-  const { app } = createGatewayServer(runtime);
+  const { app } = createGatewayServer(runtime, { guard: false });
   const { server, baseUrl } = await listen(app);
 
   try {
@@ -161,7 +161,7 @@ test('gateway translate success still passes through runtime status and body', a
       };
     }
   });
-  const { app } = createGatewayServer(runtime);
+  const { app } = createGatewayServer(runtime, { guard: false });
   const { server, baseUrl } = await listen(app);
 
   try {
@@ -191,7 +191,7 @@ test('gateway translate wraps runtime exceptions in a stable JSON error body', a
       throw error;
     }
   });
-  const { app } = createGatewayServer(runtime);
+  const { app } = createGatewayServer(runtime, { guard: false });
   const { server, baseUrl } = await listen(app);
 
   try {
@@ -221,7 +221,7 @@ test('gateway storeTranslations uses the translation failure contract for thrown
       throw new Error('writeback exploded');
     }
   });
-  const { app } = createGatewayServer(runtime);
+  const { app } = createGatewayServer(runtime, { guard: false });
   const { server, baseUrl } = await listen(app);
 
   try {
@@ -253,7 +253,7 @@ test('gateway integration install keeps its existing integration error contract'
       throw error;
     }
   });
-  const { app } = createGatewayServer(runtime);
+  const { app } = createGatewayServer(runtime, { guard: false });
   const { server, baseUrl } = await listen(app);
 
   try {

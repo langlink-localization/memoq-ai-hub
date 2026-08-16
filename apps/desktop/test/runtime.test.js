@@ -3268,7 +3268,7 @@ test('runtime rejects malformed provider api keys before saving them', async () 
       }
     });
 
-    assert.throws(() => runtime.saveProvider({
+    await assert.rejects(() => runtime.saveProvider({
       name: 'OpenAI',
       type: 'openai',
       baseUrl: 'https://api.openai.com/v1',
@@ -3455,7 +3455,7 @@ test('runtime blocks deleting referenced provider and model', async () => {
       fallbackModelId: provider.models[1].id
     });
 
-    assert.throws(() => runtime.deleteProvider(provider.id), /still referenced/);
+    await assert.rejects(() => runtime.deleteProvider(provider.id), /still referenced/);
     assert.throws(() => runtime.deleteProviderModel(provider.id, provider.models[0].id), /still referenced/);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -6200,6 +6200,8 @@ test('Preview Assistant translates and polishes the active immutable segment thr
     const provider = await runtime.saveProvider({ name: 'Assistant Provider', type: 'openai', baseUrl: 'https://api.openai.com/v1', apiKey: 'test-key', models: [{ modelName: 'assistant-model', enabled: true }] });
     const defaultProfile = await runtime.saveProfile({ name: 'Default Profile', providerId: provider.id, cacheEnabled: false });
     const profile = await runtime.saveProfile({ name: 'Assistant Profile', providerId: provider.id, interactiveProviderId: provider.id, interactiveModelId: provider.models[0].id, cacheEnabled: false });
+    const translatePreset = runtime.savePromptPreset({ name: 'Assistant Translate', scope: 'translate', style: 'Concise formal translation.', systemPrompt: 'Translate {{source-language}} to {{target-language}}.', userPrompt: 'Translate: {{source-text}}', rules: [] });
+    const polishPreset = runtime.savePromptPreset({ name: 'Assistant Polish', scope: 'polish', style: 'Polished formal target.', systemPrompt: 'Edit {{source-language}} to {{target-language}}.', userPrompt: 'Source: {{source-text}}\nTarget: {{target-text}}', rules: [] });
     runtime.setDefaultProfile(defaultProfile.id);
 
     const qaResult = await runtime.checkQaSegment({ profileId: profile.id, ai: { enabled: false } });
@@ -6211,8 +6213,8 @@ test('Preview Assistant translates and polishes the active immutable segment thr
     assert.equal(aiQaResult.execution.ai.model, 'assistant-model');
     assert.equal(aiQaResult.execution.ai.providerName, 'Assistant Provider');
 
-    const translated = await runtime.runPreviewAssistant({ operation: 'translate', requestId: 'assistant-translate', profileId: profile.id });
-    const polished = await runtime.runPreviewAssistant({ operation: 'polish', requestId: 'assistant-polish', profileId: profile.id });
+    const translated = await runtime.runPreviewAssistant({ operation: 'translate', requestId: 'assistant-translate', profileId: profile.id, prompt: { presetId: translatePreset.id, additionalInstruction: 'Prefer short sentences.' } });
+    const polished = await runtime.runPreviewAssistant({ operation: 'polish', requestId: 'assistant-polish', profileId: profile.id, prompt: { presetId: polishPreset.id, additionalInstruction: 'Keep the existing tone.' } });
 
     assert.equal(translated.contentHash, polished.contentHash);
     assert.equal(translated.text, '注文を確認してください。');
@@ -6220,8 +6222,13 @@ test('Preview Assistant translates and polishes the active immutable segment thr
     assert.deepEqual(calls.map((call) => call.operation), ['translate', 'polish']);
     assert.deepEqual(calls.map((call) => call.requestOptions.localPromptCacheEnabled), [false, false]);
     assert.equal(calls[0].profile.usePreviewTargetText, false);
+    assert.equal(calls[0].profile.translationStyle, 'Concise formal translation.');
+    assert.equal(calls[0].profile.promptTemplates.single.systemPrompt, translatePreset.systemPrompt);
+    assert.equal(calls[0].profile.assistantAdditionalInstruction, 'Prefer short sentences.');
     assert.equal(String(calls[0].segmentPreviewContext?.targetText || ''), '');
     assert.equal(calls[1].segmentPreviewContext.targetText, '注文を確認してください。');
+    assert.equal(calls[1].profile.translationStyle, 'Polished formal target.');
+    assert.equal(calls[1].profile.promptTemplates.single.userPrompt, polishPreset.userPrompt);
     assert.equal(polished.providerId, provider.id);
     assert.equal(polished.revision.previewRevision, 7);
   } finally {

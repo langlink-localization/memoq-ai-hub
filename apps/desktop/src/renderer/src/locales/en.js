@@ -2,6 +2,7 @@ const en = {
   app: {
     title: 'memoQ AI Hub',
     refresh: 'Refresh',
+    openAssistant: 'Open assistant window',
     loading: 'Loading...',
     startupErrorTitle: 'memoQ AI Hub could not start',
     renderErrorTitle: 'memoQ AI Hub could not render',
@@ -15,7 +16,6 @@ const en = {
   nav: {
     dashboard: 'Dashboard',
     configure: 'Configure',
-    activity: 'Activity',
     support: 'Support',
     dashboardDescription: 'Finish setup, check app health, and act on items that need attention.',
     providersDescription: 'Connect AI services, test credentials, and manage available models.',
@@ -49,6 +49,16 @@ const en = {
     providerMustTestBeforeSave: 'Test this AI service successfully before saving, or discard the changes.'
   },
   quality: {
+    tabs: { check: 'Check', history: 'Check history' },
+    history: {
+      loadFailed: 'Could not load quality-check history.', detailLoadFailed: 'Could not load this quality-check result.', detailNotFound: 'This quality-check result is no longer available.',
+      allDocuments: 'All documents', allSources: 'All sources', showAutomatic: 'Show automatic Preview checks', deleteSelected: 'Delete selected',
+      checkCount: 'Checks', findingCount: 'Findings', aiParticipation: 'AI participation', checkedAt: 'Checked at', document: 'Document', source: 'Source', segment: 'Segment', findings: 'Findings', status: 'Status',
+      empty: 'No quality-check history matches these filters.', detailTitle: 'Quality-check details', feedback: 'Feedback',
+      deleteTitle: 'Delete quality-check history?', deleteDescription: 'Delete {{count}} selected result(s) and their feedback?', deleteSuccess: 'Deleted {{count}} quality-check result(s).',
+      exportSuccess: 'Quality-check history exported to {{path}}.', exportFailed: 'Could not export quality-check history.',
+      trigger: { manual: 'Manual', batch: 'Document check', import: 'Bilingual import', 'preview-target-changed': 'Automatic Preview' }
+    },
     statusFailed: 'Could not load quality-check status.',
     checkFailed: 'The quality check failed.',
     batchPrivacyTitle: 'Import this bilingual file for a read-only quality check?',
@@ -68,7 +78,7 @@ const en = {
     statusDescription: 'Only results matching the current immutable snapshot are shown.',
     currentSegment: 'Current segment', batchFile: 'MQXLIFF / XLIFF file', profile: 'Translation profile', model: 'Model',
     realtimeAi: 'Use AI for real-time checks', includeSummary: 'Include document summary', includeFullText: 'Include full document text',
-    recheck: 'Check again', pause: 'Pause', resume: 'Resume', openFloating: 'Open compact window', saveSettings: 'Save settings', seriousIssues: 'Major or critical', noFindings: 'No findings',
+    recheck: 'Check again', pause: 'Pause', resume: 'Resume', saveSettings: 'Save settings', seriousIssues: 'Major or critical', noFindings: 'No findings',
     projectRules: 'Project quality rules', ruleName: 'Rule name', ruleType: 'Rule type', ruleScope: 'Check field', ruleExpression: 'Expression or instruction',
     ruleMessage: 'Finding message', sampleText: 'Test this rule with sample text', sampleMatched: 'The sample matches this rule.', sampleNotMatched: 'The sample does not match this rule.', addRule: 'Add rule',
     sourceEvidence: 'Source evidence', targetEvidence: 'Target evidence', suggestion: 'Suggestion', origin: 'Origin',
@@ -82,10 +92,18 @@ const en = {
   },
   assistant: {
     title: 'memoQ Assistant', translatePolish: 'Translate / Polish', qa: 'QA Check', translate: 'Translate', polish: 'Polish',
-    terminologyAssets: 'Terminology assets for this request', additionalInstruction: 'Additional QA instruction for this request (does not change the profile)',
+    terminologyAssets: 'Terminology assets for this request', additionalInstruction: 'Additional instruction for this request (does not change the profile or preset)',
     generatedResult: 'Generated result', copy: 'Copy result', copied: 'Copied.', cacheHit: 'Cache result', providerGenerated: 'Provider result', termMatches: '{{count}} terminology match(es)',
     runQaHint: 'Run a QA check to see findings and execution details.', previewChanged: 'The active Preview segment changed. The previous request was cancelled or discarded; run it again.',
     loadFailed: 'Could not load the assistant state.', runFailed: 'The assistant request failed.'
+  },
+  promptPresets: {
+    select: 'Select prompt preset', edit: 'View or edit preset', editorTitle: 'Prompt preset', name: 'Name', scope: 'Scope', builtin: 'Built in', style: 'Translation style',
+    systemPrompt: 'System prompt', userPrompt: 'User prompt', rules: 'Additional QA rules', rulesHint: 'One natural-language rule per line.',
+    placeholderHint: 'Use supported template placeholders. Volatile terminology and TM placeholders are not allowed in system prompts.',
+    guardrails: 'Provider schemas, evidence requirements, thresholds, and the no-score policy remain fixed.',
+    saveCopy: 'Save as copy', saved: 'Prompt preset saved.', saveFailed: 'Could not save the prompt preset.', restored: 'Built-in preset restored.', deleteTitle: 'Delete this prompt preset?',
+    qaPreset: 'QA prompt preset', translatePreset: 'Translation prompt preset', polishPreset: 'Polish prompt preset'
   },
   common: {
     save: 'Save',

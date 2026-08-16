@@ -15,6 +15,10 @@ function normalizeAssistantPayload(payload = {}) {
     assets: {
       mode: payload.assets?.mode === 'override' ? 'override' : 'inherit',
       glossaryAssetIds
+    },
+    prompt: {
+      presetId: String(payload.prompt?.presetId || '').slice(0, 160),
+      additionalInstruction: String(payload.prompt?.additionalInstruction || '').slice(0, 4000)
     }
   };
 }
@@ -27,6 +31,9 @@ contextBridge.exposeInMainWorld('memoqDesktop', {
   pruneLogs: () => ipcRenderer.invoke('desktop:prune-logs'),
   recordRendererLog: (payload) => ipcRenderer.invoke('desktop:record-renderer-log', payload || {}),
   saveProfile: (profile) => ipcRenderer.invoke('desktop:save-profile', profile),
+  savePromptPreset: (preset) => ipcRenderer.invoke('desktop:save-prompt-preset', preset || {}),
+  deletePromptPreset: (presetId) => ipcRenderer.invoke('desktop:delete-prompt-preset', String(presetId || '').slice(0, 160)),
+  restoreBuiltinPromptPreset: (presetId) => ipcRenderer.invoke('desktop:restore-builtin-prompt-preset', String(presetId || '').slice(0, 160)),
   setDefaultProfile: (profileId) => ipcRenderer.invoke('desktop:set-default-profile', profileId),
   duplicateProfile: (profileId) => ipcRenderer.invoke('desktop:duplicate-profile', profileId),
   deleteProfile: (profileId) => ipcRenderer.invoke('desktop:delete-profile', profileId),
@@ -57,6 +64,10 @@ contextBridge.exposeInMainWorld('memoqDesktop', {
   cancelQa: (payload) => ipcRenderer.invoke('desktop:cancel-qa', payload || {}),
   saveQaFeedback: (payload) => ipcRenderer.invoke('desktop:save-qa-feedback', payload || {}),
   getQaResults: (documentId) => ipcRenderer.invoke('desktop:get-qa-results', documentId),
+  getQaHistory: (filters) => ipcRenderer.invoke('desktop:get-qa-history', filters || {}),
+  getQaHistoryEntry: (requestId) => ipcRenderer.invoke('desktop:get-qa-history-entry', requestId),
+  deleteQaHistory: (requestIds) => ipcRenderer.invoke('desktop:delete-qa-history', Array.isArray(requestIds) ? requestIds : []),
+  exportQaHistory: (options) => ipcRenderer.invoke('desktop:export-qa-history', options || {}),
   importBilingualQa: (payload) => ipcRenderer.invoke('desktop:import-bilingual-qa', payload || {}),
   openQualityWindow: () => ipcRenderer.invoke('desktop:open-quality-window'),
   openAssistantWindow: () => ipcRenderer.invoke('desktop:open-assistant-window'),

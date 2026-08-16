@@ -21,6 +21,44 @@ test('QA content hash changes with target, rules, assets, and context policy', (
   assert.equal(Object.isFrozen(first), true);
 });
 
+test('QA content hash ignores highlight ranges and capture timing but covers checked context', () => {
+  const base = {
+    document: { id: 'doc-1', name: 'Doc' },
+    segment: { previewPartId: 'part-1', segmentIndex: 3, source: 'A', target: 'B' },
+    languages: { source: 'ZH', target: 'JA' },
+    context: { above: '', below: '', summary: '', fullText: '' },
+    contextPolicy: { includeSummary: false, includeFullText: false, maxAdjacentCharacters: 1200 },
+    configuration: { ruleSetVersion: '1' }
+  };
+  const first = createQaSnapshot(base);
+  const drifted = createQaSnapshot({
+    ...base,
+    document: { ...base.document, name: 'Doc renamed' },
+    segment: {
+      ...base.segment,
+      segmentIndex: 9,
+      sourceFocusedRange: { start: 1, end: 2 },
+      targetFocusedRange: { start: 3, end: 4 }
+    },
+    revision: { previewRevision: 42, capturedAt: '2026-08-16T00:00:00.000Z' }
+  });
+
+  assert.equal(first.revision.contentHash, drifted.revision.contentHash);
+
+  const changedContext = createQaSnapshot({ ...base, context: { ...base.context, above: 'new above' } });
+  const changedPolicy = createQaSnapshot({ ...base, contextPolicy: { ...base.contextPolicy, includeSummary: true } });
+  const changedConfiguration = createQaSnapshot({ ...base, configuration: { ruleSetVersion: '2' } });
+  const changedTarget = createQaSnapshot({ ...base, segment: { ...base.segment, target: 'C' } });
+  const changedPart = createQaSnapshot({ ...base, segment: { ...base.segment, previewPartId: 'part-2' } });
+  const changedLanguages = createQaSnapshot({ ...base, languages: { source: 'ZH', target: 'EN' } });
+  assert.notEqual(first.revision.contentHash, changedContext.revision.contentHash);
+  assert.notEqual(first.revision.contentHash, changedPolicy.revision.contentHash);
+  assert.notEqual(first.revision.contentHash, changedConfiguration.revision.contentHash);
+  assert.notEqual(first.revision.contentHash, changedTarget.revision.contentHash);
+  assert.notEqual(first.revision.contentHash, changedPart.revision.contentHash);
+  assert.notEqual(first.revision.contentHash, changedLanguages.revision.contentHash);
+});
+
 test('deterministic QA catches structural data, whitespace, length, terminology, and custom rules', () => {
   const findings = runDeterministicChecks(snapshot('  Total: 11 EUR  '), {
     terminologyMatches: [{ entry: { id: 'term-1', sourceTerm: 'Total', targetTerm: 'Sum' } }],

@@ -68,6 +68,7 @@ function createQaCoordinator(options = {}) {
     };
     let result = {
       requestId: snapshot.requestId,
+      trigger: snapshot.trigger,
       contentHash: snapshot.revision.contentHash,
       document: snapshot.document,
       segment: {
@@ -76,6 +77,7 @@ function createQaCoordinator(options = {}) {
         source: snapshot.segment.source,
         target: snapshot.segment.target
       },
+      languages: snapshot.languages,
       revision: snapshot.revision,
       configuration: snapshot.configuration,
       contextPolicy: snapshot.contextPolicy,

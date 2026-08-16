@@ -1,7 +1,8 @@
 const path = require('path');
 const fs = require('fs');
 const { fork } = require('child_process');
-const { app, BrowserWindow, ipcMain, dialog, shell, screen, clipboard } = require('electron');
+const { pathToFileURL } = require('url');
+const { app, BrowserWindow, ipcMain, dialog, shell, screen, clipboard, session, Tray, Menu, nativeImage } = require('electron');
 const { createAppPaths } = require('./shared/paths');
 const {
   DEFAULT_LOG_POLICY,
@@ -15,48 +16,150 @@ const { getAssetImportRules } = require('./asset/assetRules');
 const { getSupportedPlaceholders } = require('./shared/promptTemplate');
 const { readDesktopPackageMetadata } = require('./shared/desktopMetadata');
 const { normalizeExternalHttpsUrl } = require('./shared/externalNavigation');
+const { buildWorkerForkOptions } = require('./workerLaunch');
+const { createWorkerSupervisor } = require('./workerSupervisor');
+const { createMainSecretService } = require('./mainSecretService');
+const { createLifecycleSettings } = require('./lifecycleSettings');
+const { TRAY_ICON_PNG_BASE64, trayStatusLabel, buildTrayMenuTemplate } = require('./desktopTray');
 
 const appPaths = createAppPaths();
 const logger = createLogger({ source: 'desktop-main', logsDir: appPaths.logsDir });
 const rendererLogger = createLogger({ source: 'renderer', logsDir: appPaths.logsDir });
 let mainWindow;
 let qualityWindow;
-let backgroundWorker;
-let workerRequestId = 0;
 let appIsQuitting = false;
 let startupState = { status: 'starting', message: '' };
-const pendingWorkerRequests = new Map();
+const startHidden = process.argv.includes('--hidden');
+const lifecycleSettings = createLifecycleSettings({
+  settingsPath: path.join(app.getPath('userData'), 'lifecycle-settings.json')
+});
+let lifecycleState = lifecycleSettings.read();
+let tray = null;
+let trayNoticeShown = false;
 
-function buildWorkerForkOptions(baseEnv = {}) {
-  return {
-    env: {
-      ...baseEnv,
-      MEMOQ_AI_DESKTOP_LOGS_DIR: appPaths.logsDir,
-      ELECTRON_RUN_AS_NODE: '1'
-    },
-    execArgv: [],
-    windowsHide: true,
-    silent: true
-  };
+function applyLaunchAtLogin(enabled) {
+  app.setLoginItemSettings({
+    openAtLogin: Boolean(enabled),
+    args: enabled ? ['--hidden'] : []
+  });
 }
+
+function rebuildTrayMenu() {
+  if (!tray) {
+    return;
+  }
+  tray.setContextMenu(Menu.buildFromTemplate(buildTrayMenuTemplate({
+    productName: PRODUCT_NAME,
+    settings: lifecycleState,
+    statusLabel: trayStatusLabel(workerSupervisor.getStartupState().status),
+    callbacks: {
+      showMainWindow: () => revealWindow(),
+      openAssistantWindow: () => createQualityWindow(),
+      setCloseToTray: (enabled) => {
+        lifecycleState = lifecycleSettings.write({ ...lifecycleState, closeToTray: enabled });
+        rebuildTrayMenu();
+      },
+      setLaunchAtLogin: (enabled) => {
+        lifecycleState = lifecycleSettings.write({ ...lifecycleState, launchAtLogin: enabled });
+        applyLaunchAtLogin(enabled);
+        rebuildTrayMenu();
+      },
+      quitApp: () => app.quit()
+    }
+  })));
+}
+
+function updateTrayStatus(workerStatus) {
+  if (!tray) {
+    return;
+  }
+  tray.setToolTip(`${PRODUCT_NAME} - ${trayStatusLabel(workerStatus)}`);
+  rebuildTrayMenu();
+}
+
+function createTray() {
+  if (tray) {
+    return tray;
+  }
+  const icon = nativeImage.createFromBuffer(Buffer.from(TRAY_ICON_PNG_BASE64, 'base64'));
+  tray = new Tray(icon);
+  tray.setToolTip(`${PRODUCT_NAME} - ${trayStatusLabel(workerSupervisor.getStartupState().status)}`);
+  tray.on('double-click', () => revealWindow());
+  rebuildTrayMenu();
+  return tray;
+}
+
+const mainSecretService = createMainSecretService({ paths: appPaths, logger });
+
+const workerSupervisor = createWorkerSupervisor({
+  workerPath: path.join(__dirname, 'backgroundWorker.js'),
+  forkWorker: (workerModulePath, workerArgs, workerOptions) => fork(workerModulePath, workerArgs, workerOptions),
+  buildForkOptions: () => buildWorkerForkOptions({
+    ...process.env,
+    MEMOQ_AI_DESKTOP_LOGS_DIR: appPaths.logsDir
+  }),
+  logger,
+  mainRequestHandler: async ({ channel, payload }) => {
+    if (channel === 'secrets.get') {
+      return { value: mainSecretService.get(String(payload?.id || '')) };
+    }
+    if (channel === 'secrets.set') {
+      mainSecretService.set(String(payload?.id || ''), payload?.secret);
+      return { ok: true };
+    }
+    if (channel === 'secrets.delete') {
+      mainSecretService.delete(String(payload?.id || ''));
+      return { ok: true };
+    }
+    if (channel === 'secrets.listIds') {
+      return { ids: mainSecretService.listIds() };
+    }
+    throw new Error(`Unknown main request channel: ${channel}`);
+  },
+  onStatusChange(state) {
+    startupState = state;
+    updateTrayStatus(state.status);
+  },
+  onStdout: (chunk) => {
+    process.stdout.write(chunk);
+    logger.info('worker-stdout', 'Desktop worker wrote to stdout.', { bytes: Buffer.byteLength(chunk) });
+  },
+  onStderr: (chunk) => {
+    process.stderr.write(chunk);
+    logger.warn('worker-stderr', 'Desktop worker wrote to stderr.', { bytes: Buffer.byteLength(chunk) });
+  }
+});
 
 function getConnectionStatusLabel() {
   if (startupState.status === 'ready') return 'Connected';
   if (startupState.status === 'starting') return 'Starting';
+  if (startupState.status === 'restarting') return 'Restarting';
   if (startupState.status === 'error') return 'Error';
   return 'Disconnected';
 }
 
+let placeholderSnapshot = null;
+
+function getStartupPlaceholderSnapshot() {
+  if (!placeholderSnapshot) {
+    placeholderSnapshot = {
+      versionMetadata: readDesktopPackageMetadata(path.join(__dirname, '..')),
+      integration: getIntegrationStatus(appPaths, { memoqVersion: '11' })
+    };
+  }
+  return placeholderSnapshot;
+}
+
 function buildPlaceholderAppState() {
-  const paths = createAppPaths();
-  const versionMetadata = readDesktopPackageMetadata(path.join(__dirname, '..'));
-  const integration = getIntegrationStatus(paths, { memoqVersion: '11' });
+  const { versionMetadata, integration } = getStartupPlaceholderSnapshot();
   const connectionStatus = getConnectionStatusLabel();
-  const previewPlaceholderStatus = startupState.status === 'starting' ? 'starting' : 'disconnected';
+  const previewPlaceholderStatus = ['starting', 'restarting'].includes(startupState.status) ? 'starting' : 'disconnected';
   const notices = [];
 
   if (startupState.status === 'error') {
     notices.push(startupState.message || 'Desktop services failed to start.');
+  } else if (startupState.status === 'restarting') {
+    notices.push(startupState.message || 'Desktop services are restarting after an unexpected stop.');
   } else if (startupState.status === 'starting') {
     notices.push('Desktop services are waiting for memoQ startup.');
   }
@@ -179,164 +282,33 @@ function buildPlaceholderAppState() {
   };
 }
 
-function buildWorkerPath() {
-  return path.join(__dirname, 'backgroundWorker.js');
-}
-
-function createWorkerError(serializedError, fallbackMessage = 'Desktop worker request failed.') {
-  const error = new Error(String(serializedError?.message || fallbackMessage));
-  error.code = serializedError?.code || '';
-  error.statusCode = Number.isFinite(Number(serializedError?.statusCode)) ? Number(serializedError.statusCode) : 500;
-  if (serializedError?.stack) {
-    error.stack = serializedError.stack;
-  }
-  return error;
-}
-
-function rejectPendingRequests(serializedError) {
-  const error = createWorkerError(serializedError, 'Desktop background worker stopped before replying.');
-  for (const { reject } of pendingWorkerRequests.values()) {
-    reject(error);
-  }
-  pendingWorkerRequests.clear();
-}
-
-function handleWorkerMessage(message) {
-  if (!message || typeof message !== 'object') {
-    return;
-  }
-
-  if (message.type === 'status') {
-    startupState = {
-      status: String(message.payload?.status || 'starting'),
-      message: String(message.payload?.message || '')
-    };
-    return;
-  }
-
-  if (message.type !== 'response') {
-    return;
-  }
-
-  const pending = pendingWorkerRequests.get(message.id);
-  if (!pending) {
-    return;
-  }
-
-  pendingWorkerRequests.delete(message.id);
-
-  if (message.ok) {
-    pending.resolve(message.result);
-    return;
-  }
-
-  pending.reject(createWorkerError(message.error));
-}
-
-function startBackgroundWorker() {
-  if (backgroundWorker) {
-    return backgroundWorker;
-  }
-
-  startupState = { status: 'starting', message: '' };
-  logger.info('worker-start', 'Starting desktop background worker.');
-
-  backgroundWorker = fork(buildWorkerPath(), [], buildWorkerForkOptions(process.env));
-
-  backgroundWorker.on('message', handleWorkerMessage);
-  backgroundWorker.once('exit', (code, signal) => {
-    const exitedWorker = backgroundWorker;
-    backgroundWorker = null;
-
-    rejectPendingRequests({
-      message: signal
-        ? `Desktop background worker stopped with signal ${signal}.`
-        : `Desktop background worker exited with code ${code}.`,
-      code: 'DESKTOP_WORKER_EXITED',
-      statusCode: 500
-    });
-    logger.warn('worker-exit', 'Desktop background worker stopped.', { code, signal });
-
-    if (appIsQuitting) {
-      startupState = { status: 'stopped', message: '' };
-      return;
-    }
-
-    startupState = {
-      status: 'error',
-      message: signal
-        ? `Desktop background worker stopped with signal ${signal}.`
-        : `Desktop background worker exited with code ${code}.`
-    };
-
-    if (exitedWorker?.stdout) {
-      exitedWorker.stdout.removeAllListeners();
-    }
-    if (exitedWorker?.stderr) {
-      exitedWorker.stderr.removeAllListeners();
-    }
-  });
-
-  if (backgroundWorker.stdout) {
-    backgroundWorker.stdout.on('data', (chunk) => {
-      process.stdout.write(chunk);
-      logger.info('worker-stdout', 'Desktop worker wrote to stdout.', { bytes: Buffer.byteLength(chunk) });
-    });
-  }
-
-  if (backgroundWorker.stderr) {
-    backgroundWorker.stderr.on('data', (chunk) => {
-      process.stderr.write(chunk);
-      logger.warn('worker-stderr', 'Desktop worker wrote to stderr.', { bytes: Buffer.byteLength(chunk) });
-    });
-  }
-
-  return backgroundWorker;
-}
-
 function invokeWorker(channel, payload) {
-  if (!backgroundWorker) {
-    startBackgroundWorker();
-  }
-
-  if (!backgroundWorker) {
-    throw new Error('Desktop background worker is unavailable.');
-  }
-
-  const id = `worker_req_${Date.now()}_${workerRequestId += 1}`;
-
-  return new Promise((resolve, reject) => {
-    pendingWorkerRequests.set(id, { resolve, reject });
-
-    try {
-      backgroundWorker.send({
-        type: 'request',
-        id,
-        channel,
-        payload
-      });
-    } catch (error) {
-      pendingWorkerRequests.delete(id);
-      reject(error);
-    }
-  });
+  return workerSupervisor.invoke(channel, payload);
 }
 
 function requireWorkerReady() {
-  if (backgroundWorker && startupState.status === 'ready') {
+  const workerState = workerSupervisor.getStartupState();
+
+  if (workerState.status === 'ready') {
     return;
   }
 
   throw new Error(
-    startupState.status === 'error'
-      ? (startupState.message || 'Desktop services failed to start.')
+    workerState.status === 'error' || workerState.status === 'restarting'
+      ? (workerState.message || 'Desktop services failed to start.')
       : 'Desktop services are waiting for memoQ startup.'
   );
 }
 
 function revealWindow() {
-  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
-    mainWindow.show();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (!mainWindow.isVisible()) {
+      mainWindow.show();
+    }
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.focus();
   }
 }
 
@@ -347,10 +319,60 @@ function getInitialWindowWidth() {
     : 1440;
 }
 
-function createWindow() {
-  const rendererDevServerUrl = typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined'
+let startupLogPruneDone = false;
+
+function scheduleStartupLogPrune() {
+  if (startupLogPruneDone) {
+    return;
+  }
+  startupLogPruneDone = true;
+  setImmediate(() => {
+    try {
+      pruneLogs(appPaths.logsDir, DEFAULT_LOG_POLICY);
+    } catch (error) {
+      logger.warn('log-prune-failed', 'Startup log prune failed.', { error });
+    }
+  });
+}
+
+function getRendererDevServerUrl() {
+  return typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined'
     ? MAIN_WINDOW_VITE_DEV_SERVER_URL
     : null;
+}
+
+function isAllowedRendererNavigationUrl(url, rendererDevServerUrl) {
+  const targetUrl = String(url || '');
+  if (!targetUrl) {
+    return false;
+  }
+  if (targetUrl.startsWith('devtools://')) {
+    return true;
+  }
+  if (rendererDevServerUrl && targetUrl.startsWith(rendererDevServerUrl)) {
+    return true;
+  }
+  const rendererRootUrl = pathToFileURL(path.join(__dirname, '..', 'renderer') + path.sep).href;
+  return targetUrl.startsWith(rendererRootUrl);
+}
+
+function lockdownWebContents(webContents, windowLabel) {
+  webContents.setWindowOpenHandler(({ url }) => {
+    logger.warn('window-open-blocked', 'Blocked a renderer window.open call.', { url, windowLabel });
+    return { action: 'deny' };
+  });
+
+  webContents.on('will-navigate', (event, url) => {
+    if (isAllowedRendererNavigationUrl(url, getRendererDevServerUrl())) {
+      return;
+    }
+    event.preventDefault();
+    logger.warn('navigation-blocked', 'Blocked a renderer navigation.', { url, windowLabel });
+  });
+}
+
+function createWindow() {
+  const rendererDevServerUrl = getRendererDevServerUrl();
 
   let revealTimeout;
 
@@ -371,8 +393,11 @@ function createWindow() {
     }
   });
 
+  lockdownWebContents(mainWindow.webContents, 'main-window');
+
   mainWindow.webContents.on('did-finish-load', () => {
     logger.info('renderer-loaded', 'Renderer finished loading.');
+    scheduleStartupLogPrune();
   });
 
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
@@ -381,6 +406,9 @@ function createWindow() {
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     logger.error('renderer-process-gone', 'Renderer process exited unexpectedly.', { details });
+    if (mainWindow && !mainWindow.isDestroyed() && details.reason !== 'clean-exit') {
+      mainWindow.webContents.reload();
+    }
   });
 
   mainWindow.webContents.on('console-message', (details) => {
@@ -403,9 +431,28 @@ function createWindow() {
     revealWindow();
   };
 
-  mainWindow.once('ready-to-show', revealWindowSafely);
-  mainWindow.webContents.once('did-finish-load', revealWindowSafely);
-  mainWindow.webContents.once('did-fail-load', revealWindowSafely);
+  mainWindow.on('close', (event) => {
+    if (appIsQuitting || !lifecycleState.closeToTray) {
+      return;
+    }
+    event.preventDefault();
+    mainWindow.hide();
+    if (!trayNoticeShown && tray) {
+      trayNoticeShown = true;
+      tray.displayBalloon?.({
+        title: PRODUCT_NAME,
+        content: 'memoQ AI Hub keeps running in the tray so memoQ translations stay available. Use Quit in the tray menu to exit.'
+      });
+    }
+  });
+
+  if (!startHidden) {
+    mainWindow.once('ready-to-show', revealWindowSafely);
+    mainWindow.webContents.once('did-finish-load', revealWindowSafely);
+    mainWindow.webContents.once('did-fail-load', revealWindowSafely);
+    revealTimeout = setTimeout(revealWindowSafely, 1500);
+  }
+
   mainWindow.on('closed', () => {
     if (revealTimeout) {
       clearTimeout(revealTimeout);
@@ -413,8 +460,6 @@ function createWindow() {
     }
     mainWindow = null;
   });
-
-  revealTimeout = setTimeout(revealWindowSafely, 1500);
 
   if (rendererDevServerUrl) {
     mainWindow.loadURL(rendererDevServerUrl);
@@ -466,7 +511,7 @@ function createQualityWindow() {
     qualityWindow.showInactive();
     return qualityWindow;
   }
-  const rendererDevServerUrl = typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined' ? MAIN_WINDOW_VITE_DEV_SERVER_URL : null;
+  const rendererDevServerUrl = getRendererDevServerUrl();
   qualityWindow = new BrowserWindow({
     ...readQualityBounds(),
     minWidth: 360,
@@ -476,6 +521,13 @@ function createQualityWindow() {
     show: false,
     backgroundColor: '#ffffff',
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, 'preload.js') }
+  });
+  lockdownWebContents(qualityWindow.webContents, 'assistant-window');
+  qualityWindow.webContents.on('render-process-gone', (_event, details) => {
+    logger.error('assistant-renderer-process-gone', 'Assistant renderer process exited unexpectedly.', { details });
+    if (qualityWindow && !qualityWindow.isDestroyed() && details.reason !== 'clean-exit') {
+      qualityWindow.webContents.reload();
+    }
   });
   qualityWindow.on('close', saveQualityBounds);
   qualityWindow.on('closed', () => { qualityWindow = null; });
@@ -525,6 +577,18 @@ function registerIpcHandlers() {
   ipcMain.handle('desktop:save-profile', (_event, profile) => {
     requireWorkerReady();
     return invokeWorker('saveProfile', profile || {});
+  });
+  ipcMain.handle('desktop:save-prompt-preset', (_event, payload) => {
+    requireWorkerReady();
+    return invokeWorker('savePromptPreset', payload || {});
+  });
+  ipcMain.handle('desktop:delete-prompt-preset', (_event, presetId) => {
+    requireWorkerReady();
+    return invokeWorker('deletePromptPreset', { presetId });
+  });
+  ipcMain.handle('desktop:restore-builtin-prompt-preset', (_event, presetId) => {
+    requireWorkerReady();
+    return invokeWorker('restoreBuiltinPromptPreset', { presetId });
   });
   ipcMain.handle('desktop:set-default-profile', (_event, profileId) => {
     requireWorkerReady();
@@ -624,6 +688,22 @@ function registerIpcHandlers() {
   ipcMain.handle('desktop:get-qa-results', (_event, documentId) => {
     requireWorkerReady();
     return invokeWorker('getQaResults', { documentId });
+  });
+  ipcMain.handle('desktop:get-qa-history', (_event, filters) => {
+    requireWorkerReady();
+    return invokeWorker('getQaHistory', filters || {});
+  });
+  ipcMain.handle('desktop:get-qa-history-entry', (_event, requestId) => {
+    requireWorkerReady();
+    return invokeWorker('getQaHistoryEntry', { requestId });
+  });
+  ipcMain.handle('desktop:delete-qa-history', (_event, requestIds) => {
+    requireWorkerReady();
+    return invokeWorker('deleteQaHistory', { requestIds: Array.isArray(requestIds) ? requestIds : [] });
+  });
+  ipcMain.handle('desktop:export-qa-history', (_event, options) => {
+    requireWorkerReady();
+    return invokeWorker('exportQaHistory', options || {});
   });
   ipcMain.handle('desktop:import-bilingual-qa', async (_event, payload) => {
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -777,40 +857,35 @@ function registerIpcHandlers() {
   });
 }
 
-app.whenReady().then(() => {
-  logger.info('app-ready', 'Electron app is ready.');
-  pruneLogs(appPaths.logsDir, DEFAULT_LOG_POLICY);
-  registerIpcHandlers();
-  createWindow();
-  startBackgroundWorker();
-});
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    revealWindow();
+  });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
+  app.whenReady().then(() => {
+    logger.info('app-ready', 'Electron app is ready.');
+    session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+      logger.warn('permission-denied', 'Denied a renderer permission request.', { permission });
+      callback(false);
+    });
+    registerIpcHandlers();
+    createWindow();
+    createTray();
+    workerSupervisor.start();
+  });
 
-app.on('before-quit', () => {
-  appIsQuitting = true;
-  saveQualityBounds();
-  logger.info('app-before-quit', 'Electron app is shutting down.');
-
-  if (backgroundWorker) {
-    try {
-      backgroundWorker.send({
-        type: 'request',
-        id: `worker_shutdown_${Date.now()}`,
-        channel: 'shutdown',
-        payload: null
-      });
-    } catch {
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit();
     }
+  });
 
-    setTimeout(() => {
-      if (backgroundWorker) {
-        backgroundWorker.kill();
-      }
-    }, 1000).unref();
-  }
-});
+  app.on('before-quit', () => {
+    appIsQuitting = true;
+    saveQualityBounds();
+    logger.info('app-before-quit', 'Electron app is shutting down.');
+    workerSupervisor.requestShutdown();
+  });
+}

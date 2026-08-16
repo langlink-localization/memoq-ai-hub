@@ -4,6 +4,7 @@ const { PRODUCT_NAME, CONTRACT_VERSION, DEFAULT_HOST, DEFAULT_PORT, ROUTES } = r
 const { readDesktopVersionFromPayload } = require('./shared/desktopMetadata');
 const { createAppPaths } = require('./shared/paths');
 const { createLogger } = require('./shared/logging');
+const { createGatewayGuard } = require('./gatewayGuard');
 
 const gatewayLogger = createLogger({ source: 'gateway', logsDir: createAppPaths().logsDir });
 
@@ -37,7 +38,7 @@ function createRuntimeRoute(runtimeMethod, defaultCode) {
   };
 }
 
-function createGatewayServer(runtime) {
+function createGatewayServer(runtime, options = {}) {
   const app = express();
   app.use(bodyParser.json({ limit: '10mb' }));
   app.use((req, res, next) => {
@@ -52,6 +53,9 @@ function createGatewayServer(runtime) {
     });
     next();
   });
+  if (options.guard !== false) {
+    app.use(options.guard || createGatewayGuard({ logger: gatewayLogger }));
+  }
 
   app.get('/', (_req, res) => {
     res.type('html').send(`

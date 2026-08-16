@@ -5,9 +5,20 @@ const { startGatewayLifecycle, stopGatewayLifecycle } = require('./gatewayLifecy
 const { DEFAULT_HOST, DEFAULT_PORT } = require('./shared/desktopContract');
 const { createAppPaths } = require('./shared/paths');
 const { DEFAULT_LOG_POLICY, createLogger, pruneLogs } = require('./shared/logging');
+const { createWorkerSecretStore } = require('./secretBridge');
 
 const paths = createAppPaths();
 const logger = createLogger({ source: 'desktop-worker', logsDir: paths.logsDir });
+const secretStore = createWorkerSecretStore({
+  paths,
+  logger,
+  useMainProcess: typeof process.send === 'function',
+  send: (message) => {
+    if (typeof process.send === 'function') {
+      process.send(message);
+    }
+  }
+});
 let runtime = null;
 let server = null;
 let startupState = { status: 'starting', message: '' };
@@ -54,9 +65,11 @@ async function startRuntimeAndGateway() {
   pruneLogs(paths.logsDir, DEFAULT_LOG_POLICY);
 
   try {
+    await secretStore.ready();
     runtime = await createRuntime({
       ...loadProviderRegistryOverride(),
-      logger
+      logger,
+      secretStore
     });
 
     ({ server } = await startGatewayLifecycle({
@@ -138,6 +151,15 @@ const requestHandlers = {
   },
   saveProfile(payload) {
     return requireRuntime().saveProfile(payload || {});
+  },
+  savePromptPreset(payload) {
+    return requireRuntime().savePromptPreset(payload || {});
+  },
+  deletePromptPreset(payload) {
+    return requireRuntime().deletePromptPreset(payload?.presetId || payload);
+  },
+  restoreBuiltinPromptPreset(payload) {
+    return requireRuntime().restoreBuiltinPromptPreset(payload?.presetId || payload);
   },
   setDefaultProfile(payload) {
     return requireRuntime().setDefaultProfile(payload);
@@ -232,6 +254,18 @@ const requestHandlers = {
   getQaResults(payload) {
     return requireRuntime().getQaResults(payload?.documentId || payload);
   },
+  getQaHistory(payload) {
+    return requireRuntime().getQaHistory(payload || {});
+  },
+  getQaHistoryEntry(payload) {
+    return requireRuntime().getQaHistoryEntry(payload || {});
+  },
+  deleteQaHistory(payload) {
+    return requireRuntime().deleteQaHistory(Array.isArray(payload?.requestIds) ? payload.requestIds : []);
+  },
+  exportQaHistory(payload) {
+    return requireRuntime().exportQaHistory(payload || {});
+  },
   inspectBilingualFile(payload) {
     return requireRuntime().inspectBilingualFile(payload || {});
   },
@@ -263,6 +297,8 @@ const requestHandlers = {
 };
 
 process.on('message', async (message) => {
+  secretStore.handleMessage(message);
+
   if (!message || message.type !== 'request') {
     return;
   }

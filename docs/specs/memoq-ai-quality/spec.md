@@ -19,7 +19,9 @@
 - Results are current only while their content hash matches the latest immutable Preview or imported-document snapshot.
 - Every result exposes separate deterministic and AI execution summaries, including route, elapsed time, cache state, candidate count, displayed count, and threshold-filtered count. Filtered finding text is never returned.
 - Profile QA templates use the existing placeholder renderer; fixed schema, evidence, threshold, and no-overall-score protections are appended outside the editable template.
-- The compact Preview Assistant has explicit Translate, Polish, and QA actions. It may temporarily override terminology assets and add a request-only QA instruction, but it only copies output and never writes into memoQ.
+- Quality Checks includes a local 30-day history tab with manual/document/import sources shown by default, optional automatic Preview results, filters, execution details, feedback state, delete, and CSV/XLSX export.
+- Global prompt presets are scoped to QA, Translate, or Polish. Built-ins may be edited or restored, custom presets support CRUD, and template validation keeps volatile placeholders out of the stable system layer.
+- The compact Preview Assistant has explicit Translate, Polish, and QA actions. It may select a scope-compatible preset, temporarily override terminology assets, and add a request-only instruction, but it only copies output and never writes into memoQ.
 
 ## Privacy and retention
 
@@ -38,4 +40,5 @@ The public repository and release archives must not contain memoQ SDK DLLs, sign
 - Rapid edits and document switches never display stale QA results.
 - Preview loss and provider failure preserve deterministic checks and expose a batch fallback.
 - Workbench, batch reports, and compact window share the same QA contracts and local result store.
+- Manual and automatic QA runs remain distinguishable in history, and prompt preset changes alter the applicable prompt fingerprint.
 - Desktop, repository, plugin, packaging, accessibility, responsive, and Ant Design fail-closed checks pass.

@@ -17,6 +17,7 @@ import {
 } from 'antd';
 import { useI18n } from '../../i18n';
 import QualityExecutionSummary from './QualityExecutionSummary.jsx';
+import PromptPresetSelector from './PromptPresetSelector.jsx';
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -42,6 +43,9 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
   const [model, setModel] = useState('');
   const [glossaryIds, setGlossaryIds] = useState([]);
   const [additionalInstruction, setAdditionalInstruction] = useState('');
+  const [translatePresetId, setTranslatePresetId] = useState('');
+  const [polishPresetId, setPolishPresetId] = useState('');
+  const [qaPresetId, setQaPresetId] = useState('');
   const [busy, setBusy] = useState('');
   const [activeRequestId, setActiveRequestId] = useState('');
   const [assistantResult, setAssistantResult] = useState(null);
@@ -53,6 +57,7 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
   const profiles = appState?.contextBuilder?.profiles || [];
   const providers = appState?.providerHub?.providers || [];
   const assets = appState?.contextBuilder?.assets || [];
+  const promptPresets = appState?.promptPresets || [];
   const profile = profiles.find((item) => item.id === profileId) || profiles[0] || null;
   const provider = providers.find((item) => item.id === providerId) || providers[0] || null;
   const snapshot = status?.currentSnapshot || null;
@@ -119,6 +124,10 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
     return { mode: inherited === selected ? 'inherit' : 'override', glossaryAssetIds: glossaryIds };
   }
 
+  function updatePromptPresets(next) {
+    setAppState((current) => ({ ...(current || {}), promptPresets: next }));
+  }
+
   async function runAssistant(operation) {
     const id = requestId(`assistant-${operation}`);
     setBusy(operation);
@@ -127,7 +136,15 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
     setAssistantResult(null);
     setError('');
     try {
-      const result = await api.runPreviewAssistant({ operation, requestId: id, profileId: profile?.id, providerId, model, assets: assetOverride() });
+      const result = await api.runPreviewAssistant({
+        operation,
+        requestId: id,
+        profileId: profile?.id,
+        providerId,
+        model,
+        assets: assetOverride(),
+        prompt: { presetId: operation === 'polish' ? polishPresetId : translatePresetId, additionalInstruction }
+      });
       if (activeRequestIdRef.current !== id) return;
       setAssistantResult(result);
     } catch (runError) {
@@ -151,7 +168,7 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
         requestId: id,
         profileId: profile?.id,
         ai: { enabled: true, providerId, model },
-        prompt: { additionalInstruction },
+        prompt: { presetId: qaPresetId, additionalInstruction },
         assets: assetOverride()
       });
       const currentStatus = await api.getQaStatus();
@@ -214,6 +231,17 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
         options={assets.filter((item) => item.type === 'glossary').map((item) => ({ value: item.id, label: item.name }))}
         className="assistant-glossary-select"
       />
+      {mode === 'translate' ? (
+        <Space direction="vertical" className="quality-page">
+          <Text>{t('promptPresets.translatePreset')}</Text>
+          <PromptPresetSelector api={api} presets={promptPresets} scope="translate" value={translatePresetId} onChange={setTranslatePresetId} onPresetsChange={updatePromptPresets} />
+          <Text>{t('promptPresets.polishPreset')}</Text>
+          <PromptPresetSelector api={api} presets={promptPresets} scope="polish" value={polishPresetId} onChange={setPolishPresetId} onPresetsChange={updatePromptPresets} />
+        </Space>
+      ) : (
+        <PromptPresetSelector api={api} presets={promptPresets} scope="qa" value={qaPresetId} onChange={setQaPresetId} onPresetsChange={updatePromptPresets} />
+      )}
+      <Input.TextArea rows={3} value={additionalInstruction} maxLength={2000} showCount onChange={(event) => setAdditionalInstruction(event.target.value)} placeholder={t('assistant.additionalInstruction')} />
       <Card size="small" title={t('quality.currentSegment')}>
         <Paragraph>{snapshot?.source || '-'}</Paragraph>
         <Text type="secondary">{snapshot?.target || '-'}</Text>
@@ -235,7 +263,6 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
         </>
       ) : (
         <>
-          <Input.TextArea rows={3} value={additionalInstruction} maxLength={2000} showCount onChange={(event) => setAdditionalInstruction(event.target.value)} placeholder={t('assistant.additionalInstruction')} />
           <Space wrap>
             <Button className="assistant-action-button" type="primary" icon={<ReloadOutlined />} loading={busy === 'qa'} disabled={!snapshot || Boolean(busy)} onClick={runQa}>{t('quality.recheck')}</Button>
             {busy ? <Button className="assistant-action-button" danger icon={<StopOutlined />} onClick={cancel}>{t('common.cancel')}</Button> : null}

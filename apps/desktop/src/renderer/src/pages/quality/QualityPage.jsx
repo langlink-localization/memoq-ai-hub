@@ -4,7 +4,6 @@ import {
   CopyOutlined,
   ExclamationCircleOutlined,
   ExportOutlined,
-  EyeOutlined,
   FileSearchOutlined,
   MoreOutlined,
   PauseOutlined,
@@ -31,6 +30,7 @@ import {
   Space,
   Switch,
   Table,
+  Tabs,
   Tag,
   Tooltip,
   Typography,
@@ -38,6 +38,8 @@ import {
 } from 'antd';
 import { useI18n } from '../../i18n';
 import QualityExecutionSummary from './QualityExecutionSummary.jsx';
+import QaHistoryPanel from './QaHistoryPanel.jsx';
+import PromptPresetSelector from './PromptPresetSelector.jsx';
 import qaPromptModule from '../../../../qa/qaPrompt.js';
 
 const { Paragraph, Text, Title } = Typography;
@@ -72,7 +74,7 @@ function matchesRule(rule, sample) {
   }
 }
 
-export default function QualityPage({ api = window.memoqDesktop, profiles = [], providers = [], compact = false }) {
+export default function QualityPage({ api = window.memoqDesktop, profiles = [], providers = [], promptPresets: initialPromptPresets = [], compact = false }) {
   const { t } = useI18n();
   const { message, modal, notification } = AntdApp.useApp();
   const [loading, setLoading] = useState(true);
@@ -94,6 +96,10 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
   const [settingsError, setSettingsError] = useState('');
   const [sampleText, setSampleText] = useState('');
   const [ruleTestMatched, setRuleTestMatched] = useState(null);
+  const [activeTab, setActiveTab] = useState('check');
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [promptPresets, setPromptPresets] = useState(initialPromptPresets);
+  const [qaPresetId, setQaPresetId] = useState('');
   const [savedProfiles, setSavedProfiles] = useState({});
   const [ruleForm] = Form.useForm();
 
@@ -102,6 +108,8 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
   const provider = providers.find((item) => item.id === selectedProviderId) || providers[0] || null;
   const latestResult = status?.latestResult || null;
   const findings = latestResult?.findings || [];
+
+  useEffect(() => setPromptPresets(initialPromptPresets), [initialPromptPresets]);
 
   useEffect(() => {
     if (!selectedProfileId && profiles.length) setSelectedProfileId(profiles.find((item) => item.id)?.id || '');
@@ -152,13 +160,15 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
       const result = await api.checkQaSegment({
         profileId: profile?.id || '',
         contextPolicy: { includeSummary, includeFullText, maxAdjacentCharacters: 1200 },
-        ai: { enabled: aiEnabled, providerId: selectedProviderId, model: selectedModel }
+        ai: { enabled: aiEnabled, providerId: selectedProviderId, model: selectedModel },
+        prompt: { presetId: qaPresetId }
       });
       const currentStatus = await api.getQaStatus();
       setStatus(currentStatus);
       if (currentStatus?.currentSnapshot?.contentHash !== result.contentHash) {
         setError(t('assistant.previewChanged'));
       }
+      setHistoryRefreshKey((current) => current + 1);
     } catch (checkError) {
       setError(String(checkError?.message || t('quality.checkFailed')));
     } finally {
@@ -181,7 +191,8 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
         const imported = await api.importBilingualQa({
           profileId: profile?.id || '',
           contextPolicy: { includeSummary, includeFullText, maxAdjacentCharacters: 1200 },
-          ai: { enabled: aiEnabled, providerId: selectedProviderId, model: selectedModel }
+          ai: { enabled: aiEnabled, providerId: selectedProviderId, model: selectedModel },
+          prompt: { presetId: qaPresetId }
         });
         if (!imported) return;
         notification.success({
@@ -189,6 +200,7 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
           description: t('quality.batchCompleteDescription', { count: imported.reports?.findingCount || 0 })
         });
         setStatus((current) => ({ ...(current || {}), latestResult: imported.result?.results?.[0] || current?.latestResult }));
+        setHistoryRefreshKey((current) => current + 1);
       }
     });
   }
@@ -321,6 +333,10 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
               <Select value={selectedProviderId} onChange={setSelectedProviderId} placeholder={t('common.provider')} options={providers.map((item) => ({ value: item.id, label: item.name }))} className="quality-select" />
               <Select value={selectedModel} onChange={setSelectedModel} placeholder={t('quality.model')} options={(provider?.models || []).filter((item) => item.enabled !== false).map((item) => ({ value: item.modelName || item.id, label: item.modelName }))} className="quality-select" />
             </Space>
+            <Space direction="vertical" className="quality-controls" size="small">
+              <Text>{t('promptPresets.qaPreset')}</Text>
+              <PromptPresetSelector api={api} presets={promptPresets} scope="qa" value={qaPresetId} onChange={setQaPresetId} onPresetsChange={setPromptPresets} />
+            </Space>
             <Space wrap>
               <label className="quality-switch-row"><Switch loading={savingField === 'qaRealtimeAiEnabled'} disabled={Boolean(savingField)} checked={aiEnabled} onChange={(value) => saveToggle('qaRealtimeAiEnabled', value, setAiEnabled, aiEnabled)} /><Text>{t('quality.realtimeAi')}</Text></label>
               <label className="quality-switch-row"><Switch loading={savingField === 'qaIncludeSummary'} checked={includeSummary} disabled={!aiEnabled || Boolean(savingField)} onChange={(value) => saveToggle('qaIncludeSummary', value, setIncludeSummary, includeSummary)} /><Text type={!aiEnabled ? 'secondary' : undefined}>{t('quality.includeSummary')}</Text></label>
@@ -328,7 +344,6 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
             </Space>
             <Space wrap>
               {mode === 'current' ? <Button type="primary" icon={<ReloadOutlined />} loading={checking} onClick={runCurrentCheck}>{t('quality.recheck')}</Button> : <Button type="primary" icon={<ExportOutlined />} onClick={confirmBatchImport}>{t('quality.selectFile')}</Button>}
-              <Button icon={<EyeOutlined />} onClick={() => api.openAssistantWindow?.() || api.openQualityWindow()}>{t('quality.openFloating')}</Button>
               <Button onClick={saveQualitySettings}>{t('quality.saveSettings')}</Button>
             </Space>
           </Space>
@@ -411,5 +426,22 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
     </Space>
   );
 
-  return compact ? <Card className="quality-float-card" title={<Title level={4}>{t('nav.quality')}</Title>}>{content}</Card> : content;
+  if (compact) {
+    return <Card className="quality-float-card" title={<Title level={4}>{t('nav.quality')}</Title>}>{content}</Card>;
+  }
+
+  return (
+    <Tabs
+      activeKey={activeTab}
+      onChange={setActiveTab}
+      items={[
+        { key: 'check', label: t('quality.tabs.check'), children: content },
+        {
+          key: 'history',
+          label: t('quality.tabs.history'),
+          children: activeTab === 'history' ? <QaHistoryPanel api={api} refreshKey={historyRefreshKey} /> : null
+        }
+      ]}
+    />
+  );
 }

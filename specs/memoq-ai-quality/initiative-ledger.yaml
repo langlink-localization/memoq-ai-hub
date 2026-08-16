@@ -10,10 +10,10 @@ spec_link: docs/specs/memoq-ai-quality/spec.md
 github_links:
   project: pending
   issues: []
-current_stage: real-host validation and release authorization
-last_verified_commit: memoq-ai-hub@4cc4192b416f1303896b1f5d56c52bc1f7ed0b2c
-last_verified_worktree: 2026-08-15 local implementation; see docs/specs/memoq-ai-quality/delivery.md
-next_action: run memoQ 12 translator acceptance and attach written distribution permission before any public release
+current_stage: local validation handoff
+last_verified_commit: memoq-ai-hub@ee101ba3202142d7bf2d64e44a3ec5ae9de28198
+last_verified_worktree: 2026-08-17 QA history and prompt presets implemented; automated gates and local packaging completed
+next_action: run memoQ 12 manual acceptance for Quality history, preset CRUD, Translate, Polish, and QA actions
 allowed_interruptions:
   - emergency production fix
   - security or data correctness issue
