@@ -48,7 +48,6 @@ function createWorkerSecretStore(options = {}) {
         pendingRequests.delete(id);
         reject(new Error(`Main-process request timed out: ${channel}`));
       }, requestTimeoutMs);
-      timer.unref?.();
 
       pendingRequests.set(id, { resolve, reject, timer });
 
