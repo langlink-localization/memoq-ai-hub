@@ -1,11 +1,26 @@
 import { parseDateInputToEpochMs } from '../../timeFormatting.mjs';
 
 export const HISTORY_ISSUE_OPTIONS = ['failed', 'timeout', 'rate_limit', 'fallback', 'slow'];
+export const EMPTY_HISTORY_FILTERS = {
+  search: '',
+  projectId: '',
+  subject: '',
+  provider: '',
+  model: '',
+  status: '',
+  issue: '',
+  dateFrom: '',
+  dateTo: ''
+};
 
 const SLOW_HISTORY_LATENCY_MS = 30000;
 
 function normalizeFilterText(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+export function createEmptyHistoryFilters() {
+  return { ...EMPTY_HISTORY_FILTERS };
 }
 
 function getHistoryAttempts(entry = {}) {

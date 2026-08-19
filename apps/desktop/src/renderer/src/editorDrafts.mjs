@@ -144,3 +144,17 @@ export function hasDraftChanges(draftsById = {}, recordId = '') {
   const entry = normalizedId ? draftsById[normalizedId] : null;
   return Boolean(entry && (entry.isNew || (entry.dirtyFields || []).length));
 }
+
+export function resolveSelectedRecordId(items = [], currentId = '', fallbackId = '') {
+  const normalizedCurrentId = String(currentId || '').trim();
+  if (items.some((item) => item.id === normalizedCurrentId)) {
+    return normalizedCurrentId;
+  }
+
+  const normalizedFallbackId = String(fallbackId || '').trim();
+  if (items.some((item) => item.id === normalizedFallbackId)) {
+    return normalizedFallbackId;
+  }
+
+  return items[0]?.id || '';
+}

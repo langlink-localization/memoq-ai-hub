@@ -46,16 +46,37 @@ import {
   getResolvedRecords,
   hasDraftChanges,
   rebaseDraftEntries,
+  resolveSelectedRecordId,
   updateDraftEntry
 } from './editorDrafts.mjs';
 import { getProviderDraftSeed } from './providerDraftDefaults.mjs';
 import {
-  DEFAULT_CUSTOM_TM_MATCH_BUCKETS,
-  buildDefaultPresetProfile
-} from './appShell.mjs';
+  buildProviderFingerprint,
+  buildProviderModelCatalog,
+  createDraftProviderModel,
+  createProviderDraft,
+  getPreferredProviderModel,
+  isDraftProvider
+} from './providerDraftState.mjs';
 import {
-  formatTimestampForLocalDisplay
-} from './timeFormatting.mjs';
+  applyProfileExecutionSelection,
+  applyProfileProviderId,
+  buildAssetBindingsFromSelections,
+  buildAssetSelectionsFromBindings,
+  buildExecutionOptionValue,
+  buildProfileFingerprint,
+  createBlankProfile,
+  createEmptyProfileDraft,
+  getProfileExecutionSelection,
+  getProfileProviderId,
+  isSelectableProfileProvider
+} from './profileDraftState.mjs';
+import {
+  DEFAULT_HISTORY_INSIGHTS,
+  createFallbackAppState,
+  normalizeAppStatePayload,
+  preserveProviderHistoryMetrics
+} from './appState.mjs';
 import { useI18n } from './i18n';
 import DashboardConnectionStatus from './components/DashboardConnectionStatus.jsx';
 import { TABLE_SCROLL_X } from './tableLayout.mjs';
@@ -70,13 +91,30 @@ import {
 } from './pages/dashboard/dashboardStatusStore.mjs';
 import {
   buildHistoryActiveFilterTags,
+  createEmptyHistoryFilters,
   filterHistoryItems
 } from './pages/history/historyPresentation.mjs';
+import {
+  buildLogDiagnosticText,
+  normalizeLogStatePayload
+} from './pages/logs/logPresentation.mjs';
+import {
+  buildAssetPreviewRows,
+  canApplyTbStructurePreview,
+  formatAssetPreviewMapping,
+  getAssetPreviewConfidenceLabel,
+  hasTbStructurePreview
+} from './pages/assets/assetPresentation.mjs';
 import {
   DEFAULT_PROVIDER_TEST_STATE,
   decorateProvidersWithConnectionStatus,
   normalizeProviderStatus
 } from './pages/providers/providerConnectionState.mjs';
+import {
+  getProviderTypeLabel,
+  getStatusTagMeta,
+  normalizeProviderFilterText
+} from './pages/providers/providerPresentation.mjs';
 import {
   createPendingOperationRegistry,
   getPageScrollPosition,
@@ -97,34 +135,6 @@ const QualityPage = lazy(() => import('./pages/quality/QualityPage.jsx'));
 
 const { Content, Header, Sider } = Layout;
 const { Text, Title } = Typography;
-const EMPTY_HISTORY_FILTERS = {
-  search: '',
-  projectId: '',
-  subject: '',
-  provider: '',
-  model: '',
-  status: '',
-  issue: '',
-  dateFrom: '',
-  dateTo: ''
-};
-const DEFAULT_HISTORY_INSIGHTS = {
-  totalRequests: 0,
-  totalSegments: 0,
-  successRate: null,
-  avgLatencyMs: null,
-  slowRequestCount: 0,
-  failedCount: 0,
-  timeoutCount: 0,
-  rateLimitCount: 0,
-  exactCacheHitCount: 0,
-  adaptiveCacheHitCount: 0,
-  cacheHitCount: 0,
-  cacheHitRate: null,
-  batchFallbackCount: 0,
-  providerBreakdown: [],
-  attentionItems: []
-};
 const CONNECTION_SENSITIVE_PROVIDER_FIELDS = new Set(['apiKey', 'baseUrl', 'requestPath', 'type']);
 const WIDE_SIDE_DRAWER_WIDTH = 'min(920px, calc(100vw - 32px))';
 
@@ -139,661 +149,6 @@ function PageHeaderBlock({ title, description }) {
       <Text type="secondary">{description}</Text>
     </div>
   );
-}
-
-function createFallbackAppState() {
-  return {
-    productName: 'memoQ AI Hub',
-    contractVersion: '1',
-    gatewayBaseUrl: '',
-    startup: { status: 'starting', message: '' },
-    dashboard: {
-      checklist: [],
-      runtimeStatus: {
-        memoqInstallPath: '',
-        pluginStatus: '',
-        connectionStatus: 'Disconnected',
-        previewStatus: {
-          status: 'disconnected',
-          statusMessage: '',
-          serviceBaseUrl: '',
-          sessionId: '',
-          callbackAddress: '',
-          connectedAt: '',
-          lastUpdatedAt: '',
-          lastError: '',
-          activePreviewPartId: '',
-          activePreviewPartCount: 0,
-          cachedPreviewPartCount: 0,
-          sourceDocumentName: '',
-          sourceDocumentGuid: ''
-        }
-      },
-      updateCenter: {
-        currentVersion: '',
-        releaseChannel: 'stable',
-        packagingMode: 'portable',
-        updateStatus: 'idle',
-        latestVersion: '',
-        releaseNotes: '',
-        releaseNotesUrl: '',
-        portableDownloadUrl: '',
-        publishedAt: '',
-        downloadedArtifactPath: '',
-        preparedDirectory: '',
-        lastCheckedAt: '',
-        lastError: '',
-        lastErrorCode: '',
-        manifestUrl: '',
-        pluginReinstallRecommended: true,
-        availableAssets: {
-          portable: null,
-          installer: null
-        }
-      },
-      notices: []
-    },
-    integration: {
-      memoqVersion: '11',
-      customInstallDir: '',
-      selectedInstallDir: '',
-      status: 'not_installed',
-      installations: []
-    },
-    previewBridge: {
-      status: 'disconnected',
-      statusMessage: '',
-      serviceBaseUrl: '',
-      sessionId: '',
-      callbackAddress: '',
-      connectedAt: '',
-      lastUpdatedAt: '',
-      lastError: '',
-      activePreviewPartId: '',
-      activePreviewPartCount: 0,
-      cachedPreviewPartCount: 0,
-      sourceDocumentName: '',
-      sourceDocumentGuid: ''
-    },
-    contextBuilder: {
-      profiles: [],
-      defaultProfileId: '',
-      assets: [],
-      supportedPlaceholders: [],
-      assetImportRules: {},
-      translationCacheBypassProfileIds: []
-    },
-    promptPresets: [],
-    memoqMetadataMapping: { rules: [] },
-    providerHub: { providers: [], summary: { enabled: 0, healthy: 0 } },
-    historyExplorer: {
-      items: [],
-      insights: DEFAULT_HISTORY_INSIGHTS
-    },
-    updateCenter: {
-      currentVersion: '',
-      releaseChannel: 'stable',
-      packagingMode: 'portable',
-      updateStatus: 'idle',
-      latestVersion: '',
-      releaseNotes: '',
-      releaseNotesUrl: '',
-      portableDownloadUrl: '',
-      publishedAt: '',
-      downloadedArtifactPath: '',
-      preparedDirectory: '',
-      lastCheckedAt: '',
-      lastError: '',
-      lastErrorCode: '',
-      manifestUrl: '',
-      pluginReinstallRecommended: true,
-      availableAssets: {
-        portable: null,
-        installer: null
-      }
-    }
-  };
-}
-
-function normalizeAppStatePayload(data = {}) {
-  const fallback = createFallbackAppState();
-  const nextState = data && typeof data === 'object' ? data : {};
-
-  return {
-    ...fallback,
-    ...nextState,
-    startup: {
-      ...fallback.startup,
-      ...(nextState.startup || {})
-    },
-    dashboard: {
-      ...fallback.dashboard,
-      ...(nextState.dashboard || {}),
-      checklist: Array.isArray(nextState.dashboard?.checklist) ? nextState.dashboard.checklist : fallback.dashboard.checklist,
-      notices: Array.isArray(nextState.dashboard?.notices) ? nextState.dashboard.notices : fallback.dashboard.notices,
-      runtimeStatus: {
-        ...fallback.dashboard.runtimeStatus,
-        ...(nextState.dashboard?.runtimeStatus || {}),
-        previewStatus: {
-          ...fallback.dashboard.runtimeStatus.previewStatus,
-          ...(nextState.dashboard?.runtimeStatus?.previewStatus || {})
-        }
-      },
-      updateCenter: {
-        ...fallback.dashboard.updateCenter,
-        ...(nextState.dashboard?.updateCenter || {})
-      }
-    },
-    integration: {
-      ...fallback.integration,
-      ...(nextState.integration || {}),
-      installations: Array.isArray(nextState.integration?.installations) ? nextState.integration.installations : fallback.integration.installations
-    },
-    previewBridge: {
-      ...fallback.previewBridge,
-      ...(nextState.previewBridge || {})
-    },
-    contextBuilder: {
-      ...fallback.contextBuilder,
-      ...(nextState.contextBuilder || {}),
-      profiles: Array.isArray(nextState.contextBuilder?.profiles) ? nextState.contextBuilder.profiles : fallback.contextBuilder.profiles,
-      defaultProfileId: String(nextState.contextBuilder?.defaultProfileId || ''),
-      assets: Array.isArray(nextState.contextBuilder?.assets) ? nextState.contextBuilder.assets : fallback.contextBuilder.assets,
-      supportedPlaceholders: Array.isArray(nextState.contextBuilder?.supportedPlaceholders)
-        ? nextState.contextBuilder.supportedPlaceholders
-        : fallback.contextBuilder.supportedPlaceholders,
-      translationCacheBypassProfileIds: Array.isArray(nextState.contextBuilder?.translationCacheBypassProfileIds)
-        ? nextState.contextBuilder.translationCacheBypassProfileIds.map((item) => String(item || '')).filter(Boolean)
-        : fallback.contextBuilder.translationCacheBypassProfileIds,
-      assetImportRules: nextState.contextBuilder?.assetImportRules && typeof nextState.contextBuilder.assetImportRules === 'object'
-        ? nextState.contextBuilder.assetImportRules
-        : fallback.contextBuilder.assetImportRules
-    },
-    promptPresets: Array.isArray(nextState.promptPresets) ? nextState.promptPresets : fallback.promptPresets,
-    memoqMetadataMapping: {
-      ...fallback.memoqMetadataMapping,
-      ...(nextState.memoqMetadataMapping || {}),
-      rules: Array.isArray(nextState.memoqMetadataMapping?.rules) ? nextState.memoqMetadataMapping.rules : fallback.memoqMetadataMapping.rules
-    },
-    providerHub: {
-      ...fallback.providerHub,
-      ...(nextState.providerHub || {}),
-      providers: Array.isArray(nextState.providerHub?.providers) ? nextState.providerHub.providers : fallback.providerHub.providers,
-      summary: {
-        ...fallback.providerHub.summary,
-        ...(nextState.providerHub?.summary || {})
-      }
-    },
-    historyExplorer: {
-      ...fallback.historyExplorer,
-      ...(nextState.historyExplorer || {}),
-      items: Array.isArray(nextState.historyExplorer?.items) ? nextState.historyExplorer.items : fallback.historyExplorer.items,
-      insights: nextState.historyExplorer?.insights && typeof nextState.historyExplorer.insights === 'object'
-        ? {
-          ...fallback.historyExplorer.insights,
-          ...nextState.historyExplorer.insights,
-          providerBreakdown: Array.isArray(nextState.historyExplorer.insights.providerBreakdown) ? nextState.historyExplorer.insights.providerBreakdown : [],
-          attentionItems: Array.isArray(nextState.historyExplorer.insights.attentionItems) ? nextState.historyExplorer.insights.attentionItems : []
-        }
-        : fallback.historyExplorer.insights
-    },
-    updateCenter: {
-      ...fallback.updateCenter,
-      ...(nextState.updateCenter || {})
-    }
-  };
-}
-
-function preserveProviderHistoryMetrics(remoteData, currentState) {
-  if (!remoteData?.providerHub || !currentState?.providerHub) {
-    return remoteData;
-  }
-
-  const metricsByProviderId = new Map((currentState.providerHub.providers || []).map((provider) => [
-    provider.id,
-    {
-      successRate24h: provider.successRate24h ?? null,
-      avgLatencyMs: provider.avgLatencyMs ?? null
-    }
-  ]));
-
-  return normalizeAppStatePayload({
-    ...remoteData,
-    providerHub: {
-      ...(remoteData.providerHub || {}),
-      providers: (remoteData.providerHub.providers || []).map((provider) => {
-        const metrics = metricsByProviderId.get(provider.id);
-        if (!metrics) {
-          return provider;
-        }
-        return {
-          ...provider,
-          successRate24h: metrics.successRate24h,
-          avgLatencyMs: metrics.avgLatencyMs
-        };
-      })
-    }
-  });
-}
-
-function createBlankProfile(t) {
-  return buildDefaultPresetProfile({
-    name: t('context.defaultPresetName'),
-    description: t('context.defaultPresetDescription'),
-    translationStyle: t('context.translationStyleInstruction.natural')
-  });
-}
-
-function createEmptyProfileDraft(t) {
-  return {
-    name: t('context.newProfileName'),
-    description: '',
-    translationStyle: t('context.translationStyleInstruction.natural'),
-    useBestFuzzyTm: true,
-    useMetadata: true,
-    useUploadedGlossary: true,
-    useCustomTm: true,
-    customTmMatchBuckets: [...DEFAULT_CUSTOM_TM_MATCH_BUCKETS],
-    useBrief: true,
-    usePreviewContext: true,
-    usePreviewFullText: false,
-    usePreviewSummary: true,
-    usePreviewAboveBelow: true,
-    usePreviewTargetText: true,
-    previewAboveIncludeSource: true,
-    previewAboveIncludeTarget: false,
-    previewBelowIncludeSource: true,
-    previewBelowIncludeTarget: false,
-    providerId: '',
-    interactiveProviderId: '',
-    interactiveModelId: '',
-    pretranslateProviderId: '',
-    pretranslateModelId: '',
-    fallbackProviderId: '',
-    fallbackModelId: '',
-    assetBindings: [],
-    assetSelections: {}
-  };
-}
-
-function resolveSelectedRecordId(items = [], currentId = '', fallbackId = '') {
-  const normalizedCurrentId = String(currentId || '').trim();
-  if (items.some((item) => item.id === normalizedCurrentId)) {
-    return normalizedCurrentId;
-  }
-
-  const normalizedFallbackId = String(fallbackId || '').trim();
-  if (items.some((item) => item.id === normalizedFallbackId)) {
-    return normalizedFallbackId;
-  }
-
-  return items[0]?.id || '';
-}
-
-function createProviderDraft(type) {
-  const draftSeed = getProviderDraftSeed(type);
-
-  return {
-    ...draftSeed,
-    models: (draftSeed.modelNames || []).map((modelName) => createDraftProviderModel(modelName)),
-    enabled: true
-  };
-}
-
-function normalizeLogStatePayload(data = {}) {
-  return {
-    ok: data.ok !== false,
-    logsDir: String(data.logsDir || ''),
-    policy: {
-      maxFileBytes: Number(data.policy?.maxFileBytes || 0),
-      maxFiles: Number(data.policy?.maxFiles || 0),
-      retentionDays: Number(data.policy?.retentionDays || 0)
-    },
-    totalSizeBytes: Number(data.totalSizeBytes || 0),
-    latestUpdatedAt: String(data.latestUpdatedAt || ''),
-    groups: Array.isArray(data.groups) ? data.groups : []
-  };
-}
-
-function buildLogDiagnosticText(logState = {}, appState = {}, t = (key) => key) {
-  const groups = (logState.groups || [])
-    .map((group) => t('logs.diagnosticGroup', {
-      source: group.source,
-      files: (group.files || []).length,
-      bytes: group.totalSizeBytes || 0
-    }))
-    .join('\n');
-
-  return [
-    t('logs.diagnosticsTitle', { product: appState.productName || 'memoQ AI Hub' }),
-    t('logs.diagnosticContract', { value: appState.contractVersion || '-' }),
-    t('logs.diagnosticGateway', { value: appState.gatewayBaseUrl || '-' }),
-    t('logs.diagnosticStartup', { value: appState.startup?.status || 'ready' }),
-    t('logs.diagnosticDirectory', { value: logState.logsDir || '-' }),
-    t('logs.diagnosticTotalSize', { value: logState.totalSizeBytes || 0 }),
-    t('logs.diagnosticLatestUpdate', { value: logState.latestUpdatedAt || '-' }),
-    '',
-    groups || t('logs.noFilesFound')
-  ].join('\n');
-}
-
-function getStatusTagMeta(status, t) {
-  const normalized = normalizeProviderStatus(status);
-  switch (normalized) {
-    case 'connected':
-      return { color: 'green', label: t('providers.statusConnected') };
-    case 'failed':
-      return { color: 'red', label: t('providers.statusFailed') };
-    case 'testing':
-      return { color: 'gold', label: t('providers.statusTesting') };
-    default:
-      return { color: 'default', label: t('providers.statusNotTested') };
-  }
-}
-
-function getProviderTypeLabel(type, t) {
-  const normalized = String(type || '').trim().toLowerCase();
-  if (normalized === 'openai-compatible') return t('providers.typeOpenAICompatible');
-  if (normalized === 'openai') return t('providers.typeOpenAI');
-  return t('providers.typeCustom');
-}
-
-function getProviderModelCount(provider) {
-  return Array.isArray(provider?.models) ? provider.models.length : 0;
-}
-
-function getEnabledModelCount(provider) {
-  return Array.isArray(provider?.models)
-    ? provider.models.filter((model) => model?.enabled !== false).length
-    : 0;
-}
-
-function createDraftModelId() {
-  return `draft_model_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function createDraftProviderModel(modelName = 'gpt-5.4-mini') {
-  return {
-    id: createDraftModelId(),
-    modelName: String(modelName || 'gpt-5.4-mini').trim() || 'gpt-5.4-mini',
-    enabled: true,
-    concurrencyLimit: 1,
-    rateLimitHint: '',
-    retryEnabled: true,
-    retryAttempts: 2,
-    promptCacheEnabled: false,
-    promptCacheTtlHint: '',
-    responseFormat: '',
-    throughputMode: '',
-    maxBatchSegments: 0,
-    maxBatchCharacters: 0,
-    providerConcurrency: 0,
-    contextWindowTokens: 0,
-    maxOutputTokens: 0,
-    notes: ''
-  };
-}
-
-function getPreferredProviderModel(provider, preferredModelId = '') {
-  const models = Array.isArray(provider?.models) ? provider.models : [];
-  const preferredId = String(preferredModelId || provider?.defaultModelId || '').trim();
-
-  if (preferredId) {
-    const explicit = models.find((model) => model?.id === preferredId && model?.enabled !== false);
-    if (explicit) {
-      return explicit;
-    }
-  }
-
-  return models.find((model) => model?.enabled !== false)
-    || models[0]
-    || null;
-}
-
-function buildProviderModelCatalog(provider = {}, discoveredModels = []) {
-  const discoveredNames = Array.isArray(discoveredModels)
-    ? discoveredModels.map((model) => String(model?.modelName || model || '').trim()).filter(Boolean)
-    : [];
-  const configuredNames = Array.isArray(provider?.models)
-    ? provider.models.map((model) => String(model?.modelName || '').trim()).filter(Boolean)
-    : [];
-
-  return Array.from(new Set([...configuredNames, ...discoveredNames]))
-    .sort((left, right) => left.localeCompare(right));
-}
-
-function buildProviderRequestPreview(provider = {}) {
-  const normalized = String(provider.baseUrl || '').trim().replace(/\/+$/, '');
-  if (!normalized) {
-    return '';
-  }
-  const type = String(provider.type || '').trim().toLowerCase();
-  if (type === 'openai-compatible') {
-    const requestPath = String(provider.requestPath || '/responses').trim().replace(/^\/+/, '');
-    return requestPath ? `${normalized}/${requestPath}` : normalized;
-  }
-  return `${normalized}/responses`;
-}
-
-function createEmptyHistoryFilters() {
-  return { ...EMPTY_HISTORY_FILTERS };
-}
-
-function normalizeFilterText(value) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function getProfileProviderId(profile = {}) {
-  return String(
-    profile.providerId
-    || profile.interactiveProviderId
-    || profile.pretranslateProviderId
-    || profile.fallbackProviderId
-    || ''
-  ).trim();
-}
-
-function applyProfileProviderId(profile = {}, providerId = '') {
-  const normalized = String(providerId || '').trim();
-  return {
-    ...profile,
-    providerId: normalized,
-    interactiveProviderId: normalized,
-    pretranslateProviderId: normalized,
-    fallbackProviderId: normalized
-  };
-}
-
-function buildExecutionOptionValue(providerId, modelId) {
-  return `${String(providerId || '').trim()}::${String(modelId || '').trim()}`;
-}
-
-function isSelectableProfileProvider(provider = {}) {
-  return Boolean(provider?.id) && !isDraftProvider(provider);
-}
-
-function getProfileExecutionSelection(profile = {}) {
-  const providerId = getProfileProviderId(profile);
-  const modelId = String(
-    profile.interactiveModelId
-    || profile.pretranslateModelId
-    || profile.fallbackModelId
-    || ''
-  ).trim();
-
-  if (!providerId || !modelId) {
-    return undefined;
-  }
-
-  return buildExecutionOptionValue(providerId, modelId);
-}
-
-function applyProfileExecutionSelection(profile = {}, value = '') {
-  const [providerId = '', modelId = ''] = String(value || '').split('::');
-  const normalizedProviderId = String(providerId || '').trim();
-  const normalizedModelId = String(modelId || '').trim();
-
-  return {
-    ...applyProfileProviderId(profile, normalizedProviderId),
-    interactiveModelId: normalizedModelId,
-    pretranslateModelId: normalizedModelId,
-    fallbackModelId: normalizedModelId
-  };
-}
-
-function formatLocalTimestamp(value, fallback = '-') {
-  return formatTimestampForLocalDisplay(value, { fallback });
-}
-
-function isDraftProvider(provider) {
-  return String(provider?.id || '').startsWith('draft_provider_');
-}
-
-function buildProviderFingerprint(provider) {
-  if (!provider) return '';
-
-  return JSON.stringify({
-    name: provider.name || '',
-    type: provider.type || '',
-    baseUrl: provider.baseUrl || '',
-    requestPath: provider.requestPath || '',
-    defaultModelId: provider.defaultModelId || '',
-    enabled: provider.enabled !== false,
-    apiKey: provider.apiKey || '',
-    responseFormat: provider.capabilities?.responseFormat || '',
-    throughputMode: provider.capabilities?.throughputMode || '',
-    maxBatchSegments: provider.capabilities?.maxBatchSegments || 0,
-    maxBatchCharacters: provider.capabilities?.maxBatchCharacters || 0,
-    models: (provider.models || []).map((model) => ({
-      id: model.id || '',
-      modelName: model.modelName || '',
-      enabled: model.enabled !== false,
-      concurrencyLimit: model.concurrencyLimit ?? 1,
-      rateLimitHint: model.rateLimitHint || '',
-      retryEnabled: model.retryEnabled !== false,
-      retryAttempts: model.retryAttempts ?? 2,
-      promptCacheEnabled: model.promptCacheEnabled === true,
-      promptCacheTtlHint: model.promptCacheTtlHint || '',
-      responseFormat: model.responseFormat || '',
-      throughputMode: model.throughputMode || '',
-      maxBatchSegments: model.maxBatchSegments || 0,
-      maxBatchCharacters: model.maxBatchCharacters || 0,
-      providerConcurrency: model.providerConcurrency || 0,
-      contextWindowTokens: model.contextWindowTokens || 0,
-      maxOutputTokens: model.maxOutputTokens || 0,
-      notes: model.notes || ''
-    }))
-  });
-}
-
-function buildProfileFingerprint(profile) {
-  if (!profile) return '';
-
-  return JSON.stringify({
-    name: profile.name || '',
-    description: profile.description || '',
-    translationStyle: profile.translationStyle || '',
-    useBestFuzzyTm: profile.useBestFuzzyTm !== false,
-    useMetadata: profile.useMetadata !== false,
-    useUploadedGlossary: profile.useUploadedGlossary !== false,
-    useCustomTm: profile.useCustomTm !== false,
-    customTmMatchBuckets: Array.isArray(profile.customTmMatchBuckets) ? profile.customTmMatchBuckets : DEFAULT_CUSTOM_TM_MATCH_BUCKETS,
-    useBrief: profile.useBrief !== false,
-    usePreviewContext: profile.usePreviewContext === true,
-    usePreviewFullText: profile.usePreviewFullText === true,
-    usePreviewSummary: profile.usePreviewSummary === true,
-    usePreviewAboveBelow: profile.usePreviewAboveBelow === true,
-    usePreviewTargetText: profile.usePreviewTargetText === true,
-    previewAboveSegments: profile.previewAboveSegments ?? 0,
-    previewAboveCharacters: profile.previewAboveCharacters ?? 0,
-    previewAboveIncludeSource: profile.previewAboveIncludeSource === true,
-    previewAboveIncludeTarget: profile.previewAboveIncludeTarget !== false,
-    previewBelowSegments: profile.previewBelowSegments ?? 0,
-    previewBelowCharacters: profile.previewBelowCharacters ?? 0,
-    previewBelowIncludeSource: profile.previewBelowIncludeSource === true,
-    previewBelowIncludeTarget: profile.previewBelowIncludeTarget !== false,
-    cacheEnabled: profile.cacheEnabled !== false,
-    providerId: profile.providerId || '',
-    interactiveProviderId: profile.interactiveProviderId || '',
-    interactiveModelId: profile.interactiveModelId || '',
-    pretranslateProviderId: profile.pretranslateProviderId || '',
-    pretranslateModelId: profile.pretranslateModelId || '',
-    fallbackProviderId: profile.fallbackProviderId || '',
-    fallbackModelId: profile.fallbackModelId || '',
-    assetBindings: profile.assetBindings || [],
-    assetSelections: profile.assetSelections || {}
-  });
-}
-
-function buildAssetSelectionsFromBindings(assetBindings = []) {
-  const nextSelections = {};
-  for (const binding of Array.isArray(assetBindings) ? assetBindings : []) {
-    const assetId = String(binding?.assetId || '').trim();
-    const purpose = String(binding?.purpose || '').trim();
-    if (!assetId || !purpose) {
-      continue;
-    }
-    if (purpose === 'glossary' && !nextSelections.glossaryAssetId) {
-      nextSelections.glossaryAssetId = assetId;
-    } else if (purpose === 'custom_tm' && !nextSelections.customTmAssetId) {
-      nextSelections.customTmAssetId = assetId;
-    }
-  }
-  return nextSelections;
-}
-
-function buildAssetBindingsFromSelections(assetSelections = {}) {
-  const nextBindings = [];
-  const glossaryAssetId = String(assetSelections?.glossaryAssetId || '').trim();
-  const customTmAssetId = String(assetSelections?.customTmAssetId || '').trim();
-
-  if (glossaryAssetId) {
-    nextBindings.push({ assetId: glossaryAssetId, purpose: 'glossary' });
-  }
-  if (customTmAssetId) {
-    nextBindings.push({ assetId: customTmAssetId, purpose: 'custom_tm' });
-  }
-
-  return nextBindings;
-}
-
-function buildAssetPreviewRows(preview) {
-  if (!Array.isArray(preview?.rows)) {
-    return [];
-  }
-
-  return preview.rows.map((row, index) => ({ key: row?.id || `row-${index}`, ...row }));
-}
-
-function formatAssetPreviewMapping(mapping = {}) {
-  return Object.entries(mapping)
-    .map(([role, meta]) => ({
-      key: role,
-      role,
-      columnName: meta?.columnName || '-',
-      confidence: meta?.confidence || 'low'
-    }));
-}
-
-function getAssetPreviewConfidenceLabel(t, confidence = {}) {
-  const level = String(confidence?.level || 'low');
-  return t(`context.assetPreviewConfidence.${level}`);
-}
-
-function hasTbStructurePreview(preview = {}) {
-  return preview?.assetType === 'glossary' && preview?.tbStructureAvailable === true;
-}
-
-function canApplyTbStructurePreview(preview = {}) {
-  return hasTbStructurePreview(preview)
-    && preview?.tbStructureApplied !== true
-    && String(preview?.tbStructuringMode || '').trim() !== 'manual_mapping';
-}
-
-function getLocalizedPlaceholderText(t, item, kind) {
-  const key = `context.placeholder${kind}.${item.token}`;
-  const localized = t(key);
-  return localized === key ? item[kind.toLowerCase()] : localized;
 }
 
 
@@ -1252,7 +607,7 @@ export default function App() {
     [currentProvider, discoveredProviderModels],
   );
   const filteredCurrentProviderModelCatalog = useMemo(() => {
-    const keyword = normalizeFilterText(providerModelSearch);
+    const keyword = normalizeProviderFilterText(providerModelSearch);
     if (!keyword) {
       return currentProviderModelCatalog;
     }
@@ -1260,7 +615,7 @@ export default function App() {
     return currentProviderModelCatalog.filter((modelName) => modelName.toLowerCase().includes(keyword));
   }, [currentProviderModelCatalog, providerModelSearch]);
   const filteredProviders = useMemo(() => {
-    const keyword = normalizeFilterText(providerSearch);
+    const keyword = normalizeProviderFilterText(providerSearch);
     if (!keyword) {
       return providerItems;
     }
@@ -2750,7 +2105,6 @@ export default function App() {
               confirmInstallIntegration={confirmInstallIntegration}
               confirmLaunchDownloadedInstallerUpdate={confirmLaunchDownloadedInstallerUpdate}
               downloadInstallerUpdate={downloadInstallerUpdate}
-              formatLocalTimestamp={formatLocalTimestamp}
               handleChecklistAction={handleChecklistAction}
               openPortableDownloadPage={openPortableDownloadPage}
               openUpdateReleaseNotes={openUpdateReleaseNotes}
@@ -2839,13 +2193,6 @@ export default function App() {
               onPatchModel={patchCurrentModel}
               onSetCurrentProviderDefaultModel={setCurrentProviderDefaultModel}
               onConfirmDeleteModel={confirmDeleteModel}
-              getEnabledModelCount={getEnabledModelCount}
-              getProviderModelCount={getProviderModelCount}
-              getStatusTagMeta={getStatusTagMeta}
-              isDraftProvider={isDraftProvider}
-              getProviderTypeLabel={getProviderTypeLabel}
-              buildProviderRequestPreview={buildProviderRequestPreview}
-              formatLocalTimestamp={formatLocalTimestamp}
               insightFocus={providerInsightFocus}
               focusedModelName={providerInsightFocus?.model || ''}
               onBackToHistory={returnFromProviderInsightFocus}
@@ -2878,7 +2225,6 @@ export default function App() {
               deletingHistory={deletingHistory}
               exportHistory={exportHistory}
               exportingHistoryFormat={exportingHistoryFormat}
-              formatLocalTimestamp={formatLocalTimestamp}
               historyDetailError={historyDetailError}
               historyDetailLoading={historyDetailLoading}
               historyFilterDraft={historyFilterDraft}

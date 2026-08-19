@@ -18,34 +18,10 @@ import {
 import { useMemo } from 'react';
 import { useI18n } from '../../i18n';
 import { TABLE_COLUMN_WIDTHS } from '../../tableLayout.mjs';
+import { flattenLogFiles, formatLogBytes } from './logPresentation.mjs';
 
 const { Text } = Typography;
 const TABLE_SCROLL_X = 'max-content';
-
-function formatBytes(value) {
-  const bytes = Number(value || 0);
-  if (!Number.isFinite(bytes) || bytes <= 0) {
-    return '0 B';
-  }
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let size = bytes;
-  let unitIndex = 0;
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-  return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-}
-
-function flattenLogFiles(logState = {}) {
-  return (logState.groups || []).flatMap((group) => (
-    (group.files || []).map((file) => ({
-      key: file.path || `${group.source}-${file.name}`,
-      source: group.source,
-      ...file
-    }))
-  ));
-}
 
 export default function LogsPage({
   logState,
@@ -90,14 +66,14 @@ export default function LogsPage({
               <Text copyable className="long-value">{logState?.logsDir || '-'}</Text>
             </Descriptions.Item>
             <Descriptions.Item label={t('logs.totalSize')}>
-              {formatBytes(logState?.totalSizeBytes)}
+              {formatLogBytes(logState?.totalSizeBytes)}
             </Descriptions.Item>
             <Descriptions.Item label={t('logs.latestUpdatedAt')}>
               {logState?.latestUpdatedAt || '-'}
             </Descriptions.Item>
             <Descriptions.Item label={t('logs.policy')}>
               {t('logs.policyValue', {
-                size: formatBytes(policy.maxFileBytes),
+                size: formatLogBytes(policy.maxFileBytes),
                 files: policy.maxFiles || 0,
                 days: policy.retentionDays || 0
               })}
@@ -141,7 +117,7 @@ export default function LogsPage({
               title: t('logs.size'),
               dataIndex: 'sizeBytes',
               width: TABLE_COLUMN_WIDTHS.numericMetric,
-              render: formatBytes
+              render: formatLogBytes
             },
             {
               title: t('logs.updatedAt'),
@@ -164,4 +140,4 @@ export default function LogsPage({
   );
 }
 
-export { formatBytes };
+export { formatLogBytes as formatBytes } from './logPresentation.mjs';

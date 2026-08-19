@@ -100,3 +100,13 @@ test('editor drafts can discard a targeted draft without affecting others', asyn
   assert.equal(Boolean(nextDrafts.provider_1), false);
   assert.equal(Boolean(nextDrafts.provider_2), true);
 });
+
+test('editor drafts resolve current, fallback, and first available record ids', async () => {
+  const { resolveSelectedRecordId } = await loadHelpers();
+  const records = [{ id: 'one' }, { id: 'two' }];
+
+  assert.equal(resolveSelectedRecordId(records, 'two', 'one'), 'two');
+  assert.equal(resolveSelectedRecordId(records, 'missing', 'two'), 'two');
+  assert.equal(resolveSelectedRecordId(records, 'missing', 'missing'), 'one');
+  assert.equal(resolveSelectedRecordId([], 'two', 'one'), '');
+});

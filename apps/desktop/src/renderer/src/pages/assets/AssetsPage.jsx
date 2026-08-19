@@ -13,24 +13,9 @@ import {
 } from 'antd';
 import { useMemo, useState } from 'react';
 import { useI18n } from '../../i18n';
+import { ASSET_CATEGORIES, buildAssetUsageMap } from './assetPresentation.mjs';
 
 const { Text } = Typography;
-
-const ASSET_CATEGORIES = [
-  { id: 'all', assetType: '', translationKey: 'context.assetCategoryAll' },
-  { id: 'glossary', assetType: 'glossary', translationKey: 'context.assetType.glossary' },
-  { id: 'custom_tm', assetType: 'custom_tm', translationKey: 'context.assetType.custom_tm' }
-];
-
-function buildAssetUsageMap(profileItems = [], fallbackLabel = '-') {
-  return profileItems.reduce((usageMap, profile) => {
-    for (const binding of profile?.assetBindings || []) {
-      const existing = usageMap.get(binding.assetId) || [];
-      usageMap.set(binding.assetId, [...existing, profile.name || fallbackLabel]);
-    }
-    return usageMap;
-  }, new Map());
-}
 
 export default function AssetsPage({
   profileItems = [],

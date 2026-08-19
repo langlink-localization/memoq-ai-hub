@@ -6,11 +6,21 @@ import {
   buildHistoryAttemptRows,
   buildHistoryDiagnosticSummary,
   buildHistorySegments,
+  createEmptyHistoryFilters,
   filterHistoryItems,
   formatInsightLatency
 } from '../src/renderer/src/pages/history/historyPresentation.mjs';
 
 const t = (key, values = {}) => `${key}${values.count === undefined ? '' : `:${values.count}`}`;
+
+test('history presentation returns independent empty filter drafts', () => {
+  const first = createEmptyHistoryFilters();
+  const second = createEmptyHistoryFilters();
+
+  first.search = 'changed';
+  assert.equal(second.search, '');
+  assert.deepEqual(Object.keys(second), ['search', 'projectId', 'subject', 'provider', 'model', 'status', 'issue', 'dateFrom', 'dateTo']);
+});
 
 test('history presentation keeps filters, diagnostics, and detail rows page-local', () => {
   const timeoutRecord = {

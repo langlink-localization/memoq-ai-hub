@@ -32,8 +32,19 @@ import {
 import { CollapsibleItemList, CollapsibleSidePanel, SidePanelMeta } from '../../components/CollapsibleSidePanel';
 import { useI18n } from '../../i18n';
 import { TABLE_COLUMN_WIDTHS } from '../../tableLayout.mjs';
-import { getProviderConnectionHelperText, isProviderConnectionTestDisabled } from '../../providerConnectionUx.mjs';
+import {
+  getEnabledModelCount,
+  getProviderConnectionHelperText,
+  isProviderConnectionTestDisabled
+} from '../../providerConnectionUx.mjs';
+import {
+  buildProviderRequestPreview,
+  getProviderModelCount,
+  isDraftProvider
+} from '../../providerDraftState.mjs';
+import { formatLocalTimestamp } from '../../timeFormatting.mjs';
 import { activateOnKeyboard } from '../../uiBehavior.mjs';
+import { getProviderTypeLabel, getStatusTagMeta } from './providerPresentation.mjs';
 
 const { Text, Title } = Typography;
 const TABLE_SCROLL_X = 'max-content';
@@ -64,10 +75,6 @@ function ProviderCatalog({
   onCreateProvider,
   onProviderSearchChange,
   onSelectProvider,
-  getEnabledModelCount,
-  getProviderModelCount,
-  getStatusTagMeta,
-  isDraftProvider,
   collapsed,
   onToggleCollapsed,
   expandLabel,
@@ -210,9 +217,7 @@ function ProviderHeader({
   onDiscardProviderChanges,
   onPatchProvider,
   onSaveProvider,
-  getProviderTypeLabel,
-  isDirty,
-  isDraftProvider
+  isDirty
 }) {
   const { t } = useI18n();
   const editorActionMenu = {
@@ -438,10 +443,7 @@ function ProviderModelLibraryModal({
   );
 }
 
-function ProviderHealthPanel({
-  connectionSnapshot,
-  formatLocalTimestamp
-}) {
+function ProviderHealthPanel({ connectionSnapshot }) {
   const { t } = useI18n();
   const status = String(connectionSnapshot?.status || 'not_tested');
   const testedAt = String(connectionSnapshot?.testedAt || '').trim();
@@ -480,7 +482,6 @@ function ProviderHealthPanel({
 
 export function ProvidersPage(props) {
   const {
-    buildProviderRequestPreview,
     currentProvider,
     currentProviderConnectionMeta,
     currentProviderConnectionSnapshot,
@@ -490,16 +491,10 @@ export function ProvidersPage(props) {
     discoveringProviderModels,
     filteredCurrentProviderModelCatalog,
     filteredProviders,
-    formatLocalTimestamp,
-    getEnabledModelCount,
-    getProviderModelCount,
-    getProviderTypeLabel,
-    getStatusTagMeta,
     groupedProviders,
     focusedModelName,
     insightFocus,
     isDirty,
-    isDraftProvider,
     onAddModelToCurrentProvider,
     onCloseProviderModelManager,
     onConfirmBulkDeleteModels,
@@ -562,10 +557,6 @@ export function ProvidersPage(props) {
           onCreateProvider={onCreateProvider}
           onProviderSearchChange={onProviderSearchChange}
           onSelectProvider={onSelectProvider}
-          getEnabledModelCount={getEnabledModelCount}
-          getProviderModelCount={getProviderModelCount}
-          getStatusTagMeta={getStatusTagMeta}
-          isDraftProvider={isDraftProvider}
           collapsed={sidebarCollapsed}
           onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
           expandLabel={t('common.expandSidebar')}
@@ -600,14 +591,9 @@ export function ProvidersPage(props) {
               onDiscardProviderChanges={onDiscardProviderChanges}
               onPatchProvider={onPatchProvider}
               onSaveProvider={onSaveProvider}
-              getProviderTypeLabel={getProviderTypeLabel}
               isDirty={isDirty}
-              isDraftProvider={isDraftProvider}
             />
-            <ProviderHealthPanel
-              connectionSnapshot={currentProviderConnectionSnapshot}
-              formatLocalTimestamp={formatLocalTimestamp}
-            />
+            <ProviderHealthPanel connectionSnapshot={currentProviderConnectionSnapshot} />
 
             <Card className="page-card" title={t('providers.configuration')}>
               <Form layout="vertical" component="div" className="provider-configuration-form">

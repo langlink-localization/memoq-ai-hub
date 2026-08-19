@@ -6,6 +6,26 @@ This repository follows a standard monorepo topology. Runtime code, shared contr
 
 - `apps/`: deployable application packages.
 - `apps/desktop/`: Electron desktop application, local HTTP gateway, renderer UI, and desktop tests.
+- `apps/desktop/src/runtime/runtime.js`: desktop runtime composition root and public API facade; product execution and resource state operations belong in sibling services and stores.
+- `apps/desktop/src/runtime/runtimeAggregationService.js`: aggregate request queue owner for grouping, deadlines, congestion state, rescue settlement, and job lifecycle.
+- `apps/desktop/src/runtime/runtimeProviderExecution.js`: provider execution boundary for concurrency slots, rate limiting, retries, and per-route throughput history.
+- `apps/desktop/src/runtime/runtimeTranslationService.js`: translation product orchestration for route selection, batch splitting, cache use, preview/assets, adaptive fallback, history, and response assembly.
+- `apps/desktop/src/runtime/runtimeProfileService.js`: Profile and mapping-rule lifecycle, reference guards, default selection, duplication, and metadata-based resolution.
+- `apps/desktop/src/runtime/runtimeProviderService.js`: Provider/model lifecycle, draft testing, discovery, secret coordination, validation, and reference guards.
+- `apps/desktop/src/runtime/runtimeAssetService.js`: imported asset file lifecycle, profile-reference protection, and parsed-cache eviction.
+- `apps/desktop/src/runtime/runtimePreviewContextResolver.js`: Preview context owner for cache warmup, local/shared context lookup, document-summary caching, and resolver diagnostics.
+- `apps/desktop/src/runtime/runtimeQaService.js`: Preview QA and Assistant orchestration owner for payload preparation, coordinator state, automatic checks, cancellation, and document QA.
+- `apps/desktop/src/renderer/src/appState.mjs`: renderer-side remote state defaults, defensive payload normalization, and refresh-time metric preservation.
+- `apps/desktop/src/renderer/src/providerDraftState.mjs`: Provider editor draft construction, model selection/catalog projection, request preview, and change fingerprints.
+- `apps/desktop/src/renderer/src/pages/providers/providerPresentation.mjs`: Provider status/type presentation and search normalization shared by the App shell and Providers page.
+- `apps/desktop/src/renderer/src/profileDraftState.mjs`: Profile defaults, unified route selection, asset-binding projection, and change fingerprints.
+- `apps/desktop/src/renderer/src/pages/logs/logPresentation.mjs`: log payload normalization, diagnostic projection, byte formatting, and grouped-file flattening.
+- `apps/desktop/src/renderer/src/pages/assets/assetPresentation.mjs`: asset-library categories, usage projection, preview rows, and TB-structure presentation rules.
+- `apps/desktop/src/provider/providerTransportSupport.js`: provider transport facade for text, structured, and streaming calls, including SDK client construction, timeout/cancellation, Retry-After handling, structured-output negotiation, and prompt-cache fields.
+- `native/plugin/MemoQ.AI.Desktop.Plugin/MemoQAIHubGatewayClient.cs`: thin gateway transport boundary for direct/aggregate request selection, concurrency limits, result polling, and direct fallback; the memoQ session retains segment/request orchestration.
+- `native/plugin/MemoQ.AI.Desktop.Plugin/MemoQAIHubRequestMapper.cs`: memoQ-to-gateway request adapter for metadata index remapping, segment serialization, request types, profile hints, and capability flags.
+- `native/plugin/MemoQ.AI.Desktop.Plugin/MemoQAIHubResponseMapper.cs`: gateway-to-memoQ response adapter for index validation, error mapping, tag/format conversion, whitespace normalization, and confidence projection.
+- `native/plugin/MemoQ.AI.Desktop.Plugin/MemoQAIHubPluginLogger.cs`: plugin-local trace/file logging, rotation, and retention boundary.
 - `native/`: .NET and host-specific runtime integrations.
 - `native/plugin/`: memoQ MT plugin source; SDK binaries are resolved into an ignored local cache.
 - `native/preview-helper/`: auxiliary .NET executable used by desktop preview flows.

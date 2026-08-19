@@ -130,7 +130,7 @@ test('dashboard keeps refresh controls icon-first and guards stale available upd
 });
 
 test('history insights expose simple latency-focused filtering hooks', () => {
-  const appSource = readRendererSources('App.jsx', 'pages/history/HistoryPage.jsx');
+  const appSource = readRendererSources('App.jsx', 'pages/history/HistoryPage.jsx', 'pages/history/historyPresentation.mjs');
 
   assert.match(appSource, /issue:\s*''/);
   assert.match(appSource, /function applyHistoryInsightFilter/);
@@ -176,7 +176,7 @@ test('history refreshes preserve loaded records outside the history page', () =>
 });
 
 test('provider refreshes preserve loaded history metrics outside the providers page', () => {
-  const appSource = readRendererSource('App.jsx');
+  const appSource = readRendererSources('App.jsx', 'appState.mjs');
 
   assert.match(appSource, /function preserveProviderHistoryMetrics/);
   assert.match(appSource, /successRate24h: provider\.successRate24h \?\? null/);
@@ -217,7 +217,7 @@ test('renderer feedback uses the themed Ant Design app context and recoverable s
 test('high-risk actions and async mutations expose confirmation and pending contracts', () => {
   const appSource = readRendererSources('App.jsx', 'pages/history/HistoryPage.jsx');
   const builderSource = readRendererSource('pages/builder/BuilderPage.jsx');
-  const assetsSource = readRendererSource('pages/assets/AssetsPage.jsx');
+  const assetsSource = readRendererSources('pages/assets/AssetsPage.jsx', 'pages/assets/assetPresentation.mjs');
 
   assert.match(appSource, /function confirmPruneLogs\(\)/);
   assert.match(appSource, /function confirmInstallIntegration\(\)/);
@@ -341,7 +341,7 @@ test('feature pages keep tables and overlays responsive on narrow viewports', ()
   const builderSource = readRendererSource('pages/builder/BuilderPage.jsx');
   const providersSource = readRendererSource('pages/providers/ProvidersPage.jsx');
   const logsSource = readRendererSource('pages/logs/LogsPage.jsx');
-  const assetsSource = readRendererSource('pages/assets/AssetsPage.jsx');
+  const assetsSource = readRendererSources('pages/assets/AssetsPage.jsx', 'pages/assets/assetPresentation.mjs');
 
   assert.match(builderSource, /type: 'custom_tm'/);
   assert.match(builderSource, /titleKey: 'context\.assetRoleTmTitle'/);
@@ -374,7 +374,7 @@ test('setup route throughput summaries stay inside their cards with hover disclo
 });
 
 test('setup asset selections include custom TM bindings', () => {
-  const appSource = readRendererSource('App.jsx');
+  const appSource = readRendererSources('App.jsx', 'profileDraftState.mjs');
   const builderSource = readRendererSource('pages/builder/BuilderPage.jsx');
 
   assert.match(builderSource, /\[item\.fieldName\]: String\(currentSelections\[item\.fieldName\] \|\| ''\)/);

@@ -15,6 +15,7 @@ import {
 } from 'antd';
 import HoverText from '../../components/HoverText.jsx';
 import { TABLE_COLUMN_WIDTHS, TABLE_SCROLL_X } from '../../tableLayout.mjs';
+import { formatLocalTimestamp } from '../../timeFormatting.mjs';
 import {
   buildHistoryPromptItems,
   getHistoryContextSources,
@@ -39,7 +40,6 @@ export default function HistoryDetailDrawer({
   currentHistoryRecord,
   detailError,
   detailLoading,
-  formatLocalTimestamp,
   historyFilters,
   onClose,
   onDeleteCurrent,

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { Alert, Button, Card, Col, Collapse, Descriptions, Empty, Input, List, Radio, Row, Select, Space, Tag, Typography } from 'antd';
 import { DeploymentUnitOutlined, ReloadOutlined } from '@ant-design/icons';
 import HoverText from '../../components/HoverText.jsx';
+import { formatLocalTimestamp } from '../../timeFormatting.mjs';
 import { buildDashboardChecklist } from '../../uiBehavior.mjs';
 import {
   buildInstallDraft,
@@ -28,7 +29,6 @@ export default function DashboardPage({
   confirmInstallIntegration,
   confirmLaunchDownloadedInstallerUpdate,
   downloadInstallerUpdate,
-  formatLocalTimestamp,
   handleChecklistAction,
   handshaking,
   initialState,

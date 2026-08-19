@@ -2,6 +2,7 @@ import { Alert, Button, Card, Col, Collapse, DatePicker, Empty, Form, Input, Row
 import dayjs from 'dayjs';
 import HoverText from '../../components/HoverText.jsx';
 import { TABLE_COLUMN_WIDTHS, TABLE_SCROLL_X } from '../../tableLayout.mjs';
+import { formatLocalTimestamp } from '../../timeFormatting.mjs';
 import HistoryDetailDrawer from './HistoryDetailDrawer.jsx';
 import HistoryIssueTags from './HistoryIssueTags.jsx';
 import {
@@ -24,7 +25,6 @@ export default function HistoryPage({
   deletingHistory,
   exportHistory,
   exportingHistoryFormat,
-  formatLocalTimestamp,
   historyDetailError,
   historyDetailLoading,
   historyFilterDraft,
@@ -364,7 +364,6 @@ export default function HistoryPage({
         currentHistoryRecord={currentHistoryRecord}
         detailError={historyDetailError}
         detailLoading={historyDetailLoading}
-        formatLocalTimestamp={formatLocalTimestamp}
         historyFilters={historyFilters}
         onClose={onCloseHistoryDetail}
         onDeleteCurrent={confirmDeleteCurrentHistoryEntry}

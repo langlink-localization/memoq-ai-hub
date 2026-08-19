@@ -50,3 +50,7 @@ export function formatTimestampForLocalDisplay(value, options = {}) {
 
   return DISPLAY_TIMESTAMP_FORMATTER.format(new Date(time));
 }
+
+export function formatLocalTimestamp(value, fallback = '-') {
+  return formatTimestampForLocalDisplay(value, { fallback });
+}
