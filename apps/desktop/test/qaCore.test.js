@@ -68,6 +68,18 @@ test('deterministic QA catches structural data, whitespace, length, terminology,
   ['numbers', 'dates', 'currencies', 'outer-whitespace', 'required-term', 'rule-1'].forEach((id) => assert.equal(ids.has(id), true, id));
 });
 
+test('deterministic QA skips disabled profile rules', () => {
+  const findings = runDeterministicChecks(snapshot('Contains forbidden text'), {
+    rules: [
+      { id: 'enabled-rule', name: 'Enabled', type: 'contains', scope: 'target', value: 'forbidden', enabled: true },
+      { id: 'disabled-rule', name: 'Disabled', type: 'contains', scope: 'target', value: 'forbidden', enabled: false }
+    ]
+  });
+  const ids = findings.map((finding) => finding.ruleId);
+  assert.equal(ids.includes('enabled-rule'), true);
+  assert.equal(ids.includes('disabled-rule'), false);
+});
+
 test('AI thresholds hide low confidence and downgrade uncertain findings', () => {
   assert.equal(applyConfidenceThreshold({ severity: 'minor', confidence: 0.54 }), null);
   assert.equal(applyConfidenceThreshold({ severity: 'minor', confidence: 0.69 }).severity, 'info');

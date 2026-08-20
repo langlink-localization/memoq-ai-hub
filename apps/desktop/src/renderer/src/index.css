@@ -754,7 +754,8 @@ body,
 .quality-page,
 .quality-controls,
 .quality-rules,
-.quality-float-content {
+.quality-float-content,
+.qa-finding-review {
   width: 100%;
 }
 

@@ -27,6 +27,8 @@ import {
 } from 'antd';
 import { useI18n } from '../../i18n';
 import QualityExecutionSummary from './QualityExecutionSummary.jsx';
+import QaFindingReview from './QaFindingReview.jsx';
+import { disableQaRule } from './qaFindingReview.mjs';
 
 const { Paragraph, Text } = Typography;
 const AUTOMATIC_TRIGGER = 'preview-target-changed';
@@ -52,7 +54,7 @@ function triggerLabel(trigger, t) {
   return t(`quality.history.trigger.${trigger || 'manual'}`);
 }
 
-export default function QaHistoryPanel({ api, refreshKey = 0 }) {
+export default function QaHistoryPanel({ api, profiles = [], onProfileSaved, refreshKey = 0 }) {
   const { t } = useI18n();
   const { message, modal } = AntdApp.useApp();
   const [items, setItems] = useState([]);
@@ -163,6 +165,22 @@ export default function QaHistoryPanel({ api, refreshKey = 0 }) {
     }
   }
 
+  async function disableFindingRule(finding) {
+    const result = await disableQaRule({
+      api,
+      profileId: detail?.result?.configuration?.profileId || '',
+      ruleId: finding.ruleId
+    });
+    if (result.profile?.id) onProfileSaved?.(result.profile);
+    return result;
+  }
+
+  function canDisableFindingRule(finding) {
+    const profileId = detail?.result?.configuration?.profileId || '';
+    const profile = profiles.find((item) => item.id === profileId);
+    return Boolean(profile?.qaRules?.some((rule) => rule.id === finding.ruleId));
+  }
+
   const columns = [
     { title: t('quality.history.checkedAt'), dataIndex: 'updatedAt', width: 180, render: formatTimestamp },
     { title: t('quality.history.document'), key: 'document', width: 180, ellipsis: true, render: (_, item) => item.documentName || item.documentId || '-' },
@@ -177,7 +195,6 @@ export default function QaHistoryPanel({ api, refreshKey = 0 }) {
   ];
 
   const detailResult = detail?.result;
-  const feedbackByFinding = new Map((detail?.feedback || []).map((item) => [item.findingId, item.state]));
 
   return (
     <Space direction="vertical" size="large" className="quality-page">
@@ -233,18 +250,17 @@ export default function QaHistoryPanel({ api, refreshKey = 0 }) {
               { key: 'target', label: t('quality.targetEvidence'), children: detailResult.segment?.target || '-' }
             ]} />
             <QualityExecutionSummary execution={detailResult.execution} />
-            <Table
-              rowKey="id"
-              size="small"
-              pagination={false}
-              dataSource={detailResult.findings || []}
-              locale={{ emptyText: t('quality.checkCompleteNoFindings') }}
-              columns={[
-                { title: t('quality.severity'), dataIndex: 'severity', width: 110, render: (value) => <Tag color={SEVERITY_COLOR[value]}>{value}</Tag> },
-                { title: t('quality.issue'), key: 'issue', render: (_, finding) => <Space direction="vertical" size={0}><Text>{finding.title || finding.message}</Text><Text type="secondary">{finding.suggestedTranslation || ''}</Text></Space> },
-                { title: t('quality.history.feedback'), dataIndex: 'id', width: 120, render: (id) => feedbackByFinding.get(id) || '-' }
-              ]}
-            />
+            {(detailResult.findings || []).length ? <QaFindingReview
+              embedded
+              findings={detailResult.findings || []}
+              requestId={detailResult.requestId}
+              profileId={detailResult?.configuration?.profileId || ''}
+              feedbackEntries={detail?.feedback || []}
+              onCopy={(value) => api.copyText(value)}
+              onSaveFeedback={(payload) => api.saveQaFeedback(payload)}
+              onDisableRule={disableFindingRule}
+              canDisableRule={canDisableFindingRule}
+            /> : <Empty description={t('quality.checkCompleteNoFindings')} />}
           </Space>
         ) : null}
       </Drawer>

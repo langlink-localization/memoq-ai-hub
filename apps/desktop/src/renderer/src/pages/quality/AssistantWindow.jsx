@@ -11,13 +11,14 @@ import {
   Select,
   Skeleton,
   Space,
-  Table,
   Tag,
   Typography
 } from 'antd';
 import { useI18n } from '../../i18n';
 import QualityExecutionSummary from './QualityExecutionSummary.jsx';
 import PromptPresetSelector from './PromptPresetSelector.jsx';
+import QaFindingReview from './QaFindingReview.jsx';
+import { disableQaRule } from './qaFindingReview.mjs';
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -203,6 +204,30 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
     message.success(t('assistant.copied'));
   }
 
+  async function disableFindingRule(finding) {
+    const result = await disableQaRule({
+      api,
+      profileId: qaResult?.configuration?.profileId || profile?.id || '',
+      ruleId: finding.ruleId
+    });
+    if (result.profile?.id) {
+      setAppState((current) => ({
+        ...(current || {}),
+        contextBuilder: {
+          ...(current?.contextBuilder || {}),
+          profiles: (current?.contextBuilder?.profiles || []).map((item) => item.id === result.profile.id ? result.profile : item)
+        }
+      }));
+    }
+    return result;
+  }
+
+  function canDisableFindingRule(finding) {
+    const resultProfileId = qaResult?.configuration?.profileId || profile?.id || '';
+    const resultProfile = profiles.find((item) => item.id === resultProfileId);
+    return Boolean(resultProfile?.qaRules?.some((rule) => rule.id === finding.ruleId));
+  }
+
   if (loading) return <Skeleton active paragraph={{ rows: 10 }} />;
 
   const findings = qaResult?.findings || [];
@@ -270,11 +295,16 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
           {qaResult ? <QualityExecutionSummary compact execution={qaResult.execution} /> : null}
           {qaResult && aiUnavailable ? <Alert type="warning" showIcon message={t('quality.aiFailedTitle')} description={t('quality.aiFailedDescription')} action={<Button size="small" onClick={runQa}>{t('common.retry')}</Button>} /> : null}
           {qaResult && findings.length === 0 && !aiUnavailable ? <Alert type="success" showIcon message={t('quality.checkCompleteNoFindings')} /> : null}
-          {findings.length ? <Table size="small" rowKey="id" pagination={false} dataSource={findings} columns={[
-            { title: t('quality.severity'), dataIndex: 'severity', width: 100, render: (value) => <Tag>{value}</Tag> },
-            { title: t('quality.issue'), dataIndex: 'title', render: (value, finding) => <Space direction="vertical" size={0}><Text>{value}</Text><Text type="secondary">{finding.message}</Text></Space> },
-            { title: '', width: 44, render: (_, finding) => <Button type="text" icon={<CopyOutlined />} aria-label={t('quality.copySuggestion')} onClick={() => copy(finding.suggestedTranslation || finding.message)} /> }
-          ]} /> : qaResult ? null : <Empty description={t('assistant.runQaHint')} />}
+          {findings.length ? <QaFindingReview
+            findings={findings}
+            requestId={qaResult.requestId}
+            profileId={qaResult?.configuration?.profileId || profile?.id || ''}
+            onCopy={(value) => api.copyText(value)}
+            onLoadFeedback={(requestId) => api.getQaHistoryEntry(requestId)}
+            onSaveFeedback={(payload) => api.saveQaFeedback(payload)}
+            onDisableRule={disableFindingRule}
+            canDisableRule={canDisableFindingRule}
+          /> : qaResult ? null : <Empty description={t('assistant.runQaHint')} />}
         </>
       )}
     </Space>

@@ -47,6 +47,22 @@ test('quality UI preserves native switch sizing and renders the two-mode assista
   assert.match(presets, /restoreBuiltinPromptPreset/);
 });
 
+test('quality surfaces share the persisted finding review workflow without adding IPC operations', () => {
+  const page = fs.readFileSync(path.resolve(__dirname, '../src/renderer/src/pages/quality/QualityPage.jsx'), 'utf8');
+  const assistant = fs.readFileSync(path.resolve(__dirname, '../src/renderer/src/pages/quality/AssistantWindow.jsx'), 'utf8');
+  const history = fs.readFileSync(path.resolve(__dirname, '../src/renderer/src/pages/quality/QaHistoryPanel.jsx'), 'utf8');
+  const review = fs.readFileSync(path.resolve(__dirname, '../src/renderer/src/pages/quality/QaFindingReview.jsx'), 'utf8');
+  const preload = fs.readFileSync(path.resolve(__dirname, '../src/preload.js'), 'utf8');
+
+  [page, assistant, history].forEach((source) => assert.match(source, /QaFindingReview/));
+  assert.match(page, /onLoadFeedback=\{\(requestId\) => api\.getQaHistoryEntry\(requestId\)\}/);
+  assert.match(assistant, /onLoadFeedback=\{\(requestId\) => api\.getQaHistoryEntry\(requestId\)\}/);
+  assert.match(history, /feedbackEntries=\{detail\?\.feedback \|\| \[\]\}/);
+  assert.match(review, /allReviewStates/);
+  assert.match(review, /ruleDisabledFeedbackFailed/);
+  assert.doesNotMatch(preload, /disableQaRule:/);
+});
+
 test('main process registers log diagnostics IPC handlers', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../src/main.js'), 'utf8');
   assert.match(source, /desktop:get-log-state/);

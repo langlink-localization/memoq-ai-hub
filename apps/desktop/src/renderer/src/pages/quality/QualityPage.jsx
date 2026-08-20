@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   CheckCircleOutlined,
-  CopyOutlined,
   ExclamationCircleOutlined,
   ExportOutlined,
   FileSearchOutlined,
-  MoreOutlined,
   PauseOutlined,
   CaretRightOutlined,
   ReloadOutlined,
@@ -18,9 +16,6 @@ import {
   Button,
   Card,
   Collapse,
-  Descriptions,
-  Drawer,
-  Dropdown,
   Empty,
   Form,
   Input,
@@ -29,10 +24,8 @@ import {
   Skeleton,
   Space,
   Switch,
-  Table,
   Tabs,
   Tag,
-  Tooltip,
   Typography,
   theme
 } from 'antd';
@@ -40,7 +33,9 @@ import { useI18n } from '../../i18n';
 import QualityExecutionSummary from './QualityExecutionSummary.jsx';
 import QaHistoryPanel from './QaHistoryPanel.jsx';
 import PromptPresetSelector from './PromptPresetSelector.jsx';
+import QaFindingReview from './QaFindingReview.jsx';
 import qaPromptModule from '../../../../qa/qaPrompt.js';
+import { disableQaRule } from './qaFindingReview.mjs';
 
 const { Paragraph, Text, Title } = Typography;
 const { DEFAULT_QA_SYSTEM_PROMPT, DEFAULT_QA_USER_PROMPT } = qaPromptModule;
@@ -81,7 +76,6 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
   const [checking, setChecking] = useState(false);
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
-  const [selectedFinding, setSelectedFinding] = useState(null);
   const [mode, setMode] = useState('current');
   const [aiEnabled, setAiEnabled] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState('');
@@ -205,14 +199,23 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
     });
   }
 
-  async function copySuggestion(finding) {
-    await api.copyText(finding.suggestedTranslation || finding.message || '');
-    message.success(t('quality.suggestionCopied'));
+  async function disableFindingRule(finding) {
+    const result = await disableQaRule({
+      api,
+      profileId: latestResult?.configuration?.profileId || profile?.id || '',
+      ruleId: finding.ruleId
+    });
+    if (result.profile?.id) {
+      setSavedProfiles((current) => ({ ...current, [result.profile.id]: result.profile }));
+      if (result.profile.id === profile?.id) setRules(result.profile.qaRules || []);
+    }
+    return result;
   }
 
-  async function saveFeedback(finding, state) {
-    await api.saveQaFeedback({ requestId: latestResult.requestId, findingId: finding.id, ruleId: finding.ruleId, state });
-    message.success(t('quality.feedbackSaved'));
+  function canDisableFindingRule(finding) {
+    const profileId = latestResult?.configuration?.profileId || profile?.id || '';
+    const resultProfile = savedProfiles[profileId] || profiles.find((item) => item.id === profileId);
+    return Boolean(resultProfile?.qaRules?.some((rule) => rule.id === finding.ruleId));
   }
 
   async function saveQualitySettings() {
@@ -288,29 +291,6 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
     ruleForm.resetFields();
   }
 
-  const columns = useMemo(() => [
-    { title: t('quality.severity'), dataIndex: 'severity', width: 116, render: (severity) => <SeverityTag severity={severity} /> },
-    { title: t('quality.issue'), dataIndex: 'title', ellipsis: true, render: (value, finding) => <Button type="link" onClick={() => setSelectedFinding(finding)}>{value}</Button> },
-    { title: t('quality.category'), dataIndex: 'category', width: 150, render: (value) => <Tag>{value}</Tag> },
-    {
-      title: t('common.actions'), key: 'actions', width: 150,
-      render: (_, finding) => (
-        <Space size="small">
-          <Tooltip title={t('quality.copySuggestion')}><Button type="text" icon={<CopyOutlined />} aria-label={t('quality.copySuggestion')} onClick={() => copySuggestion(finding)} /></Tooltip>
-          <Dropdown trigger={['click']} menu={{ items: [
-            { key: 'accepted', label: t('quality.feedbackAccepted') },
-            { key: 'false-positive', label: t('quality.feedbackFalsePositive') },
-            { key: 'fixed', label: t('quality.feedbackFixed') },
-            { key: 'ignored', label: t('quality.feedbackIgnored') },
-            { key: 'rule-disabled', label: t('quality.feedbackDisableRule'), disabled: !finding.ruleId }
-          ], onClick: ({ key }) => saveFeedback(finding, key) }}>
-            <Button type="text" icon={<MoreOutlined />} aria-label={t('quality.moreFeedback')} />
-          </Dropdown>
-        </Space>
-      )
-    }
-  ], [latestResult?.requestId, t]);
-
   if (loading) return <Skeleton active paragraph={{ rows: compact ? 6 : 10 }} />;
 
   const content = (
@@ -372,7 +352,17 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
               description={['failed', 'circuit-open', 'cancelled'].includes(latestResult.execution?.ai?.status) ? t('quality.aiFailedDescription') : latestResult.execution?.ai?.status === 'disabled' ? t('quality.aiNotRequestedDescription') : undefined}
               action={['failed', 'circuit-open', 'cancelled'].includes(latestResult.execution?.ai?.status) ? <Button size="small" onClick={runCurrentCheck}>{t('common.retry')}</Button> : null}
             />
-          ) : <Table rowKey="id" size="small" columns={compact ? columns.slice(0, 2) : columns} dataSource={compact ? findings.slice(0, 3) : findings} pagination={compact ? false : { pageSize: 25 }} scroll={compact ? undefined : { x: 760 }} />}
+          ) : <QaFindingReview
+            findings={findings}
+            requestId={latestResult.requestId}
+            profileId={latestResult?.configuration?.profileId || profile?.id || ''}
+            onCopy={(value) => api.copyText(value)}
+            onLoadFeedback={(requestId) => api.getQaHistoryEntry(requestId)}
+            onSaveFeedback={(payload) => api.saveQaFeedback(payload)}
+            onDisableRule={disableFindingRule}
+            canDisableRule={canDisableFindingRule}
+            compact={compact}
+          />}
         </>
       ) : <Empty description={t('quality.waitingForPreview')} />}
 
@@ -412,17 +402,6 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
         }]} />
       ) : null}
 
-      <Drawer title={selectedFinding?.title} open={Boolean(selectedFinding)} onClose={() => setSelectedFinding(null)} width="min(640px, calc(100vw - 32px))" destroyOnHidden>
-        {selectedFinding ? <Descriptions column={1} bordered size="small" items={[
-          { key: 'severity', label: t('quality.severity'), children: <SeverityTag severity={selectedFinding.severity} /> },
-          { key: 'category', label: t('quality.category'), children: selectedFinding.category },
-          { key: 'message', label: t('quality.issue'), children: selectedFinding.message },
-          { key: 'source', label: t('quality.sourceEvidence'), children: selectedFinding.sourceEvidence || '-' },
-          { key: 'target', label: t('quality.targetEvidence'), children: selectedFinding.targetEvidence || '-' },
-          { key: 'suggestion', label: t('quality.suggestion'), children: selectedFinding.suggestedTranslation || '-' },
-          { key: 'origin', label: t('quality.origin'), children: selectedFinding.origin }
-        ]} /> : null}
-      </Drawer>
     </Space>
   );
 
@@ -439,7 +418,7 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
         {
           key: 'history',
           label: t('quality.tabs.history'),
-          children: activeTab === 'history' ? <QaHistoryPanel api={api} refreshKey={historyRefreshKey} /> : null
+          children: activeTab === 'history' ? <QaHistoryPanel api={api} profiles={profiles.map((item) => savedProfiles[item.id] || item)} onProfileSaved={(saved) => setSavedProfiles((current) => ({ ...current, [saved.id]: saved }))} refreshKey={historyRefreshKey} /> : null
         }
       ]}
     />
