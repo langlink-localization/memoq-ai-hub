@@ -10,7 +10,6 @@ const {
 const { createAppPaths } = require('../shared/paths');
 const { createLogger } = require('../shared/logging');
 const { createDatabase } = require('../database');
-const { createSecretStore } = require('../secretStore');
 const { createProviderRegistry } = require('../provider/providerRegistry');
 const { summarizeRuleConditions } = require('../shared/memoqMetadata');
 const { createPreviewContextClient } = require('../preview/previewContextClient');
@@ -109,10 +108,14 @@ function sleep(ms) {
 }
 
 async function createRuntime(options = {}) {
+  const secretStore = options.secretStore;
+  if (!secretStore || typeof secretStore.has !== 'function' || typeof secretStore.get !== 'function'
+    || typeof secretStore.set !== 'function' || typeof secretStore.delete !== 'function') {
+    throw new TypeError('A complete secretStore adapter is required.');
+  }
   const paths = createAppPaths(options);
   const runtimeLogger = options.runtimeLogger || createLogger({ source: 'runtime', logsDir: paths.logsDir });
   const db = await createDatabase(paths);
-  const secretStore = options.secretStore || createSecretStore(paths);
   const providerRegistry = options.providerRegistry || createProviderRegistry(options);
   const runtimeIdentity = buildRuntimeIdentity({
     repoRoot: paths.repoRoot,

@@ -1,7 +1,7 @@
 {
   "name": "memoq-ai-hub-app",
   "private": true,
-  "version": "1.0.33",
+  "version": "1.0.34",
   "packageManager": "pnpm@10.6.2",
   "engines": {
     "node": ">=22.12.0"
@@ -30,7 +30,6 @@
     "antd": "^5.27.6",
     "body-parser": "1.20.6",
     "dayjs": "^1.11.20",
-    "electron-store": "^8.2.0",
     "express": "^4.21.2",
     "fast-xml-parser": "^5.7.0",
     "openai": "^6.1.0",

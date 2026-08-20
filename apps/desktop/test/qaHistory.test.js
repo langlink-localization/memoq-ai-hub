@@ -10,9 +10,20 @@ function createTempAppRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'memoq-qa-history-'));
 }
 
+function createMemorySecretStore() {
+  const values = new Map();
+  return {
+    has: (id) => values.has(id),
+    get: async (id) => values.get(id) || '',
+    set: async (id, value) => values.set(id, String(value || '')),
+    delete: async (id) => values.delete(id)
+  };
+}
+
 async function createHistoryHarness(tempRoot) {
   const runtime = await createRuntime({
     appDataRoot: tempRoot,
+    secretStore: createMemorySecretStore(),
     providerRegistry: {
       testConnection: async () => ({ ok: true, latencyMs: 5, message: 'ok' }),
       checkQuality: async () => ({ output: JSON.stringify({ findings: [] }), latencyMs: 3 })

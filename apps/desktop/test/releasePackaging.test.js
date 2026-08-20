@@ -72,6 +72,8 @@ test('packaged desktop bundle loads governed runtime modules from ASAR', {
     assert.equal(archivedFiles.has('\\node_modules\\openai\\src\\index.ts'), false);
     assert.equal(archivedFiles.has('\\node_modules\\xlsx\\dist\\xlsx.full.min.js'), false);
     assert.equal(archivedFiles.has('\\node_modules\\codepage\\package.json'), false);
+    assert.equal(archivedFiles.has('\\.vite\\build\\secretStore.js'), false);
+    assert.equal([...archivedFiles].some((filePath) => filePath.startsWith('\\node_modules\\electron-store\\')), false);
   } finally {
     fs.rmSync(extractedRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }

@@ -1,14 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-
 const { createWorkerSecretStore } = require('../src/secretBridge');
-
-function createTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'memoq-secret-bridge-'));
-}
 
 function createIpcHarness(options = {}) {
   const sent = [];
@@ -99,22 +91,17 @@ test('worker secret bridge times out when the main process never answers', async
   await assert.rejects(() => store.get('provider-1'), /timed out/);
 });
 
-test('worker secret bridge local mode wraps the base64 store with async get/set', async () => {
-  const root = createTempRoot();
-  test.after(() => fs.rmSync(root, { recursive: true, force: true }));
-
-  const store = createWorkerSecretStore({ paths: { appDataRoot: root }, useMainProcess: false });
+test('worker secret bridge local mode fails closed without reversible persistence', async () => {
+  const store = createWorkerSecretStore({ useMainProcess: false });
 
   await store.ready();
   assert.equal(store.has('provider-local'), false);
-
-  await store.set('provider-local', 'local-key');
-  assert.equal(store.has('provider-local'), true);
-  assert.equal(await store.get('provider-local'), 'local-key');
-
-  const onDisk = JSON.parse(fs.readFileSync(path.join(root, 'provider-secrets.json'), 'utf8'));
-  assert.equal(onDisk['provider-local'], Buffer.from('local-key', 'utf8').toString('base64'));
-
+  assert.equal(await store.get('provider-local'), '');
+  await assert.rejects(
+    () => store.set('provider-local', 'local-key'),
+    (error) => error.code === 'OS_SECRET_STORAGE_UNAVAILABLE' && error.statusCode === 503
+  );
+  assert.equal(store.has('provider-local'), false);
   await store.delete('provider-local');
   assert.equal(store.has('provider-local'), false);
 });

@@ -8,6 +8,16 @@ const { createRuntime } = require('../src/runtime/runtime');
 const { buildPrompt } = require('../src/provider/providerPromptBuilder');
 const { normalizePromptPresets, validatePromptPreset } = require('../src/shared/promptPresets');
 
+function createMemorySecretStore() {
+  const values = new Map();
+  return {
+    has: (id) => values.has(id),
+    get: async (id) => values.get(id) || '',
+    set: async (id, value) => values.set(id, String(value || '')),
+    delete: async (id) => values.delete(id)
+  };
+}
+
 test('prompt preset normalization seeds built-ins and preserves edited built-ins', () => {
   const seeded = normalizePromptPresets([]);
   assert.ok(seeded.some((item) => item.scope === 'qa'));
@@ -21,11 +31,17 @@ test('prompt preset normalization seeds built-ins and preserves edited built-ins
   }), /cannot use/i);
 });
 
+test('runtime requires an explicit complete secret adapter', async () => {
+  await assert.rejects(() => createRuntime({}), /complete secretStore adapter is required/);
+  await assert.rejects(() => createRuntime({ secretStore: { has() {} } }), /complete secretStore adapter is required/);
+});
+
 test('runtime exposes prompt preset CRUD and QA resolves preset templates and rules', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'memoq-prompt-presets-'));
   let qaRequest = null;
   const runtime = await createRuntime({
     appDataRoot: tempRoot,
+    secretStore: createMemorySecretStore(),
     providerRegistry: {
       testConnection: async () => ({ ok: true, latencyMs: 1, message: 'ok' }),
       checkQuality: async (payload) => {

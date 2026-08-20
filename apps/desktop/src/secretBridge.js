@@ -1,9 +1,8 @@
-const { createSecretStore } = require('./secretStore');
+const { createUnavailableSecretStore } = require('./unavailableSecretStore');
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
 
 function createWorkerSecretStore(options = {}) {
-  const paths = options.paths || null;
   const logger = options.logger || { info() {}, warn() {}, error() {} };
   const useMainProcess = Boolean(options.useMainProcess);
   const send = typeof options.send === 'function' ? options.send : (() => {});
@@ -11,7 +10,9 @@ function createWorkerSecretStore(options = {}) {
     ? Number(options.requestTimeoutMs)
     : DEFAULT_REQUEST_TIMEOUT_MS;
 
-  const localStore = useMainProcess ? null : createSecretStore(paths || { appDataRoot: process.cwd() });
+  const localStore = useMainProcess ? null : createUnavailableSecretStore({
+    message: 'Worker-local credential persistence is disabled. Use the Electron main-process secure storage bridge.'
+  });
   const decryptedCache = new Map();
   const idCache = new Set();
   const pendingRequests = new Map();
@@ -72,7 +73,7 @@ function createWorkerSecretStore(options = {}) {
 
     const value = useMainProcess
       ? String((await requestMain('secrets.get', { id: key }))?.value || '')
-      : String(localStore.get(key) || '');
+      : String((await localStore.get(key)) || '');
 
     decryptedCache.set(key, value);
     return value;
@@ -90,7 +91,7 @@ function createWorkerSecretStore(options = {}) {
     if (useMainProcess) {
       await requestMain('secrets.set', { id: key, secret: String(secret || '') });
     } else {
-      localStore.set(key, secret);
+      await localStore.set(key, secret);
     }
     decryptedCache.set(key, String(secret || ''));
     idCache.add(key);
@@ -101,7 +102,7 @@ function createWorkerSecretStore(options = {}) {
     if (useMainProcess) {
       await requestMain('secrets.delete', { id: key });
     } else {
-      localStore.delete(key);
+      await localStore.delete(key);
     }
     decryptedCache.delete(key);
     idCache.delete(key);

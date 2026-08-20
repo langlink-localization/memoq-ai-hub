@@ -5,6 +5,112 @@ const initSqlJs = require('sql.js');
 const DEFAULT_PERSIST_DEBOUNCE_MS = 500;
 const DEFAULT_PERSIST_MAX_DIRTY_MS = 3000;
 
+function databaseBackupPath(dbPath) {
+  return `${dbPath}.bak`;
+}
+
+function databaseTemporaryPath(dbPath, suffix = 'tmp') {
+  return `${dbPath}.${suffix}`;
+}
+
+function syncWriteFile(filePath, bytes) {
+  const handle = fs.openSync(filePath, 'w');
+  try {
+    fs.writeFileSync(handle, bytes);
+    fs.fsyncSync(handle);
+  } finally {
+    fs.closeSync(handle);
+  }
+}
+
+function replaceFile(sourcePath, targetPath) {
+  fs.renameSync(sourcePath, targetPath);
+}
+
+function openValidatedDatabase(SQL, bytes, sourcePath) {
+  let candidate;
+  try {
+    candidate = new SQL.Database(bytes);
+    const check = candidate.exec('PRAGMA quick_check');
+    const value = check?.[0]?.values?.[0]?.[0];
+    if (String(value || '').toLowerCase() !== 'ok') {
+      throw new Error(`SQLite quick_check failed for ${sourcePath}.`);
+    }
+    return candidate;
+  } catch (error) {
+    candidate?.close?.();
+    const wrapped = new Error(`Could not open a valid desktop database at ${sourcePath}.`);
+    wrapped.code = 'DATABASE_CORRUPT';
+    wrapped.cause = error;
+    throw wrapped;
+  }
+}
+
+function restoreDatabaseFromBackup(SQL, dbPath, backupPath) {
+  const backupBytes = fs.readFileSync(backupPath);
+  const verified = openValidatedDatabase(SQL, backupBytes, backupPath);
+  verified.close();
+
+  const recoveryPath = databaseTemporaryPath(dbPath, 'recovery');
+  fs.rmSync(recoveryPath, { force: true });
+  try {
+    syncWriteFile(recoveryPath, backupBytes);
+    replaceFile(recoveryPath, dbPath);
+  } finally {
+    fs.rmSync(recoveryPath, { force: true });
+  }
+  return openValidatedDatabase(SQL, fs.readFileSync(dbPath), dbPath);
+}
+
+function openDatabaseWithRecovery(SQL, dbPath) {
+  if (!fs.existsSync(dbPath)) {
+    return new SQL.Database();
+  }
+  try {
+    return openValidatedDatabase(SQL, fs.readFileSync(dbPath), dbPath);
+  } catch (primaryError) {
+    const backupPath = databaseBackupPath(dbPath);
+    if (!fs.existsSync(backupPath)) {
+      throw primaryError;
+    }
+    try {
+      return restoreDatabaseFromBackup(SQL, dbPath, backupPath);
+    } catch (backupError) {
+      const error = new Error('The desktop database and its recovery backup are both invalid.');
+      error.code = 'DATABASE_RECOVERY_FAILED';
+      error.cause = backupError;
+      throw error;
+    }
+  }
+}
+
+function atomicWriteDatabase(SQL, dbPath, bytes) {
+  const tempPath = databaseTemporaryPath(dbPath);
+  const backupPath = databaseBackupPath(dbPath);
+  const backupTempPath = databaseTemporaryPath(backupPath);
+  fs.rmSync(tempPath, { force: true });
+  fs.rmSync(backupTempPath, { force: true });
+
+  const exported = Buffer.from(bytes);
+  const verifiedExport = openValidatedDatabase(SQL, exported, 'in-memory export');
+  verifiedExport.close();
+
+  try {
+    syncWriteFile(tempPath, exported);
+    if (fs.existsSync(dbPath)) {
+      const currentBytes = fs.readFileSync(dbPath);
+      const current = openValidatedDatabase(SQL, currentBytes, dbPath);
+      current.close();
+      syncWriteFile(backupTempPath, currentBytes);
+      replaceFile(backupTempPath, backupPath);
+    }
+    replaceFile(tempPath, dbPath);
+  } finally {
+    fs.rmSync(tempPath, { force: true });
+    fs.rmSync(backupTempPath, { force: true });
+  }
+}
+
 function buildSqlWasmCandidates(baseDir = __dirname, resourcesPath = process.resourcesPath || '') {
   return [
     path.join(baseDir, '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
@@ -31,9 +137,7 @@ async function createDatabase(paths, options = {}) {
     }
   });
 
-  const db = fs.existsSync(paths.dbPath)
-    ? new SQL.Database(fs.readFileSync(paths.dbPath))
-    : new SQL.Database();
+  const db = openDatabaseWithRecovery(SQL, paths.dbPath);
   let closed = false;
   let transactionDepth = 0;
 
@@ -58,7 +162,7 @@ async function createDatabase(paths, options = {}) {
   }
 
   function writeDatabaseNow() {
-    fs.writeFileSync(paths.dbPath, Buffer.from(db.export()));
+    atomicWriteDatabase(SQL, paths.dbPath, db.export());
   }
 
   function clearPersistTimers() {
@@ -225,6 +329,9 @@ async function createDatabase(paths, options = {}) {
 }
 
 module.exports = {
+  atomicWriteDatabase,
   buildSqlWasmCandidates,
-  createDatabase
+  createDatabase,
+  databaseBackupPath,
+  openDatabaseWithRecovery
 };

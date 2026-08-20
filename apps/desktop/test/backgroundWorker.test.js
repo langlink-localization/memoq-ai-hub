@@ -103,26 +103,6 @@ function createMockDesktopDependencyModules(tempRoot) {
     };
   `, 'utf8');
 
-  const electronStoreDir = path.join(nodeModulesDir, 'electron-store');
-  fs.mkdirSync(electronStoreDir, { recursive: true });
-  fs.writeFileSync(path.join(electronStoreDir, 'index.js'), `
-    class Store {
-      constructor() {
-        this.values = new Map();
-      }
-      get(key) {
-        return this.values.get(key);
-      }
-      set(key, value) {
-        this.values.set(key, value);
-      }
-      delete(key) {
-        this.values.delete(key);
-      }
-    }
-    module.exports = Store;
-  `, 'utf8');
-
   const sqlJsDir = path.join(nodeModulesDir, 'sql.js');
   fs.mkdirSync(sqlJsDir, { recursive: true });
   fs.writeFileSync(path.join(sqlJsDir, 'index.js'), `
@@ -356,7 +336,14 @@ async function createRuntimeHarness(tempRoot, options = {}) {
   process.env.MEMOQ_AI_DESKTOP_DATA_DIR = tempRoot;
 
   try {
+    const secretValues = new Map();
     const runtime = await createRuntime({
+      secretStore: {
+        has: (id) => secretValues.has(id),
+        get: async (id) => secretValues.get(id) || '',
+        set: async (id, value) => secretValues.set(id, String(value || '')),
+        delete: async (id) => secretValues.delete(id)
+      },
       providerRegistry: options.providerRegistry || {},
       fetch: options.fetch,
       manifestUrl: options.manifestUrl,

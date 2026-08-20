@@ -64,3 +64,9 @@ test('desktop benchmark rejects missing or empty acceptance artifacts', () => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('desktop benchmark uses an explicit production-equivalent secret adapter', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'tooling', 'scripts', 'benchmark-desktop.mjs'), 'utf8');
+  assert.match(source, /createRuntime\(\{ appDataRoot, secretStore \}\)/);
+  assert.match(source, /production worker runtime with explicit non-persistent secret adapter/);
+});

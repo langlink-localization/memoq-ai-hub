@@ -4,6 +4,7 @@ const { startGatewayLifecycle, stopGatewayLifecycle } = require('./gatewayLifecy
 const { DEFAULT_HOST, DEFAULT_PORT } = require('./shared/desktopContract');
 const { createAppPaths } = require('./shared/paths');
 const { createLogger } = require('./shared/logging');
+const { createUnavailableSecretStore } = require('./unavailableSecretStore');
 
 const logger = createLogger({ source: 'server-standalone', logsDir: createAppPaths().logsDir });
 let runtime = null;
@@ -28,7 +29,11 @@ async function shutdown(exitCode = 0) {
 }
 
 async function main() {
-  runtime = await createRuntime();
+  runtime = await createRuntime({
+    secretStore: createUnavailableSecretStore({
+      message: 'Standalone gateway credential persistence is disabled. Use the Electron desktop application to configure providers.'
+    })
+  });
   ({ server } = await startGatewayLifecycle({
     runtime,
     createGatewayServer,

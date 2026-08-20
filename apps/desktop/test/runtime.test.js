@@ -326,7 +326,18 @@ function createMockDatabaseModule(options = {}) {
   };
 }
 
+function createMemorySecretStore() {
+  const values = new Map();
+  return {
+    has: (id) => values.has(id),
+    get: async (id) => values.get(id) || '',
+    set: async (id, value) => values.set(id, String(value || '')),
+    delete: async (id) => values.delete(id)
+  };
+}
+
 function createRuntime(options = {}) {
+  options = { ...options, secretStore: options.secretStore || createMemorySecretStore() };
   const originalLoad = Module._load;
   const databaseModule = createMockDatabaseModule(options.__databaseState || {});
   if (options.__databaseCapture && typeof options.__databaseCapture === 'object') {

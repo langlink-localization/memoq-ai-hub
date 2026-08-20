@@ -276,3 +276,57 @@ test('gateway integration install keeps its existing integration error contract'
     await close(server);
   }
 });
+
+test('gateway normalizes malformed JSON without invoking the runtime', async () => {
+  let calls = 0;
+  const runtime = createRuntimeStub({
+    async translate() {
+      calls += 1;
+      return { statusCode: 200, body: { success: true } };
+    }
+  });
+  const { app } = createGatewayServer(runtime, { guard: false });
+  const { server, baseUrl } = await listen(app);
+  try {
+    const response = await fetch(`${baseUrl}${ROUTES.mtTranslate}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{'
+    });
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+      success: false,
+      error: { code: 'INVALID_JSON', message: 'The request body is not valid JSON.' }
+    });
+    assert.equal(calls, 0);
+  } finally {
+    await close(server);
+  }
+});
+
+test('gateway normalizes oversized JSON without invoking the runtime', async () => {
+  let calls = 0;
+  const runtime = createRuntimeStub({
+    async translate() {
+      calls += 1;
+      return { statusCode: 200, body: { success: true } };
+    }
+  });
+  const { app } = createGatewayServer(runtime, { guard: false });
+  const { server, baseUrl } = await listen(app);
+  try {
+    const response = await fetch(`${baseUrl}${ROUTES.mtTranslate}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ value: 'x'.repeat((10 * 1024 * 1024) + 1) })
+    });
+    assert.equal(response.status, 413);
+    assert.deepEqual(await response.json(), {
+      success: false,
+      error: { code: 'REQUEST_BODY_TOO_LARGE', message: 'The request body exceeds the 10 MB limit.' }
+    });
+    assert.equal(calls, 0);
+  } finally {
+    await close(server);
+  }
+});

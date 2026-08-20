@@ -95,9 +95,20 @@ async function measureRuntimeChild() {
   const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'memoq-ai-hub-benchmark-'));
   const initializationStartedAt = process.hrtime.bigint();
   let runtime;
+  const secretStore = {
+    has: () => false,
+    get: async () => '',
+    set: async () => {
+      const error = new Error('Benchmark secret persistence is disabled.');
+      error.code = 'OS_SECRET_STORAGE_UNAVAILABLE';
+      error.statusCode = 503;
+      throw error;
+    },
+    delete: async () => {}
+  };
 
   try {
-    runtime = await createRuntime({ appDataRoot });
+    runtime = await createRuntime({ appDataRoot, secretStore });
     runtime.getAppState();
     const runtimeInitializationMs = toMilliseconds(initializationStartedAt);
     const rssAfterInitialization = process.memoryUsage().rss;
@@ -169,7 +180,7 @@ function buildReport() {
   const asarPath = path.join(packageDir, 'resources', 'app.asar');
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     capturedAt: new Date().toISOString(),
     environment: {
       node: process.version,
@@ -181,6 +192,7 @@ function buildReport() {
     protocol: {
       runtimeSamples: sampleCount,
       runtimeIsolation: 'fresh child process per sample',
+      runtimeComposition: 'production worker runtime with explicit non-persistent secret adapter',
       externalProviderCalls: false,
       packageAcceptanceSurface: 'smallest complete portable archive produced by pnpm run zip:desktop'
     },

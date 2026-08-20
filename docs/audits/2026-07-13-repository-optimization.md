@@ -99,7 +99,8 @@ The bundled MT, QA, and Preview documentation exposes no public TBX/term-base AP
 | U1 | Add release-manifest SHA-256 metadata and verify installer bytes before launch | P1 | 5 | 4 | 4 | 5.0 | Implemented + verified for v1.0.25 |
 | M1 | Incrementally decompose `App.jsx` and `runtime.js` by feature/lifecycle boundary | P2 | 4 | 5 | 5 | 4.0 | Backlog |
 | N1 | Record provenance/hashes for checked-in memoQ/native binary references and enforce release signing | P2 | 5 | 3 | 4 | 3.8 | Backlog |
-| A1 | Normalize malformed JSON/body-limit failures into the gateway's stable JSON error contract | P3 | 2 | 4 | 2 | 4.0 | Backlog |
+| A1 | Normalize malformed JSON/body-limit failures into the gateway's stable JSON error contract | P3 | 2 | 4 | 2 | 4.0 | Implemented + verified for v1.0.34 |
+| D2 | Persist the local database atomically and recover from a validated last-known-good generation | P1 | 5 | 5 | 2 | 12.5 | Implemented + verified for v1.0.34 |
 
 ## Finding Details
 
@@ -158,7 +159,7 @@ Completed in `v1.0.33`. Main-to-worker requests now use 30-second, 135-second, o
 
 ### S2 — Standalone secret-storage ambiguity
 
-Completed in `v1.0.33`. Provider secrets now use the main-process Windows `safeStorage` path end to end. Saving fails closed with `OS_SECRET_STORAGE_UNAVAILABLE` when OS encryption is unavailable; legacy Base64 values are unreadable until they can be atomically migrated and verified, and successful migration removes known reversible backups.
+Completed in `v1.0.33` and closed across every runtime mode in `v1.0.34`. Provider secrets use the main-process Windows `safeStorage` path end to end. Saving fails closed with `OS_SECRET_STORAGE_UNAVAILABLE` when OS encryption is unavailable; standalone and worker-local modes cannot create reversible credential files; legacy Base64 values remain available only to the verified main-process migration path.
 
 ### M1/Q2 — Maintainability and static analysis
 
@@ -250,3 +251,14 @@ The general desktop source suite now has no unconditional skips. The only remain
 - Plugin regression and Release build: passed; 0 build warnings and 0 errors.
 - Windows packaging: passed end to end; all 4 packaging-only checks passed against the final bundle.
 - The generated v1.0.33 ZIP and 7z SHA-256 values independently matched the stable manifest.
+
+## v1.0.34 Runtime Integrity Closeout Verification
+
+- `pnpm run lint`: passed with 0 errors; the same 20 visible React Hooks dependency warnings remain assigned to M1.
+- Focused runtime-integrity regression: 47 passed, including database generation/recovery, replacement failure, safe-storage migration, fail-closed local secrets, gateway parser failures, and benchmark composition.
+- Desktop regression: 578 total, 574 passed, 0 failed, and 4 packaging-only conditional skips.
+- Repository governance: 26 passed, 0 failed after release-note contract validation.
+- Renderer production build and Ant Design full scan passed; the existing governed UI vendor chunk warning remains visible.
+- Plugin build/regression passed with 0 build warnings and 0 errors.
+- Windows packaging passed end to end after reusing the already verified local Electron 43.2.0 binary cache when two remote TLS attempts failed; all 4 package-state checks passed.
+- Benchmark schema 2 measured a 146.36 ms median runtime startup, 63 loaded modules, a 25.1 MiB median RSS increase, a 321.9 MB unpacked directory, a 4.48 MB ASAR, and a 96.9 MB compact archive across 7 isolated samples.

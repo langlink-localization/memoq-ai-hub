@@ -40,7 +40,6 @@ function createRuntimeRoute(runtimeMethod, defaultCode) {
 
 function createGatewayServer(runtime, options = {}) {
   const app = express();
-  app.use(bodyParser.json({ limit: '10mb' }));
   app.use((req, res, next) => {
     const startedAtMs = Date.now();
     res.on?.('finish', () => {
@@ -52,6 +51,22 @@ function createGatewayServer(runtime, options = {}) {
       });
     });
     next();
+  });
+  app.use(bodyParser.json({ limit: '10mb' }));
+  app.use((error, req, res, next) => {
+    const oversized = error?.type === 'entity.too.large' || error?.status === 413;
+    const malformed = error?.type === 'entity.parse.failed' || error instanceof SyntaxError;
+    if (!oversized && !malformed) {
+      next(error);
+      return;
+    }
+    res.status(oversized ? 413 : 400).json({
+      success: false,
+      error: {
+        code: oversized ? 'REQUEST_BODY_TOO_LARGE' : 'INVALID_JSON',
+        message: oversized ? 'The request body exceeds the 10 MB limit.' : 'The request body is not valid JSON.'
+      }
+    });
   });
   if (options.guard !== false) {
     app.use(options.guard || createGatewayGuard({ logger: gatewayLogger }));
