@@ -3,6 +3,8 @@
 | Host / filter | Preview revision fixture | Live target mapping | MT Confidence / Info display | Status |
 | --- | --- | --- | --- | --- |
 | memoQ 12 / generic Preview | Recorded contract fixture below | Pending real-host run | Pending real-host run | Not yet verified |
+
+The `v1.0.33` reliability release does not change this status and does not claim real-host validation of Confidence or Info display.
 | memoQ 10–11 | Not recorded | Not verified | Not verified | Unsupported until tested |
 | Preview unavailable or ambiguous | N/A | AI stops; deterministic and batch checks remain available | N/A | Implemented degradation |
 

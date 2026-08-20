@@ -881,6 +881,8 @@ const zhCN = {
   feedback: {
     blockedDelete: '删除被阻止',
     actionFailed: '操作失败',
+    secretStorageUnavailable: 'Windows 安全凭据存储当前不可用。请重启 Windows 或重新登录，然后再次保存 API Key。',
+    workerRequestTimeout: '桌面操作已超时。请重试；如果持续发生，请检查桌面日志。',
     actionSucceeded: '操作完成',
     ruleDeleted: '规则已删除。',
     profileCreated: '方案已创建。',

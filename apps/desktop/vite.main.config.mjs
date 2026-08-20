@@ -89,6 +89,7 @@ export default defineConfig({
         'shared/timeFormatting': path.resolve(__dirname, 'src/shared/timeFormatting.js'),
         'update/updateService': path.resolve(__dirname, 'src/update/updateService.js'),
         workerLaunch: path.resolve(__dirname, 'src/workerLaunch.js'),
+        workerRequestPolicy: path.resolve(__dirname, 'src/workerRequestPolicy.js'),
         workerSupervisor: path.resolve(__dirname, 'src/workerSupervisor.js')
       },
       external: ['electron', ...builtinModules, ...builtinModules.map((moduleName) => `node:${moduleName}`)],

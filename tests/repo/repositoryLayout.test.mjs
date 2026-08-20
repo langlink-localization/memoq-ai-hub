@@ -100,6 +100,7 @@ test('dependency and CI governance is reproducible', () => {
   const ciWorkflow = readFile('.github/workflows/ci.yml');
   const releaseWorkflow = readFile('.github/workflows/release.yml');
   const packageWindowsScript = readFile('tooling/scripts/package-windows.ps1');
+  const eslintConfig = readFile('eslint.config.mjs');
 
   assert.deepEqual(rootPackage.pnpm?.onlyBuiltDependencies, [
     'electron',
@@ -107,6 +108,13 @@ test('dependency and CI governance is reproducible', () => {
     'esbuild',
   ]);
   assert.equal(rootPackage.engines?.node, '>=22.12.0');
+  assert.match(rootPackage.scripts?.lint, /^eslint /);
+  assert.equal(rootPackage.devDependencies?.eslint, '9.39.5');
+  assert.equal(rootPackage.devDependencies?.['@eslint/js'], '9.39.5');
+  assert.equal(rootPackage.devDependencies?.['eslint-plugin-react-hooks'], '7.1.1');
+  assert.equal(rootPackage.devDependencies?.globals, '17.9.0');
+  assert.match(eslintConfig, /eslint\.configs\.recommended/);
+  assert.match(eslintConfig, /react-hooks\/rules-of-hooks/);
   assert.equal(desktopPackage.engines?.node, '>=22.12.0');
   assert.match(packageWindowsScript, /Ensure-NodeVersion \$nodeExecutable \(\[version\]"22\.12\.0"\)/);
   assert.equal(desktopPackage.dependencies?.['body-parser'], '1.20.6');
@@ -168,6 +176,7 @@ test('dependency and CI governance is reproducible', () => {
 
   assert.match(ciWorkflow, /^permissions:\n  contents: read$/m);
   assert.match(ciWorkflow, /pnpm run test:repo/);
+  assert.match(ciWorkflow, /pnpm run lint/);
   assert.match(packageWindowsScript, /pnpm install --frozen-lockfile/);
   assert.doesNotMatch(packageWindowsScript, /Invoke-NativeStep "pnpm install" \{ pnpm install \}/);
 });

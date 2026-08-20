@@ -41,6 +41,9 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Run static analysis
+        run: pnpm run lint
+
       - name: Run repository tests
         run: pnpm run test:repo
 

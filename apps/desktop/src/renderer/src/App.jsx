@@ -78,6 +78,7 @@ import {
   preserveProviderHistoryMetrics
 } from './appState.mjs';
 import { useI18n } from './i18n';
+import { getLocalizedDesktopError } from './errorPresentation.mjs';
 import DashboardConnectionStatus from './components/DashboardConnectionStatus.jsx';
 import { TABLE_SCROLL_X } from './tableLayout.mjs';
 import {
@@ -269,7 +270,7 @@ export default function App() {
   };
 
   function notifyError(loadError, fallback = t('feedback.actionFailed')) {
-    const text = String(loadError?.message || fallback || t('feedback.actionFailed'));
+    const text = getLocalizedDesktopError(loadError, t, fallback);
     setError(text);
     message.error(text);
   }

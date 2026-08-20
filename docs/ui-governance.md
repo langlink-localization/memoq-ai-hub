@@ -71,4 +71,4 @@ Navigation, onboarding, documentation, and empty-state actions must use this ord
 - Keyboard tests cover application navigation, module lists, row activation, and dirty-navigation protection.
 - Responsive checks cover representative 1024px, 1280px, 1440px, and 1920px layouts plus the 768px drawer boundary, with no page-level horizontal overflow.
 - Renderer behavior is tested through component interaction where feasible; source-string assertions alone are not sufficient for new behavior.
-- `pnpm run test:desktop`, `pnpm run test:repo`, and a renderer compile/package-relevant check must pass before completion.
+- `pnpm run lint`, `pnpm run test:desktop`, `pnpm run test:repo`, and a renderer compile/package-relevant check must pass before completion.

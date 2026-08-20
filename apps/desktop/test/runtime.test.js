@@ -507,6 +507,48 @@ test('runtime starts from empty real state', async () => {
   }
 });
 
+test('runtime uses an injected secret store and does not persist provider state when secret storage fails', async () => {
+  const tempRoot = createTempAppRoot();
+  const calls = [];
+  const unavailable = new Error('secure storage unavailable');
+  unavailable.code = 'OS_SECRET_STORAGE_UNAVAILABLE';
+  unavailable.statusCode = 503;
+
+  try {
+    const runtime = await createRuntime({
+      appDataRoot: tempRoot,
+      secretStore: {
+        has: () => false,
+        get: async () => '',
+        set: async (id) => {
+          calls.push(id);
+          throw unavailable;
+        },
+        delete: async () => {}
+      },
+      providerRegistry: {
+        testConnection: async () => ({ ok: true, latencyMs: 12, message: 'ok' }),
+        translateSegment: async () => ({ text: 'translated', latencyMs: 20 })
+      }
+    });
+
+    await assert.rejects(
+      () => runtime.saveProvider({
+        name: 'OpenAI',
+        type: 'openai',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'test-key',
+        models: [{ modelName: 'gpt-4.1-mini', enabled: true }]
+      }),
+      (error) => error.code === 'OS_SECRET_STORAGE_UNAVAILABLE' && error.statusCode === 503
+    );
+    assert.equal(calls.length, 1);
+    assert.deepEqual(runtime.getAppState().providerHub.providers, []);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('runtime deletes history entries together with their segment rows', async () => {
   const tempRoot = createTempAppRoot();
   const databaseCapture = {};

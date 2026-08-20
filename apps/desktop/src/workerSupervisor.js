@@ -4,6 +4,7 @@ const DEFAULT_BACKOFF_SCHEDULE_MS = [1000, 2000, 4000, 8000, 15000, 30000];
 const DEFAULT_STABLE_READY_MS = 60000;
 const DEFAULT_MAX_CONSECUTIVE_FAILURES = 5;
 const SHUTDOWN_KILL_DELAY_MS = 1000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
 
 function createWorkerError(serializedError, fallbackMessage = 'Desktop worker request failed.') {
   const error = new Error(String(serializedError?.message || fallbackMessage));
@@ -41,6 +42,9 @@ function createWorkerSupervisor(options = {}) {
   const maxConsecutiveFailures = Number.isFinite(Number(options.maxConsecutiveFailures))
     ? Number(options.maxConsecutiveFailures)
     : DEFAULT_MAX_CONSECUTIVE_FAILURES;
+  const defaultRequestTimeoutMs = Number.isFinite(Number(options.defaultRequestTimeoutMs))
+    ? Number(options.defaultRequestTimeoutMs)
+    : DEFAULT_REQUEST_TIMEOUT_MS;
 
   let worker = null;
   let workerGeneration = 0;
@@ -70,12 +74,26 @@ function createWorkerSupervisor(options = {}) {
     }
   }
 
+  function takePendingRequest(id) {
+    const pending = pendingWorkerRequests.get(id);
+    if (!pending) {
+      return null;
+    }
+    pendingWorkerRequests.delete(id);
+    timers.clearTimeout(pending.timer);
+    return pending;
+  }
+
   function rejectPendingRequests(serializedError) {
     const error = createWorkerError(serializedError, 'Desktop background worker stopped before replying.');
-    for (const { reject } of pendingWorkerRequests.values()) {
+    for (const id of [...pendingWorkerRequests.keys()]) {
+      const pending = takePendingRequest(id);
+      if (!pending) {
+        continue;
+      }
+      const { reject } = pending;
       reject(error);
     }
-    pendingWorkerRequests.clear();
   }
 
   function clearRespawnTimer() {
@@ -183,12 +201,10 @@ function createWorkerSupervisor(options = {}) {
       return;
     }
 
-    const pending = pendingWorkerRequests.get(message.id);
+    const pending = takePendingRequest(message.id);
     if (!pending) {
       return;
     }
-
-    pendingWorkerRequests.delete(message.id);
 
     if (message.ok) {
       pending.resolve(message.result);
@@ -219,7 +235,11 @@ function createWorkerSupervisor(options = {}) {
           type: 'main-response',
           id: message.id,
           ok: false,
-          error: { message: String(error?.message || error || 'Main-process request failed.') }
+          error: {
+            message: String(error?.message || error || 'Main-process request failed.'),
+            code: String(error?.code || ''),
+            statusCode: Number.isFinite(Number(error?.statusCode)) ? Number(error.statusCode) : 500
+          }
         });
       });
   }
@@ -306,7 +326,7 @@ function createWorkerSupervisor(options = {}) {
     spawnWorker();
   }
 
-  function invoke(channel, payload) {
+  function invoke(channel, payload, requestOptions = {}) {
     if (!worker && !quitting && respawnTimer === null) {
       if (!everStarted) {
         start();
@@ -326,9 +346,32 @@ function createWorkerSupervisor(options = {}) {
     }
 
     const id = `worker_req_${Date.now()}_${workerRequestId += 1}`;
+    const timeoutMs = Number.isFinite(Number(requestOptions.timeoutMs))
+      ? Number(requestOptions.timeoutMs)
+      : defaultRequestTimeoutMs;
+    const startedAt = Date.now();
 
     return new Promise((resolve, reject) => {
-      pendingWorkerRequests.set(id, { resolve, reject });
+      const timer = timers.setTimeout(() => {
+        const pending = takePendingRequest(id);
+        if (!pending) {
+          return;
+        }
+        const elapsedMs = Date.now() - startedAt;
+        const error = createWorkerError({
+          message: `Desktop worker request timed out after ${timeoutMs} ms.`,
+          code: 'DESKTOP_WORKER_REQUEST_TIMEOUT',
+          statusCode: 504
+        });
+        logger.warn('worker-request-timeout', 'Desktop worker request timed out.', {
+          channel,
+          requestId: id,
+          elapsedMs
+        });
+        pending.reject(error);
+      }, timeoutMs);
+      timer?.unref?.();
+      pendingWorkerRequests.set(id, { resolve, reject, timer });
 
       try {
         worker.send({
@@ -338,7 +381,7 @@ function createWorkerSupervisor(options = {}) {
           payload
         });
       } catch (error) {
-        pendingWorkerRequests.delete(id);
+        takePendingRequest(id);
         reject(error);
       }
     });
@@ -348,6 +391,11 @@ function createWorkerSupervisor(options = {}) {
     quitting = true;
     clearRespawnTimer();
     clearStableTimer();
+    rejectPendingRequests({
+      message: 'Desktop background worker is shutting down.',
+      code: 'DESKTOP_WORKER_SHUTDOWN',
+      statusCode: 503
+    });
 
     if (!worker) {
       setStatus('stopped');
@@ -387,5 +435,6 @@ module.exports = {
   createWorkerSupervisor,
   DEFAULT_BACKOFF_SCHEDULE_MS,
   DEFAULT_STABLE_READY_MS,
-  DEFAULT_MAX_CONSECUTIVE_FAILURES
+  DEFAULT_MAX_CONSECUTIVE_FAILURES,
+  DEFAULT_REQUEST_TIMEOUT_MS
 };
