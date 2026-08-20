@@ -18,6 +18,7 @@ const { readDesktopPackageMetadata } = require('./shared/desktopMetadata');
 const { normalizeExternalHttpsUrl } = require('./shared/externalNavigation');
 const { buildWorkerForkOptions } = require('./workerLaunch');
 const { createWorkerSupervisor } = require('./workerSupervisor');
+const { getWorkerRequestTimeoutMs } = require('./workerRequestPolicy');
 const { createMainSecretService } = require('./mainSecretService');
 const { createLifecycleSettings } = require('./lifecycleSettings');
 const { TRAY_ICON_PNG_BASE64, trayStatusLabel, buildTrayMenuTemplate } = require('./desktopTray');
@@ -283,7 +284,7 @@ function buildPlaceholderAppState() {
 }
 
 function invokeWorker(channel, payload) {
-  return workerSupervisor.invoke(channel, payload);
+  return workerSupervisor.invoke(channel, payload, { timeoutMs: getWorkerRequestTimeoutMs(channel) });
 }
 
 function requireWorkerReady() {

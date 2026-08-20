@@ -867,6 +867,8 @@ const en = {
   feedback: {
     blockedDelete: 'Delete blocked',
     actionFailed: 'Action failed',
+    secretStorageUnavailable: 'Windows secure credential storage is unavailable. Restart Windows or sign in again, then save the API key again.',
+    workerRequestTimeout: 'The desktop operation timed out. Try again; if it continues, check the desktop logs.',
     actionSucceeded: 'Action completed',
     ruleDeleted: 'Rule deleted.',
     profileCreated: 'Profile created.',

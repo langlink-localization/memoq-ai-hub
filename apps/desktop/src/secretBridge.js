@@ -38,7 +38,10 @@ function createWorkerSecretStore(options = {}) {
       return;
     }
 
-    pending.reject(new Error(String(message.error?.message || 'Main-process request failed.')));
+    const error = new Error(String(message.error?.message || 'Main-process request failed.'));
+    error.code = String(message.error?.code || '');
+    error.statusCode = Number.isFinite(Number(message.error?.statusCode)) ? Number(message.error.statusCode) : 500;
+    pending.reject(error);
   }
 
   function requestMain(channel, payload) {
@@ -121,7 +124,7 @@ function createWorkerSecretStore(options = {}) {
           });
         } catch (error) {
           readyPromise = null;
-          logger.error('secret-bridge-ready-failed', 'Failed to load the secret id list from the main process.', { error });
+          logger.error('secret-bridge-ready-failed', 'Failed to load the secret id list from the main process.');
           throw error;
         }
       })();

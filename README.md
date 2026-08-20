@@ -29,12 +29,13 @@ The repository contains runtime code for more advanced capabilities, but not eve
 
 ## Current Release Highlights
 
-`v1.0.28` includes the product, performance, security, and packaging improvements delivered from `v1.0.20` through `v1.0.28`:
+`v1.0.33` includes the product, performance, security, architecture, and reliability improvements delivered from `v1.0.20` through `v1.0.33`:
 
 - Profiles can bind uploaded TMX or table-based Custom TM assets and choose which `AI Hub TM score` buckets are sent to AI. Context-aware TMX matches can reach `101%`, while memoQ's own fuzzy hint remains a separate reference.
 - The five-step setup journey, responsive navigation, protected unsaved edits, accessible controls, and focused Translation Records views make day-to-day configuration and diagnostics easier.
 - Lazy loading and packaging cleanup reduce startup memory and package size; both the standard ZIP and smaller 7z portable packages remain available.
 - The local gateway is restricted to loopback, update navigation is HTTPS-only, and managed downloads are verified against SHA-256 metadata before launch.
+- Desktop worker requests are bounded, Provider secrets fail closed when Windows secure storage is unavailable, and static analysis is enforced in CI.
 - Electron and desktop dependencies have been moved to security-maintained versions, with Node.js 22.12 or newer required only for source builds.
 - The repository and release packages no longer include memoQ SDK binaries, AddinSigner, or official SDK samples. Source builds resolve the two required compile-time assemblies into an ignored local cache.
 
@@ -96,6 +97,7 @@ pnpm run prepare:release
 Run desktop tests:
 
 ```powershell
+pnpm run lint
 pnpm run test:desktop
 pnpm run test:repo
 ```

@@ -212,92 +212,82 @@ test('provider registry strips markup from plaintext responses', async () => {
   });
 });
 
-test.skip('provider registry builds structured metadata prompts instead of raw metadata json', async () => {
-  const prompts = [];
-  const registry = createProviderRegistry({
-    sdkLoader: async () => ({
-      generateText: async (request) => {
-        prompts.push(request.prompt);
-        return { text: 'Bonjour' };
-      },
-      createOpenAI: () => (modelName) => ({ modelName }),
-      createGoogleGenerativeAI: () => (modelName) => ({ modelName })
+test('provider registry builds structured metadata prompts instead of raw metadata json', async () => {
+  const { MockOpenAI, calls } = createMockOpenAI({
+    responsesCreate: async () => ({
+      output_parsed: { translation: 'Bonjour' },
+      output_text: 'Bonjour'
     })
   });
 
-  await registry.translateSegment({
-    provider: { type: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', models: [] },
-    apiKey: 'test',
-    modelName: 'gpt-4.1-mini',
-    sourceText: 'Hello',
-    tmSource: 'Hello',
-    tmTarget: 'Bonjour',
-    metadata: {
-      PorjectID: 'PRJ-1',
-      client: 'ACME',
-      domain: 'Legal',
-      documentId: 'DOC-1',
-      projectGuid: 'GUID-1'
-    },
-    profile: { useMetadata: true, useBestFuzzyTm: true },
-    requestType: 'Plaintext'
+  await withMockedModules({ openai: MockOpenAI }, async () => {
+    const { createProviderRegistry: loadRegistry } = require(providerRegistryModulePath);
+    const registry = loadRegistry();
+    await registry.translateSegment({
+      provider: { type: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', models: [] },
+      apiKey: 'test',
+      modelName: 'gpt-4.1-mini',
+      sourceText: 'Hello',
+      tmSource: 'Hello',
+      tmTarget: 'Bonjour',
+      metadata: { projectId: 'PRJ-1', client: 'ACME', domain: 'Legal', documentId: 'DOC-1' },
+      profile: { useMetadata: true, useBestFuzzyTm: true },
+      requestType: 'Plaintext'
+    });
   });
 
-  assert.match(prompts[0], /Project context:/);
-  assert.match(prompts[0], /Project ID: PRJ-1/);
-  assert.match(prompts[0], /Client: ACME/);
-  assert.match(prompts[0], /Translation memory hints:/);
-  assert.doesNotMatch(prompts[0], /Metadata:\s*\{/);
+  const request = calls.responses[0].request;
+  const payload = JSON.parse(request.input);
+  assert.match(request.instructions, /## Project Metadata[\s\S]*Project ID: PRJ-1/);
+  assert.match(request.instructions, /Client: ACME/);
+  assert.deepEqual(
+    payload.documentContext.projectMetadata.find((item) => item.label === 'Project ID'),
+    { label: 'Project ID', value: 'PRJ-1' }
+  );
+  assert.equal(Object.prototype.hasOwnProperty.call(payload, 'metadata'), false);
 });
 
-test.skip('provider registry includes preview-context sections when enabled', async () => {
-  const prompts = [];
-  const registry = createProviderRegistry({
-    sdkLoader: async () => ({
-      generateText: async (request) => {
-        prompts.push(request.prompt);
-        return { text: 'Bonjour' };
-      },
-      createOpenAI: () => (modelName) => ({ modelName }),
-      createGoogleGenerativeAI: () => (modelName) => ({ modelName })
+test('provider registry includes preview and explicit neighbor context when enabled', async () => {
+  const { MockOpenAI, calls } = createMockOpenAI({
+    responsesCreate: async () => ({
+      output_parsed: { translation: 'Bonjour' },
+      output_text: 'Bonjour'
     })
   });
 
-  await registry.translateSegment({
-    provider: { type: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', models: [] },
-    apiKey: 'test',
-    modelName: 'gpt-4.1-mini',
-    sourceText: 'Hello',
-    tmSource: '',
-    tmTarget: '',
-    metadata: { documentId: 'DOC-1' },
-    previewContext: { documentName: 'Guide', summary: 'User manual for setup.' },
-    segmentPreviewContext: {
-      targetText: '旧译文',
-      above: 'Install the app.',
-      below: 'Restart the service.',
-      aboveSourceText: 'Install the app.',
-      belowSourceText: 'Restart the service.',
-      aboveTargetText: '',
-      belowTargetText: ''
-    },
-    profile: {
-      useMetadata: true,
-      usePreviewContext: true,
-      usePreviewSummary: true,
-      usePreviewTargetText: true,
-      usePreviewAboveBelow: true
-    },
-    requestType: 'Plaintext'
+  await withMockedModules({ openai: MockOpenAI }, async () => {
+    const { createProviderRegistry: loadRegistry } = require(providerRegistryModulePath);
+    const registry = loadRegistry();
+    await registry.translateSegment({
+      provider: { type: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', models: [] },
+      apiKey: 'test',
+      modelName: 'gpt-4.1-mini',
+      sourceText: 'Hello',
+      tmSource: '',
+      tmTarget: '',
+      metadata: { documentId: 'DOC-1' },
+      previewContext: { documentName: 'Guide', summary: 'User manual for setup.' },
+      segmentPreviewContext: { targetText: '旧译文' },
+      neighborContext: {
+        previousSegment: { index: 0, sourceText: 'Install the app.', targetText: '安装应用。' },
+        nextSegment: { index: 2, sourceText: 'Restart the service.', targetText: '重启服务。' }
+      },
+      profile: { useMetadata: true, usePreviewContext: true, usePreviewSummary: true, usePreviewTargetText: true },
+      requestType: 'Plaintext'
+    });
   });
 
-  assert.match(prompts[0], /Preview document context:/);
-  assert.match(prompts[0], /Document name: Guide/);
-  assert.match(prompts[0], /## Document Context[\s\S]*Summary: User manual for setup\./);
-  assert.match(prompts[0], /Current target text: 旧译文/);
-  assert.match(prompts[0], /Above source context:\s*Install the app\./);
-  assert.match(prompts[0], /Below source context:\s*Restart the service\./);
-  assert.doesNotMatch(prompts[0], /current target segments/i);
+  const request = calls.responses[0].request;
+  const payload = JSON.parse(request.input);
+  assert.match(request.instructions, /## Document Context[\s\S]*Document name: Guide/);
+  assert.match(request.instructions, /Summary: User manual for setup\./);
+  assert.equal(payload.segments[0].previewContext.targetText, '旧译文');
+  assert.deepEqual(payload.segments[0].neighborContext.previousSegment, {
+    index: 0, sourceText: 'Install the app.', targetText: '安装应用。'
+  });
+  assert.deepEqual(payload.segments[0].neighborContext.nextSegment, {
+    index: 2, sourceText: 'Restart the service.', targetText: '重启服务。'
+  });
 });
 
 test('provider registry renders prompt placeholders for single-segment translation', async () => {

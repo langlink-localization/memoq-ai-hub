@@ -22,6 +22,6 @@ AI network latency targets require a representative configured provider and were
 ## Release and rollback watchpoints
 
 - Do not publish SDK/API-derived binaries until written memoQ distribution permission is recorded.
-- A memoQ 12 translator must verify Preview mapping and host display of Confidence/Info before release.
+- A memoQ 12 translator must verify Preview mapping and host display of Confidence/Info before this quality initiative can be marked complete; this remains non-blocking for the v1.0.33 reliability patch.
 - If live mapping becomes uncertain, keep deterministic and batch checks available and leave AI paused.
 - Rollback is bounded by optional capabilities and routes: older plugin/desktop combinations ignore the new fields, and the Quality Checks navigation/IPC/API can be removed without changing existing MT/StoreTranslation semantics.

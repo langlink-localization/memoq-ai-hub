@@ -40,6 +40,7 @@
     }
   },
   "scripts": {
+    "lint": "eslint \"apps/desktop/src/**/*.{js,mjs,jsx}\" \"apps/desktop/test/**/*.{js,mjs}\" \"tooling/scripts/**/*.{js,mjs}\" \"tests/repo/**/*.mjs\"",
     "install:desktop": "pnpm --dir apps/desktop install",
     "build:plugin": "powershell -ExecutionPolicy Bypass -File .\\tooling\\scripts\\build-windows.ps1 -Configuration Release",
     "test:plugin": "powershell -ExecutionPolicy Bypass -File .\\tooling\\scripts\\test-plugin-regression.ps1 -Configuration Release",
@@ -51,5 +52,11 @@
     "package:desktop": "pnpm --dir apps/desktop run package",
     "zip:desktop": "pnpm --dir apps/desktop run zip:win-unpacked",
     "package:windows": "powershell -ExecutionPolicy Bypass -File .\\tooling\\scripts\\package-windows.ps1 -Configuration Release"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "eslint": "9.39.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.9.0"
   }
 }

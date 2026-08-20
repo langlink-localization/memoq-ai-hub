@@ -5,7 +5,8 @@ const { EventEmitter } = require('events');
 const {
   createWorkerSupervisor,
   DEFAULT_BACKOFF_SCHEDULE_MS,
-  DEFAULT_MAX_CONSECUTIVE_FAILURES
+  DEFAULT_MAX_CONSECUTIVE_FAILURES,
+  DEFAULT_REQUEST_TIMEOUT_MS
 } = require('../src/workerSupervisor');
 
 function createFakeTimers() {
@@ -30,6 +31,16 @@ function createFakeTimers() {
       tasks.delete(id);
       task.fn();
       return task.delayMs;
+    },
+    fireByDelay(delayMs) {
+      const entry = [...tasks.entries()].find(([, task]) => task.delayMs === delayMs);
+      if (!entry) {
+        return false;
+      }
+      const [id, task] = entry;
+      tasks.delete(id);
+      task.fn();
+      return true;
     },
     firstDelayMs() {
       const first = [...tasks.values()][0];
@@ -57,6 +68,7 @@ function createHarness(overrides = {}) {
   const timers = createFakeTimers();
   const spawned = [];
   const statuses = [];
+  const logs = [];
 
   const supervisor = createWorkerSupervisor({
     workerPath: 'background-worker-stub.js',
@@ -69,10 +81,15 @@ function createHarness(overrides = {}) {
     onStatusChange(state) {
       statuses.push({ ...state });
     },
+    logger: {
+      info(event, message, metadata) { logs.push({ level: 'info', event, message, metadata }); },
+      warn(event, message, metadata) { logs.push({ level: 'warn', event, message, metadata }); },
+      error(event, message, metadata) { logs.push({ level: 'error', event, message, metadata }); }
+    },
     ...overrides
   });
 
-  return { supervisor, timers, spawned, statuses };
+  return { supervisor, timers, spawned, statuses, logs };
 }
 
 function emitStatus(worker, status, message = '') {
@@ -195,7 +212,7 @@ test('requestShutdown stops supervision and further respawns', () => {
 });
 
 test('invoke resolves and rejects worker responses', async () => {
-  const { supervisor, spawned } = createHarness();
+  const { supervisor, spawned, timers } = createHarness();
 
   supervisor.start();
   const worker = spawned[0];
@@ -206,6 +223,7 @@ test('invoke resolves and rejects worker responses', async () => {
 
   worker.emit('message', { type: 'response', id: request.id, ok: true, result: { ok: true } });
   assert.deepEqual(await pendingResult, { ok: true });
+  assert.equal(timers.pendingCount(), 0, 'successful response should clear its deadline');
 
   const pendingFailure = supervisor.invoke('deleteProfile', 'p1');
   const failingRequest = worker.sent.find((message) => message.type === 'request' && message.id !== request.id);
@@ -220,6 +238,61 @@ test('invoke resolves and rejects worker responses', async () => {
     () => pendingFailure,
     (error) => error.message === 'nope' && error.code === 'X' && error.statusCode === 409
   );
+  assert.equal(timers.pendingCount(), 0, 'failed response should clear its deadline');
+});
+
+test('invoke times out with a 504, ignores late responses, and does not restart the worker', async () => {
+  const { supervisor, spawned, timers, statuses, logs } = createHarness();
+  const payload = { apiKey: 'must-not-be-logged' };
+
+  supervisor.start();
+  const pending = supervisor.invoke('testProvider', payload, { timeoutMs: 135000 });
+  const request = spawned[0].sent.find((message) => message.type === 'request');
+
+  assert.equal(timers.fireByDelay(135000), true);
+  await assert.rejects(
+    () => pending,
+    (error) => error.code === 'DESKTOP_WORKER_REQUEST_TIMEOUT' && error.statusCode === 504
+  );
+  assert.equal(timers.pendingCount(), 0);
+  assert.equal(spawned.length, 1);
+  assert.equal(statuses.some((state) => state.status === 'restarting'), false);
+
+  spawned[0].emit('message', { type: 'response', id: request.id, ok: true, result: { late: true } });
+  assert.equal(timers.pendingCount(), 0);
+
+  const timeoutLog = logs.find((entry) => entry.event === 'worker-request-timeout');
+  assert.equal(timeoutLog.metadata.channel, 'testProvider');
+  assert.equal(timeoutLog.metadata.requestId, request.id);
+  assert.equal(JSON.stringify(timeoutLog).includes(payload.apiKey), false);
+});
+
+test('invoke uses the default deadline and clears it when sending fails', async () => {
+  const { supervisor, spawned, timers } = createHarness();
+  supervisor.start();
+  spawned[0].send = () => { throw new Error('send failed'); };
+
+  const pending = supervisor.invoke('getAppState', {});
+  await assert.rejects(() => pending, /send failed/);
+  assert.equal(timers.pendingCount(), 0);
+
+  spawned[0].send = (message) => spawned[0].sent.push(message);
+  const timed = supervisor.invoke('getAppState', {});
+  assert.equal(timers.firstDelayMs(), DEFAULT_REQUEST_TIMEOUT_MS);
+  assert.equal(timers.fireByDelay(DEFAULT_REQUEST_TIMEOUT_MS), true);
+  await assert.rejects(() => timed, (error) => error.code === 'DESKTOP_WORKER_REQUEST_TIMEOUT');
+});
+
+test('requestShutdown rejects pending requests and clears their deadlines', async () => {
+  const { supervisor, spawned, timers } = createHarness();
+  supervisor.start();
+  const pending = supervisor.invoke('getAppState', {});
+
+  supervisor.requestShutdown();
+
+  await assert.rejects(() => pending, (error) => error.code === 'DESKTOP_WORKER_SHUTDOWN');
+  assert.equal(timers.pendingCount(), 1, 'only the forced-kill timer should remain');
+  assert.ok(spawned[0].sent.some((message) => message.channel === 'shutdown'));
 });
 
 test('main requests are routed to the main-process handler and answered', async () => {
@@ -228,7 +301,10 @@ test('main requests are routed to the main-process handler and answered', async 
       if (channel === 'secrets.get') {
         return { value: `secret:${payload.id}` };
       }
-      throw new Error('unknown channel');
+      const error = new Error('unknown channel');
+      error.code = 'MAIN_REQUEST_FAILED';
+      error.statusCode = 409;
+      throw error;
     }
   });
 
@@ -246,6 +322,8 @@ test('main requests are routed to the main-process handler and answered', async 
   const failure = responses.find((message) => message.id === 'main-2');
   assert.equal(failure.ok, false);
   assert.equal(failure.error.message, 'unknown channel');
+  assert.equal(failure.error.code, 'MAIN_REQUEST_FAILED');
+  assert.equal(failure.error.statusCode, 409);
 });
 
 test('invoke while restarting surfaces a restarting error instead of forking a duplicate', () => {

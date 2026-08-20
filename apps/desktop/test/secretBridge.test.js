@@ -78,9 +78,19 @@ test('worker secret bridge surfaces main-process failures', async () => {
   const pendingGet = store.get('provider-1');
   await new Promise((resolve) => setImmediate(resolve));
   const request = sent.find((message) => message.type === 'main-request' && message.channel === 'secrets.get');
-  store.handleMessage({ type: 'main-response', id: request.id, ok: false, error: { message: 'boom' } });
+  store.handleMessage({
+    type: 'main-response',
+    id: request.id,
+    ok: false,
+    error: { message: 'boom', code: 'OS_SECRET_STORAGE_UNAVAILABLE', statusCode: 503 }
+  });
 
-  await assert.rejects(() => pendingGet, /boom/);
+  await assert.rejects(
+    () => pendingGet,
+    (error) => error.message === 'boom'
+      && error.code === 'OS_SECRET_STORAGE_UNAVAILABLE'
+      && error.statusCode === 503
+  );
 });
 
 test('worker secret bridge times out when the main process never answers', async () => {

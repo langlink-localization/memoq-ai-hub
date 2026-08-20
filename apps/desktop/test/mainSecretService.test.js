@@ -4,7 +4,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { createMainSecretService, ENCRYPTED_PREFIX } = require('../src/mainSecretService');
+const {
+  createMainSecretService,
+  ENCRYPTED_PREFIX,
+  OS_SECRET_STORAGE_UNAVAILABLE
+} = require('../src/mainSecretService');
 
 function createFakeSafeStorage() {
   return {
@@ -49,12 +53,13 @@ test('main secret service round-trips values through OS encryption', () => {
   assert.equal(service.get('provider-1'), '');
 });
 
-test('main secret service migrates legacy base64 values in place with a backup', () => {
+test('main secret service atomically migrates legacy base64 values and removes old backups', () => {
   const root = createTempRoot();
   test.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const legacyValue = Buffer.from('legacy-key', 'utf8').toString('base64');
   writeStoreFile(root, { 'provider-legacy': legacyValue });
+  fs.writeFileSync(path.join(root, 'provider-secrets.json.bak'), 'old reversible backup', 'utf8');
 
   const service = createMainSecretService({ paths: { appDataRoot: root }, safeStorage: createFakeSafeStorage() });
 
@@ -63,8 +68,8 @@ test('main secret service migrates legacy base64 values in place with a backup',
   const migrated = readStoreFile(root)['provider-legacy'];
   assert.ok(migrated.startsWith(ENCRYPTED_PREFIX), 'legacy value should be re-encrypted');
 
-  const backup = JSON.parse(fs.readFileSync(path.join(root, 'provider-secrets.json.bak'), 'utf8'));
-  assert.equal(backup['provider-legacy'], legacyValue, 'backup keeps the pre-migration file');
+  assert.equal(fs.existsSync(path.join(root, 'provider-secrets.json.bak')), false);
+  assert.deepEqual(fs.readdirSync(root).filter((name) => name.endsWith('.tmp')), []);
 });
 
 test('main secret service leaves already-encrypted values untouched', () => {
@@ -81,28 +86,98 @@ test('main secret service leaves already-encrypted values untouched', () => {
   assert.equal(fs.existsSync(path.join(root, 'provider-secrets.json.bak')), false, 'no backup when nothing migrates');
 });
 
-test('main secret service falls back to base64 when OS encryption is unavailable', () => {
+test('main secret service fails closed when OS encryption is unavailable and leaves the file unchanged', () => {
   const root = createTempRoot();
   test.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
+  const storePath = path.join(root, 'provider-secrets.json');
+  writeStoreFile(root, { existing: ENCRYPTED_PREFIX + 'ciphertext' });
+  const before = fs.readFileSync(storePath);
   const service = createMainSecretService({ paths: { appDataRoot: root }, safeStorage: null });
   assert.equal(service.isEncryptionActive(), false);
 
-  service.set('provider-plain', 'plain-key');
-  assert.equal(readStoreFile(root)['provider-plain'], Buffer.from('plain-key', 'utf8').toString('base64'));
-  assert.equal(service.get('provider-plain'), 'plain-key');
+  assert.throws(
+    () => service.set('provider-plain', 'plain-key'),
+    (error) => error.code === OS_SECRET_STORAGE_UNAVAILABLE && error.statusCode === 503
+  );
+  assert.deepEqual(fs.readFileSync(storePath), before);
+  assert.equal(service.get('existing'), '');
+  assert.equal(service.has('existing'), false);
+  assert.deepEqual(service.listIds(), []);
 });
 
-test('main secret service starts empty when the store file is missing or corrupt', () => {
+test('legacy values are unusable without OS encryption but can still be deleted', () => {
   const root = createTempRoot();
   test.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
-  writeStoreFile(root, { broken: true });
+  writeStoreFile(root, { legacy: Buffer.from('old-secret', 'utf8').toString('base64') });
+  const service = createMainSecretService({ paths: { appDataRoot: root }, safeStorage: null });
+
+  assert.equal(service.get('legacy'), '');
+  assert.equal(service.has('legacy'), false);
+  service.delete('legacy');
+  assert.deepEqual(readStoreFile(root), {});
+});
+
+test('main secret service normalizes OS encryption failures and preserves existing data', () => {
+  const root = createTempRoot();
+  test.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  writeStoreFile(root, { existing: 'unchanged' });
+  const storePath = path.join(root, 'provider-secrets.json');
+  const before = fs.readFileSync(storePath);
+  const service = createMainSecretService({
+    paths: { appDataRoot: root },
+    safeStorage: {
+      isEncryptionAvailable: () => true,
+      encryptString: () => { throw new Error('native encryption failed'); },
+      decryptString: () => ''
+    }
+  });
+
+  assert.throws(
+    () => service.set('provider-new', 'new-secret'),
+    (error) => error.code === OS_SECRET_STORAGE_UNAVAILABLE && error.statusCode === 503
+  );
+  assert.deepEqual(fs.readFileSync(storePath), before);
+});
+
+test('failed legacy migration preserves the original store and does not log secret data', () => {
+  const root = createTempRoot();
+  test.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const secret = 'legacy-value-that-must-not-leak';
+  writeStoreFile(root, { legacy: Buffer.from(secret, 'utf8').toString('base64') });
+  const before = fs.readFileSync(path.join(root, 'provider-secrets.json'));
+  const logs = [];
+  const failingStorage = {
+    isEncryptionAvailable: () => true,
+    encryptString: () => { throw new Error(`failed for ${secret}`); },
+    decryptString: () => ''
+  };
+
+  const service = createMainSecretService({
+    paths: { appDataRoot: root },
+    safeStorage: failingStorage,
+    logger: {
+      info(...args) { logs.push(args); },
+      warn(...args) { logs.push(args); },
+      error(...args) { logs.push(args); }
+    }
+  });
+
+  assert.deepEqual(fs.readFileSync(path.join(root, 'provider-secrets.json')), before);
+  assert.equal(service.get('legacy'), '');
+  assert.equal(JSON.stringify(logs).includes(secret), false);
+});
+
+test('main secret service stays empty when the store file is missing or corrupt', () => {
+  const root = createTempRoot();
+  test.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
   fs.writeFileSync(path.join(root, 'provider-secrets.json'), '{not-json', 'utf8');
 
   const service = createMainSecretService({ paths: { appDataRoot: root }, safeStorage: null });
   assert.deepEqual(service.listIds(), []);
-
-  service.set('provider-new', 'value');
-  assert.equal(service.get('provider-new'), 'value');
+  assert.throws(() => service.set('provider-new', 'value'), (error) => error.code === OS_SECRET_STORAGE_UNAVAILABLE);
 });

@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ENCRYPTED_PREFIX = 'enc:v1:';
+const OS_SECRET_STORAGE_UNAVAILABLE = 'OS_SECRET_STORAGE_UNAVAILABLE';
 
 function resolveSafeStorage() {
   try {
@@ -20,6 +21,13 @@ function decodeLegacyBase64(value) {
   } catch {
     return '';
   }
+}
+
+function createSecretStorageUnavailableError() {
+  const error = new Error('Windows secure credential storage is unavailable. Restart Windows or sign in again before saving an API key.');
+  error.code = OS_SECRET_STORAGE_UNAVAILABLE;
+  error.statusCode = 503;
+  return error;
 }
 
 function createMainSecretService(options = {}) {
@@ -53,7 +61,16 @@ function createMainSecretService(options = {}) {
 
   function writeState(state) {
     fs.mkdirSync(path.dirname(storePath), { recursive: true });
-    fs.writeFileSync(storePath, JSON.stringify(state, null, 2), 'utf8');
+    const temporaryPath = `${storePath}.${process.pid}.${Date.now()}.tmp`;
+    try {
+      fs.writeFileSync(temporaryPath, JSON.stringify(state, null, 2), 'utf8');
+      fs.renameSync(temporaryPath, storePath);
+    } finally {
+      try {
+        fs.rmSync(temporaryPath, { force: true });
+      } catch {
+      }
+    }
   }
 
   function decryptStoredValue(value) {
@@ -70,12 +87,13 @@ function createMainSecretService(options = {}) {
       }
       try {
         return decryptCipherText(value.slice(ENCRYPTED_PREFIX.length));
-      } catch (error) {
-        logger.error('secret-decrypt-failed', 'Failed to decrypt a stored secret.', { error });
+      } catch {
+        logger.error('secret-decrypt-failed', 'Failed to decrypt a stored secret.');
         return '';
       }
     }
-    return decodeLegacyBase64(value);
+    logger.warn('legacy-secret-unavailable', 'A legacy secret cannot be used until OS encryption is available for migration.');
+    return '';
   }
 
   function migrateLegacyValues() {
@@ -83,38 +101,47 @@ function createMainSecretService(options = {}) {
       return;
     }
 
-    const state = readState();
-    const migrated = {};
-    let changed = false;
-
-    for (const [id, value] of Object.entries(state)) {
-      if (typeof value === 'string' && value && !value.startsWith(ENCRYPTED_PREFIX)) {
-        const plainText = decodeLegacyBase64(value);
-        if (!plainText) {
-          migrated[id] = value;
-          continue;
-        }
-        migrated[id] = ENCRYPTED_PREFIX + encryptToCipherText(plainText);
-        changed = true;
-      } else {
-        migrated[id] = value;
-      }
-    }
-
-    if (!changed) {
-      return;
-    }
-
     try {
-      fs.copyFileSync(storePath, `${storePath}.bak`);
+      const state = readState();
+      const migrated = {};
+      let changed = false;
+
+      for (const [id, value] of Object.entries(state)) {
+        if (typeof value === 'string' && value && !value.startsWith(ENCRYPTED_PREFIX)) {
+          const plainText = decodeLegacyBase64(value);
+          if (!plainText) {
+            migrated[id] = value;
+            continue;
+          }
+          const encryptedValue = ENCRYPTED_PREFIX + encryptToCipherText(plainText);
+          if (decryptCipherText(encryptedValue.slice(ENCRYPTED_PREFIX.length)) !== plainText) {
+            throw new Error('OS secret encryption verification failed.');
+          }
+          migrated[id] = encryptedValue;
+          changed = true;
+        } else {
+          migrated[id] = value;
+        }
+      }
+
+      if (!changed) {
+        return;
+      }
+
+      writeState(migrated);
+      try {
+        fs.rmSync(`${storePath}.bak`, { force: true });
+      } catch {
+      }
+      logger.info('secrets-migrated', 'Legacy secrets were migrated to OS-level encryption.');
     } catch {
+      logger.error('secrets-migration-failed', 'Legacy secret migration failed; the original store was preserved.');
     }
-    writeState(migrated);
-    logger.info('secrets-migrated', 'Legacy plaintext secrets were re-encrypted with OS-level encryption.');
   }
 
   function has(id) {
-    return Boolean(readState()[id]);
+    const value = readState()[id];
+    return Boolean(encryptionReady && typeof value === 'string' && value.startsWith(ENCRYPTED_PREFIX));
   }
 
   function get(id) {
@@ -126,10 +153,20 @@ function createMainSecretService(options = {}) {
     if (!value) {
       return;
     }
+    if (!encryptionReady) {
+      throw createSecretStorageUnavailableError();
+    }
     const state = readState();
-    state[id] = encryptionReady
-      ? ENCRYPTED_PREFIX + encryptToCipherText(value)
-      : Buffer.from(value, 'utf8').toString('base64');
+    let encryptedValue = '';
+    try {
+      encryptedValue = ENCRYPTED_PREFIX + encryptToCipherText(value);
+      if (decryptCipherText(encryptedValue.slice(ENCRYPTED_PREFIX.length)) !== value) {
+        throw new Error('OS secret encryption verification failed.');
+      }
+    } catch {
+      throw createSecretStorageUnavailableError();
+    }
+    state[id] = encryptedValue;
     writeState(state);
   }
 
@@ -143,7 +180,12 @@ function createMainSecretService(options = {}) {
   }
 
   function listIds() {
-    return Object.keys(readState());
+    if (!encryptionReady) {
+      return [];
+    }
+    return Object.entries(readState())
+      .filter(([, value]) => typeof value === 'string' && value.startsWith(ENCRYPTED_PREFIX))
+      .map(([id]) => id);
   }
 
   migrateLegacyValues();
@@ -162,5 +204,6 @@ function createMainSecretService(options = {}) {
 
 module.exports = {
   createMainSecretService,
-  ENCRYPTED_PREFIX
+  ENCRYPTED_PREFIX,
+  OS_SECRET_STORAGE_UNAVAILABLE
 };

@@ -112,7 +112,7 @@ async function createRuntime(options = {}) {
   const paths = createAppPaths(options);
   const runtimeLogger = options.runtimeLogger || createLogger({ source: 'runtime', logsDir: paths.logsDir });
   const db = await createDatabase(paths);
-  const secretStore = createSecretStore(paths);
+  const secretStore = options.secretStore || createSecretStore(paths);
   const providerRegistry = options.providerRegistry || createProviderRegistry(options);
   const runtimeIdentity = buildRuntimeIdentity({
     repoRoot: paths.repoRoot,

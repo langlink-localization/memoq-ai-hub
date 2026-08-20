@@ -92,10 +92,10 @@ The bundled MT, QA, and Preview documentation exposes no public TBX/term-base AP
 | D1 | Track `pnpm-lock.yaml`; frozen installs; correct cache key; run repo tests; least-privilege CI | P1 | 5 | 5 | 1 | 25.0 | Implemented + verified |
 | T1 | Make packaging test hermetic instead of relying on `xml-naming` residue | P1 | 4 | 5 | 1 | 20.0 | Implemented + verified |
 | S1 | Validate loopback host/port, HTTPS external/update URLs, and artifact filenames | P1 | 4 | 5 | 2 | 10.0 | Implemented + verified |
-| Q1 | Resolve two orphan `test.skip` provider prompt cases or replace them with current-contract tests | P2 | 3 | 4 | 2 | 6.0 | Backlog |
-| R1 | Add bounded main-to-worker request timeouts and cancellation cleanup | P2 | 4 | 4 | 3 | 5.3 | Backlog |
-| S2 | Make standalone secret-storage mode explicit and fail closed when OS encryption is unavailable | P2 | 4 | 4 | 3 | 5.3 | Backlog |
-| Q2 | Add lint/static analysis without weakening existing tests | P2 | 3 | 5 | 3 | 5.0 | Backlog |
+| Q1 | Resolve two orphan `test.skip` provider prompt cases or replace them with current-contract tests | P2 | 3 | 4 | 2 | 6.0 | Implemented + verified for v1.0.33 |
+| R1 | Add bounded main-to-worker request timeouts and cancellation cleanup | P2 | 4 | 4 | 3 | 5.3 | Implemented + verified for v1.0.33 |
+| S2 | Make standalone secret-storage mode explicit and fail closed when OS encryption is unavailable | P2 | 4 | 4 | 3 | 5.3 | Implemented + verified for v1.0.33 |
+| Q2 | Add lint/static analysis without weakening existing tests | P2 | 3 | 5 | 3 | 5.0 | Implemented + verified for v1.0.33 |
 | U1 | Add release-manifest SHA-256 metadata and verify installer bytes before launch | P1 | 5 | 4 | 4 | 5.0 | Implemented + verified for v1.0.25 |
 | M1 | Incrementally decompose `App.jsx` and `runtime.js` by feature/lifecycle boundary | P2 | 4 | 5 | 5 | 4.0 | Backlog |
 | N1 | Record provenance/hashes for checked-in memoQ/native binary references and enforce release signing | P2 | 5 | 3 | 4 | 3.8 | Backlog |
@@ -154,15 +154,15 @@ Older digest-free manifests remain readable for version checks and portable brow
 
 ### R1 — Unbounded worker IPC
 
-`invokeWorker` keeps requests in a map until a response or worker exit. A live but wedged worker can leave renderer actions pending indefinitely. Add per-operation deadlines, clear timers on every terminal path, and distinguish timeout from worker exit. Provider/network timeouts do not cover all worker failure modes.
+Completed in `v1.0.33`. Main-to-worker requests now use 30-second, 135-second, or 10-minute bounded lifecycles by workload. Every response, send failure, worker exit, shutdown, and timeout clears the pending entry and timer; late responses are ignored, and a timeout returns `DESKTOP_WORKER_REQUEST_TIMEOUT` with HTTP status 504 without restarting the worker.
 
 ### S2 — Standalone secret-storage ambiguity
 
-An environment-equivalent Electron probe confirmed `safeStorage` is available in the normal `ELECTRON_RUN_AS_NODE=1` worker, so production worker secrets are encrypted. The Base64 fallback remains relevant to plain-Node standalone mode and unusual encryption-unavailable states. A later change should make that mode explicit rather than silently persisting reversible values.
+Completed in `v1.0.33`. Provider secrets now use the main-process Windows `safeStorage` path end to end. Saving fails closed with `OS_SECRET_STORAGE_UNAVAILABLE` when OS encryption is unavailable; legacy Base64 values are unreadable until they can be atomically migrated and verified, and successful migration removes known reversible backups.
 
 ### M1/Q2 — Maintainability and static analysis
 
-The large runtime/renderer files and 93 catch sites increase review cost. Existing behavior coverage is strong, so the safer sequence is to add static analysis first, then extract one independently testable lifecycle/feature boundary per product change. A “big bang” rewrite has poor ROI.
+Q2 completed in `v1.0.33` with ESLint flat configuration, recommended correctness rules, React Hooks checks, and a main-CI lint gate. M1 remains backlog: continue extracting one independently testable lifecycle or feature boundary per product change rather than attempting a broad rewrite.
 
 ## Selected Implementation Acceptance Criteria
 
@@ -226,7 +226,7 @@ The large runtime/renderer files and 93 catch sites increase review cost. Existi
 | Packaged runtime smoke | `releasePackaging.test.js` with `MEMOQ_AI_PACKAGED_APP_DIR` pointing at the final package | 3 passed: version metadata, `app.asar`, and transitive worker dependencies |
 | Static diff check | `git diff --check` | Passed |
 
-The five skips in the general desktop run are explicit: two existing provider prompt tests tracked as Q1, plus three artifact tests that require `MEMOQ_AI_PACKAGED_APP_DIR`. The latter three were then executed against the freshly generated package and all passed. No test was disabled or bypassed.
+The general desktop source suite now has no unconditional skips. The only remaining skips are four artifact-dependent checks in `releasePackaging.test.js`; they run against the freshly generated package during the Windows release gate. No test was disabled or bypassed.
 
 ## Delivery Notes and Residual Risk
 
@@ -237,6 +237,16 @@ The five skips in the general desktop run are explicit: two existing provider pr
 - Rollback watchpoint: D1 is one dependency contract and should be reverted as a unit; reverting only the lockfile or only frozen installs recreates drift.
 - Rollback watchpoint: if a legitimate remote gateway or HTTP staging use case appears, do not relax S1 globally. Introduce an authenticated, explicit mode with dedicated tests and migration documentation.
 - Rollback watchpoint: do not weaken U1 to accept missing or mismatched digests for in-app installer launch; if an already published contract is defective, disable that path and fix forward with a new patch tag.
-- Remaining risk: artifacts are not asymmetrically signed or Windows code-signed (N1), worker IPC can still wait indefinitely (R1), and standalone secret persistence still has a reversible fallback (S2).
-- Remaining quality debt: the two provider `test.skip` cases remain visible as Q1; the renderer build still warns about a roughly 1.19 MB main chunk, consistent with M1/Q2 rather than a regression introduced here.
+- Remaining risk: artifacts are not asymmetrically signed or Windows code-signed (N1); memoQ 12 live-host behavior remains pending and is not claimed by this release.
+- Remaining quality debt: M1 remains the incremental runtime/renderer decomposition track. Static analysis is now enforced, while existing React Hooks dependency warnings remain visible for follow-up rather than being suppressed.
 - Main CI remains the required gate before creating `v1.0.25`; the release workflow and published-asset digest comparison remain the authoritative remote evidence after the immutable tag is pushed.
+
+## v1.0.33 Reliability Closeout Verification
+
+- `pnpm run lint`: passed with 0 errors; 20 existing React Hooks dependency warnings remain visible for M1 follow-up.
+- Desktop regression: 562 total, 558 passed, 0 failed, 4 packaging-only conditional skips.
+- Repository governance: 25 passed, 0 failed; Provider registry has no unconditional skips.
+- Ant Design scan: 0 findings, 0 skipped files, full scan.
+- Plugin regression and Release build: passed; 0 build warnings and 0 errors.
+- Windows packaging: passed end to end; all 4 packaging-only checks passed against the final bundle.
+- The generated v1.0.33 ZIP and 7z SHA-256 values independently matched the stable manifest.
