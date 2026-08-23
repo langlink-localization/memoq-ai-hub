@@ -271,5 +271,5 @@ The general desktop source suite now has no unconditional skips. The only remain
 - Repository governance: 26 passed, 0 failed; Ant Design full scan passed with 0 findings and no skipped files.
 - Plugin Release build passed with 0 warnings and 0 errors; plugin retry/fallback regression passed.
 - Windows packaging passed end to end; all 4 package-state checks passed against the final v1.0.35 bundle.
-- Independent SHA-256 verification matched the stable manifest for both artifacts: ZIP `be6f5a69a3850106a8509a948610e48f4fee4e0898f32e56e77e9fb19d9930d3` and 7z `3b5d233a327f5cf4f683bf07dd36896cb05d25e8d97daa7244063226b4ec43f1`.
+- The published assets were downloaded independently and matched the published stable manifest: ZIP `aab8915e19d19becd20aec07d9ea7f03d2f7c14c0657dc0203ce7ed5efb04cd5` and 7z `662799545fb80e4a08abf20f988dd2b4e0d5f58d970b236a17d4926c85635392`.
 - M1 remains intentionally incremental: the renderer lifecycle slice is complete, while runtime decomposition remains a later item. memoQ 12 live-host verification remains pending and is not claimed by this release.

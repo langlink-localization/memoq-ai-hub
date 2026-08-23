@@ -1,6 +1,6 @@
 id: v1.0.35-maintainability
 title: memoQ AI Hub v1.0.35 renderer maintainability closeout
-status: active
+status: shipped
 owner: repository maintainers
 repos:
   - path: ../..
@@ -10,9 +10,9 @@ spec_link: none
 github_links:
   project: none
   issues: []
-current_stage: ready to commit and integrate
-last_verified_commit: "memoq-ai-hub@fd3b2436d32a37701981538bd3c7e561b8910de7"
-next_action: commit the verified release candidate and fast-forward it into local main
+current_stage: complete
+last_verified_commit: "memoq-ai-hub@e9374f65a21ad7811f510f3df446809452f9e0a1 (v1.0.35)"
+next_action: none
 allowed_interruptions:
   - emergency production fix
   - security or data correctness issue
@@ -23,7 +23,6 @@ drift_guard:
   source_of_truth: repository main branch, GitHub Actions, release tag, stable update manifest, and published release assets
 intentional_divergences: []
 resume_prompt: >
-  Use active-initiative-governance. Read this ledger and IMPLEMENTATION_PLAN.md,
-  verify the repository and release state, then continue from next_action. Keep
-  v1.0.35 limited to renderer lifecycle modularization and zero-warning lint;
-  do not add product features or change public contracts.
+  This initiative is complete. For later renderer or runtime decomposition, create
+  a new focused initiative, preserve the zero-warning lint gate and public contracts,
+  and keep memoQ 12 live-host verification explicit until evidence exists.
