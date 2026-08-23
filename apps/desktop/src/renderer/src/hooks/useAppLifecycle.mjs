@@ -81,6 +81,8 @@ export function useAppDataLifecycle({
       void runRefresh({}, { includeProviderHistoryMetrics: true });
     } else if (activePage === 'history') {
       void runRefresh(historyFiltersRef.current, { includeHistoryExplorer: true });
+    } else if (activePage === 'mapping') {
+      void runRefresh();
     }
   }, [activePage, runLogRefresh, runRefresh]);
 }

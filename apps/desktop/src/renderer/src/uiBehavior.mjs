@@ -1,4 +1,4 @@
-export const APP_PAGE_KEYS = ['dashboard', 'providers', 'assets', 'builder', 'history', 'quality', 'logs'];
+export const APP_PAGE_KEYS = ['dashboard', 'providers', 'assets', 'builder', 'mapping', 'history', 'quality', 'logs'];
 export const SHELL_STORAGE_KEY = 'memoq-ai-hub.shell';
 export const SHELL_BREAKPOINTS = Object.freeze({
   expandedMin: 1200,

@@ -889,6 +889,14 @@ body,
   }
 }
 
+.mapping-test-result {
+  margin-top: 16px;
+}
+
+.mapping-editor-hint {
+  margin-bottom: 16px;
+}
+
 @media (max-width: 480px) {
   .content-wrap {
     padding: 12px;

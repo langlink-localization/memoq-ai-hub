@@ -41,3 +41,14 @@ test('resolveRuleMatch returns the highest-priority matching rule', () => {
 
   assert.equal(match.rule.id, 'rule_abc');
 });
+
+test('rule engine keeps catch-all, disabled, invalid-regex, and stable tie behavior', () => {
+  assert.equal(evaluateRule({ enabled: true }, {}).matched, true);
+  assert.equal(evaluateRule({ enabled: false }, {}).matched, false);
+  assert.equal(evaluateRule({ enabled: true, documentIdRegex: '[' }, { documentId: 'DOC-1' }).matched, false);
+  const match = resolveRuleMatch([
+    { id: 'first', enabled: true, priority: 10 },
+    { id: 'second', enabled: true, priority: 10 }
+  ], {});
+  assert.equal(match.rule.id, 'first');
+});

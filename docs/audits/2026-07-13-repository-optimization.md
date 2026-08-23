@@ -273,3 +273,15 @@ The general desktop source suite now has no unconditional skips. The only remain
 - Windows packaging passed end to end; all 4 package-state checks passed against the final v1.0.35 bundle.
 - The published assets were downloaded independently and matched the published stable manifest: ZIP `aab8915e19d19becd20aec07d9ea7f03d2f7c14c0657dc0203ce7ed5efb04cd5` and 7z `662799545fb80e4a08abf20f988dd2b4e0d5f58d970b236a17d4926c85635392`.
 - M1 remains intentionally incremental: the renderer lifecycle slice is complete, while runtime decomposition remains a later item. memoQ 12 live-host verification remains pending and is not claimed by this release.
+
+## v1.0.36 Project Rules Closeout Verification
+
+- Added a localized, responsive Project Rules workflow for persisted metadata routing: list, create, edit, copy, enable, disable, delete, hit-count inspection, and match testing.
+- Kept the existing IPC, HTTP, database, plugin, Provider, Profile, history, QA, asset, and update-manifest contracts unchanged; existing rules require no migration.
+- Focused Project Rules, metadata normalization, runtime service, rule engine, renderer shell, and component interaction coverage passed 55 tests.
+- `pnpm run lint` passed with 0 errors and 0 warnings; renderer production build passed with 3,105 modules transformed.
+- Desktop regression passed 590 total: 586 passed, 0 failed, and 4 packaging-only conditional skips. Repository governance passed 26/26, and the Ant Design full scan reported 0 findings with no skipped files.
+- Plugin Release build passed with 0 warnings and 0 errors; plugin regression and release preparation passed.
+- Windows packaging passed end to end; all 4 package-state checks passed against the final v1.0.36 bundle.
+- The final local 134,058,936-byte ZIP and 96,895,257-byte 7z independently matched the generated stable manifest: ZIP `4d9d964702b699cb210d1583cdea74c7897dd88f80d28846913e1543185bd07b`; 7z `42bbc51d2c55dc2a3b279735e575588bb6e668a5787bb0f2010108496365f3d1`.
+- Live memoQ 12 host interaction and visual browser/Electron inspection remain unclaimed; automated accessibility, responsive-layout, rule-routing, plugin regression, and packaged-runtime boundaries passed.

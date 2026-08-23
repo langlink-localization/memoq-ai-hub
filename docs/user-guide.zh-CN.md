@@ -134,20 +134,32 @@ Unblock-File -LiteralPath "C:\Program Files\memoQ\memoQ-11\Addins\MemoQ.AI.Hub.P
 5. 配置完成后点击 **保存 Profile**。
 6. 如需作为默认配置，点击 **设为默认**。
 
-## 第五步：打开 memoQ
+## 第五步（可选）：按项目路由 Profile
+
+保存至少一个 Profile 后，打开 **项目规则**。规则可以匹配客户、领域、主题、项目、源语言、目标语言、文档名称正则表达式和句段状态；同一规则内所有非空条件按 **AND** 组合。
+
+1. 点击 **新增规则**，填写名称、选择 Profile，并只添加需要的条件。
+2. 设置优先级。数字越小越先匹配；优先级相同时保持已有保存顺序。
+3. 除非确有需要，否则不要创建无条件的兜底规则。此类规则可能阻止后续低优先级规则执行，保存前应用会要求确认。
+4. 启用前使用 **测试匹配** 输入有代表性的 memoQ 元数据。结果会明确区分命中规则、回退到桌面端默认 Profile，以及 Profile 不存在。
+5. 可在列表查看命中次数；需要创建相近变体时可复制现有规则。
+
+规则只能选择已保存的 Profile。被规则引用的 Profile 在规则变更或删除前不能删除。如果 memoQ 插件的 **Default Profile ID** 不为空，该显式配置会覆盖此插件配置下的项目规则。
+
+## 第六步：打开 memoQ
 
 确保 memoQ AI Hub 桌面端保持运行，因为本地网关需要持续监听 `5271` 端口。
 
-## 第六步：在 memoQ 中配置插件
+## 第七步：在 memoQ 中配置插件
 
-### 6.1 创建 MT 资源
+### 7.1 创建 MT 资源
 
 1. 在 memoQ 中进入 **Resource Console**。
 2. 找到 **MT Settings**，点击 **Create new**。
 3. 选择 **My Computer**，填写资源名称。
 4. 在 MT 引擎列表中勾选 **memoQ AI Hub**，并打开设置面板。
 
-### 6.2 配置插件参数
+### 7.2 配置插件参数
 
 通常保持默认即可：
 
@@ -160,7 +172,7 @@ Unblock-File -LiteralPath "C:\Program Files\memoQ\memoQ-11\Addins\MemoQ.AI.Hub.P
 - 如桌面端改了端口，修改 **Gateway Base URL**
 - 如需指定特定 Profile，在 **Default Profile ID** 中填写对应 ID
 
-### 6.3 开启相关选项
+### 7.3 开启相关选项
 
 在 MT 资源设置中，将以下功能指定为 **memoQ AI Hub**：
 
@@ -169,13 +181,13 @@ Unblock-File -LiteralPath "C:\Program Files\memoQ\memoQ-11\Addins\MemoQ.AI.Hub.P
 - **Send best fuzzy TM match**
 - **Self-learning MT**
 
-### 6.4 在项目中启用 MT
+### 7.4 在项目中启用 MT
 
 1. 进入项目的 **Project -> Settings -> MT settings**
 2. 启用刚创建的 **memoQ AI Hub** 资源
 3. 保存后即可在项目中使用 AI 翻译
 
-## 第七步：查看翻译或执行预翻译
+## 第八步：查看翻译或执行预翻译
 
 ### 交互翻译
 

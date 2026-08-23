@@ -39,14 +39,21 @@ test('profile service owns profile lifecycle and mapping resolution', () => {
     ruleName: 'Client rule',
     profileId: 'profile_client',
     priority: 100,
-    conditions: [{ field: 'client', operator: 'equals', value: 'Acme' }]
+    client: 'Acme',
+    sourceLanguage: 'EN',
+    targetLanguage: 'ZH'
   });
-  const match = service.testMapping({ client: 'Acme' });
+  const match = service.testMapping({ client: 'Acme', SourceLanguage: 'EN', TargetLanguage: 'ZH' });
   const copy = service.duplicateProfile('profile_client');
 
   assert.equal(rule.profileId, 'profile_client');
   assert.equal(match.profile.id, 'profile_client');
   assert.equal(match.rule.id, 'rule_client');
+  assert.equal(match.rule.hitCount, 0);
+  assert.throws(() => service.saveMappingRule({ ruleName: 'Broken', profileId: 'missing' }), { code: 'PROFILE_NOT_FOUND' });
+  harness.getState().mappingRules[0].hitCount = 7;
+  const updatedRule = service.saveMappingRule({ ...rule, ruleName: 'Updated client rule', hitCount: 0 });
+  assert.equal(updatedRule.hitCount, 7);
   assert.equal(copy.id, 'profile_copy');
   assert.throws(() => service.deleteProfile('profile_client'), /still used by mapping rules/i);
 

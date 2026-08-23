@@ -43,17 +43,17 @@ function collectLocaleKeys(value, prefix = '') {
   });
 }
 
-test('app sections expose quality and history as first-class top-level modules', () => {
+test('app sections expose project rules, quality, and history as first-class modules', () => {
   assert.deepEqual(
     APP_SECTIONS.map((item) => item.key),
-    ['dashboard', 'providers', 'assets', 'builder', 'quality', 'history', 'logs']
+    ['dashboard', 'providers', 'assets', 'builder', 'mapping', 'quality', 'history', 'logs']
   );
 });
 
 test('navigation separates quality from translation history with a header-level assistant entry', () => {
   const appSource = readRendererSource('App.jsx');
 
-  assert.match(appSource, /navItems = \[[\s\S]*?navPageItems\[0\],\s*\{ type: 'group', label: <span className="app-nav-group-label">\{t\('nav\.configure'\)\}<\/span>, children: navPageItems\.slice\(1, 4\) \},\s*navPageItems\[4\],\s*navPageItems\[5\],\s*\{ type: 'group'/);
+  assert.match(appSource, /navItems = \[[\s\S]*?navPageItems\[0\],\s*\{ type: 'group', label: <span className="app-nav-group-label">\{t\('nav\.configure'\)\}<\/span>, children: navPageItems\.slice\(1, 5\) \},\s*navPageItems\[5\],\s*navPageItems\[6\],\s*\{ type: 'group'/);
   assert.doesNotMatch(appSource, /nav\.activity/);
   assert.match(appSource, /api\.openAssistantWindow\?\.\(\)/);
   assert.match(appSource, /app-header-assistant/);
@@ -75,12 +75,27 @@ test('feature pages load behind explicit renderer boundaries', () => {
   assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/providers\/ProvidersPage\.jsx'\)\)/);
   assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/builder\/BuilderPage\.jsx'\)\)/);
   assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/assets\/AssetsPage\.jsx'\)\)/);
+  assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/mapping\/MappingRulesPage\.jsx'\)\)/);
   assert.match(appSource, /lazy\(\(\) => import\('\.\/pages\/logs\/LogsPage\.jsx'\)\)/);
   assert.match(appSource, /<Suspense fallback=\{<Skeleton active/);
   assert.doesNotMatch(appSource, /dashboard-journey-grid/);
   assert.doesNotMatch(appSource, /history\.diagnosticSummary/);
   assert.match(dashboardSource, /dashboard-journey-grid/);
   assert.match(historySource, /history\.diagnosticSummary/);
+});
+
+test('project rules page uses the existing routing bridge with recoverable responsive actions', () => {
+  const appSource = readRendererSources('App.jsx', 'hooks/useAppLifecycle.mjs');
+  const pageSource = readRendererSource('pages/mapping/MappingRulesPage.jsx');
+  assert.match(appSource, /activePage === 'mapping'/);
+  assert.match(appSource, /memoqMetadataMapping\?\.rules/);
+  assert.match(pageSource, /api\.saveRule/);
+  assert.match(pageSource, /api\.deleteRule/);
+  assert.match(pageSource, /api\.testMatch/);
+  assert.match(pageSource, /scroll=\{\{ x: TABLE_SCROLL_X \}\}/);
+  assert.match(pageSource, /xs=\{24\}/);
+  assert.match(pageSource, /catchAllWarning/);
+  assert.match(pageSource, /duplicatePriorityWarning/);
 });
 
 test('Chinese locale is independent and matches English locale keys', () => {

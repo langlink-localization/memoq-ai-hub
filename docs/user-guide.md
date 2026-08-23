@@ -134,20 +134,32 @@ Optional capabilities include:
 5. Click **Save Profile**.
 6. Click **Set as default** if this should be the default profile.
 
-## Step 5: Keep the Desktop App Running
+## Step 5 (Optional): Route Projects to Profiles
+
+Open **Project Rules** after saving at least one Profile. A rule can match client, domain, subject, project, source language, target language, document name by regular expression, and segment status. Non-empty conditions in one rule are combined with **AND**.
+
+1. Click **New rule**, name the rule, choose its Profile, and add only the conditions you need.
+2. Set the priority. Lower numbers run first; rules with the same priority keep their existing saved order.
+3. Avoid an empty catch-all rule unless it is intentional. The app asks for confirmation because it can prevent lower-priority rules from running.
+4. Use **Test match** with representative memoQ metadata before enabling the rule. The result distinguishes a matched rule, the desktop default Profile, and a missing Profile.
+5. Review hit counts in the list, and copy an existing rule when you need a close variant.
+
+Only saved Profiles can be selected. Deleting a referenced Profile is blocked until its rules are changed or removed. If the memoQ plugin's **Default Profile ID** is non-empty, that explicit value overrides Project Rules for that plugin configuration.
+
+## Step 6: Keep the Desktop App Running
 
 Make sure the memoQ AI Hub desktop app stays open while memoQ is using it, because the local gateway must keep listening on port `5271`.
 
-## Step 6: Configure the Plugin in memoQ
+## Step 7: Configure the Plugin in memoQ
 
-### 6.1 Create an MT Resource
+### 7.1 Create an MT Resource
 
 1. In memoQ, open **Resource Console**.
 2. Find **MT Settings** and click **Create new**.
 3. Choose **My Computer** and create the resource.
 4. In the MT engine list, enable **memoQ AI Hub** and open its settings.
 
-### 6.2 Plugin Settings
+### 7.2 Plugin Settings
 
 The default values are normally correct:
 
@@ -160,7 +172,7 @@ Optional changes:
 - Change **Gateway Base URL** if the desktop gateway uses a different port
 - Set **Default Profile ID** if a memoQ project should use a specific profile instead of the desktop default
 
-### 6.3 Enable Related Features
+### 7.3 Enable Related Features
 
 In memoQ MT settings, point these features to **memoQ AI Hub**:
 
@@ -169,13 +181,13 @@ In memoQ MT settings, point these features to **memoQ AI Hub**:
 - **Send best fuzzy TM match**
 - **Self-learning MT**
 
-### 6.4 Enable the MT Resource in a Project
+### 7.4 Enable the MT Resource in a Project
 
 1. Open the project and go to **Project -> Settings -> MT settings**
 2. Enable the **memoQ AI Hub** resource you created
 3. Save the project settings
 
-## Step 7: Translate or Run Pre-translation
+## Step 8: Translate or Run Pre-translation
 
 ### Interactive Translation
 

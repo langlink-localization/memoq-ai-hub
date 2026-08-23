@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppstoreOutlined,
+  ApartmentOutlined,
   CloudServerOutlined,
   DatabaseOutlined,
   DeploymentUnitOutlined,
@@ -133,6 +134,7 @@ const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage.jsx'));
 const HistoryPage = lazy(() => import('./pages/history/HistoryPage.jsx'));
 const BuilderPage = lazy(() => import('./pages/builder/BuilderPage.jsx'));
 const AssetsPage = lazy(() => import('./pages/assets/AssetsPage.jsx'));
+const MappingRulesPage = lazy(() => import('./pages/mapping/MappingRulesPage.jsx'));
 const LogsPage = lazy(() => import('./pages/logs/LogsPage.jsx'));
 const QualityPage = lazy(() => import('./pages/quality/QualityPage.jsx'));
 
@@ -244,22 +246,24 @@ export default function App() {
     { key: 'providers', label: <span className="app-nav-label">{t('nav.providers')}</span>, title: t('nav.providers'), icon: <CloudServerOutlined className="app-nav-icon" /> },
     { key: 'assets', label: <span className="app-nav-label">{t('nav.assets')}</span>, title: t('nav.assets'), icon: <DatabaseOutlined className="app-nav-icon" /> },
     { key: 'builder', label: <span className="app-nav-label">{t('nav.builder')}</span>, title: t('nav.builder'), icon: <DeploymentUnitOutlined className="app-nav-icon" /> },
+    { key: 'mapping', label: <span className="app-nav-label">{t('nav.mapping')}</span>, title: t('nav.mapping'), icon: <ApartmentOutlined className="app-nav-icon" /> },
     { key: 'quality', label: <span className="app-nav-label">{t('nav.quality')}</span>, title: t('nav.quality'), icon: <SafetyCertificateOutlined className="app-nav-icon" /> },
     { key: 'history', label: <span className="app-nav-label">{t('nav.history')}</span>, title: t('nav.history'), icon: <FileSearchOutlined className="app-nav-icon" /> },
     { key: 'logs', label: <span className="app-nav-label">{t('nav.logs')}</span>, title: t('nav.logs'), icon: <FileTextOutlined className="app-nav-icon" /> }
   ];
   const navItems = [
     navPageItems[0],
-    { type: 'group', label: <span className="app-nav-group-label">{t('nav.configure')}</span>, children: navPageItems.slice(1, 4) },
-    navPageItems[4],
+    { type: 'group', label: <span className="app-nav-group-label">{t('nav.configure')}</span>, children: navPageItems.slice(1, 5) },
     navPageItems[5],
-    { type: 'group', label: <span className="app-nav-group-label">{t('nav.support')}</span>, children: [navPageItems[6]] }
+    navPageItems[6],
+    { type: 'group', label: <span className="app-nav-group-label">{t('nav.support')}</span>, children: [navPageItems[7]] }
   ];
   const pageDescriptions = {
     dashboard: t('nav.dashboardDescription'),
     providers: t('nav.providersDescription'),
     assets: t('nav.assetsDescription'),
     builder: t('nav.builderDescription'),
+    mapping: t('nav.mappingDescription'),
     history: t('nav.historyDescription'),
     quality: t('nav.qualityDescription'),
     logs: t('nav.logsDescription')
@@ -452,12 +456,6 @@ export default function App() {
     refreshDashboardStatus,
     refreshLogs
   });
-
-  useEffect(() => {
-    if (activePage === 'mapping') {
-      setActivePage('dashboard');
-    }
-  }, [activePage]);
 
   useEffect(() => {
     setError('');
@@ -2018,6 +2016,16 @@ export default function App() {
               onImportAsset={importAsset}
               onDeleteAsset={confirmDeleteAsset}
               onPreviewAsset={openAssetPreview}
+            />
+          )}
+
+          {activePage === 'mapping' && (
+            <MappingRulesPage
+              api={api}
+              rules={state?.memoqMetadataMapping?.rules || []}
+              profiles={state?.contextBuilder?.profiles || []}
+              defaultProfileId={defaultProfileId}
+              onRefresh={() => refresh()}
             />
           )}
 

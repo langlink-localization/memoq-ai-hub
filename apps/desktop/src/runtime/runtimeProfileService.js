@@ -90,8 +90,18 @@ function createRuntimeProfileService({
 
   function saveMappingRule(rule) {
     const state = loadState();
-    const nextRule = ensureRule(rule);
-    const index = state.mappingRules.findIndex((item) => item.id === nextRule.id);
+    const requestedProfileId = String(rule?.profileId || '').trim();
+    if (!requestedProfileId || !state.profiles.some((profile) => profile.id === requestedProfileId)) {
+      const error = new Error(`Profile ${requestedProfileId || '(empty)'} not found`);
+      error.code = 'PROFILE_NOT_FOUND';
+      throw error;
+    }
+    const requestedId = String(rule?.id || '').trim();
+    const index = requestedId ? state.mappingRules.findIndex((item) => item.id === requestedId) : -1;
+    const nextRule = ensureRule({
+      ...rule,
+      hitCount: index >= 0 ? state.mappingRules[index].hitCount : 0
+    });
     if (index >= 0) state.mappingRules[index] = nextRule;
     else state.mappingRules.push(nextRule);
     saveState(state);

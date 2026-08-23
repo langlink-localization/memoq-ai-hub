@@ -67,12 +67,13 @@ test('shell state restores only valid pages and persists navigation preference',
   writeShellState(storage, { activePage: 'retired-page', navCollapsed: false });
   assert.deepEqual(readShellState(storage), { activePage: 'dashboard', navCollapsed: false, pageScrollPositions: {} });
   assert.equal(normalizePageKey('providers'), 'providers');
-  assert.equal(normalizePageKey('mapping'), 'dashboard');
+  assert.equal(normalizePageKey('mapping'), 'mapping');
   assert.deepEqual(normalizePageScrollPositions({ dashboard: -2, history: 90.7, logs: '24' }), { history: 91, logs: 24 });
 
-  const positions = updatePageScrollPosition({ dashboard: 12 }, 'assets', 338.6);
-  assert.deepEqual(positions, { dashboard: 12, assets: 339 });
-  assert.equal(getPageScrollPosition(positions, 'assets'), 339);
+  const positions = updatePageScrollPosition({ dashboard: 12 }, 'mapping', 338.6);
+  assert.deepEqual(positions, { dashboard: 12, mapping: 339 });
+  assert.equal(getPageScrollPosition(positions, 'mapping'), 339);
+  assert.equal(getPageScrollPosition(positions, 'assets'), 0);
   assert.equal(getPageScrollPosition(positions, 'retired-page'), 0);
 });
 

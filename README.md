@@ -20,6 +20,7 @@ The current desktop app exposes these operator-facing modules:
 - `Dashboard`: install or reinstall the memoQ integration, check runtime status, and review update state.
 - `AI Services`: configure OpenAI or OpenAI-compatible providers, test connectivity, and manage enabled models.
 - `Setup`: create translation profiles, choose provider routes, bind terminology and Custom TM assets, select TM score buckets, and configure optional context features.
+- `Project Rules`: route memoQ projects to saved Profiles by client, domain, subject, project, language pair, document regex, or segment status, then test the result before translation.
 - `Assets`: import and preview glossary, TB, TMX, and table-based Custom TM assets.
 - `Translation Records`: inspect translation runs, Custom TM matches, prompts, and diagnostics, then export or delete records.
 - `Quality Checks`: inspect the active Preview segment with observable deterministic/AI execution details, review and export local QA history, manage scoped QA/Translate/Polish prompt presets, open the two-mode Translate/Polish and QA Assistant, import MQXLIFF/XLIFF files read-only, and export HTML/CSV/JSON reports.
@@ -29,8 +30,9 @@ The repository contains runtime code for more advanced capabilities, but not eve
 
 ## Current Release Highlights
 
-`v1.0.35` includes the product, performance, security, architecture, and reliability improvements delivered from `v1.0.20` through `v1.0.35`:
+`v1.0.36` includes the product, performance, security, architecture, and reliability improvements delivered from `v1.0.20` through `v1.0.36`:
 
+- Project Rules now exposes the existing metadata-routing engine as a complete operator workflow: create, edit, copy, enable, disable, delete, inspect hit counts, and test rules against memoQ project metadata.
 - Profiles can bind uploaded TMX or table-based Custom TM assets and choose which `AI Hub TM score` buckets are sent to AI. Context-aware TMX matches can reach `101%`, while memoQ's own fuzzy hint remains a separate reference.
 - The five-step setup journey, responsive navigation, protected unsaved edits, accessible controls, and focused Translation Records views make day-to-day configuration and diagnostics easier.
 - Lazy loading and packaging cleanup reduce startup memory and package size; both the standard ZIP and smaller 7z portable packages remain available.
@@ -68,7 +70,8 @@ The current dashboard and user flow are aligned around this order:
 2. Connect and test an AI service.
 3. Upload optional terminology or translation-memory assets.
 4. Create and save a translation profile in Setup.
-5. Run a translation in memoQ and review the translation record.
+5. Optionally add and test Project Rules to select a Profile from memoQ project metadata.
+6. Run a translation in memoQ and review the translation record.
 
 If you are setting up the app for the first time, this is the path that matches the shipped UI.
 

@@ -1,7 +1,7 @@
 {
   "name": "memoq-ai-hub-app",
   "private": true,
-  "version": "1.0.35",
+  "version": "1.0.36",
   "packageManager": "pnpm@10.6.2",
   "engines": {
     "node": ">=22.12.0"

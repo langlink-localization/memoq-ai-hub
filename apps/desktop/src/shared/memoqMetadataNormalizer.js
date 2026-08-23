@@ -38,6 +38,8 @@ function normalizeMemoQMetadata(metadata = {}) {
     projectId: normalizeText(metadata.projectId || metadata.ProjectID || metadata.PorjectID),
     documentId: normalizeText(metadata.documentId || metadata.DocumentID),
     projectGuid: normalizeText(metadata.projectGuid || metadata.ProjectGuid),
+    sourceLanguage: normalizeText(metadata.sourceLanguage || metadata.SourceLanguage || metadata.sourceLang || metadata.SourceLang),
+    targetLanguage: normalizeText(metadata.targetLanguage || metadata.TargetLanguage || metadata.targetLang || metadata.TargetLang),
     segmentStatus: normalizeSegmentStatus(metadata.segmentStatus ?? metadata.SegmentStatus),
     segmentLevelMetadata: normalizeSegmentLevelMetadata(metadata.segmentLevelMetadata || metadata.SegmentLevelMetadata)
   };
@@ -70,6 +72,8 @@ function hasStructuredMetadata(metadata = {}) {
     || normalized.projectId
     || normalized.documentId
     || normalized.projectGuid
+    || normalized.sourceLanguage
+    || normalized.targetLanguage
     || normalized.segmentStatus !== ''
     || normalized.segmentLevelMetadata.length
   );
