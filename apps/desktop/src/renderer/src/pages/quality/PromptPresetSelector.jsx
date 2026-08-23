@@ -13,10 +13,11 @@ export default function PromptPresetSelector({ api, presets = [], scope, value, 
   const [draft, setDraft] = useState(null);
   const scoped = useMemo(() => presets.filter((item) => item.scope === scope), [presets, scope]);
   const selected = scoped.find((item) => item.id === value) || scoped[0] || null;
+  const defaultPresetId = scoped[0]?.id || '';
 
   useEffect(() => {
-    if (!value && scoped[0]) onChange?.(scoped[0].id);
-  }, [scope, value, scoped[0]?.id]);
+    if (!value && defaultPresetId) onChange?.(defaultPresetId);
+  }, [defaultPresetId, onChange, value]);
 
   function edit() {
     if (!selected) return;

@@ -166,24 +166,24 @@ test('history records expose per-entry diagnostics and attempt timeline affordan
 });
 
 test('history refreshes preserve loaded records outside the history page', () => {
-  const appSource = readRendererSource('App.jsx');
+  const appSource = readRendererSources('App.jsx', 'hooks/useAppLifecycle.mjs');
 
   assert.match(appSource, /const includeHistoryExplorer = typeof options\.includeHistoryExplorer === 'boolean'/);
   assert.match(appSource, /if \(!includeHistoryExplorer && current\?\.historyExplorer\)/);
   assert.match(appSource, /historyExplorer: current\.historyExplorer/);
-  assert.match(appSource, /void refresh\(historyFilters, \{ includeHistoryExplorer: true \}\)/);
+  assert.match(appSource, /runRefresh\(historyFiltersRef\.current, \{ includeHistoryExplorer: true \}\)/);
   assert.match(appSource, /refresh\(historyFilters, \{ includeHistoryExplorer: true \}\)/);
 });
 
 test('provider refreshes preserve loaded history metrics outside the providers page', () => {
-  const appSource = readRendererSources('App.jsx', 'appState.mjs');
+  const appSource = readRendererSources('App.jsx', 'appState.mjs', 'hooks/useAppLifecycle.mjs');
 
   assert.match(appSource, /function preserveProviderHistoryMetrics/);
   assert.match(appSource, /successRate24h: provider\.successRate24h \?\? null/);
   assert.match(appSource, /avgLatencyMs: provider\.avgLatencyMs \?\? null/);
   assert.match(appSource, /if \(!includeProviderHistoryMetrics\)/);
   assert.match(appSource, /preserveProviderHistoryMetrics\(nextData, current\)/);
-  assert.match(appSource, /void refresh\(\{\}, \{ includeProviderHistoryMetrics: true \}\)/);
+  assert.match(appSource, /runRefresh\(\{\}, \{ includeProviderHistoryMetrics: true \}\)/);
 });
 
 test('provider page exposes history insight focus affordances', () => {
@@ -254,6 +254,7 @@ test('renderer theme uses one Ant Design token contract without internal selecto
 
 test('dashboard polling updates only changed status slices', () => {
   const appSource = readRendererSource('App.jsx');
+  const lifecycleSource = readRendererSource('hooks/useAppLifecycle.mjs');
   const dashboardSource = readRendererSource('pages/dashboard/DashboardPage.jsx');
   const connectionSource = readRendererSource('components/DashboardConnectionStatus.jsx');
   const storeSource = readRendererSource('pages/dashboard/dashboardStatusStore.mjs');
@@ -268,7 +269,8 @@ test('dashboard polling updates only changed status slices', () => {
   assert.doesNotMatch(pollSource, /setState\(/);
   assert.match(dashboardSource, /useSyncExternalStore\(/);
   assert.match(connectionSource, /useSyncExternalStore\(/);
-  assert.match(appSource, /void refreshDashboardStatus\(\);/);
+  assert.match(lifecycleSource, /startupStatus === 'ready' && activePage === 'dashboard'/);
+  assert.match(lifecycleSource, /runDashboardRefresh/);
 });
 
 test('priority configuration fields use Ant Design form controls', () => {

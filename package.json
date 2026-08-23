@@ -40,7 +40,7 @@
     }
   },
   "scripts": {
-    "lint": "eslint \"apps/desktop/src/**/*.{js,mjs,jsx}\" \"apps/desktop/test/**/*.{js,mjs}\" \"tooling/scripts/**/*.{js,mjs}\" \"tests/repo/**/*.mjs\"",
+    "lint": "eslint \"apps/desktop/src/**/*.{js,mjs,jsx}\" \"apps/desktop/test/**/*.{js,mjs}\" \"tooling/scripts/**/*.{js,mjs}\" \"tests/repo/**/*.mjs\" --max-warnings=0",
     "install:desktop": "pnpm --dir apps/desktop install",
     "build:plugin": "powershell -ExecutionPolicy Bypass -File .\\tooling\\scripts\\build-windows.ps1 -Configuration Release",
     "test:plugin": "powershell -ExecutionPolicy Bypass -File .\\tooling\\scripts\\test-plugin-regression.ps1 -Configuration Release",

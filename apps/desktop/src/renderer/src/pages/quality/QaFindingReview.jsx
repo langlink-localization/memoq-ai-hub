@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CopyOutlined, EyeOutlined, MoreOutlined } from '@ant-design/icons';
 import {
   Alert,
@@ -17,6 +17,7 @@ import {
 } from 'antd';
 import { useI18n } from '../../i18n';
 import { applyQaFindingFeedback, feedbackMapFromEntries, filterQaFindings } from './qaFindingReview.mjs';
+import { useLatestCallback } from '../../hooks/useAppLifecycle.mjs';
 
 const { Text } = Typography;
 const SEVERITY_COLOR = { critical: 'error', major: 'warning', minor: 'gold', info: 'blue' };
@@ -48,18 +49,23 @@ export default function QaFindingReview({
   const [pendingFindingId, setPendingFindingId] = useState('');
   const [error, setError] = useState('');
   const feedbackSignature = JSON.stringify((feedbackEntries || []).map((entry) => [entry?.findingId, entry?.state]));
+  const feedbackEntriesRef = useRef(feedbackEntries);
+  feedbackEntriesRef.current = feedbackEntries;
+  const canLoadFeedback = typeof onLoadFeedback === 'function';
+  const loadFeedback = useLatestCallback(onLoadFeedback);
+  const translate = useLatestCallback(t);
 
   useEffect(() => {
-    setFeedbackByFinding(feedbackMapFromEntries(feedbackEntries));
+    setFeedbackByFinding(feedbackMapFromEntries(feedbackEntriesRef.current));
     setFilters({ severity: '', category: '', origin: '', reviewState: '' });
     setSelectedFinding(null);
     setError('');
-    if (requestId && onLoadFeedback) {
-      void onLoadFeedback(requestId)
+    if (requestId && canLoadFeedback) {
+      void loadFeedback(requestId)
         .then((response) => setFeedbackByFinding(feedbackMapFromEntries(response?.feedback || [])))
-        .catch(() => setError(t('quality.feedbackLoadFailed')));
+        .catch(() => setError(translate('quality.feedbackLoadFailed')));
     }
-  }, [requestId, feedbackSignature]);
+  }, [canLoadFeedback, feedbackSignature, loadFeedback, requestId, translate]);
 
   const visibleFindings = useMemo(
     () => filterQaFindings(findings, filters, feedbackByFinding),

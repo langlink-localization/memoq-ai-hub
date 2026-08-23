@@ -36,6 +36,7 @@ import PromptPresetSelector from './PromptPresetSelector.jsx';
 import QaFindingReview from './QaFindingReview.jsx';
 import qaPromptModule from '../../../../qa/qaPrompt.js';
 import { disableQaRule } from './qaFindingReview.mjs';
+import { usePollingRefresh } from '../../hooks/useAppLifecycle.mjs';
 
 const { Paragraph, Text, Title } = Typography;
 const { DEFAULT_QA_SYSTEM_PROMPT, DEFAULT_QA_USER_PROMPT } = qaPromptModule;
@@ -119,7 +120,7 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
     setQaUserPrompt(profile.promptTemplates?.qa?.userPrompt || DEFAULT_QA_USER_PROMPT);
     const nextProviderId = profile.interactiveProviderId || profile.providerId || providers[0]?.id || '';
     setSelectedProviderId(nextProviderId);
-  }, [profile?.id]);
+  }, [profile, providers]);
 
   useEffect(() => {
     const nextProvider = providers.find((item) => item.id === selectedProviderId) || providers[0];
@@ -141,11 +142,7 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
     }
   }
 
-  useEffect(() => {
-    void refreshStatus();
-    const timer = setInterval(() => void refreshStatus(true), 750);
-    return () => clearInterval(timer);
-  }, []);
+  usePollingRefresh(refreshStatus, 750);
 
   async function runCurrentCheck() {
     setChecking(true);

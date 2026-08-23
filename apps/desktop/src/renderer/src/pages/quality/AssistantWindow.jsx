@@ -19,6 +19,7 @@ import QualityExecutionSummary from './QualityExecutionSummary.jsx';
 import PromptPresetSelector from './PromptPresetSelector.jsx';
 import QaFindingReview from './QaFindingReview.jsx';
 import { disableQaRule } from './qaFindingReview.mjs';
+import { usePollingRefresh } from '../../hooks/useAppLifecycle.mjs';
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -55,10 +56,10 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
   const snapshotHashRef = useRef('');
   const activeRequestIdRef = useRef('');
 
-  const profiles = appState?.contextBuilder?.profiles || [];
-  const providers = appState?.providerHub?.providers || [];
-  const assets = appState?.contextBuilder?.assets || [];
-  const promptPresets = appState?.promptPresets || [];
+  const profiles = useMemo(() => appState?.contextBuilder?.profiles || [], [appState?.contextBuilder?.profiles]);
+  const providers = useMemo(() => appState?.providerHub?.providers || [], [appState?.providerHub?.providers]);
+  const assets = useMemo(() => appState?.contextBuilder?.assets || [], [appState?.contextBuilder?.assets]);
+  const promptPresets = useMemo(() => appState?.promptPresets || [], [appState?.promptPresets]);
   const profile = profiles.find((item) => item.id === profileId) || profiles[0] || null;
   const provider = providers.find((item) => item.id === providerId) || providers[0] || null;
   const snapshot = status?.currentSnapshot || null;
@@ -94,11 +95,7 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
     }
   }
 
-  useEffect(() => {
-    void refresh();
-    const timer = setInterval(() => void refresh(true), 750);
-    return () => clearInterval(timer);
-  }, []);
+  usePollingRefresh(refresh, 750);
 
   useEffect(() => {
     if (!profileId && profiles.length) setProfileId(appState?.contextBuilder?.defaultProfileId || profiles[0].id);
@@ -109,7 +106,7 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
     const nextProviderId = profile.interactiveProviderId || profile.providerId || providers[0]?.id || '';
     setProviderId(nextProviderId);
     setGlossaryIds(profileGlossaryIds(profile));
-  }, [profile?.id]);
+  }, [profile, providers]);
 
   useEffect(() => {
     const nextProvider = providers.find((item) => item.id === providerId) || providers[0];

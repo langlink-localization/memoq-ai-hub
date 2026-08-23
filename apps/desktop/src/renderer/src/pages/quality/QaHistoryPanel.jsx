@@ -29,6 +29,7 @@ import { useI18n } from '../../i18n';
 import QualityExecutionSummary from './QualityExecutionSummary.jsx';
 import QaFindingReview from './QaFindingReview.jsx';
 import { disableQaRule } from './qaFindingReview.mjs';
+import { useLatestCallback } from '../../hooks/useAppLifecycle.mjs';
 
 const { Paragraph, Text } = Typography;
 const AUTOMATIC_TRIGGER = 'preview-target-changed';
@@ -86,9 +87,13 @@ export default function QaHistoryPanel({ api, profiles = [], onProfileSaved, ref
     }
   }
 
+  const runLoadHistory = useLatestCallback(loadHistory);
+  const dateFromTimestamp = dateRange?.[0]?.valueOf() ?? null;
+  const dateToTimestamp = dateRange?.[1]?.valueOf() ?? null;
+
   useEffect(() => {
-    void loadHistory();
-  }, [refreshKey, dateRange?.[0]?.valueOf(), dateRange?.[1]?.valueOf()]);
+    void runLoadHistory();
+  }, [dateFromTimestamp, dateToTimestamp, refreshKey, runLoadHistory]);
 
   const documentOptions = useMemo(() => {
     const values = new Map();

@@ -1,0 +1,29 @@
+id: v1.0.35-maintainability
+title: memoQ AI Hub v1.0.35 renderer maintainability closeout
+status: active
+owner: repository maintainers
+repos:
+  - path: ../..
+    role: source-of-truth
+source_plan: IMPLEMENTATION_PLAN.md
+spec_link: none
+github_links:
+  project: none
+  issues: []
+current_stage: ready to commit and integrate
+last_verified_commit: "memoq-ai-hub@fd3b2436d32a37701981538bd3c7e561b8910de7"
+next_action: commit the verified release candidate and fast-forward it into local main
+allowed_interruptions:
+  - emergency production fix
+  - security or data correctness issue
+drift_guard:
+  ui_contract: docs/ui-governance.md
+  toolchain_contract: AGENTS.md, package.json, and .github/workflows/ci.yml
+  validation_command: pnpm run lint && pnpm run test:desktop && pnpm run test:repo && pnpm run test:antd && pnpm run build:plugin && pnpm run test:plugin && pnpm run prepare:release && pnpm run package:windows
+  source_of_truth: repository main branch, GitHub Actions, release tag, stable update manifest, and published release assets
+intentional_divergences: []
+resume_prompt: >
+  Use active-initiative-governance. Read this ledger and IMPLEMENTATION_PLAN.md,
+  verify the repository and release state, then continue from next_action. Keep
+  v1.0.35 limited to renderer lifecycle modularization and zero-warning lint;
+  do not add product features or change public contracts.

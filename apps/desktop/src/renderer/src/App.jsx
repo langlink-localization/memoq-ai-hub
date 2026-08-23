@@ -118,13 +118,15 @@ import {
 } from './pages/providers/providerPresentation.mjs';
 import {
   createPendingOperationRegistry,
-  getPageScrollPosition,
   getShellNavigationMode,
   readShellState,
   resolveDirtyNavigationKind,
-  updatePageScrollPosition,
-  writeShellState
 } from './uiBehavior.mjs';
+import {
+  useAppDataLifecycle,
+  useHistoryDetail,
+  useShellLifecycle
+} from './hooks/useAppLifecycle.mjs';
 
 const ProvidersPage = lazy(() => import('./pages/providers/ProvidersPage.jsx'));
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage.jsx'));
@@ -167,9 +169,6 @@ export default function App() {
   const [providerId, setProviderId] = useState('');
   const [selectedHistoryIds, setSelectedHistoryIds] = useState([]);
   const [selectedHistoryId, setSelectedHistoryId] = useState('');
-  const [historyDetailRecord, setHistoryDetailRecord] = useState(null);
-  const [historyDetailLoading, setHistoryDetailLoading] = useState(false);
-  const [historyDetailError, setHistoryDetailError] = useState('');
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [installing, setInstalling] = useState(false);
@@ -222,13 +221,10 @@ export default function App() {
   const providerDraftsRef = useRef(providerDraftsById);
   const profileDraftsRef = useRef(profileDraftsById);
   const autoUpdateCheckStartedRef = useRef(false);
-  const pageScrollPositionsRef = useRef(initialShellStateRef.current.pageScrollPositions || {});
-  const navCollapsedRef = useRef(navCollapsed);
   const pendingOperationsRef = useRef(null);
 
   providerDraftsRef.current = providerDraftsById;
   profileDraftsRef.current = profileDraftsById;
-  navCollapsedRef.current = navCollapsed;
   if (!pendingOperationsRef.current) {
     pendingOperationsRef.current = createPendingOperationRegistry();
   }
@@ -448,9 +444,14 @@ export default function App() {
     }
   }
 
-  useEffect(() => {
-    refresh();
-  }, []);
+  useAppDataLifecycle({
+    activePage,
+    startupStatus: state?.startup?.status,
+    historyFilters,
+    refresh,
+    refreshDashboardStatus,
+    refreshLogs
+  });
 
   useEffect(() => {
     if (activePage === 'mapping') {
@@ -462,96 +463,11 @@ export default function App() {
     setError('');
   }, [activePage]);
 
-  useEffect(() => {
-    if (state?.startup?.status !== 'starting') {
-      return undefined;
-    }
-
-    const timer = window.setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) {
-        return;
-      }
-      refresh();
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [state?.startup?.status]);
-
-  useEffect(() => {
-    if (state?.startup?.status !== 'ready' || activePage !== 'dashboard') {
-      return undefined;
-    }
-
-    const timer = window.setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) {
-        return;
-      }
-      void refreshDashboardStatus();
-    }, 3000);
-
-    return () => window.clearInterval(timer);
-  }, [state?.startup?.status, activePage]);
-
-  useEffect(() => {
-    if (activePage === 'logs') {
-      void refreshLogs();
-    }
-  }, [activePage]);
-
-  useEffect(() => {
-    if (activePage === 'providers') {
-      void refresh({}, { includeProviderHistoryMetrics: true });
-    }
-  }, [activePage]);
-
-  useEffect(() => {
-    if (activePage === 'history') {
-      void refresh(historyFilters, { includeHistoryExplorer: true });
-    }
-  }, [activePage]);
-
-  useEffect(() => {
-    if (!selectedHistoryId) {
-      setHistoryDetailRecord(null);
-      setHistoryDetailLoading(false);
-      setHistoryDetailError('');
-      return undefined;
-    }
-
-    let cancelled = false;
-    setHistoryDetailLoading(true);
-    setHistoryDetailError('');
-    setHistoryDetailRecord(null);
-
-    if (typeof api?.getHistoryEntry !== 'function') {
-      setHistoryDetailLoading(false);
-      setHistoryDetailError(t('history.detailLoadFailed'));
-      return undefined;
-    }
-
-    void api.getHistoryEntry(selectedHistoryId)
-      .then((entry) => {
-        if (cancelled) return;
-        if (!entry) {
-          setHistoryDetailError(t('history.detailNotFound'));
-          return;
-        }
-        setHistoryDetailRecord(entry);
-      })
-      .catch((loadError) => {
-        if (cancelled) return;
-        setHistoryDetailError(String(loadError?.message || t('history.detailLoadFailed')));
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setHistoryDetailLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [api, selectedHistoryId, t]);
+  const {
+    record: historyDetailRecord,
+    loading: historyDetailLoading,
+    error: historyDetailError
+  } = useHistoryDetail({ api, selectedHistoryId, t });
 
   useEffect(() => {
     if (state?.startup?.status !== 'ready' || autoUpdateCheckStartedRef.current || typeof api?.checkForUpdates !== 'function') {
@@ -644,14 +560,14 @@ export default function App() {
     return groups.filter((group) => group.items.length);
   }, [filteredProviders, t]);
   const currentProviderFingerprint = useMemo(() => buildProviderFingerprint(currentProvider), [currentProvider]);
-  const currentProviderConnectionSnapshot = currentProvider?.connectionSnapshot || {
+  const currentProviderConnectionSnapshot = useMemo(() => currentProvider?.connectionSnapshot || {
     status: normalizeProviderStatus(currentProvider?.status),
     testedAt: '',
     latencyMs: null,
     message: '',
     lastError: '',
     hasPreviousTest: false
-  };
+  }, [currentProvider]);
   const currentProviderConnectionStatus = normalizeProviderStatus(currentProviderConnectionSnapshot.status);
   const currentProviderConnectionMeta = getStatusTagMeta(currentProviderConnectionStatus, t);
   const currentProviderHasPreviousTest = currentProviderConnectionSnapshot.hasPreviousTest === true;
@@ -692,55 +608,15 @@ export default function App() {
     setProviderModelSearch('');
   }, [currentProvider?.id]);
 
-  useEffect(() => {
-    writeShellState(globalThis.localStorage, {
-      activePage,
-      navCollapsed,
-      pageScrollPositions: pageScrollPositionsRef.current
-    });
-  }, [activePage, navCollapsed]);
-
-  useEffect(() => {
-    const targetScrollTop = getPageScrollPosition(pageScrollPositionsRef.current, activePage);
-    const frameId = globalThis.requestAnimationFrame?.(() => {
-      globalThis.scrollTo?.({ top: targetScrollTop, left: 0, behavior: 'auto' });
-    });
-    return () => globalThis.cancelAnimationFrame?.(frameId);
-  }, [activePage]);
-
-  useEffect(() => {
-    function handlePageHide() {
-      persistCurrentPageScrollPosition();
-    }
-    globalThis.addEventListener?.('pagehide', handlePageHide);
-    return () => globalThis.removeEventListener?.('pagehide', handlePageHide);
-  }, [activePage]);
-
-  useEffect(() => {
-    function handleResize() {
-      setViewportWidth(Number(globalThis.innerWidth || 1366));
-    }
-    globalThis.addEventListener?.('resize', handleResize);
-    return () => globalThis.removeEventListener?.('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
-    if (shellNavigationMode !== 'drawer') {
-      setMobileNavOpen(false);
-    }
-  }, [shellNavigationMode]);
-
-  useEffect(() => {
-    if (!hasUnsavedDrafts) {
-      return undefined;
-    }
-    function protectUnsavedDrafts(event) {
-      event.preventDefault();
-      event.returnValue = '';
-    }
-    globalThis.addEventListener?.('beforeunload', protectUnsavedDrafts);
-    return () => globalThis.removeEventListener?.('beforeunload', protectUnsavedDrafts);
-  }, [hasUnsavedDrafts]);
+  const { persistCurrentPageScrollPosition } = useShellLifecycle({
+    initialShellState: initialShellStateRef.current,
+    activePage,
+    navCollapsed,
+    setViewportWidth,
+    shellNavigationMode,
+    setMobileNavOpen,
+    hasUnsavedDrafts
+  });
 
   function clearProviderTestState(providerEntryId) {
     const normalizedId = String(providerEntryId || '').trim();
@@ -1406,16 +1282,6 @@ export default function App() {
     } finally {
       endPending();
     }
-  }
-
-  function persistCurrentPageScrollPosition() {
-    const scrollTop = Math.max(0, Number(globalThis.scrollY || globalThis.pageYOffset || 0));
-    pageScrollPositionsRef.current = updatePageScrollPosition(pageScrollPositionsRef.current, activePage, scrollTop);
-    writeShellState(globalThis.localStorage, {
-      activePage,
-      navCollapsed: navCollapsedRef.current,
-      pageScrollPositions: pageScrollPositionsRef.current
-    });
   }
 
   function commitNavigation(navigation) {

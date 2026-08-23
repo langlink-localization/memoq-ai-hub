@@ -97,7 +97,7 @@ The bundled MT, QA, and Preview documentation exposes no public TBX/term-base AP
 | S2 | Make standalone secret-storage mode explicit and fail closed when OS encryption is unavailable | P2 | 4 | 4 | 3 | 5.3 | Implemented + verified for v1.0.33 |
 | Q2 | Add lint/static analysis without weakening existing tests | P2 | 3 | 5 | 3 | 5.0 | Implemented + verified for v1.0.33 |
 | U1 | Add release-manifest SHA-256 metadata and verify installer bytes before launch | P1 | 5 | 4 | 4 | 5.0 | Implemented + verified for v1.0.25 |
-| M1 | Incrementally decompose `App.jsx` and `runtime.js` by feature/lifecycle boundary | P2 | 4 | 5 | 5 | 4.0 | Backlog |
+| M1 | Incrementally decompose `App.jsx` and `runtime.js` by feature/lifecycle boundary | P2 | 4 | 5 | 5 | 4.0 | Renderer lifecycle slice implemented + verified for v1.0.35; runtime slice remains backlog |
 | N1 | Record provenance/hashes for checked-in memoQ/native binary references and enforce release signing | P2 | 5 | 3 | 4 | 3.8 | Backlog |
 | A1 | Normalize malformed JSON/body-limit failures into the gateway's stable JSON error contract | P3 | 2 | 4 | 2 | 4.0 | Implemented + verified for v1.0.34 |
 | D2 | Persist the local database atomically and recover from a validated last-known-good generation | P1 | 5 | 5 | 2 | 12.5 | Implemented + verified for v1.0.34 |
@@ -163,7 +163,7 @@ Completed in `v1.0.33` and closed across every runtime mode in `v1.0.34`. Provid
 
 ### M1/Q2 — Maintainability and static analysis
 
-Q2 completed in `v1.0.33` with ESLint flat configuration, recommended correctness rules, React Hooks checks, and a main-CI lint gate. M1 remains backlog: continue extracting one independently testable lifecycle or feature boundary per product change rather than attempting a broad rewrite.
+Q2 completed in `v1.0.33` with ESLint flat configuration, recommended correctness rules, React Hooks checks, and a main-CI lint gate. The v1.0.35 M1 renderer slice extracted refresh, polling, history-detail, and shell lifecycle boundaries from `App.jsx`, cleared all 20 existing Hooks warnings, and made lint fail on any warning. Runtime decomposition remains backlog and should continue one independently testable boundary at a time rather than as a broad rewrite.
 
 ## Selected Implementation Acceptance Criteria
 
@@ -262,3 +262,14 @@ The general desktop source suite now has no unconditional skips. The only remain
 - Plugin build/regression passed with 0 build warnings and 0 errors.
 - Windows packaging passed end to end after reusing the already verified local Electron 43.2.0 binary cache when two remote TLS attempts failed; all 4 package-state checks passed.
 - Benchmark schema 2 measured a 146.36 ms median runtime startup, 63 loaded modules, a 25.1 MiB median RSS increase, a 321.9 MB unpacked directory, a 4.48 MB ASAR, and a 96.9 MB compact archive across 7 isolated samples.
+
+## v1.0.35 Renderer Maintainability Closeout Verification
+
+- `pnpm run lint`: passed with 0 errors and 0 warnings; `--max-warnings=0` now enforces the same result in main CI.
+- Focused lifecycle and renderer-shell contracts: 47 passed, including hidden-window polling, timer cleanup, history-detail cancellation, page-owned refreshes, shell persistence, and dirty-navigation protection.
+- Desktop regression: 583 total, 579 passed, 0 failed, and 4 packaging-only conditional skips.
+- Repository governance: 26 passed, 0 failed; Ant Design full scan passed with 0 findings and no skipped files.
+- Plugin Release build passed with 0 warnings and 0 errors; plugin retry/fallback regression passed.
+- Windows packaging passed end to end; all 4 package-state checks passed against the final v1.0.35 bundle.
+- Independent SHA-256 verification matched the stable manifest for both artifacts: ZIP `be6f5a69a3850106a8509a948610e48f4fee4e0898f32e56e77e9fb19d9930d3` and 7z `3b5d233a327f5cf4f683bf07dd36896cb05d25e8d97daa7244063226b4ec43f1`.
+- M1 remains intentionally incremental: the renderer lifecycle slice is complete, while runtime decomposition remains a later item. memoQ 12 live-host verification remains pending and is not claimed by this release.
