@@ -60,6 +60,35 @@ test('legacy root directories stay removed', () => {
   }
 });
 
+test('desktop src modules stay single-sourced without js/mjs twins', () => {
+  const srcDir = path.join(repoRoot, 'apps', 'desktop', 'src');
+  const twins = [];
+
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const entryPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(entryPath);
+        continue;
+      }
+      if (entry.name.endsWith('.mjs')) {
+        const jsSibling = entryPath.replace(/\.mjs$/, '.js');
+        if (fs.existsSync(jsSibling)) {
+          twins.push(path.relative(srcDir, jsSibling));
+        }
+      }
+    }
+  };
+
+  walk(srcDir);
+
+  assert.deepEqual(
+    twins,
+    [],
+    `each logic module must keep a single source file; found .js/.mjs twins at: ${twins.join(', ')}`
+  );
+});
+
 test('documentation is canonicalized under docs/reference', () => {
   assert.equal(fs.existsSync(path.join(repoRoot, 'docs', 'reference')), true);
   assert.equal(fs.existsSync(path.join(repoRoot, 'doc')), false);

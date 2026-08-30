@@ -33,6 +33,7 @@ function runCustomRules(snapshot, rules, findings) {
       if (rule.type === 'contains') matched = scopeText.includes(String(rule.value || ''));
       if (rule.type === 'not-contains') matched = !scopeText.includes(String(rule.value || ''));
     } catch {
+      // Invalid rule payload (e.g. malformed regex) skips the rule rather than failing the check.
       continue;
     }
     if (matched) {

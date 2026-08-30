@@ -36,6 +36,7 @@
   "errorCodes": {
     "desktopUnavailable": "DESKTOP_UNAVAILABLE",
     "contractVersionMismatch": "CONTRACT_VERSION_MISMATCH",
+    "requestPayloadInvalid": "REQUEST_PAYLOAD_INVALID",
     "integrationNotInstalled": "INTEGRATION_NOT_INSTALLED",
     "installRequiresElevation": "INSTALL_REQUIRES_ELEVATION",
     "providerNotConfigured": "PROVIDER_NOT_CONFIGURED",

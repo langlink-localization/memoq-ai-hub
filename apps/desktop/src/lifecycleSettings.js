@@ -19,6 +19,7 @@ function createLifecycleSettings(options = {}) {
         launchAtLogin: typeof parsed.launchAtLogin === 'boolean' ? parsed.launchAtLogin : DEFAULT_LIFECYCLE_SETTINGS.launchAtLogin
       };
     } catch {
+      // Missing or corrupt settings fall back to defaults.
       return { ...DEFAULT_LIFECYCLE_SETTINGS };
     }
   }

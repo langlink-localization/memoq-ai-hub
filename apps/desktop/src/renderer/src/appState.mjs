@@ -1,3 +1,5 @@
+import { createPreviewStatusPlaceholder, createUpdateCenterPlaceholder } from '../../shared/appStateDefaults.js';
+
 export const DEFAULT_HISTORY_INSIGHTS = {
   totalRequests: 0,
   totalSegments: 0,
@@ -28,44 +30,9 @@ export function createFallbackAppState() {
         memoqInstallPath: '',
         pluginStatus: '',
         connectionStatus: 'Disconnected',
-        previewStatus: {
-          status: 'disconnected',
-          statusMessage: '',
-          serviceBaseUrl: '',
-          sessionId: '',
-          callbackAddress: '',
-          connectedAt: '',
-          lastUpdatedAt: '',
-          lastError: '',
-          activePreviewPartId: '',
-          activePreviewPartCount: 0,
-          cachedPreviewPartCount: 0,
-          sourceDocumentName: '',
-          sourceDocumentGuid: ''
-        }
+        previewStatus: createPreviewStatusPlaceholder()
       },
-      updateCenter: {
-        currentVersion: '',
-        releaseChannel: 'stable',
-        packagingMode: 'portable',
-        updateStatus: 'idle',
-        latestVersion: '',
-        releaseNotes: '',
-        releaseNotesUrl: '',
-        portableDownloadUrl: '',
-        publishedAt: '',
-        downloadedArtifactPath: '',
-        preparedDirectory: '',
-        lastCheckedAt: '',
-        lastError: '',
-        lastErrorCode: '',
-        manifestUrl: '',
-        pluginReinstallRecommended: true,
-        availableAssets: {
-          portable: null,
-          installer: null
-        }
-      },
+      updateCenter: createUpdateCenterPlaceholder(),
       notices: []
     },
     integration: {
@@ -75,21 +42,7 @@ export function createFallbackAppState() {
       status: 'not_installed',
       installations: []
     },
-    previewBridge: {
-      status: 'disconnected',
-      statusMessage: '',
-      serviceBaseUrl: '',
-      sessionId: '',
-      callbackAddress: '',
-      connectedAt: '',
-      lastUpdatedAt: '',
-      lastError: '',
-      activePreviewPartId: '',
-      activePreviewPartCount: 0,
-      cachedPreviewPartCount: 0,
-      sourceDocumentName: '',
-      sourceDocumentGuid: ''
-    },
+    previewBridge: createPreviewStatusPlaceholder(),
     contextBuilder: {
       profiles: [],
       defaultProfileId: '',
@@ -105,28 +58,7 @@ export function createFallbackAppState() {
       items: [],
       insights: DEFAULT_HISTORY_INSIGHTS
     },
-    updateCenter: {
-      currentVersion: '',
-      releaseChannel: 'stable',
-      packagingMode: 'portable',
-      updateStatus: 'idle',
-      latestVersion: '',
-      releaseNotes: '',
-      releaseNotesUrl: '',
-      portableDownloadUrl: '',
-      publishedAt: '',
-      downloadedArtifactPath: '',
-      preparedDirectory: '',
-      lastCheckedAt: '',
-      lastError: '',
-      lastErrorCode: '',
-      manifestUrl: '',
-      pluginReinstallRecommended: true,
-      availableAssets: {
-        portable: null,
-        installer: null
-      }
-    }
+    updateCenter: createUpdateCenterPlaceholder()
   };
 }
 

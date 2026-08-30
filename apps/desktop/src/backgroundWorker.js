@@ -92,6 +92,7 @@ async function startRuntimeAndGateway() {
     try {
       await stopGatewayLifecycle({ runtime, server });
     } catch {
+      // Startup already failed; gateway teardown is best-effort.
     }
     if (runtime) {
       runtime.dispose?.();

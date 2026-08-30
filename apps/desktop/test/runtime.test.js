@@ -2048,6 +2048,35 @@ test('runtime stores confirmed translations and reuses them through adaptive cac
   }
 });
 
+test('runtime rejects store-translations payloads with a mismatched contract version', async () => {
+  const tempRoot = createTempAppRoot();
+  try {
+    const runtime = await createRuntime({ appDataRoot: tempRoot });
+
+    const mismatched = await runtime.storeTranslations({
+      requestId: 'STORE-MISMATCH',
+      contractVersion: '999',
+      sourceLanguage: 'EN',
+      targetLanguage: 'FR',
+      translations: [{ index: 0, sourceText: 'Restart service', targetText: 'Redemarrez le service' }]
+    });
+    assert.equal(mismatched.statusCode, 409);
+    assert.equal(mismatched.body.error.code, 'CONTRACT_VERSION_MISMATCH');
+
+    const matching = await runtime.storeTranslations({
+      requestId: 'STORE-MATCHING',
+      contractVersion: '1',
+      sourceLanguage: 'EN',
+      targetLanguage: 'FR',
+      translations: [{ index: 0, sourceText: 'Restart service', targetText: 'Redemarrez le service' }]
+    });
+    assert.equal(matching.statusCode, 200);
+    assert.equal(matching.body.storedCount, 1);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('runtime can bypass translation cache once for the next profile translation and then return to normal caching', async () => {
   const tempRoot = createTempAppRoot();
   let providerCalls = 0;

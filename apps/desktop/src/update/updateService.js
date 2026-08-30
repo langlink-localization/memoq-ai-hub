@@ -344,6 +344,7 @@ function createUpdateService(options = {}) {
       const parsed = JSON.parse(raw);
       return parsed && typeof parsed === 'object' ? parsed : {};
     } catch {
+      // Missing or corrupt persisted state restarts the update center from defaults.
       return {};
     }
   }

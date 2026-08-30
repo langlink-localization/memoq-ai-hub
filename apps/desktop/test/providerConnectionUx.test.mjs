@@ -1,12 +1,12 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
+import test from 'node:test';
+import assert from 'node:assert/strict';
 
-const {
+import {
   getEnabledModelCount,
   getProviderConnectionHelperText,
   isProviderConnectionTestDisabled,
   shouldSuggestModelDiscovery
-} = require('../src/renderer/src/providerConnectionUx');
+} from '../src/renderer/src/providerConnectionUx.mjs';
 
 function createTranslator() {
   const values = {

@@ -15,6 +15,7 @@ const { DEFAULT_HOST, DEFAULT_PORT, PRODUCT_NAME, CONTRACT_VERSION } = require('
 const { getAssetImportRules } = require('./asset/assetRules');
 const { getSupportedPlaceholders } = require('./shared/promptTemplate');
 const { readDesktopPackageMetadata } = require('./shared/desktopMetadata');
+const { createPreviewStatusPlaceholder, createUpdateCenterPlaceholder } = require('./shared/appStateDefaults');
 const { normalizeExternalHttpsUrl } = require('./shared/externalNavigation');
 const { buildWorkerForkOptions } = require('./workerLaunch');
 const { createWorkerSupervisor } = require('./workerSupervisor');
@@ -169,6 +170,12 @@ function buildPlaceholderAppState() {
     notices.push('The app is ready for first-time configuration.');
   }
 
+  const previewStatus = createPreviewStatusPlaceholder({
+    status: previewPlaceholderStatus,
+    statusMessage: previewPlaceholderStatus === 'starting' ? 'Waiting for memoQ startup.' : ''
+  });
+  const updateCenter = createUpdateCenterPlaceholder(versionMetadata.desktopVersion);
+
   return {
     productName: PRODUCT_NAME,
     contractVersion: CONTRACT_VERSION,
@@ -186,61 +193,13 @@ function buildPlaceholderAppState() {
         memoqInstallPath: integration.selectedInstallDir || integration.installations[0]?.rootDir || 'Not detected',
         pluginStatus: integration.status,
         connectionStatus,
-        previewStatus: {
-          status: previewPlaceholderStatus,
-          statusMessage: previewPlaceholderStatus === 'starting' ? 'Waiting for memoQ startup.' : '',
-          serviceBaseUrl: '',
-          sessionId: '',
-          callbackAddress: '',
-          connectedAt: '',
-          lastUpdatedAt: '',
-          lastError: '',
-          activePreviewPartId: '',
-          activePreviewPartCount: 0,
-          cachedPreviewPartCount: 0,
-          sourceDocumentName: '',
-          sourceDocumentGuid: ''
-        }
+        previewStatus
       },
-      updateCenter: {
-        currentVersion: versionMetadata.desktopVersion,
-        releaseChannel: 'stable',
-        packagingMode: 'portable',
-        updateStatus: 'idle',
-        latestVersion: '',
-        releaseNotes: '',
-        releaseNotesUrl: '',
-        publishedAt: '',
-        downloadedArtifactPath: '',
-        preparedDirectory: '',
-        lastCheckedAt: '',
-        lastError: '',
-        lastErrorCode: '',
-        manifestUrl: '',
-        pluginReinstallRecommended: true,
-        availableAssets: {
-          portable: null,
-          installer: null
-        }
-      },
+      updateCenter,
       notices
     },
     integration,
-    previewBridge: {
-      status: previewPlaceholderStatus,
-      statusMessage: previewPlaceholderStatus === 'starting' ? 'Waiting for memoQ startup.' : '',
-      serviceBaseUrl: '',
-      sessionId: '',
-      callbackAddress: '',
-      connectedAt: '',
-      lastUpdatedAt: '',
-      lastError: '',
-      activePreviewPartId: '',
-      activePreviewPartCount: 0,
-      cachedPreviewPartCount: 0,
-      sourceDocumentName: '',
-      sourceDocumentGuid: ''
-    },
+    previewBridge: previewStatus,
     contextBuilder: {
       profiles: [],
       defaultProfileId: '',
@@ -251,27 +210,7 @@ function buildPlaceholderAppState() {
     memoqMetadataMapping: { rules: [] },
     providerHub: { providers: [], summary: { enabled: 0, healthy: 0 } },
     historyExplorer: { items: [] },
-    updateCenter: {
-      currentVersion: versionMetadata.desktopVersion,
-      releaseChannel: 'stable',
-      packagingMode: 'portable',
-      updateStatus: 'idle',
-      latestVersion: '',
-      releaseNotes: '',
-      releaseNotesUrl: '',
-      publishedAt: '',
-      downloadedArtifactPath: '',
-      preparedDirectory: '',
-      lastCheckedAt: '',
-      lastError: '',
-      lastErrorCode: '',
-      manifestUrl: '',
-      pluginReinstallRecommended: true,
-      availableAssets: {
-        portable: null,
-        installer: null
-      }
-    },
+    updateCenter,
     quality: {
       enabled: true,
       aiDefaultEnabled: false,
@@ -493,6 +432,7 @@ function readQualityBounds() {
       };
     }
   } catch {
+    // Bounds file is absent or unreadable (typical first run) — use the default size.
   }
   return { width: 400, height: 560 };
 }

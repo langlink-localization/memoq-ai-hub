@@ -1,18 +1,27 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const { PRODUCT_NAME, CONTRACT_VERSION, DEFAULT_HOST, DEFAULT_PORT, ROUTES } = require('./shared/desktopContract');
+const { PRODUCT_NAME, CONTRACT_VERSION, DEFAULT_HOST, DEFAULT_PORT, ROUTES, ERROR_CODES } = require('./shared/desktopContract');
 const { readDesktopVersionFromPayload } = require('./shared/desktopMetadata');
 const { createAppPaths } = require('./shared/paths');
 const { createLogger } = require('./shared/logging');
 const { createGatewayGuard } = require('./gatewayGuard');
+const { validateGatewayPayload } = require('./gatewayRequestValidation');
 
 const gatewayLogger = createLogger({ source: 'gateway', logsDir: createAppPaths().logsDir });
 
-function createRuntimeRoute(runtimeMethod, defaultCode) {
+function createRuntimeRoute(runtimeMethod, defaultCode, routeKey = '') {
   return async (req, res) => {
     const startedAtMs = Date.now();
     try {
-      const result = await runtimeMethod(req.body || {});
+      const payload = req.body || {};
+      const validationProblem = validateGatewayPayload(routeKey, payload);
+      if (validationProblem) {
+        const error = new Error(validationProblem);
+        error.code = ERROR_CODES.requestPayloadInvalid;
+        error.statusCode = 400;
+        throw error;
+      }
+      const result = await runtimeMethod(payload);
       gatewayLogger.info('route-complete', 'Gateway route completed.', {
         method: req.method,
         path: req.path || req.url,
@@ -104,16 +113,16 @@ function createGatewayServer(runtime, options = {}) {
     res.json(runtime.getIntegrationStatus());
   });
 
-  app.post(ROUTES.integrationInstall, createRuntimeRoute((payload) => runtime.installIntegration(payload), 'INTEGRATION_FAILED'));
-  app.post(ROUTES.mtTranslate, createRuntimeRoute((payload) => runtime.translate(payload), 'TRANSLATION_FAILED'));
-  app.post(ROUTES.mtTranslateAggregate, createRuntimeRoute((payload) => runtime.submitAggregateTranslation(payload), 'TRANSLATION_FAILED'));
-  app.post(ROUTES.mtTranslateAggregateResult, createRuntimeRoute((payload) => runtime.waitAggregateTranslation(payload), 'TRANSLATION_FAILED'));
-  app.post(ROUTES.mtStoreTranslations, createRuntimeRoute((payload) => runtime.storeTranslations(payload), 'TRANSLATION_FAILED'));
+  app.post(ROUTES.integrationInstall, createRuntimeRoute((payload) => runtime.installIntegration(payload), 'INTEGRATION_FAILED', 'integrationInstall'));
+  app.post(ROUTES.mtTranslate, createRuntimeRoute((payload) => runtime.translate(payload), 'TRANSLATION_FAILED', 'mtTranslate'));
+  app.post(ROUTES.mtTranslateAggregate, createRuntimeRoute((payload) => runtime.submitAggregateTranslation(payload), 'TRANSLATION_FAILED', 'mtTranslateAggregate'));
+  app.post(ROUTES.mtTranslateAggregateResult, createRuntimeRoute((payload) => runtime.waitAggregateTranslation(payload), 'TRANSLATION_FAILED', 'mtTranslateAggregateResult'));
+  app.post(ROUTES.mtStoreTranslations, createRuntimeRoute((payload) => runtime.storeTranslations(payload), 'TRANSLATION_FAILED', 'mtStoreTranslations'));
   app.get(ROUTES.qaStatus, (_req, res) => res.json(runtime.getQaStatus()));
-  app.post(ROUTES.qaCheckSegment, createRuntimeRoute((payload) => runtime.checkQaSegment(payload), 'QA_CHECK_FAILED'));
-  app.post(ROUTES.qaCheckDocument, createRuntimeRoute((payload) => runtime.checkQaDocument(payload), 'QA_CHECK_FAILED'));
-  app.post(ROUTES.qaCancel, createRuntimeRoute((payload) => runtime.cancelQa(payload), 'QA_CANCEL_FAILED'));
-  app.post(ROUTES.qaFeedback, createRuntimeRoute((payload) => runtime.saveQaFeedback(payload), 'QA_FEEDBACK_FAILED'));
+  app.post(ROUTES.qaCheckSegment, createRuntimeRoute((payload) => runtime.checkQaSegment(payload), 'QA_CHECK_FAILED', 'qaCheckSegment'));
+  app.post(ROUTES.qaCheckDocument, createRuntimeRoute((payload) => runtime.checkQaDocument(payload), 'QA_CHECK_FAILED', 'qaCheckDocument'));
+  app.post(ROUTES.qaCancel, createRuntimeRoute((payload) => runtime.cancelQa(payload), 'QA_CANCEL_FAILED', 'qaCancel'));
+  app.post(ROUTES.qaFeedback, createRuntimeRoute((payload) => runtime.saveQaFeedback(payload), 'QA_FEEDBACK_FAILED', 'qaFeedback'));
   app.get(ROUTES.qaResults, (req, res) => res.json(runtime.getQaResults(req.params.documentId)));
 
   return { app };

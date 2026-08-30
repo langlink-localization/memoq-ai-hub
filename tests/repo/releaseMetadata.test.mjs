@@ -26,6 +26,16 @@ test('release metadata reads desktop package version as the release source of tr
   assert.match(currentDesktopVersion, /^\d+\.\d+\.\d+$/);
 });
 
+test('root package version tracks the desktop package version', () => {
+  const rootPackage = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+
+  assert.equal(
+    rootPackage.version,
+    currentDesktopVersion,
+    'root package.json must not drift from apps/desktop/package.json'
+  );
+});
+
 test('release metadata validates matching tags against desktop package version', () => {
   assert.deepEqual(validateReleaseTag(currentDesktopTag), {
     version: currentDesktopVersion,

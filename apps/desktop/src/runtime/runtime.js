@@ -50,7 +50,7 @@ const {
 } = require('./runtimePreviewStateSupport');
 const { createAdaptiveTranslationCacheKey } = require('./runtimeTranslationSupport');
 const {
-  createSchema,
+  applySchemaMigrations,
   createRuntimePersistence
 } = require('./runtimePersistence');
 const { createRuntimeProviderExecution } = require('./runtimeProviderExecution');
@@ -147,7 +147,7 @@ async function createRuntime(options = {}) {
     rescueConcurrency: aggregateRescueConcurrency
   });
   let gatewayReady = false;
-  createSchema(db);
+  applySchemaMigrations(db);
   const persistence = createRuntimePersistence(db, {
     nowIso,
     normalizeState
@@ -915,6 +915,22 @@ async function createRuntime(options = {}) {
     async storeTranslations(payload) {
       const requestId = payload.requestId || createId('store');
       const traceId = payload.traceId || createId('trace');
+
+      if (payload.contractVersion !== undefined && String(payload.contractVersion) !== CONTRACT_VERSION) {
+        return {
+          statusCode: 409,
+          body: {
+            success: false,
+            requestId,
+            traceId,
+            error: {
+              code: ERROR_CODES.contractVersionMismatch,
+              message: `Desktop contract version ${CONTRACT_VERSION} is required.`
+            }
+          }
+        };
+      }
+
       const sourceLanguage = String(payload.sourceLanguage || '').trim();
       const targetLanguage = String(payload.targetLanguage || '').trim();
       const requestType = String(payload.requestType || 'Plaintext').trim() || 'Plaintext';

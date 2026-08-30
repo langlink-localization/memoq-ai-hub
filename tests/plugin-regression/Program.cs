@@ -29,6 +29,7 @@ internal static class Program
             RunGatewayConcurrencyScenario();
             RunAggregateSubmitGateScenario();
             RunGatewayTimeoutConfigurationScenario();
+            RunContractVersionMismatchScenario();
             Console.WriteLine("Plugin regression passed: retry and fallback scenarios behaved as expected.");
             return 0;
         }
@@ -176,6 +177,90 @@ internal static class Program
         Assert((int)normalizeMethod.Invoke(null, new object[] { 360000 }) == 360000, "Expected explicit longer gateway timeouts to be preserved.");
     }
 
+    private static void RunContractVersionMismatchScenario()
+    {
+        var listener = new HttpListener();
+        var port = GetFreeTcpPort();
+        var prefix = $"http://127.0.0.1:{port}/";
+        listener.Prefixes.Add(prefix);
+        listener.Start();
+
+        Exception serverError = null;
+        var serverThread = new Thread(() =>
+        {
+            try
+            {
+                while (listener.IsListening)
+                {
+                    HttpListenerContext context;
+                    try
+                    {
+                        context = listener.GetContext();
+                    }
+                    catch (HttpListenerException)
+                    {
+                        return;
+                    }
+
+                    if (IsDesktopVersionRequest(context.Request))
+                    {
+                        WriteJsonResponse(
+                            context,
+                            "{\"productName\":\"memoQ AI Hub\",\"desktopVersion\":\"9.9.9-test\",\"contractVersion\":\"2\"}"
+                        );
+                        continue;
+                    }
+
+                    context.Response.StatusCode = 500;
+                    context.Response.OutputStream.Close();
+                }
+            }
+            catch (Exception error)
+            {
+                serverError = error;
+            }
+        });
+        serverThread.IsBackground = true;
+        serverThread.Start();
+
+        try
+        {
+            var session = new MemoQAIHubSession(
+                "zho",
+                "eng",
+                new MemoQAIHubOptions(
+                    new MemoQAIHubGeneralSettings
+                    {
+                        EnableGateway = true,
+                        GatewayBaseUrl = prefix.TrimEnd('/'),
+                        GatewayTimeoutMs = 10000,
+                        FormattingAndTagUsage = FormattingAndTagsUsageOption.Plaintext
+                    },
+                    new MemoQAIHubSecureSettings()
+                )
+            );
+
+            var results = session.TranslateCorrectSegment(segs: new[] { SegmentBuilder.CreateFromString("alpha") }, tmSources: null, tmTargets: null);
+            Assert(serverError == null, $"Contract version mismatch scenario server failed: {serverError}");
+            Assert(results.Length == 1, "Expected one translation result.");
+            Assert(results[0].Exception != null, "Expected the contract version mismatch to fail the segment.");
+            Assert(
+                results[0].Exception.Message.IndexOf("contract version mismatch", StringComparison.OrdinalIgnoreCase) >= 0,
+                $"Expected the exception to describe the contract version mismatch, got: {results[0].Exception.Message}"
+            );
+        }
+        finally
+        {
+            if (listener.IsListening)
+            {
+                listener.Stop();
+            }
+
+            listener.Close();
+            serverThread.Join(TimeSpan.FromSeconds(2));
+        }
+    }
+
     private static void RunGatewayConcurrencyScenario()
     {
         var listener = new HttpListener();
@@ -207,6 +292,15 @@ internal static class Program
                     catch (ObjectDisposedException)
                     {
                         return;
+                    }
+
+                    if (IsDesktopVersionRequest(context.Request))
+                    {
+                        WriteJsonResponse(
+                            context,
+                            "{\"productName\":\"memoQ AI Hub\",\"desktopVersion\":\"9.9.9-test\",\"contractVersion\":\"1\"}"
+                        );
+                        continue;
                     }
 
                     ThreadPool.QueueUserWorkItem(_ =>
@@ -348,6 +442,15 @@ internal static class Program
                     catch (ObjectDisposedException)
                     {
                         return;
+                    }
+
+                    if (IsDesktopVersionRequest(context.Request))
+                    {
+                        WriteJsonResponse(
+                            context,
+                            "{\"productName\":\"memoQ AI Hub\",\"desktopVersion\":\"9.9.9-test\",\"contractVersion\":\"1\"}"
+                        );
+                        continue;
                     }
 
                     ThreadPool.QueueUserWorkItem(_ =>
@@ -554,6 +657,15 @@ internal static class Program
 
                 using (var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding))
                 {
+                    if (IsDesktopVersionRequest(context.Request))
+                    {
+                        WriteJsonResponse(
+                            context,
+                            "{\"productName\":\"memoQ AI Hub\",\"desktopVersion\":\"9.9.9-test\",\"contractVersion\":\"1\"}"
+                        );
+                        continue;
+                    }
+
                     var requestBody = reader.ReadToEnd();
                     if (string.IsNullOrWhiteSpace(requestBody))
                     {
@@ -561,13 +673,7 @@ internal static class Program
                     }
 
                     var responseBody = responder(requestBody);
-                    var payload = Encoding.UTF8.GetBytes(responseBody);
-                    context.Response.StatusCode = 200;
-                    context.Response.ContentType = "application/json";
-                    context.Response.ContentEncoding = Encoding.UTF8;
-                    context.Response.ContentLength64 = payload.Length;
-                    context.Response.OutputStream.Write(payload, 0, payload.Length);
-                    context.Response.OutputStream.Close();
+                    WriteJsonResponse(context, responseBody);
                 }
             }
         }
@@ -575,6 +681,24 @@ internal static class Program
         {
             serverError = error;
         }
+    }
+
+    private static bool IsDesktopVersionRequest(HttpListenerRequest request)
+    {
+        return request.HttpMethod == "GET"
+            && (request.Url.AbsolutePath == "/desktop/version"
+                || request.Url.AbsolutePath.EndsWith("/desktop/version", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void WriteJsonResponse(HttpListenerContext context, string responseBody)
+    {
+        var payload = Encoding.UTF8.GetBytes(responseBody);
+        context.Response.StatusCode = 200;
+        context.Response.ContentType = "application/json";
+        context.Response.ContentEncoding = Encoding.UTF8;
+        context.Response.ContentLength64 = payload.Length;
+        context.Response.OutputStream.Write(payload, 0, payload.Length);
+        context.Response.OutputStream.Close();
     }
 
     private static string ExtractRequestType(string requestBody)

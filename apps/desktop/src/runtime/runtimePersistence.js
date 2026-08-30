@@ -5,6 +5,12 @@ const DOCUMENT_SUMMARY_CACHE_LIMIT = 300;
 const GLOBAL_STATE_ID = 'global';
 const QA_RETENTION_DAYS = 30;
 
+// Bump SCHEMA_VERSION and append a matching entry to SCHEMA_MIGRATIONS for every
+// change to existing tables. Fresh databases run createSchema() (always the full
+// current shape) and then replay pending migrations harmlessly; databases created
+// before user_version tracking start at 0 and receive every migration in order.
+const SCHEMA_VERSION = 1;
+
 function createSchema(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS app_state (id TEXT PRIMARY KEY, data_json TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -15,8 +21,27 @@ function createSchema(db) {
     CREATE TABLE IF NOT EXISTS mapping_rules (id TEXT PRIMARY KEY, rule_name TEXT NOT NULL, profile_id TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS providers (id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS provider_models (id TEXT PRIMARY KEY, provider_id TEXT NOT NULL, model_name TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS translation_history (id TEXT PRIMARY KEY, request_id TEXT NOT NULL, project_id TEXT DEFAULT '', subject TEXT DEFAULT '');
-    CREATE TABLE IF NOT EXISTS translation_history_segments (id TEXT PRIMARY KEY, history_id TEXT NOT NULL, segment_index INTEGER DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS translation_history (
+      id TEXT PRIMARY KEY,
+      request_id TEXT NOT NULL,
+      project_id TEXT DEFAULT '',
+      subject TEXT DEFAULT '',
+      provider_id TEXT DEFAULT '',
+      provider_name TEXT DEFAULT '',
+      model_name TEXT DEFAULT '',
+      status TEXT DEFAULT '',
+      submitted_at TEXT DEFAULT '',
+      completed_at TEXT DEFAULT '',
+      entry_json TEXT DEFAULT '{}'
+    );
+    CREATE TABLE IF NOT EXISTS translation_history_segments (
+      id TEXT PRIMARY KEY,
+      history_id TEXT NOT NULL,
+      segment_index INTEGER DEFAULT 0,
+      source_text TEXT DEFAULT '',
+      target_text TEXT DEFAULT '',
+      segment_json TEXT DEFAULT '{}'
+    );
     CREATE TABLE IF NOT EXISTS translation_cache (cache_key TEXT PRIMARY KEY, text_value TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS prompt_response_cache (cache_key TEXT PRIMARY KEY, text_value TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS document_summary_cache (cache_key TEXT PRIMARY KEY, text_value TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -40,17 +65,78 @@ function createSchema(db) {
       created_at TEXT NOT NULL
     );
   `);
+}
 
-  ensureColumn(db, 'translation_history', 'provider_id TEXT DEFAULT \'\'');
-  ensureColumn(db, 'translation_history', 'provider_name TEXT DEFAULT \'\'');
-  ensureColumn(db, 'translation_history', 'model_name TEXT DEFAULT \'\'');
-  ensureColumn(db, 'translation_history', 'status TEXT DEFAULT \'\'');
-  ensureColumn(db, 'translation_history', 'submitted_at TEXT DEFAULT \'\'');
-  ensureColumn(db, 'translation_history', 'completed_at TEXT DEFAULT \'\'');
-  ensureColumn(db, 'translation_history', 'entry_json TEXT DEFAULT \'{}\'');
-  ensureColumn(db, 'translation_history_segments', 'source_text TEXT DEFAULT \'\'');
-  ensureColumn(db, 'translation_history_segments', 'target_text TEXT DEFAULT \'\'');
-  ensureColumn(db, 'translation_history_segments', 'segment_json TEXT DEFAULT \'{}\'');
+const SCHEMA_MIGRATIONS = [
+  {
+    version: 1,
+    name: 'baseline-history-and-segment-columns',
+    up(db) {
+      ensureColumn(db, 'translation_history', 'provider_id TEXT DEFAULT \'\'');
+      ensureColumn(db, 'translation_history', 'provider_name TEXT DEFAULT \'\'');
+      ensureColumn(db, 'translation_history', 'model_name TEXT DEFAULT \'\'');
+      ensureColumn(db, 'translation_history', 'status TEXT DEFAULT \'\'');
+      ensureColumn(db, 'translation_history', 'submitted_at TEXT DEFAULT \'\'');
+      ensureColumn(db, 'translation_history', 'completed_at TEXT DEFAULT \'\'');
+      ensureColumn(db, 'translation_history', 'entry_json TEXT DEFAULT \'{}\'');
+      ensureColumn(db, 'translation_history_segments', 'source_text TEXT DEFAULT \'\'');
+      ensureColumn(db, 'translation_history_segments', 'target_text TEXT DEFAULT \'\'');
+      ensureColumn(db, 'translation_history_segments', 'segment_json TEXT DEFAULT \'{}\'');
+    }
+  }
+];
+
+function readUserVersion(db) {
+  const row = db.get('PRAGMA user_version');
+  const version = Number(row?.user_version ?? row?.value ?? 0);
+  return Number.isInteger(version) && version > 0 ? version : 0;
+}
+
+function writeUserVersion(db, version) {
+  db.exec(`PRAGMA user_version = ${Number(version)}`);
+}
+
+function applySchemaMigrations(db) {
+  const tableRow = db.get(
+    "SELECT COUNT(*) AS table_count FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+  );
+  const isFreshDatabase = Number(tableRow?.table_count || 0) === 0;
+
+  createSchema(db);
+  const currentVersion = readUserVersion(db);
+
+  if (currentVersion > SCHEMA_VERSION) {
+    const error = new Error(
+      `Desktop database schema version ${currentVersion} is newer than this app supports (${SCHEMA_VERSION}).`
+    );
+    error.code = 'SCHEMA_VERSION_TOO_NEW';
+    throw error;
+  }
+
+  if (isFreshDatabase) {
+    writeUserVersion(db, SCHEMA_VERSION);
+    return { migrated: false, fromVersion: 0, toVersion: SCHEMA_VERSION };
+  }
+
+  const pendingMigrations = SCHEMA_MIGRATIONS.filter(
+    (migration) => migration.version > currentVersion && migration.version <= SCHEMA_VERSION
+  );
+
+  if (!pendingMigrations.length) {
+    if (currentVersion !== SCHEMA_VERSION) {
+      writeUserVersion(db, SCHEMA_VERSION);
+    }
+    return { migrated: false, fromVersion: currentVersion, toVersion: SCHEMA_VERSION };
+  }
+
+  db.transaction(() => {
+    for (const migration of pendingMigrations) {
+      migration.up(db);
+      writeUserVersion(db, migration.version);
+    }
+  });
+
+  return { migrated: true, fromVersion: currentVersion, toVersion: SCHEMA_VERSION };
 }
 
 function createInitialState() {
@@ -694,8 +780,10 @@ function createRuntimePersistence(db, { nowIso, normalizeState }) {
 }
 
 module.exports = {
+  applySchemaMigrations,
   createSchema,
   createInitialState,
   createRuntimePersistence,
+  SCHEMA_VERSION,
   QA_RETENTION_DAYS
 };

@@ -54,7 +54,8 @@ function createMainSecretService(options = {}) {
   function readState() {
     try {
       return JSON.parse(fs.readFileSync(storePath, 'utf8')) || {};
-    } catch {
+    } catch (error) {
+      logger.warn('secret-store-read-failed', 'Provider secret store was unreadable; starting from an empty store.', { error: error?.message });
       return {};
     }
   }
@@ -69,6 +70,7 @@ function createMainSecretService(options = {}) {
       try {
         fs.rmSync(temporaryPath, { force: true });
       } catch {
+        // Temp-file cleanup is best-effort; the store itself was already renamed into place.
       }
     }
   }

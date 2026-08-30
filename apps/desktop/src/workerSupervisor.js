@@ -71,6 +71,7 @@ function createWorkerSupervisor(options = {}) {
     try {
       worker?.send?.(message);
     } catch {
+      // The worker may be mid-exit; dropped messages are covered by pending-request rejection.
     }
   }
 
@@ -135,6 +136,7 @@ function createWorkerSupervisor(options = {}) {
     try {
       exitingWorker.kill();
     } catch {
+      // Process may already be gone; exit handling continues below.
     }
   }
 
@@ -410,6 +412,7 @@ function createWorkerSupervisor(options = {}) {
         payload: null
       });
     } catch {
+      // Graceful shutdown is best-effort; the kill timer below enforces the deadline.
     }
 
     const killTimer = timers.setTimeout(() => {

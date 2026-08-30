@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
@@ -12,6 +13,72 @@ namespace MemoQAIHubPlugin
     {
         private const int MinimumGatewayTimeoutMs = 120000;
         private static readonly HttpClient HttpClient = CreateHttpClient();
+        private static readonly ConcurrentDictionary<string, byte> VerifiedContractVersions = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
+        private static readonly object HandshakeLock = new object();
+
+        // Two-way contract handshake: the plugin stamps its expected contract
+        // version into requests, and before the first gateway call it verifies
+        // the desktop actually speaks the same version. Mismatches fail fast
+        // with an actionable message instead of opaque per-segment errors.
+        // The lock keeps concurrent first calls to one single verification.
+        public static void EnsureContractVersion(string baseUrl, Action<string> log)
+        {
+            var normalizedBaseUrl = (baseUrl ?? string.Empty).Trim();
+            if (VerifiedContractVersions.ContainsKey(normalizedBaseUrl))
+            {
+                return;
+            }
+
+            lock (HandshakeLock)
+            {
+                if (VerifiedContractVersions.ContainsKey(normalizedBaseUrl))
+                {
+                    return;
+                }
+
+                var remoteVersion = GetDesktopContractVersion(normalizedBaseUrl);
+                if (!string.Equals(remoteVersion, MemoQAIHubContract.Version, StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        "memoQ AI Hub desktop contract version mismatch: the plugin expects contract version "
+                        + MemoQAIHubContract.Version
+                        + " but the desktop gateway reported '"
+                        + (string.IsNullOrWhiteSpace(remoteVersion) ? "unknown" : remoteVersion)
+                        + "'. Update the memoQ AI Hub desktop app and plugin to matching versions."
+                    );
+                }
+
+                VerifiedContractVersions.TryAdd(normalizedBaseUrl, 0);
+                log?.Invoke($"Desktop contract handshake ok baseUrl={normalizedBaseUrl} contractVersion={remoteVersion}");
+            }
+        }
+
+        private static string GetDesktopContractVersion(string baseUrl)
+        {
+            var serializer = new JavaScriptSerializer();
+            using (var timeoutCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(MemoQAIHubContract.HandshakeTimeoutMs)))
+            using (var request = new HttpRequestMessage(HttpMethod.Get, baseUrl.TrimEnd('/') + MemoQAIHubContract.DesktopVersionPath))
+            {
+                try
+                {
+                    using (var response = HttpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, timeoutCts.Token).GetAwaiter().GetResult())
+                    {
+                        var text = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            throw new HttpRequestException(BuildHttpErrorMessage(response, text));
+                        }
+
+                        var versionResponse = serializer.Deserialize<MemoQAIHubDesktopVersionResponse>(text);
+                        return versionResponse?.contractVersion ?? string.Empty;
+                    }
+                }
+                catch (TaskCanceledException error) when (timeoutCts.IsCancellationRequested)
+                {
+                    throw new TimeoutException("Desktop version handshake timed out after " + MemoQAIHubContract.HandshakeTimeoutMs + " ms.", error);
+                }
+            }
+        }
 
         public static MemoQAIHubTranslateResponse Translate(string baseUrl, int timeoutMs, MemoQAIHubTranslateRequest payload)
         {
@@ -189,6 +256,7 @@ namespace MemoQAIHubPlugin
     {
         public string requestId { get; set; }
         public string traceId { get; set; }
+        public string contractVersion { get; set; }
         public string sourceLanguage { get; set; }
         public string targetLanguage { get; set; }
         public string requestType { get; set; }
@@ -224,5 +292,12 @@ namespace MemoQAIHubPlugin
     {
         public string code { get; set; }
         public string message { get; set; }
+    }
+
+    internal class MemoQAIHubDesktopVersionResponse
+    {
+        public string productName { get; set; }
+        public string desktopVersion { get; set; }
+        public string contractVersion { get; set; }
     }
 }

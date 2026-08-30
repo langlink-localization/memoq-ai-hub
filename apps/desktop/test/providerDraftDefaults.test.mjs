@@ -1,7 +1,7 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
+import test from 'node:test';
+import assert from 'node:assert/strict';
 
-const { getProviderDraftSeed } = require('../src/renderer/src/providerDraftDefaults');
+import { getProviderDraftSeed } from '../src/renderer/src/providerDraftDefaults.mjs';
 
 test('compatible provider drafts avoid OpenAI-native model defaults', () => {
   const seed = getProviderDraftSeed('openai-compatible');

@@ -97,6 +97,7 @@ export function writeShellState(storage, value) {
   try {
     storage?.setItem?.(SHELL_STORAGE_KEY, JSON.stringify(normalized));
   } catch {
+    // Storage can reject (quota/private mode); the shell state still applies for this session.
   }
   return normalized;
 }

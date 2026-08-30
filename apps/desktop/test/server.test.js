@@ -99,7 +99,13 @@ test('gateway aggregate submit success passes through runtime status and body', 
     const response = await fetch(`${baseUrl}${ROUTES.mtTranslateAggregate}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ requestId: 'req-agg-1' })
+      body: JSON.stringify({
+        requestId: 'req-agg-1',
+        contractVersion: '1',
+        sourceLanguage: 'EN',
+        targetLanguage: 'FR',
+        segments: [{ index: 0, text: 'Hello' }]
+      })
     });
     const payload = await response.json();
 
@@ -168,7 +174,13 @@ test('gateway translate success still passes through runtime status and body', a
     const response = await fetch(`${baseUrl}${ROUTES.mtTranslate}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ requestId: 'req-1' })
+      body: JSON.stringify({
+        requestId: 'req-1',
+        contractVersion: '1',
+        sourceLanguage: 'EN',
+        targetLanguage: 'FR',
+        segments: [{ index: 0, text: 'Hello' }]
+      })
     });
     const payload = await response.json();
 
@@ -198,7 +210,12 @@ test('gateway translate wraps runtime exceptions in a stable JSON error body', a
     const response = await fetch(`${baseUrl}${ROUTES.mtTranslate}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({})
+      body: JSON.stringify({
+        contractVersion: '1',
+        sourceLanguage: 'EN',
+        targetLanguage: 'FR',
+        segments: [{ index: 0, text: 'Hello' }]
+      })
     });
     const payload = await response.json();
 
@@ -228,7 +245,13 @@ test('gateway storeTranslations uses the translation failure contract for thrown
     const response = await fetch(`${baseUrl}${ROUTES.mtStoreTranslations}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({})
+      body: JSON.stringify({
+        requestId: 'store-1',
+        contractVersion: '1',
+        sourceLanguage: 'EN',
+        targetLanguage: 'FR',
+        translations: [{ index: 0, sourceText: 'a', targetText: 'b' }]
+      })
     });
     const payload = await response.json();
 
@@ -326,6 +349,86 @@ test('gateway normalizes oversized JSON without invoking the runtime', async () 
       error: { code: 'REQUEST_BODY_TOO_LARGE', message: 'The request body exceeds the 10 MB limit.' }
     });
     assert.equal(calls, 0);
+  } finally {
+    await close(server);
+  }
+});
+
+test('gateway rejects invalid mt payloads with a typed 400 before reaching the runtime', async () => {
+  let calls = 0;
+  const runtime = createRuntimeStub({
+    async translate() {
+      calls += 1;
+      return { statusCode: 200, body: { success: true } };
+    }
+  });
+  const { app } = createGatewayServer(runtime, { guard: false });
+  const { server, baseUrl } = await listen(app);
+  try {
+    const response = await fetch(`${baseUrl}${ROUTES.mtTranslate}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ contractVersion: '1', sourceLanguage: 'EN', targetLanguage: 'FR' })
+    });
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.equal(payload.success, false);
+    assert.equal(payload.error.code, 'REQUEST_PAYLOAD_INVALID');
+    assert.match(payload.error.message, /segments/);
+    assert.equal(calls, 0);
+  } finally {
+    await close(server);
+  }
+});
+
+test('gateway rejects non-object bodies on routes without dedicated validators', async () => {
+  let calls = 0;
+  const runtime = createRuntimeStub({
+    async checkQaDocument() {
+      calls += 1;
+      return { statusCode: 200, body: { success: true } };
+    }
+  });
+  const { app } = createGatewayServer(runtime, { guard: false });
+  const { server, baseUrl } = await listen(app);
+  try {
+    const response = await fetch(`${baseUrl}${ROUTES.qaCheckDocument}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(['not', 'an', 'object'])
+    });
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.equal(payload.error.code, 'REQUEST_PAYLOAD_INVALID');
+    assert.match(payload.error.message, /JSON object/);
+    assert.equal(calls, 0);
+  } finally {
+    await close(server);
+  }
+});
+
+test('gateway passes valid store-translations payloads through to the runtime', async () => {
+  const runtime = createRuntimeStub({
+    async storeTranslations(payload) {
+      return { statusCode: 200, body: { success: true, storedCount: payload.translations.length } };
+    }
+  });
+  const { app } = createGatewayServer(runtime, { guard: false });
+  const { server, baseUrl } = await listen(app);
+  try {
+    const response = await fetch(`${baseUrl}${ROUTES.mtStoreTranslations}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        requestId: 'store-1',
+        contractVersion: '1',
+        sourceLanguage: 'EN',
+        targetLanguage: 'FR',
+        translations: [{ index: 0, sourceText: 'a', targetText: 'b' }]
+      })
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { success: true, storedCount: 1 });
   } finally {
     await close(server);
   }

@@ -71,6 +71,10 @@ namespace MemoQAIHubPlugin
             try
             {
                 MemoQAIHubCapabilityGate.EnsureLookupConfigured(_options);
+                MemoQAIHubServiceHelper.EnsureContractVersion(
+                    _options.GeneralSettings.GatewayBaseUrl,
+                    MemoQAIHubPluginLogger.Log
+                );
                 TranslateBatch(segs, tmSources, tmTargets, metadata, formattingMode, results);
                 RetryFailedSegmentsIndividually(segs, tmSources, tmTargets, metadata, formattingMode, results);
             }
@@ -343,12 +347,17 @@ namespace MemoQAIHubPlugin
             }
 
             MemoQAIHubCapabilityGate.EnsureLookupConfigured(_options);
+            MemoQAIHubServiceHelper.EnsureContractVersion(
+                _options.GeneralSettings.GatewayBaseUrl,
+                MemoQAIHubPluginLogger.Log
+            );
 
             var formattingMode = _options.GeneralSettings.FormattingAndTagUsage;
             var request = new MemoQAIHubStoreTranslationsRequest
             {
                 requestId = Guid.NewGuid().ToString("N"),
                 traceId = Guid.NewGuid().ToString("N"),
+                contractVersion = MemoQAIHubContract.Version,
                 sourceLanguage = _sourceLangCode,
                 targetLanguage = _targetLangCode,
                 requestType = MemoQAIHubRequestMapper.BuildRequestType(formattingMode),

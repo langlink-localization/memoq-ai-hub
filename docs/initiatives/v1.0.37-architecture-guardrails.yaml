@@ -1,0 +1,31 @@
+id: v1.0.37-architecture-guardrails
+title: memoQ AI Hub v1.0.37 architecture guardrails closeout
+status: shipped
+owner: repository maintainers
+repos:
+  - path: ../..
+    role: source-of-truth
+source_plan: none
+spec_link: none
+github_links:
+  project: none
+  issues: []
+current_stage: complete
+last_verified_commit: "memoq-ai-hub@v1.0.37"
+next_action: none
+allowed_interruptions:
+  - emergency production fix
+  - security or data correctness issue
+drift_guard:
+  ui_contract: docs/ui-governance.md
+  toolchain_contract: AGENTS.md, package.json, and .github/workflows/ci.yml
+  validation_command: pnpm run lint && pnpm run test:desktop && pnpm run test:repo && pnpm run test:antd && pnpm run build:plugin && pnpm run test:plugin && pnpm run prepare:release && pnpm run package:windows
+  source_of_truth: repository main branch, GitHub Actions, release tag, stable update manifest, and published release assets
+intentional_divergences: []
+resume_prompt: >
+  This initiative is complete. It delivered single-sourced renderer logic modules,
+  a shared placeholder app-state source, a two-way plugin/gateway contract-version
+  handshake, gateway payload shape validation, and versioned database schema
+  migrations. For later App shell, IPC surface, or runtime composition-root
+  decomposition, create a new focused initiative and keep the zero-warning lint
+  gate and public contracts intact.

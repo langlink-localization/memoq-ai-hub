@@ -40,7 +40,7 @@ namespace MemoQAIHubPlugin
                 traceId = Guid.NewGuid().ToString("N"),
                 @interface = "mt",
                 pluginVersion = typeof(MemoQAIHubSession).Assembly.GetName().Version.ToString(),
-                contractVersion = "1",
+                contractVersion = MemoQAIHubContract.Version,
                 sourceLanguage = _sourceLangCode,
                 targetLanguage = _targetLangCode,
                 requestType = BuildRequestType(formattingMode),
