@@ -7,7 +7,6 @@ const { createAppPaths } = require('./shared/paths');
 const {
   DEFAULT_LOG_POLICY,
   createLogger,
-  getLogState,
   pruneLogs
 } = require('./shared/logging');
 const { getIntegrationStatus } = require('./integration/integrationService');
@@ -16,7 +15,7 @@ const { getAssetImportRules } = require('./asset/assetRules');
 const { getSupportedPlaceholders } = require('./shared/promptTemplate');
 const { readDesktopPackageMetadata } = require('./shared/desktopMetadata');
 const { createPreviewStatusPlaceholder, createUpdateCenterPlaceholder } = require('./shared/appStateDefaults');
-const { normalizeExternalHttpsUrl } = require('./shared/externalNavigation');
+const { createRendererIpcRegistrar } = require('./mainIpcRegistrar');
 const { buildWorkerForkOptions } = require('./workerLaunch');
 const { createWorkerSupervisor } = require('./workerSupervisor');
 const { getWorkerRequestTimeoutMs } = require('./workerRequestPolicy');
@@ -482,321 +481,26 @@ function createQualityWindow() {
   return qualityWindow;
 }
 
-function registerIpcHandlers() {
-  ipcMain.handle('desktop:get-gateway-base-url', () => `http://${DEFAULT_HOST}:${DEFAULT_PORT}`);
-  ipcMain.handle('desktop:get-log-state', () => getLogState(appPaths.logsDir, DEFAULT_LOG_POLICY));
-  ipcMain.handle('desktop:prune-logs', () => pruneLogs(appPaths.logsDir, DEFAULT_LOG_POLICY));
-  ipcMain.handle('desktop:record-renderer-log', (_event, payload) => {
-    const level = String(payload?.level || 'info').toLowerCase();
-    const event = String(payload?.event || 'renderer-event');
-    const messageText = String(payload?.message || '');
-    const data = payload?.data && typeof payload.data === 'object' ? payload.data : {};
-
-    if (level === 'error') {
-      rendererLogger.error(event, messageText, data);
-    } else if (level === 'warn') {
-      rendererLogger.warn(event, messageText, data);
-    } else if (level === 'debug') {
-      rendererLogger.debug(event, messageText, data);
-    } else {
-      rendererLogger.info(event, messageText, data);
-    }
-
-    return { ok: true };
-  });
-  ipcMain.handle('desktop:get-app-state', (_event, filters) => {
-    if (startupState.status !== 'ready') {
-      return buildPlaceholderAppState();
-    }
-
-    return invokeWorker('getAppState', filters || {});
-  });
-  ipcMain.handle('desktop:get-history-entry', (_event, entryId) => {
-    requireWorkerReady();
-    return invokeWorker('getHistoryEntry', { entryId });
-  });
-  ipcMain.handle('desktop:save-profile', (_event, profile) => {
-    requireWorkerReady();
-    return invokeWorker('saveProfile', profile || {});
-  });
-  ipcMain.handle('desktop:save-prompt-preset', (_event, payload) => {
-    requireWorkerReady();
-    return invokeWorker('savePromptPreset', payload || {});
-  });
-  ipcMain.handle('desktop:delete-prompt-preset', (_event, presetId) => {
-    requireWorkerReady();
-    return invokeWorker('deletePromptPreset', { presetId });
-  });
-  ipcMain.handle('desktop:restore-builtin-prompt-preset', (_event, presetId) => {
-    requireWorkerReady();
-    return invokeWorker('restoreBuiltinPromptPreset', { presetId });
-  });
-  ipcMain.handle('desktop:set-default-profile', (_event, profileId) => {
-    requireWorkerReady();
-    return invokeWorker('setDefaultProfile', profileId);
-  });
-  ipcMain.handle('desktop:duplicate-profile', (_event, profileId) => {
-    requireWorkerReady();
-    return invokeWorker('duplicateProfile', profileId);
-  });
-  ipcMain.handle('desktop:delete-profile', (_event, profileId) => {
-    requireWorkerReady();
-    return invokeWorker('deleteProfile', profileId);
-  });
-  ipcMain.handle('desktop:save-rule', (_event, rule) => {
-    requireWorkerReady();
-    return invokeWorker('saveRule', rule || {});
-  });
-  ipcMain.handle('desktop:delete-rule', (_event, ruleId) => {
-    requireWorkerReady();
-    return invokeWorker('deleteRule', ruleId);
-  });
-  ipcMain.handle('desktop:test-match', (_event, metadata) => {
-    requireWorkerReady();
-    return invokeWorker('testMatch', metadata || {});
-  });
-  ipcMain.handle('desktop:save-provider', (_event, provider) => {
-    requireWorkerReady();
-    return invokeWorker('saveProvider', provider || {});
-  });
-  ipcMain.handle('desktop:delete-provider', (_event, providerId) => {
-    requireWorkerReady();
-    return invokeWorker('deleteProvider', providerId);
-  });
-  ipcMain.handle('desktop:delete-provider-model', (_event, providerId, modelId) => {
-    requireWorkerReady();
-    return invokeWorker('deleteProviderModel', { providerId, modelId });
-  });
-  ipcMain.handle('desktop:test-provider', (_event, providerId) => {
-    requireWorkerReady();
-    return invokeWorker('testProvider', providerId);
-  });
-  ipcMain.handle('desktop:test-provider-draft', (_event, providerDraft) => {
-    requireWorkerReady();
-    return invokeWorker('testProviderDraft', providerDraft || {});
-  });
-  ipcMain.handle('desktop:discover-provider-models', (_event, providerDraft) => {
-    requireWorkerReady();
-    return invokeWorker('discoverProviderModels', providerDraft || {});
-  });
-  ipcMain.handle('desktop:get-integration-status', () => {
-    if (startupState.status !== 'ready') {
-      return buildPlaceholderAppState().integration;
-    }
-
-    return invokeWorker('getIntegrationStatus');
-  });
-  ipcMain.handle('desktop:install-integration', (_event, config) => {
-    requireWorkerReady();
-    return invokeWorker('installIntegration', config || {});
-  });
-  ipcMain.handle('desktop:export-history', (_event, options) => {
-    requireWorkerReady();
-    return invokeWorker('exportHistory', options || {});
-  });
-  ipcMain.handle('desktop:delete-history-entries', (_event, entryIds) => {
-    requireWorkerReady();
-    return invokeWorker('deleteHistoryEntries', { entryIds: Array.isArray(entryIds) ? entryIds : [] });
-  });
-  ipcMain.handle('desktop:bypass-translation-cache-once', (_event, profileId) => {
-    requireWorkerReady();
-    return invokeWorker('bypassTranslationCacheOnce', { profileId });
-  });
-  ipcMain.handle('desktop:clear-translation-cache', () => {
-    requireWorkerReady();
-    return invokeWorker('clearTranslationCache');
-  });
-  ipcMain.handle('desktop:get-qa-status', () => {
-    requireWorkerReady();
-    return invokeWorker('getQaStatus');
-  });
-  ipcMain.handle('desktop:check-qa-segment', (_event, payload) => {
-    requireWorkerReady();
-    return invokeWorker('checkQaSegment', payload || {});
-  });
-  ipcMain.handle('desktop:check-qa-document', (_event, payload) => {
-    requireWorkerReady();
-    return invokeWorker('checkQaDocument', payload || {});
-  });
-  ipcMain.handle('desktop:cancel-qa', (_event, payload) => {
-    requireWorkerReady();
-    return invokeWorker('cancelQa', payload || {});
-  });
-  ipcMain.handle('desktop:save-qa-feedback', (_event, payload) => {
-    requireWorkerReady();
-    return invokeWorker('saveQaFeedback', payload || {});
-  });
-  ipcMain.handle('desktop:get-qa-results', (_event, documentId) => {
-    requireWorkerReady();
-    return invokeWorker('getQaResults', { documentId });
-  });
-  ipcMain.handle('desktop:get-qa-history', (_event, filters) => {
-    requireWorkerReady();
-    return invokeWorker('getQaHistory', filters || {});
-  });
-  ipcMain.handle('desktop:get-qa-history-entry', (_event, requestId) => {
-    requireWorkerReady();
-    return invokeWorker('getQaHistoryEntry', { requestId });
-  });
-  ipcMain.handle('desktop:delete-qa-history', (_event, requestIds) => {
-    requireWorkerReady();
-    return invokeWorker('deleteQaHistory', { requestIds: Array.isArray(requestIds) ? requestIds : [] });
-  });
-  ipcMain.handle('desktop:export-qa-history', (_event, options) => {
-    requireWorkerReady();
-    return invokeWorker('exportQaHistory', options || {});
-  });
-  ipcMain.handle('desktop:import-bilingual-qa', async (_event, payload) => {
-    const result = await dialog.showOpenDialog(mainWindow, {
-      title: 'Select an MQXLIFF or XLIFF file to inspect',
-      properties: ['openFile'],
-      filters: [{ name: 'Bilingual files', extensions: ['mqxliff', 'xlf', 'xliff'] }]
-    });
-    if (result.canceled || !result.filePaths.length) return null;
-    requireWorkerReady();
-    return invokeWorker('inspectBilingualFile', { ...(payload || {}), filePath: result.filePaths[0] });
-  });
-  ipcMain.handle('desktop:open-quality-window', () => {
-    createQualityWindow();
-    return { ok: true };
-  });
-  ipcMain.handle('desktop:open-assistant-window', () => {
-    createQualityWindow();
-    return { ok: true };
-  });
-  ipcMain.handle('desktop:run-preview-assistant', (_event, payload) => {
-    requireWorkerReady();
-    return invokeWorker('runPreviewAssistant', payload || {});
-  });
-  ipcMain.handle('desktop:cancel-preview-assistant', (_event, payload) => {
-    requireWorkerReady();
-    return invokeWorker('cancelPreviewAssistant', payload || {});
-  });
-  ipcMain.handle('desktop:copy-text', (_event, value) => {
-    clipboard.writeText(String(value || ''));
-    return { ok: true };
-  });
-  ipcMain.handle('desktop:get-update-status', () => {
-    requireWorkerReady();
-    return invokeWorker('getUpdateStatus');
-  });
-  ipcMain.handle('desktop:check-for-updates', (_event, payload) => {
-    requireWorkerReady();
-    return invokeWorker('checkForUpdates', payload || {});
-  });
-  ipcMain.handle('desktop:download-portable-update', (_event, payload) => {
-    requireWorkerReady();
-    return invokeWorker('downloadPortableUpdate', payload || {});
-  });
-  ipcMain.handle('desktop:download-installer-update', (_event, payload) => {
-    requireWorkerReady();
-    return invokeWorker('downloadInstallerUpdate', payload || {});
-  });
-  ipcMain.handle('desktop:prepare-portable-update', (_event, payload) => {
-    requireWorkerReady();
-    return invokeWorker('preparePortableUpdate', payload || {});
-  });
-  ipcMain.handle('desktop:test-handshake', () => {
-    requireWorkerReady();
-    return invokeWorker('testHandshake');
-  });
-  ipcMain.handle('desktop:open-path', async (_event, targetPath) => {
-    const normalizedPath = String(targetPath || '').trim();
-    if (!normalizedPath) {
-      return { ok: false, opened: false };
-    }
-    const openError = await shell.openPath(normalizedPath);
-    if (openError) {
-      throw new Error(openError);
-    }
-    return { ok: true, opened: true, targetPath: normalizedPath };
-  });
-  ipcMain.handle('desktop:show-item-in-folder', (_event, targetPath) => {
-    const normalizedPath = String(targetPath || '').trim();
-    if (!normalizedPath) {
-      return { ok: false, revealed: false };
-    }
-    shell.showItemInFolder(normalizedPath);
-    return { ok: true, revealed: true, targetPath: normalizedPath };
-  });
-  ipcMain.handle('desktop:open-external-url', async (_event, url) => {
-    const requestedUrl = String(url || '').trim();
-    if (!requestedUrl) {
-      return { ok: false, opened: false };
-    }
-    const normalizedUrl = normalizeExternalHttpsUrl(requestedUrl);
-    await shell.openExternal(normalizedUrl);
-    return { ok: true, opened: true, url: normalizedUrl };
-  });
-  ipcMain.handle('desktop:launch-downloaded-installer-update', async (_event, installerPath) => {
-    const normalizedPath = String(installerPath || '').trim();
-    if (!normalizedPath) {
-      throw new Error('Installer path is required.');
-    }
-
-    const verification = await invokeWorker('verifyDownloadedInstallerUpdate', {
-      installerPath: normalizedPath
-    });
-    const verifiedInstallerPath = String(verification?.installerPath || '').trim();
-    if (verification?.ok !== true || !verifiedInstallerPath) {
-      throw new Error('Downloaded installer integrity verification failed.');
-    }
-
-    const openError = await shell.openPath(verifiedInstallerPath);
-    if (openError) {
-      throw new Error(openError);
-    }
-
+const registerIpcHandlers = createRendererIpcRegistrar({
+  ipcMain,
+  dialog,
+  shell,
+  clipboard,
+  appPaths,
+  rendererLogger,
+  gatewayBaseUrl: `http://${DEFAULT_HOST}:${DEFAULT_PORT}`,
+  getMainWindow: () => mainWindow,
+  getStartupState: () => startupState,
+  buildPlaceholderAppState,
+  requireWorkerReady,
+  invokeWorker,
+  createQualityWindow,
+  requestQuit: () => {
     setImmediate(() => {
       app.quit();
     });
-    return { ok: true, launched: true, installerPath: verifiedInstallerPath };
-  });
-  ipcMain.handle('desktop:pick-directory', async () => {
-    const result = await dialog.showOpenDialog(mainWindow, {
-      title: 'Select memoQ installation folder',
-      properties: ['openDirectory']
-    });
-
-    if (result.canceled || !result.filePaths.length) {
-      return null;
-    }
-
-    return result.filePaths[0];
-  });
-  ipcMain.handle('desktop:import-asset', async (_event, assetType) => {
-    const result = await dialog.showOpenDialog(mainWindow, {
-      title: 'Select an asset file to import',
-      properties: ['openFile']
-    });
-
-    if (result.canceled || !result.filePaths.length) {
-      return null;
-    }
-
-    requireWorkerReady();
-    return invokeWorker('importAsset', {
-      assetType,
-      sourcePath: result.filePaths[0]
-    });
-  });
-  ipcMain.handle('desktop:get-asset-preview', (_event, payload) => {
-    requireWorkerReady();
-    return invokeWorker('getAssetPreview', payload || {});
-  });
-  ipcMain.handle('desktop:apply-asset-tb-structure', (_event, payload) => {
-    requireWorkerReady();
-    return invokeWorker('applyAssetTbStructure', payload || {});
-  });
-  ipcMain.handle('desktop:save-asset-tb-config', (_event, payload) => {
-    requireWorkerReady();
-    return invokeWorker('saveAssetTbConfig', payload || {});
-  });
-  ipcMain.handle('desktop:delete-asset', (_event, assetId) => {
-    requireWorkerReady();
-    return invokeWorker('deleteAsset', assetId);
-  });
-}
+  }
+});
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();

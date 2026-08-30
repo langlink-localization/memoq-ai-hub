@@ -3,15 +3,22 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
+function readPreloadSurfaceSource() {
+  return [
+    fs.readFileSync(path.resolve(__dirname, '../src/preload.js'), 'utf8'),
+    fs.readFileSync(path.resolve(__dirname, '../src/rendererIpcSurface.js'), 'utf8')
+  ].join('\n');
+}
+
 test('preload exposes log diagnostics actions', () => {
-  const source = fs.readFileSync(path.resolve(__dirname, '../src/preload.js'), 'utf8');
+  const source = readPreloadSurfaceSource();
   assert.match(source, /getLogState/);
   assert.match(source, /pruneLogs/);
   assert.match(source, /recordRendererLog/);
 });
 
 test('preload exposes only explicit quality-check operations', () => {
-  const source = fs.readFileSync(path.resolve(__dirname, '../src/preload.js'), 'utf8');
+  const source = readPreloadSurfaceSource();
   ['getQaStatus', 'checkQaSegment', 'checkQaDocument', 'cancelQa', 'saveQaFeedback', 'getQaResults', 'getQaHistory', 'getQaHistoryEntry', 'deleteQaHistory', 'exportQaHistory', 'importBilingualQa', 'openQualityWindow', 'openAssistantWindow', 'runPreviewAssistant', 'cancelPreviewAssistant', 'copyText', 'savePromptPreset', 'deletePromptPreset', 'restoreBuiltinPromptPreset'].forEach((name) => assert.match(source, new RegExp(`\\b${name}:`)));
 });
 
@@ -64,10 +71,10 @@ test('quality surfaces share the persisted finding review workflow without addin
 });
 
 test('main process registers log diagnostics IPC handlers', () => {
-  const source = fs.readFileSync(path.resolve(__dirname, '../src/main.js'), 'utf8');
-  assert.match(source, /desktop:get-log-state/);
-  assert.match(source, /desktop:prune-logs/);
-  assert.match(source, /desktop:record-renderer-log/);
+  const source = fs.readFileSync(path.resolve(__dirname, '../src/mainIpcRegistrar.js'), 'utf8');
+  assert.match(source, /MAIN_LOCAL_METHODS\.getLogState\.channel/);
+  assert.match(source, /MAIN_LOCAL_METHODS\.pruneLogs\.channel/);
+  assert.match(source, /MAIN_LOCAL_METHODS\.recordRendererLog\.channel/);
 });
 
 test('main process consumes the Electron 43 console-message details event', () => {
@@ -87,16 +94,16 @@ test('main window supports the governed drawer breakpoint and content-width sizi
 });
 
 test('main process validates external URLs before invoking the operating system', () => {
-  const source = fs.readFileSync(path.resolve(__dirname, '../src/main.js'), 'utf8');
+  const source = fs.readFileSync(path.resolve(__dirname, '../src/mainIpcRegistrar.js'), 'utf8');
   assert.match(source, /normalizeExternalHttpsUrl\(requestedUrl\)/);
   assert.match(source, /shell\.openExternal\(normalizedUrl\)/);
   assert.doesNotMatch(source, /shell\.openExternal\(requestedUrl\)/);
 });
 
 test('main process re-verifies downloaded installers before invoking the operating system', () => {
-  const source = fs.readFileSync(path.resolve(__dirname, '../src/main.js'), 'utf8');
-  const handlerStart = source.indexOf("ipcMain.handle('desktop:launch-downloaded-installer-update'");
-  const handlerEnd = source.indexOf("ipcMain.handle('desktop:pick-directory'", handlerStart);
+  const source = fs.readFileSync(path.resolve(__dirname, '../src/mainIpcRegistrar.js'), 'utf8');
+  const handlerStart = source.indexOf("MAIN_LOCAL_METHODS.launchDownloadedInstallerUpdate.channel");
+  const handlerEnd = source.indexOf('return function registerIpcHandlers()', handlerStart);
 
   assert.notEqual(handlerStart, -1);
   assert.notEqual(handlerEnd, -1);

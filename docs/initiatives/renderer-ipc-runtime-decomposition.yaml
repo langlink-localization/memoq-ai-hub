@@ -1,0 +1,34 @@
+id: renderer-ipc-runtime-decomposition
+title: memoQ AI Hub renderer IPC and runtime decomposition
+status: shipped
+owner: repository maintainers
+repos:
+  - path: ../..
+    role: source-of-truth
+source_plan: none
+spec_link: none
+github_links:
+  project: none
+  issues: []
+current_stage: complete
+last_verified_commit: "memoq-ai-hub@v1.0.38"
+next_action: none
+allowed_interruptions:
+  - emergency production fix
+  - security or data correctness issue
+drift_guard:
+  ui_contract: docs/ui-governance.md
+  toolchain_contract: AGENTS.md, package.json, and .github/workflows/ci.yml
+  validation_command: pnpm run lint && pnpm run test:desktop && pnpm run test:repo && pnpm run test:antd && pnpm run build:plugin && pnpm run test:plugin && pnpm run prepare:release && pnpm run package:windows
+  source_of_truth: repository main branch, GitHub Actions, release tag, stable update manifest, and published release assets
+intentional_divergences: []
+resume_prompt: >
+  This initiative is complete. The renderer IPC surface lives in
+  rendererIpcSurface.js as the single source shared by preload.js and
+  mainIpcRegistrar.js; the app shell (App.jsx, 2,345 to 923 lines) hosts page
+  domains in focused hooks with the navigation, asset-preview, and dirty-navigation
+  chrome extracted into components; runtime owns history presentation and the
+  app-state read model in runtimeHistoryPresentation.js and runtimeStateView.js
+  behind explicit dependency factories. For later decomposition work, create a
+  new focused initiative and keep the wire contract, the 60-method bridge
+  surface, and the zero-warning lint gate intact.

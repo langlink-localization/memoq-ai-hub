@@ -15,10 +15,20 @@ This repository follows a standard monorepo topology. Runtime code, shared contr
 - `apps/desktop/src/runtime/runtimeAssetService.js`: imported asset file lifecycle, profile-reference protection, and parsed-cache eviction.
 - `apps/desktop/src/runtime/runtimePreviewContextResolver.js`: Preview context owner for cache warmup, local/shared context lookup, document-summary caching, and resolver diagnostics.
 - `apps/desktop/src/runtime/runtimeQaService.js`: Preview QA and Assistant orchestration owner for payload preparation, coordinator state, automatic checks, cancellation, and document QA.
+- `apps/desktop/src/runtime/runtimeAssetTbService.js`: terminology-asset TB structure owner for preview assembly, detected-structure adoption, and manual TB mapping configuration.
 - `apps/desktop/src/runtime/runtimePersistence.js`: desktop persistence owner for schema DDL, versioned `user_version` migrations, history/cache/QA storage, and legacy-state import.
+- `apps/desktop/src/runtime/runtimeHistoryPresentation.js`: history read-model owner for list loading, the IPC-safe list-item projection with issue flags, and per-entry lookups.
+- `apps/desktop/src/runtime/runtimeStateView.js`: renderer-facing app-state read model owner for dashboard checklist/notices, runtime status, context-builder, provider hub, and history explorer projections.
+- `apps/desktop/src/rendererIpcSurface.js`: single-source table of renderer-facing IPC methods mapping bridge method names to desktop channels, worker channels, and worker payload normalization.
+- `apps/desktop/src/mainIpcRegistrar.js`: renderer IPC registrar for main-local handlers (dialogs, shell, windows, logging, startup-aware state) plus table-driven registration of worker-proxied channels.
 - `apps/desktop/src/gatewayRequestValidation.js`: gateway POST payload shape validation for object bodies and per-route required fields before runtime dispatch.
 - `apps/desktop/src/shared/appStateDefaults.js`: single-source placeholder app-state slices shared by the main-process startup placeholder and the renderer fallback.
 - `apps/desktop/src/renderer/src/appState.mjs`: renderer-side remote state defaults, defensive payload normalization, and refresh-time metric preservation.
+- `apps/desktop/src/renderer/src/hooks/useAppLifecycle.mjs`: shared shell hooks for app data refresh lifecycles, history detail loading, and shell viewport behavior.
+- `apps/desktop/src/renderer/src/hooks/useLogsController.mjs`, `useDashboardActions.mjs`, `useHistoryFilters.mjs`, `useAssetPreviewController.mjs`, `useProviderController.mjs`, `useProfileController.mjs`: app-shell page-domain state owners (log diagnostics, install/update flows, history filters, asset preview drawer, provider drafts/tests/models, profile drafts/routes/lifecycle).
+- `apps/desktop/src/renderer/src/components/AppShellChrome.jsx`: shell chrome presentation for the navigation sidebar, mobile nav drawer, and top header.
+- `apps/desktop/src/renderer/src/components/AssetPreviewDrawer.jsx`: asset preview drawer presentation driven by `useAssetPreviewController`.
+- `apps/desktop/src/renderer/src/components/NavigationConfirmModal.jsx`: dirty-navigation confirmation dialog for the provider/profile editors.
 - `apps/desktop/src/renderer/src/providerDraftState.mjs`: Provider editor draft construction, model selection/catalog projection, request preview, and change fingerprints.
 - `apps/desktop/src/renderer/src/pages/providers/providerPresentation.mjs`: Provider status/type presentation and search normalization shared by the App shell and Providers page.
 - `apps/desktop/src/renderer/src/profileDraftState.mjs`: Profile defaults, unified route selection, asset-binding projection, and change fingerprints.

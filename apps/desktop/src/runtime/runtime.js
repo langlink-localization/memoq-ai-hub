@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 const {
   ASSET_PURPOSES,
-  buildAssetPreview,
   getAssetImportRules,
   normalizeAssetPurpose
 } = require('../asset/assetContext');
@@ -66,6 +65,9 @@ const { createRuntimePromptPresetStore } = require('./runtimePromptPresetStore')
 const { createRuntimeProfileService } = require('./runtimeProfileService');
 const { createRuntimeProviderService } = require('./runtimeProviderService');
 const { createRuntimeAssetService } = require('./runtimeAssetService');
+const { createRuntimeHistoryPresentation } = require('./runtimeHistoryPresentation');
+const { createRuntimeStateView } = require('./runtimeStateView');
+const { createRuntimeAssetTbService } = require('./runtimeAssetTbService');
 const {
   buildSegmentMetadataIndex,
   createRuntimeTranslationService,
@@ -73,7 +75,6 @@ const {
   selectModel
 } = require('./runtimeTranslationService');
 const {
-  ensureAsset,
   ensureIntegrationPreferences,
   normalizeState
 } = require('./runtimeState');
@@ -168,6 +169,20 @@ async function createRuntime(options = {}) {
   persistence.migrateLegacyState();
   previewContextClient?.start?.();
 
+  const historyPresentation = createRuntimeHistoryPresentation({ persistence });
+  const { loadHistoryEntries, loadHistoryEntry, buildHistoryListItem, buildHistoryIssueFlags } = historyPresentation;
+  const stateView = createRuntimeStateView({
+    loadState,
+    loadHistoryEntries,
+    buildHistoryListItem,
+    enrichProviders,
+    syncPreviewBridgeStatusFromClient,
+    updateService,
+    isGatewayReady: () => gatewayReady,
+    bypassTranslationCacheProfileIds,
+    paths
+  });
+
   function loadState() {
     return persistence.loadConfigState();
   }
@@ -219,196 +234,6 @@ async function createRuntime(options = {}) {
     return true;
   }
 
-  function loadHistoryEntries() {
-    return persistence.listHistory();
-  }
-
-  function loadHistoryEntry(entryId) {
-    return persistence.getHistoryEntry(entryId);
-  }
-
-  function buildHistoryIssueFlags(entry = {}) {
-    const attempts = Array.isArray(entry.attempts) ? entry.attempts : [];
-    const latencyMs = Number(entry.latencyMs);
-    return {
-      failed: String(entry.status || '').trim().toLowerCase() === 'failed',
-      timeout: attempts.some((attempt) => {
-        const errorCode = String(attempt?.errorCode || '').trim().toUpperCase();
-        return errorCode === 'PROVIDER_TIMEOUT' || errorCode === 'TRANSLATION_TIMEOUT';
-      }),
-      rate_limit: attempts.some((attempt) => String(attempt?.errorCode || '').trim().toUpperCase() === 'PROVIDER_RATE_LIMITED'),
-      fallback: hasHistoryFallback(entry),
-      slow: Number.isFinite(latencyMs) && latencyMs > SLOW_HISTORY_LATENCY_MS,
-      cache_hit: attempts.some((attempt) => {
-        const cacheKind = String(attempt?.cacheKind || '').trim().toLowerCase();
-        return cacheKind === 'exact' || cacheKind === 'adaptive';
-      })
-    };
-  }
-
-  function buildHistoryListItem(entry = {}) {
-    const summary = buildHistorySummary(entry);
-    const item = {
-      id: String(entry.id || '').trim(),
-      requestId: String(entry.requestId || '').trim(),
-      projectId: String(entry.projectId || '').trim(),
-      subject: String(entry.subject || '').trim(),
-      providerId: String(entry.providerId || '').trim(),
-      providerName: String(entry.providerName || '').trim(),
-      model: String(entry.model || '').trim(),
-      status: String(entry.status || '').trim(),
-      submittedAt: String(entry.submittedAt || '').trim(),
-      completedAt: String(entry.completedAt || '').trim(),
-      latencyMs: Number.isFinite(Number(entry.latencyMs)) ? Number(entry.latencyMs) : null,
-      ...summary,
-      issueFlags: buildHistoryIssueFlags(entry)
-    };
-    // IPC serializes only the lightweight own fields above; internal runtime
-    // callers can still read the original diagnostic payload when needed.
-    Object.setPrototypeOf(item, entry);
-    return item;
-  }
-
-  function normalizeManualMapping(value = {}) {
-    return {
-      srcColumn: String(value?.srcColumn || '').trim(),
-      tgtColumn: String(value?.tgtColumn || '').trim()
-    };
-  }
-
-  function normalizeLanguagePair(value = {}) {
-    return {
-      source: String(value?.source || '').trim(),
-      target: String(value?.target || '').trim()
-    };
-  }
-
-  function findAssetById(state, assetId) {
-    return state.assets.find((item) => item.id === String(assetId || '').trim()) || null;
-  }
-
-  function updateAssetTbState(state, assetId, nextTbState = {}) {
-    const asset = findAssetById(state, assetId);
-    if (!asset) {
-      throw new Error(`Asset "${assetId || 'unknown'}" was not found.`);
-    }
-
-    for (const [key, value] of Object.entries(nextTbState)) {
-      asset[key] = value;
-    }
-
-    parsedAssetCache.clear();
-    saveState(state);
-    return ensureAsset(asset);
-  }
-
-  function createDetectedTbState(asset, preview = {}) {
-    if (!preview?.tbStructure || !preview?.tbStructureFingerprint) {
-      return null;
-    }
-
-    return {
-      tbStructure: {
-        ...preview.tbStructure,
-        derivedFromSha256: String(preview.tbStructure.derivedFromSha256 || asset.sha256 || ''),
-        fingerprint: String(preview.tbStructure.fingerprint || preview.tbStructureFingerprint || ''),
-        summary: String(preview.tbStructure.summary || preview.tbStructureSummary || '')
-      },
-      tbLanguagePair: normalizeLanguagePair(preview.languagePair || asset.tbLanguagePair || {}),
-      tbStructureConfidence: preview.tbStructureConfidence && typeof preview.tbStructureConfidence === 'object'
-        ? preview.tbStructureConfidence
-        : asset.tbStructureConfidence || null,
-      tbStructureSource: String(preview.tbStructureSource || asset.tbStructureSource || '').trim()
-    };
-  }
-
-  function isAppliedTbStructurePreview(asset, preview = {}) {
-    if (!preview?.tbStructureAvailable) {
-      return false;
-    }
-
-    if (String(preview.tbStructuringMode || '').trim() === 'manual_mapping') {
-      return true;
-    }
-
-    const previewFingerprint = String(preview.tbStructureFingerprint || '').trim();
-    return Boolean(previewFingerprint && previewFingerprint === String(asset?.tbStructure?.fingerprint || '').trim());
-  }
-
-  function buildAssetPreviewResponse(state, asset, options = {}) {
-    const preview = buildAssetPreview(asset, parsedAssetCache, {
-      maxRows: options.maxRows || DEFAULT_ASSET_PREVIEW_MAX_ROWS,
-      maxCharacters: options.maxCharacters || DEFAULT_ASSET_PREVIEW_MAX_CHARACTERS,
-      smartParsingAvailable: hasSmartTbParsingCapability(state)
-    });
-
-    return {
-      assetId: asset.id,
-      assetName: asset.name,
-      assetType: asset.type,
-      parseStatus: 'ok',
-      tbStructureApplied: isAppliedTbStructurePreview(asset, preview),
-      ...preview
-    };
-  }
-
-  function applyAssetTbStructure(assetId, payload = {}) {
-    const state = loadState();
-    const normalizedAssetId = String(assetId || '').trim();
-    const asset = findAssetById(state, normalizedAssetId);
-    if (!asset) {
-      throw new Error(`Asset "${normalizedAssetId || 'unknown'}" was not found.`);
-    }
-
-    const preview = payload?.tbStructure && typeof payload.tbStructure === 'object'
-      ? {
-        tbStructure: payload.tbStructure,
-        tbStructureFingerprint: String(payload.tbStructureFingerprint || payload.tbStructure?.fingerprint || '').trim(),
-        tbStructureSummary: String(payload.tbStructureSummary || payload.tbStructure?.summary || '').trim(),
-        tbStructureSource: String(payload.tbStructureSource || payload.tbStructure?.sourceOfTruth || '').trim(),
-        languagePair: normalizeLanguagePair(payload.languagePair || payload.tbStructure?.languagePair || asset.tbLanguagePair || {}),
-        tbStructureConfidence: payload.tbStructureConfidence && typeof payload.tbStructureConfidence === 'object'
-          ? payload.tbStructureConfidence
-          : payload.tbStructure?.confidence || asset.tbStructureConfidence || null
-      }
-      : buildAssetPreview(asset, parsedAssetCache, {
-        maxRows: DEFAULT_ASSET_PREVIEW_MAX_ROWS,
-        maxCharacters: DEFAULT_ASSET_PREVIEW_MAX_CHARACTERS,
-        smartParsingAvailable: hasSmartTbParsingCapability(state)
-      });
-    const detectedTbState = createDetectedTbState(asset, preview);
-    if (!detectedTbState) {
-      throw new Error('No detected TB structure is available for this asset.');
-    }
-
-    return updateAssetTbState(state, normalizedAssetId, detectedTbState);
-  }
-
-  function saveAssetTbConfig(assetId, payload = {}) {
-    const state = loadState();
-    const asset = findAssetById(state, assetId);
-    if (!asset) {
-      throw new Error(`Asset "${assetId || 'unknown'}" was not found.`);
-    }
-
-    const manualMapping = normalizeManualMapping(payload?.manualMapping);
-    const languagePair = normalizeLanguagePair(payload?.languagePair);
-    if (!manualMapping.srcColumn || !manualMapping.tgtColumn) {
-      throw new Error('Manual TB mapping requires both source and target columns.');
-    }
-    if (!languagePair.source || !languagePair.target) {
-      throw new Error('TB language pair requires both source and target values.');
-    }
-
-    return updateAssetTbState(state, asset.id, {
-      tbManualMapping: manualMapping,
-      tbLanguagePair: languagePair,
-      tbStructure: null,
-      tbStructureConfidence: { level: 'high', score: 1 },
-      tbStructureSource: 'manual_mapping'
-    });
-  }
-
   const profileService = createRuntimeProfileService({
     loadState,
     saveState,
@@ -432,6 +257,12 @@ async function createRuntime(options = {}) {
     parsedAssetCache,
     createId,
     nowIso
+  });
+
+  const assetTbService = createRuntimeAssetTbService({
+    loadState,
+    saveState,
+    parsedAssetCache
   });
 
   function markGatewayReady(ready) {
@@ -461,46 +292,6 @@ async function createRuntime(options = {}) {
     } finally {
       clearTimeout(timeout);
     }
-  }
-
-  function buildChecklist(state, history, integration, providers) {
-    const enabledProviderCount = providers.filter((item) => item.enabled).length;
-    const assetCount = Array.isArray(state.assets) ? state.assets.length : 0;
-    return [
-      { key: 'install-plugin', title: '1. Install integration', subtitle: integration.status === 'installed' ? 'Integration ready' : 'Integration not installed', actionLabel: 'Install or repair', completed: integration.status === 'installed', count: integration.status === 'installed' ? 1 : 0 },
-      { key: 'provider-hub', title: '2. Connect AI service', subtitle: enabledProviderCount ? `${enabledProviderCount} service(s)` : 'No AI service yet', actionLabel: 'Connect', completed: enabledProviderCount > 0, count: enabledProviderCount },
-      { key: 'asset-hub', title: '3. Add optional assets', subtitle: assetCount ? `${assetCount} asset(s)` : 'Optional — no assets uploaded', actionLabel: 'Add assets', completed: assetCount > 0, optional: true, count: assetCount },
-      { key: 'context-builder', title: '4. Create profile', subtitle: state.profiles.length ? `${state.profiles.length} profile(s)` : 'No profile yet', actionLabel: 'Create', completed: state.profiles.length > 0, count: state.profiles.length },
-      { key: 'history', title: '5. Review a run', subtitle: history.length ? `${history.length} record(s)` : 'No translation records yet', actionLabel: 'Review', completed: history.length > 0, count: history.length }
-    ];
-  }
-
-  function buildNotices(state, providers, history, integration, updateStatus) {
-    const notices = [];
-    if (!integration.installations.length) notices.push('No memoQ installation directory was detected.');
-    if (!providers.length) notices.push('No provider has been configured yet.');
-    const unhealthy = providers.filter((provider) => provider.enabled && provider.status === 'failed');
-    if (unhealthy.length) notices.push(`${unhealthy.map((provider) => provider.name).join(', ')} need attention.`);
-    const latest = history[0];
-    if (latest) notices.push(latest.status === 'success' ? `Latest translation succeeded: ${latest.requestId}` : `Latest translation failed: ${latest.requestId}`);
-
-    const previewStatus = String(previewState.status || '').trim().toLowerCase();
-    if (previewStatus === 'connected') {
-      notices.push(`Preview bridge connected: ${previewState.activePreviewPartIds.length || 0} active part(s), ${previewState.previewPartsById.size || 0} cached part(s).`);
-    } else if (previewStatus === 'error' && previewState.lastError) {
-      notices.push(`Preview bridge unavailable: ${previewState.lastError}`);
-    }
-
-    if (updateStatus?.updateStatus === 'available' && updateStatus?.latestVersion) {
-      notices.push(`Update available: ${updateStatus.latestVersion}.`);
-    } else if (updateStatus?.updateStatus === 'prepared' && updateStatus?.preparedDirectory) {
-      notices.push(`A prepared update is ready at ${updateStatus.preparedDirectory}.`);
-    } else if (updateStatus?.updateStatus === 'error' && updateStatus?.lastError) {
-      notices.push(`Update check failed: ${updateStatus.lastError}`);
-    }
-
-    if (!notices.length) notices.push('The app is ready for first-time configuration.');
-    return notices;
   }
 
   function updatePreviewBridgeStatus(statusPatch = {}) {
@@ -581,70 +372,14 @@ async function createRuntime(options = {}) {
     nowIso
   });
 
-  function getState(filters = {}) {
-    const state = loadState();
-    const includeHistoryExplorer = filters.includeHistoryExplorer !== false;
-    const includeProviderHistoryMetrics = filters.includeProviderHistoryMetrics !== false;
-    const historyEntries = (includeHistoryExplorer || includeProviderHistoryMetrics) ? loadHistoryEntries() : [];
-    const integration = getIntegrationStatus(paths, buildIntegrationConfig(state));
-    const history = includeHistoryExplorer ? filterHistoryEntries(historyEntries, filters) : [];
-    const providers = enrichProviders(state, includeProviderHistoryMetrics ? historyEntries : []);
-    const previewStatus = syncPreviewBridgeStatusFromClient();
-    const updateStatus = updateService.getStatus();
-    return {
-      productName: PRODUCT_NAME,
-      contractVersion: CONTRACT_VERSION,
-      gatewayBaseUrl: `http://${DEFAULT_HOST}:${DEFAULT_PORT}`,
-      dashboard: {
-        checklist: buildChecklist(state, history, integration, providers),
-        runtimeStatus: {
-          memoqInstallPath: integration.selectedInstallDir || integration.installations[0]?.rootDir || 'Not detected',
-          pluginStatus: integration.status,
-          connectionStatus: gatewayReady ? 'Connected' : 'Disconnected',
-          previewStatus
-        },
-        updateCenter: updateStatus,
-        notices: buildNotices(state, providers, history, integration, updateStatus)
-      },
-      integration,
-      previewBridge: previewStatus,
-      updateCenter: updateStatus,
-      contextBuilder: {
-        profiles: state.profiles,
-        defaultProfileId: state.defaultProfileId,
-        assets: state.assets,
-        supportedPlaceholders: getFirstReleaseVisiblePlaceholders(getSupportedPlaceholders()),
-        assetImportRules: getAssetImportRules(),
-        translationCacheBypassProfileIds: Array.from(bypassTranslationCacheProfileIds)
-      },
-      promptPresets: filters.includePromptPresets === false ? [] : state.promptPresets,
-      memoqMetadataMapping: {
-        rules: [...state.mappingRules]
-          .sort((a, b) => Number(a.priority || 999) - Number(b.priority || 999))
-          .map((rule) => ({ ...rule, conditionSummary: summarizeRuleConditions(rule) }))
-      },
-      providerHub: {
-        providers,
-        summary: {
-          enabled: providers.filter((item) => item.enabled).length,
-          healthy: providers.filter((item) => item.enabled && item.status === 'connected').length
-        }
-      },
-      historyExplorer: {
-        insights: includeHistoryExplorer ? buildHistoryInsights(history) : buildHistoryInsights([]),
-        items: includeHistoryExplorer ? history.map((entry) => buildHistoryListItem(entry)) : []
-      }
-    };
-  }
-
   function getAssetPreview(assetId, options = {}) {
     const state = loadState();
     const normalizedAssetId = String(assetId || '').trim();
-    const asset = findAssetById(state, normalizedAssetId);
+    const asset = assetTbService.findAssetById(state, normalizedAssetId);
     if (!asset) {
       throw new Error(`Asset "${normalizedAssetId || 'unknown'}" was not found.`);
     }
-    return buildAssetPreviewResponse(state, asset, options);
+    return assetTbService.buildAssetPreviewResponse(state, asset, options);
   }
 
   const translationService = createRuntimeTranslationService({
@@ -798,7 +533,7 @@ async function createRuntime(options = {}) {
       return result;
     },
     getAppState(filters = {}) {
-      return getState(filters);
+      return stateView.getState(filters);
     },
     getHistoryEntry(entryId) {
       const entry = loadHistoryEntry(entryId);
@@ -1034,10 +769,10 @@ async function createRuntime(options = {}) {
       return getAssetPreview(assetId, options);
     },
     applyAssetTbStructure(assetId, payload = {}) {
-      return applyAssetTbStructure(assetId, payload || {});
+      return assetTbService.applyAssetTbStructure(assetId, payload || {});
     },
     saveAssetTbConfig(assetId, payload = {}) {
-      return saveAssetTbConfig(assetId, payload || {});
+      return assetTbService.saveAssetTbConfig(assetId, payload || {});
     },
     dispose() {
       aggregationService.dispose();

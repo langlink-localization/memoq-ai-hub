@@ -52,11 +52,12 @@ test('app sections expose project rules, quality, and history as first-class mod
 
 test('navigation separates quality from translation history with a header-level assistant entry', () => {
   const appSource = readRendererSource('App.jsx');
+  const chromeSource = readRendererSource('components/AppShellChrome.jsx');
 
   assert.match(appSource, /navItems = \[[\s\S]*?navPageItems\[0\],\s*\{ type: 'group', label: <span className="app-nav-group-label">\{t\('nav\.configure'\)\}<\/span>, children: navPageItems\.slice\(1, 5\) \},\s*navPageItems\[5\],\s*navPageItems\[6\],\s*\{ type: 'group'/);
   assert.doesNotMatch(appSource, /nav\.activity/);
-  assert.match(appSource, /api\.openAssistantWindow\?\.\(\)/);
-  assert.match(appSource, /app-header-assistant/);
+  assert.match(chromeSource, /api\.openAssistantWindow\?\.\(\)/);
+  assert.match(chromeSource, /app-header-assistant/);
   const qualitySource = readRendererSource('pages/quality/QualityPage.jsx');
   assert.doesNotMatch(qualitySource, /openFloating|openAssistantWindow/);
 });
@@ -127,15 +128,17 @@ test('dashboard keeps refresh controls icon-first and guards stale available upd
   const appSource = readRendererSource('App.jsx');
   const dashboardSource = readRendererSources(
     'pages/dashboard/DashboardPage.jsx',
-    'pages/dashboard/dashboardPresentation.mjs'
+    'pages/dashboard/dashboardPresentation.mjs',
+    'hooks/useDashboardActions.mjs'
   );
 
-  assert.match(appSource, /className="app-header-refresh"/);
-  assert.match(appSource, /aria-label=\{t\('app\.refresh'\)\}/);
+  const chromeSource = readRendererSource('components/AppShellChrome.jsx');
+  assert.match(chromeSource, /className="app-header-refresh"/);
+  assert.match(chromeSource, /aria-label=\{t\('app\.refresh'\)\}/);
   assert.match(dashboardSource, /const safeUpdateStatus = getSafeUpdateStatus\(updateCenter\);/);
   assert.match(dashboardSource, /const effectiveUpdateStatus = checkingUpdates \? 'checking' : safeUpdateStatus;/);
   assert.match(dashboardSource, /const latestVersionDisplay = updateCenter\.latestVersion/);
-  assert.match(appSource, /getUpdateErrorDisplay\(result, t\)/);
+  assert.match(dashboardSource, /getUpdateErrorDisplay\(result, t\)/);
   assert.match(dashboardSource, /const hasAvailableUpdate = !checkingUpdates && safeUpdateStatus === 'available';/);
   assert.match(dashboardSource, /icon=\{<ReloadOutlined \/>}/);
   assert.match(en.dashboard.updateCheckingLatestVersion, /Checking/);
@@ -145,7 +148,7 @@ test('dashboard keeps refresh controls icon-first and guards stale available upd
 });
 
 test('history insights expose simple latency-focused filtering hooks', () => {
-  const appSource = readRendererSources('App.jsx', 'pages/history/HistoryPage.jsx', 'pages/history/historyPresentation.mjs');
+  const appSource = readRendererSources('App.jsx', 'pages/history/HistoryPage.jsx', 'pages/history/historyPresentation.mjs', 'hooks/useHistoryFilters.mjs');
 
   assert.match(appSource, /issue:\s*''/);
   assert.match(appSource, /function applyHistoryInsightFilter/);
@@ -230,7 +233,14 @@ test('renderer feedback uses the themed Ant Design app context and recoverable s
 });
 
 test('high-risk actions and async mutations expose confirmation and pending contracts', () => {
-  const appSource = readRendererSources('App.jsx', 'pages/history/HistoryPage.jsx');
+  const appSource = readRendererSources(
+    'App.jsx',
+    'pages/history/HistoryPage.jsx',
+    'hooks/useLogsController.mjs',
+    'hooks/useDashboardActions.mjs',
+    'hooks/useProfileController.mjs',
+    'hooks/useProviderController.mjs'
+  );
   const builderSource = readRendererSource('pages/builder/BuilderPage.jsx');
   const assetsSource = readRendererSources('pages/assets/AssetsPage.jsx', 'pages/assets/assetPresentation.mjs');
 
@@ -273,9 +283,10 @@ test('dashboard polling updates only changed status slices', () => {
   const dashboardSource = readRendererSource('pages/dashboard/DashboardPage.jsx');
   const connectionSource = readRendererSource('components/DashboardConnectionStatus.jsx');
   const storeSource = readRendererSource('pages/dashboard/dashboardStatusStore.mjs');
-  const pollSource = appSource.slice(
-    appSource.indexOf('async function refreshDashboardStatus()'),
-    appSource.indexOf('async function pruneLogsNow()')
+  const hookSource = readRendererSource('hooks/useDashboardActions.mjs');
+  const pollSource = hookSource.slice(
+    hookSource.indexOf('async function refreshDashboardStatus()'),
+    hookSource.indexOf('useEffect(() => {', hookSource.indexOf('async function refreshDashboardStatus()'))
   );
 
   assert.match(storeSource, /DASHBOARD_STATUS_KEYS = \['startup', 'dashboard', 'integration', 'previewBridge', 'updateCenter'\]/);
@@ -319,12 +330,13 @@ test('dashboard and history use responsive grid and horizontal table scroll', ()
   const dashboardSource = readRendererSource('pages/dashboard/DashboardPage.jsx');
   const historySource = readRendererSource('pages/history/HistoryPage.jsx');
   const historyDetailSource = readRendererSource('pages/history/HistoryDetailDrawer.jsx');
+  const previewDrawerSource = readRendererSource('components/AssetPreviewDrawer.jsx');
   const tableLayoutSource = readRendererSource('tableLayout.mjs');
-  const pageSource = `${dashboardSource}\n${historySource}\n${historyDetailSource}`;
+  const pageSource = `${dashboardSource}\n${historySource}\n${historyDetailSource}\n${previewDrawerSource}`;
   const cssSource = readRendererSource('index.css');
 
   assert.match(tableLayoutSource, /TABLE_SCROLL_X = 'max-content'/);
-  assert.match(appSource, /const WIDE_SIDE_DRAWER_WIDTH = 'min\(920px, calc\(100vw - 32px\)\)';/);
+  assert.match(previewDrawerSource, /const WIDE_SIDE_DRAWER_WIDTH = 'min\(920px, calc\(100vw - 32px\)\)';/);
   assert.match(historyDetailSource, /const HISTORY_DETAIL_DRAWER_WIDTH = 'min\(920px, calc\(100vw - 32px\)\)';/);
   assert.match(dashboardSource, /className="dashboard-journey-grid"/);
   assert.match(cssSource, /grid-template-columns:\s*repeat\(auto-fit, minmax\(190px, 1fr\)\)/);
@@ -333,7 +345,7 @@ test('dashboard and history use responsive grid and horizontal table scroll', ()
   assert.match(historySource, /<Col xs=\{24\} sm=\{12\} lg=\{8\} xl=\{4\}>/);
   assert.match(pageSource, /scroll=\{\{ x: TABLE_SCROLL_X \}\}/);
   assert.equal((`${appSource}\n${pageSource}`.match(/scroll=\{\{ x: TABLE_SCROLL_X \}\}/g) || []).length >= 3, true);
-  assert.match(appSource, /width=\{WIDE_SIDE_DRAWER_WIDTH\}/);
+  assert.match(previewDrawerSource, /width=\{WIDE_SIDE_DRAWER_WIDTH\}/);
   assert.match(historyDetailSource, /width=\{HISTORY_DETAIL_DRAWER_WIDTH\}/);
 });
 
@@ -404,8 +416,9 @@ test('global responsive CSS covers wrapping, table overflow, shell header, and m
   const appSource = readRendererSource('App.jsx');
   const cssSource = readRendererSource('index.css');
 
-  assert.match(appSource, /className="app-header-bar"/);
-  assert.match(appSource, /className="app-header-controls"/);
+  const chromeSource = readRendererSource('components/AppShellChrome.jsx');
+  assert.match(chromeSource, /className="app-header-bar"/);
+  assert.match(chromeSource, /className="app-header-controls"/);
   assert.match(cssSource, /\*::before,\s*\n\*::after\s*\{/);
   assert.match(cssSource, /flex-wrap:\s*wrap/);
   assert.match(cssSource, /\.responsive-table-shell\s*\{/);
@@ -414,8 +427,8 @@ test('global responsive CSS covers wrapping, table overflow, shell header, and m
   assert.match(cssSource, /\.responsive-switch-line/);
   assert.match(cssSource, new RegExp(`@media \\(max-width: ${SHELL_BREAKPOINTS.expandedMin - 1}px\\)`));
   assert.match(cssSource, new RegExp(`@media \\(max-width: ${SHELL_BREAKPOINTS.drawerMax}px\\)`));
-  assert.match(appSource, /shellNavigationMode !== 'drawer' \? \(/);
-  assert.match(appSource, /className="app-nav-drawer"/);
+  assert.match(chromeSource, /shellNavigationMode !== 'drawer' \? \(/);
+  assert.match(chromeSource, /className="app-nav-drawer"/);
   assert.doesNotMatch(cssSource, /!important/);
   assert.match(cssSource, /\.asset-library-toolbar/);
   assert.match(cssSource, /\.provider-model-manager-toolbar/);
