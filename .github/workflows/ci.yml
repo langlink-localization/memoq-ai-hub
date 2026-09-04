@@ -44,6 +44,9 @@ jobs:
       - name: Run static analysis
         run: pnpm run lint
 
+      - name: Run type check
+        run: pnpm run typecheck
+
       - name: Run repository tests
         run: pnpm run test:repo
 

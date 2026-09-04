@@ -26,6 +26,30 @@ const DEFAULT_QA_USER_PROMPT = [
   ']'
 ].join('\n');
 
+/**
+ * @typedef {Object} QaPromptTemplateInput
+ * @property {unknown=} systemPrompt
+ * @property {unknown=} userPrompt
+ */
+
+/**
+ * @typedef {Object} QaPromptSnapshot
+ * @property {{ source?: unknown, target?: unknown }=} languages
+ * @property {{ source?: unknown, target?: unknown }=} segment
+ * @property {{ above?: unknown, below?: unknown, summary?: unknown, fullText?: unknown }=} context
+ */
+
+/**
+ * @typedef {Object} QaPromptRenderInput
+ * @property {QaPromptTemplateInput=} template
+ * @property {QaPromptSnapshot=} snapshot
+ * @property {unknown=} terminology
+ */
+
+/**
+ * @param {QaPromptTemplateInput=} template
+ * @returns {{ systemPrompt: string, userPrompt: string }}
+ */
 function normalizeQaPromptTemplate(template = {}) {
   return {
     systemPrompt: String(template?.systemPrompt || DEFAULT_QA_SYSTEM_PROMPT).trim() || DEFAULT_QA_SYSTEM_PROMPT,
@@ -33,6 +57,10 @@ function normalizeQaPromptTemplate(template = {}) {
   };
 }
 
+/**
+ * @param {unknown=} terminology
+ * @returns {string}
+ */
 function renderTerminology(terminology = []) {
   return (Array.isArray(terminology) ? terminology : [])
     .map((match) => match?.entry || match)
@@ -42,6 +70,10 @@ function renderTerminology(terminology = []) {
     .join('\n');
 }
 
+/**
+ * @param {QaPromptRenderInput=} options
+ * @returns {{ systemPrompt: string, userPrompt: string }}
+ */
 function renderQaPromptTemplate({ template, snapshot, terminology = [] } = {}) {
   const normalized = normalizeQaPromptTemplate(template);
   const context = createTemplateContext({

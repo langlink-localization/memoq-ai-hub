@@ -1,7 +1,40 @@
+/** @typedef {Record<string, unknown>} MemoQMetadataInput */
+
+/** @typedef {Record<string, unknown>} SegmentMetadataInput */
+
+/**
+ * @typedef {Object} NormalizedSegmentMetadataItem
+ * @property {string} segmentId
+ * @property {string | number} segmentStatus
+ * @property {number} segmentIndex
+ */
+
+/**
+ * @typedef {Object} NormalizedMemoQMetadata
+ * @property {string} client
+ * @property {string} domain
+ * @property {string} subject
+ * @property {string} projectId
+ * @property {string} documentId
+ * @property {string} projectGuid
+ * @property {string} sourceLanguage
+ * @property {string} targetLanguage
+ * @property {string | number} segmentStatus
+ * @property {NormalizedSegmentMetadataItem[]} segmentLevelMetadata
+ */
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeText(value) {
   return String(value || '').trim();
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string | number}
+ */
 function normalizeSegmentStatus(value) {
   if (value === null || value === undefined || value === '') {
     return '';
@@ -14,6 +47,11 @@ function normalizeSegmentStatus(value) {
   return normalizeText(value);
 }
 
+/**
+ * @param {SegmentMetadataInput=} item
+ * @param {number=} fallbackIndex
+ * @returns {NormalizedSegmentMetadataItem}
+ */
 function normalizeSegmentMetadataItem(item = {}, fallbackIndex = -1) {
   return {
     segmentId: normalizeText(item.segmentId || item.SegmentID || item.segmentID),
@@ -24,12 +62,20 @@ function normalizeSegmentMetadataItem(item = {}, fallbackIndex = -1) {
   };
 }
 
+/**
+ * @param {unknown=} items
+ * @returns {NormalizedSegmentMetadataItem[]}
+ */
 function normalizeSegmentLevelMetadata(items = []) {
   return (Array.isArray(items) ? items : [])
     .map((item, index) => normalizeSegmentMetadataItem(item, index))
     .filter((item) => item.segmentIndex >= 0);
 }
 
+/**
+ * @param {MemoQMetadataInput=} metadata
+ * @returns {NormalizedMemoQMetadata}
+ */
 function normalizeMemoQMetadata(metadata = {}) {
   const normalized = {
     client: normalizeText(metadata.client || metadata.Client),
@@ -51,18 +97,26 @@ function normalizeMemoQMetadata(metadata = {}) {
   return normalized;
 }
 
+/**
+ * @param {MemoQMetadataInput=} metadata
+ * @returns {Array<[string, string]>}
+ */
 function getProjectMetadataEntries(metadata = {}) {
   const normalized = normalizeMemoQMetadata(metadata);
-  return [
+  return /** @type {Array<[string, string]>} */ ([
     ['Project ID', normalized.projectId],
     ['Client', normalized.client],
     ['Domain', normalized.domain],
     ['Subject', normalized.subject],
     ['Document ID', normalized.documentId],
     ['Project GUID', normalized.projectGuid]
-  ].filter(([, value]) => value !== '');
+  ]).filter(([, value]) => value !== '');
 }
 
+/**
+ * @param {MemoQMetadataInput=} metadata
+ * @returns {boolean}
+ */
 function hasStructuredMetadata(metadata = {}) {
   const normalized = normalizeMemoQMetadata(metadata);
   return Boolean(

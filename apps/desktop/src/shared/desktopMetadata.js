@@ -3,6 +3,10 @@ const path = require('path');
 
 const DEFAULT_DESKTOP_VERSION = '0.0.0';
 
+/**
+ * @param {string} filePath
+ * @returns {string}
+ */
 function safeStatMtimeIso(filePath) {
   try {
     return fs.statSync(filePath).mtime.toISOString();
@@ -11,6 +15,10 @@ function safeStatMtimeIso(filePath) {
   }
 }
 
+/**
+ * @param {unknown} repoRoot
+ * @returns {string[]}
+ */
 function buildSearchRoots(repoRoot) {
   const roots = [
     String(repoRoot || ''),
@@ -32,6 +40,10 @@ function buildSearchRoots(repoRoot) {
   return uniqueRoots;
 }
 
+/**
+ * @param {string} startDir
+ * @returns {string}
+ */
 function findNearestPackageJsonPath(startDir) {
   if (!startDir) {
     return '';
@@ -50,6 +62,10 @@ function findNearestPackageJsonPath(startDir) {
   return fs.existsSync(finalCandidate) ? finalCandidate : '';
 }
 
+/**
+ * @param {unknown} repoRoot
+ * @returns {string}
+ */
 function resolveDesktopPackagePath(repoRoot) {
   for (const searchRoot of buildSearchRoots(repoRoot)) {
     const packagePath = findNearestPackageJsonPath(searchRoot);
@@ -61,6 +77,17 @@ function resolveDesktopPackagePath(repoRoot) {
   return path.join(path.resolve(String(repoRoot || process.cwd() || '.')), 'package.json');
 }
 
+/**
+ * @typedef {Object} DesktopPackageMetadata
+ * @property {string} desktopVersion
+ * @property {string} packagePath
+ * @property {string} packageLastModifiedAt
+ */
+
+/**
+ * @param {unknown} repoRoot
+ * @returns {DesktopPackageMetadata}
+ */
 function readDesktopPackageMetadata(repoRoot) {
   const packagePath = resolveDesktopPackagePath(repoRoot);
   try {
@@ -80,6 +107,29 @@ function readDesktopPackageMetadata(repoRoot) {
   }
 }
 
+/**
+ * @typedef {Object} RuntimeIdentity
+ * @property {string} desktopVersion
+ * @property {string} runtimeStartedAt
+ * @property {number} processId
+ * @property {string} execPath
+ * @property {string} execLastModifiedAt
+ * @property {string} packagePath
+ * @property {string} packageLastModifiedAt
+ * @property {string} runtimeScriptPath
+ */
+
+/**
+ * @typedef {Object} RuntimeIdentityOptions
+ * @property {unknown} repoRoot
+ * @property {string=} runtimeScriptPath
+ * @property {(() => string)=} nowIso
+ */
+
+/**
+ * @param {RuntimeIdentityOptions} options
+ * @returns {RuntimeIdentity}
+ */
 function buildRuntimeIdentity({
   repoRoot,
   runtimeScriptPath,
@@ -99,6 +149,16 @@ function buildRuntimeIdentity({
   };
 }
 
+/**
+ * @typedef {Object} DesktopVersionPayload
+ * @property {unknown=} desktopVersion
+ * @property {{ desktopVersion?: unknown }=} runtime
+ */
+
+/**
+ * @param {DesktopVersionPayload=} payload
+ * @returns {string}
+ */
 function readDesktopVersionFromPayload(payload = {}) {
   const directValue = String(payload.desktopVersion || '').trim();
   if (directValue) {

@@ -6,8 +6,15 @@ const crypto = require('crypto');
 const { XMLParser } = require('fast-xml-parser');
 
 const SUPPORTED_EXTENSIONS = new Set(['.mqxliff', '.xlf', '.xliff']);
+/** @param {unknown} value @returns {any[]} */
 const asArray = (value) => (Array.isArray(value) ? value : value == null ? [] : [value]);
 
+// XLIFF nodes come from fast-xml-parser as arbitrary nested records; the
+// accessors below intentionally treat them as untyped shapes.
+/**
+ * @param {any} value
+ * @returns {string}
+ */
 function textContent(value) {
   if (value == null) return '';
   if (typeof value === 'string' || typeof value === 'number') return String(value);
@@ -24,6 +31,11 @@ function textContent(value) {
   return '';
 }
 
+/**
+ * @param {any=} node
+ * @param {any[]=} results
+ * @returns {any[]}
+ */
 function collectTransUnits(node, results = []) {
   if (!node || typeof node !== 'object') return results;
   if (Array.isArray(node)) {
@@ -45,6 +57,12 @@ function collectTransUnits(node, results = []) {
   return results;
 }
 
+/**
+ * @param {any=} node
+ * @param {string=} unitId
+ * @param {any[]=} results
+ * @returns {any[]}
+ */
 function collectXliff2Segments(node, unitId = '', results = []) {
   if (!node || typeof node !== 'object') return results;
   if (Array.isArray(node)) {
@@ -66,6 +84,18 @@ function collectXliff2Segments(node, unitId = '', results = []) {
   return results;
 }
 
+/**
+ * @typedef {Object} ParsedBilingualFile
+ * @property {{ id: string, name: string }} document
+ * @property {{ source: string, target: string }} languages
+ * @property {Array<{ id: string, source: string, target: string, status: string, segmentIndex: number }>} segments
+ */
+
+/**
+ * @param {unknown} content
+ * @param {{ fileName?: unknown }=} options
+ * @returns {ParsedBilingualFile}
+ */
 function parseBilingualContent(content, options = {}) {
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_', textNodeName: '#text', trimValues: false });
   const parsed = parser.parse(String(content || ''));
@@ -85,6 +115,10 @@ function parseBilingualContent(content, options = {}) {
   };
 }
 
+/**
+ * @param {unknown} filePath
+ * @returns {ParsedBilingualFile}
+ */
 function parseBilingualFile(filePath) {
   const resolvedPath = path.resolve(String(filePath || ''));
   if (!SUPPORTED_EXTENSIONS.has(path.extname(resolvedPath).toLowerCase())) throw new Error('Only MQXLIFF, XLF, and XLIFF files are supported.');

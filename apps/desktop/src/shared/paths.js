@@ -1,12 +1,25 @@
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * @param {string} dirPath
+ * @returns {void}
+ */
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
   }
 }
 
+/**
+ * @typedef {Object} AppPathsOptions
+ * @property {string=} appDataRoot
+ * @property {string=} logsDir
+ */
+
+/**
+ * @param {AppPathsOptions=} options
+ */
 function createAppPaths(options = {}) {
   const appDataRoot = String(
     options.appDataRoot

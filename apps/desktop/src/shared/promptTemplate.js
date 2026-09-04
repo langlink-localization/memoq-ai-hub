@@ -165,6 +165,13 @@ const SYSTEM_PROMPT_FORBIDDEN_PLACEHOLDERS = new Set([
 ]);
 
 class PromptTemplateError extends Error {
+  code;
+  details;
+  /**
+   * @param {string} message
+   * @param {string} code
+   * @param {Record<string, unknown>=} details
+   */
   constructor(message, code, details = {}) {
     super(message);
     this.name = 'PromptTemplateError';
@@ -177,10 +184,20 @@ function getSupportedPlaceholders() {
   return PLACEHOLDER_DEFINITIONS.map((item) => ({ ...item }));
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeTemplate(value) {
   return String(value || '');
 }
 
+/** @typedef {Record<string, unknown>} PromptTemplateValues */
+
+/**
+ * @param {PromptTemplateValues=} values
+ * @returns {Record<string, string>}
+ */
 function createTemplateContext(values = {}) {
   return {
     'source-language': String(values.sourceLanguage || ''),
@@ -205,8 +222,21 @@ function createTemplateContext(values = {}) {
   };
 }
 
+/**
+ * @typedef {Object} PromptTemplateMatch
+ * @property {string} token
+ * @property {boolean} required
+ * @property {string} before
+ * @property {string} after
+ */
+
+/**
+ * @param {unknown} template
+ * @returns {PromptTemplateMatch[]}
+ */
 function listTemplatePlaceholders(template) {
   const normalizedTemplate = normalizeTemplate(template);
+  /** @type {PromptTemplateMatch[]} */
   const matches = [];
 
   normalizedTemplate.replace(TEMPLATE_PATTERN, (...args) => {
@@ -223,6 +253,18 @@ function listTemplatePlaceholders(template) {
   return matches;
 }
 
+/**
+ * @typedef {Object} PromptTemplateValidateOptions
+ * @property {string=} fieldLabel
+ * @property {string=} fieldName
+ * @property {Iterable<unknown>=} disallowedTokens
+ */
+
+/**
+ * @param {unknown} template
+ * @param {PromptTemplateValidateOptions=} options
+ * @returns {PromptTemplateMatch[]}
+ */
 function validateTemplate(template, options = {}) {
   const normalizedTemplate = normalizeTemplate(template);
   const fieldLabel = String(options.fieldLabel || 'Prompt template');
@@ -260,6 +302,12 @@ function validateTemplate(template, options = {}) {
   return matches;
 }
 
+/**
+ * @param {unknown} template
+ * @param {PromptTemplateValues=} context
+ * @param {PromptTemplateValidateOptions=} options
+ * @returns {string}
+ */
 function renderTemplate(template, context = {}, options = {}) {
   const normalizedTemplate = normalizeTemplate(template);
   const fieldLabel = String(options.fieldLabel || 'Prompt template');
@@ -295,6 +343,17 @@ function renderTemplate(template, context = {}, options = {}) {
   });
 }
 
+/**
+ * @typedef {Object} ProfilePromptTemplatesInput
+ * @property {unknown=} systemPrompt
+ * @property {unknown=} userPrompt
+ * @property {{ single?: { systemPrompt?: unknown, userPrompt?: unknown }, batch?: { systemPrompt?: unknown, userPrompt?: unknown }, qa?: { systemPrompt?: unknown, userPrompt?: unknown }}=} promptTemplates
+ */
+
+/**
+ * @param {ProfilePromptTemplatesInput=} profile
+ * @returns {void}
+ */
 function validateProfileTemplates(profile = {}) {
   validateTemplate(profile.systemPrompt, {
     fieldLabel: 'System prompt',

@@ -3,11 +3,34 @@
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+  return String(value ?? '').replace(/[&<>'"]/g, (char) => /** @type {string} */ ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 }
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 const csvCell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 
+/**
+ * @typedef {Object} QaReportDocumentResult
+ * @property {Array<{
+ *   document?: { id?: unknown, name?: unknown },
+ *   segment?: { segmentIndex?: unknown },
+ *   findings?: Array<Record<string, unknown>>
+ * }>=} results
+ * @property {{ id?: unknown, name?: unknown }=} document
+ */
+
+/**
+ * @param {QaReportDocumentResult} documentResult
+ * @returns {Array<Record<string, unknown>>}
+ */
 function flattenResults(documentResult) {
   return (documentResult.results || []).flatMap((result) => (result.findings || []).map((finding) => ({
     documentId: result.document?.id || documentResult.document?.id || '', documentName: result.document?.name || documentResult.document?.name || '',
@@ -17,10 +40,15 @@ function flattenResults(documentResult) {
   })));
 }
 
+/**
+ * @param {QaReportDocumentResult} documentResult
+ * @param {string} outputDir
+ * @param {string=} baseName
+ */
 function writeQaReports(documentResult, outputDir, baseName = 'qa-report') {
   fs.mkdirSync(outputDir, { recursive: true });
   const safeBase = String(baseName || 'qa-report').replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'qa-report';
-  const rows = flattenResults(documentResult);
+  const rows = /** @type {Array<Record<string, unknown>>} */ (flattenResults(documentResult));
   const jsonPath = path.join(outputDir, `${safeBase}.json`);
   const csvPath = path.join(outputDir, `${safeBase}.csv`);
   const htmlPath = path.join(outputDir, `${safeBase}.html`);

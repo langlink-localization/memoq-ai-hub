@@ -1,6 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * @typedef {Object} LogPolicy
+ * @property {number} maxFileBytes
+ * @property {number} maxFiles
+ * @property {number} retentionDays
+ */
+
+/** @type {Readonly<LogPolicy>} */
 const DEFAULT_LOG_POLICY = Object.freeze({
   maxFileBytes: 5 * 1024 * 1024,
   maxFiles: 6,
@@ -11,12 +19,20 @@ const REDACTED = '[redacted]';
 const SENSITIVE_KEY_PATTERN = /(?:api[-_ ]?key|authorization|bearer|token|secret|password|credential)/i;
 const CONTENT_KEY_PATTERN = /(?:sourceText|targetText|prompt|systemPrompt|userPrompt|assembledPrompt|translations|segments|payload|input|output|body)$/i;
 
+/**
+ * @param {string} dirPath
+ * @returns {void}
+ */
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
   }
 }
 
+/**
+ * @param {Partial<LogPolicy>=} policy
+ * @returns {LogPolicy}
+ */
 function normalizePolicy(policy = {}) {
   return {
     maxFileBytes: Math.max(1024, Number(policy.maxFileBytes || DEFAULT_LOG_POLICY.maxFileBytes)),
@@ -25,6 +41,10 @@ function normalizePolicy(policy = {}) {
   };
 }
 
+/**
+ * @param {unknown=} source
+ * @returns {string}
+ */
 function sanitizeSource(source = 'app') {
   return String(source || 'app')
     .trim()
@@ -33,14 +53,26 @@ function sanitizeSource(source = 'app') {
     .replace(/^-+|-+$/g, '') || 'app';
 }
 
+/**
+ * @param {Date=} now
+ * @returns {string}
+ */
 function toIsoTimestamp(now = new Date()) {
   return new Date(now).toISOString();
 }
 
+/**
+ * @param {Date=} now
+ * @returns {string}
+ */
 function toFileTimestamp(now = new Date()) {
   return toIsoTimestamp(now).replace(/[:.]/g, '-');
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function redactString(value) {
   return String(value || '')
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]')
@@ -48,6 +80,16 @@ function redactString(value) {
     .replace(/(api[-_ ]?key\s*[:=]\s*)[^\s,;]+/gi, '$1[redacted]');
 }
 
+/**
+ * @typedef {Error & { code?: unknown, statusCode?: unknown }} LoggedError
+ */
+
+/**
+ * @param {unknown} value
+ * @param {string=} key
+ * @param {number=} depth
+ * @returns {unknown}
+ */
 function redactValue(value, key = '', depth = 0) {
   if (SENSITIVE_KEY_PATTERN.test(key)) {
     return REDACTED;
@@ -65,12 +107,13 @@ function redactValue(value, key = '', depth = 0) {
     return value;
   }
   if (value instanceof Error) {
+    const loggedError = /** @type {LoggedError} */ (value);
     return {
-      name: value.name,
-      message: redactString(value.message),
-      code: value.code || '',
-      statusCode: Number.isFinite(Number(value.statusCode)) ? Number(value.statusCode) : undefined,
-      stack: value.stack ? redactString(value.stack).split(/\r?\n/).slice(0, 8).join('\n') : ''
+      name: loggedError.name,
+      message: redactString(loggedError.message),
+      code: loggedError.code || '',
+      statusCode: Number.isFinite(Number(loggedError.statusCode)) ? Number(loggedError.statusCode) : undefined,
+      stack: loggedError.stack ? redactString(loggedError.stack).split(/\r?\n/).slice(0, 8).join('\n') : ''
     };
   }
   if (depth >= 4) {
@@ -90,23 +133,52 @@ function redactValue(value, key = '', depth = 0) {
   return String(value);
 }
 
+/**
+ * @param {unknown} payload
+ * @returns {string}
+ */
 function safeSerialize(payload) {
   try {
     return JSON.stringify(redactValue(payload));
   } catch (error) {
-    return JSON.stringify({ serializationError: redactString(error?.message || String(error)) });
+    const rawMessage = error instanceof Error ? error.message : '';
+    return JSON.stringify({ serializationError: redactString(rawMessage || String(error)) });
   }
 }
 
+/**
+ * @param {string} logsDir
+ * @param {unknown} source
+ * @returns {string}
+ */
 function getCurrentLogPath(logsDir, source) {
   return path.join(logsDir, `${sanitizeSource(source)}.log`);
 }
 
+/**
+ * @param {unknown} fileName
+ * @returns {string}
+ */
 function parseLogSource(fileName) {
   const normalized = String(fileName || '').replace(/\.log$/i, '');
   return normalized.replace(/\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/i, '');
 }
 
+/**
+ * @typedef {Object} LogFileInfo
+ * @property {string} name
+ * @property {string} path
+ * @property {string} source
+ * @property {number} sizeBytes
+ * @property {number} updatedAtMs
+ * @property {string} updatedAt
+ * @property {boolean} isCurrent
+ */
+
+/**
+ * @param {string} logsDir
+ * @returns {LogFileInfo[]}
+ */
 function getLogFiles(logsDir) {
   if (!fs.existsSync(logsDir)) {
     return [];
@@ -130,6 +202,10 @@ function getLogFiles(logsDir) {
     .sort((left, right) => right.updatedAtMs - left.updatedAtMs);
 }
 
+/**
+ * @param {string} filePath
+ * @returns {number}
+ */
 function deleteFileQuietly(filePath) {
   try {
     const sizeBytes = fs.existsSync(filePath) ? fs.statSync(filePath).size : 0;
@@ -140,6 +216,16 @@ function deleteFileQuietly(filePath) {
   }
 }
 
+/**
+ * @typedef {Object} PruneLogsOptions
+ * @property {number=} nowMs
+ */
+
+/**
+ * @param {string} logsDir
+ * @param {Partial<LogPolicy>=} policy
+ * @param {PruneLogsOptions=} options
+ */
 function pruneLogs(logsDir, policy = DEFAULT_LOG_POLICY, options = {}) {
   const normalizedPolicy = normalizePolicy(policy);
   ensureDir(logsDir);
@@ -187,6 +273,14 @@ function pruneLogs(logsDir, policy = DEFAULT_LOG_POLICY, options = {}) {
   };
 }
 
+/**
+ * @param {string} logsDir
+ * @param {unknown} source
+ * @param {number} nextBytes
+ * @param {Partial<LogPolicy>=} policy
+ * @param {Date=} now
+ * @returns {void}
+ */
 function rotateLogIfNeeded(logsDir, source, nextBytes, policy = DEFAULT_LOG_POLICY, now = new Date()) {
   const normalizedPolicy = normalizePolicy(policy);
   const currentPath = getCurrentLogPath(logsDir, source);
@@ -207,6 +301,27 @@ function rotateLogIfNeeded(logsDir, source, nextBytes, policy = DEFAULT_LOG_POLI
   }
 }
 
+/**
+ * @typedef {Object} LogEntryInput
+ * @property {unknown=} source
+ * @property {string=} level
+ * @property {unknown=} event
+ * @property {unknown=} message
+ * @property {unknown=} data
+ */
+
+/**
+ * @typedef {Object} WriteLogOptions
+ * @property {Date=} now
+ */
+
+/**
+ * @param {string} logsDir
+ * @param {LogEntryInput} entry
+ * @param {Partial<LogPolicy>=} policy
+ * @param {WriteLogOptions=} options
+ * @returns {void}
+ */
 function writeLogEntry(logsDir, entry, policy = DEFAULT_LOG_POLICY, options = {}) {
   const normalizedPolicy = normalizePolicy(policy);
   const now = options.now || new Date();
@@ -226,12 +341,42 @@ function writeLogEntry(logsDir, entry, policy = DEFAULT_LOG_POLICY, options = {}
   pruneLogs(logsDir, normalizedPolicy, { nowMs: now.getTime() });
 }
 
+/**
+ * @typedef {Object} Logger
+ * @property {string} source
+ * @property {string} logsDir
+ * @property {LogPolicy} policy
+ * @property {(event: string, message?: string, data?: unknown) => void} debug
+ * @property {(event: string, message?: string, data?: unknown) => void} info
+ * @property {(event: string, message?: string, data?: unknown) => void} warn
+ * @property {(event: string, message?: string, data?: unknown) => void} error
+ */
+
+/**
+ * @typedef {Object} LoggerOptions
+ * @property {unknown=} source
+ * @property {string=} logsDir
+ * @property {Partial<LogPolicy>=} policy
+ * @property {boolean=} mirrorToConsole
+ */
+
+/**
+ * @param {LoggerOptions=} options
+ * @returns {Logger}
+ */
 function createLogger(options = {}) {
   const source = sanitizeSource(options.source || 'app');
   const logsDir = String(options.logsDir || '').trim();
   const policy = normalizePolicy(options.policy);
   const mirrorToConsole = options.mirrorToConsole === true;
 
+  /**
+   * @param {string} level
+   * @param {string} event
+   * @param {string} message
+   * @param {unknown} data
+   * @returns {void}
+   */
   function write(level, event, message, data) {
     if (logsDir) {
       try {
@@ -264,10 +409,15 @@ function createLogger(options = {}) {
   };
 }
 
+/**
+ * @param {string} logsDir
+ * @param {Partial<LogPolicy>=} policy
+ */
 function getLogState(logsDir, policy = DEFAULT_LOG_POLICY) {
   const normalizedPolicy = normalizePolicy(policy);
   ensureDir(logsDir);
   const files = getLogFiles(logsDir);
+  /** @type {Map<string, LogFileInfo[]>} */
   const groupsBySource = new Map();
   let totalSizeBytes = 0;
   let latestUpdatedAtMs = 0;
@@ -278,7 +428,7 @@ function getLogState(logsDir, policy = DEFAULT_LOG_POLICY) {
     if (!groupsBySource.has(file.source)) {
       groupsBySource.set(file.source, []);
     }
-    groupsBySource.get(file.source).push(file);
+    /** @type {LogFileInfo[]} */ (groupsBySource.get(file.source)).push(file);
   }
 
   const groups = Array.from(groupsBySource.entries()).map(([source, sourceFiles]) => {

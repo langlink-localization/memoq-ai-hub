@@ -7,6 +7,11 @@ const DISPLAY_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat(undefined, {
   second: '2-digit'
 });
 
+/**
+ * Parses a timestamp-like value into a local-epoch millisecond number.
+ * @param {unknown} value
+ * @returns {number | null}
+ */
 function parseTimestampToEpochMs(value) {
   const text = String(value || '').trim();
   if (!text) {
@@ -18,6 +23,16 @@ function parseTimestampToEpochMs(value) {
   return Number.isFinite(time) ? time : null;
 }
 
+/**
+ * @typedef {Object} DateInputParseOptions
+ * @property {boolean=} endOfDay
+ */
+
+/**
+ * @param {unknown} value
+ * @param {DateInputParseOptions=} options
+ * @returns {number | null}
+ */
 function parseDateInputToEpochMs(value, options = {}) {
   const text = String(value || '').trim();
   if (!text) {
@@ -42,9 +57,19 @@ function parseDateInputToEpochMs(value, options = {}) {
   return Number.isFinite(time) ? time : null;
 }
 
+/**
+ * @typedef {Object} TimestampDisplayOptions
+ * @property {string=} fallback
+ */
+
+/**
+ * @param {unknown} value
+ * @param {TimestampDisplayOptions=} options
+ * @returns {string}
+ */
 function formatTimestampForLocalDisplay(value, options = {}) {
   const time = parseTimestampToEpochMs(value);
-  if (!Number.isFinite(time)) {
+  if (time === null) {
     return options.fallback ?? '';
   }
 

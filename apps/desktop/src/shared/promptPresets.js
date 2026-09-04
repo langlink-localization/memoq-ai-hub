@@ -9,6 +9,20 @@ const TRANSLATE_USER = 'Translate the source segment faithfully and return only 
 const POLISH_SYSTEM = 'You are a professional target-language editor working from {{source-language}} to {{target-language}}. Preserve meaning, terminology, placeholders, tags, and formatting.';
 const POLISH_USER = 'Improve the current target for grammar, fluency, clarity, and locale conventions. Return only the revised target.\n\nSource:\n{{source-text}}\n\nCurrent target:\n{{target-text}}';
 
+/**
+ * @typedef {Object} PromptPreset
+ * @property {string} id
+ * @property {string} name
+ * @property {string} scope
+ * @property {string} style
+ * @property {string} systemPrompt
+ * @property {string} userPrompt
+ * @property {Array<{ instruction: string }>} rules
+ * @property {boolean} builtin
+ * @property {string} updatedAt
+ */
+
+/** @type {ReadonlyArray<PromptPreset>} */
 const BUILTIN_PROMPT_PRESETS = Object.freeze([
   { id: 'builtin-qa-default', name: 'Default QA', scope: 'qa', style: '', systemPrompt: DEFAULT_QA_SYSTEM_PROMPT, userPrompt: DEFAULT_QA_USER_PROMPT, rules: [] },
   { id: 'builtin-qa-strict', name: 'Strict review', scope: 'qa', style: '', systemPrompt: DEFAULT_QA_SYSTEM_PROMPT, userPrompt: DEFAULT_QA_USER_PROMPT, rules: [{ instruction: 'Flag subtle omissions, mistranslations, inconsistent terminology, unnatural target-language grammar, and locale-convention problems when there is explicit evidence.' }] },
@@ -18,12 +32,21 @@ const BUILTIN_PROMPT_PRESETS = Object.freeze([
   { id: 'builtin-polish-style', name: 'Polish and preserve style', scope: 'polish', style: 'Improve fluency and grammar while preserving the established voice, intent, and terminology.', systemPrompt: POLISH_SYSTEM, userPrompt: POLISH_USER, rules: [] }
 ].map((preset) => Object.freeze({ ...preset, builtin: true, updatedAt: '' })));
 
+/**
+ * @returns {string}
+ */
 function createPresetId() {
   return `prompt_${crypto.randomUUID().replace(/-/g, '')}`;
 }
 
+/** @typedef {Record<string, unknown>} PromptPresetInput */
+
+/**
+ * @param {PromptPresetInput=} preset
+ * @returns {boolean}
+ */
 function validatePromptPreset(preset = {}) {
-  const scope = ['qa', 'translate', 'polish'].includes(preset.scope) ? preset.scope : '';
+  const scope = ['qa', 'translate', 'polish'].includes(/** @type {any} */ (preset.scope)) ? /** @type {string} */ (preset.scope) : '';
   if (!scope) throw new Error('Prompt preset scope must be qa, translate, or polish.');
   if (!String(preset.name || '').trim()) throw new Error('Prompt preset name is required.');
   validateTemplate(preset.systemPrompt, { fieldLabel: `${scope} preset system prompt`, fieldName: 'systemPrompt', disallowedTokens: SYSTEM_PROMPT_FORBIDDEN_PLACEHOLDERS });
@@ -31,11 +54,16 @@ function validatePromptPreset(preset = {}) {
   return true;
 }
 
+/**
+ * @param {PromptPresetInput=} preset
+ * @param {Partial<PromptPreset>=} fallback
+ * @returns {PromptPreset}
+ */
 function normalizePromptPreset(preset = {}, fallback = {}) {
   const normalized = {
     id: String(preset.id || fallback.id || createPresetId()).trim(),
     name: String(preset.name || fallback.name || 'Prompt preset').trim(),
-    scope: ['qa', 'translate', 'polish'].includes(preset.scope) ? preset.scope : fallback.scope,
+    scope: /** @type {string} */ (['qa', 'translate', 'polish'].includes(/** @type {any} */ (preset.scope)) ? preset.scope : String(fallback.scope || '')),
     style: String(preset.style ?? fallback.style ?? '').trim(),
     systemPrompt: String(preset.systemPrompt || fallback.systemPrompt || '').trim(),
     userPrompt: String(preset.userPrompt || fallback.userPrompt || '').trim(),
@@ -47,6 +75,10 @@ function normalizePromptPreset(preset = {}, fallback = {}) {
   return normalized;
 }
 
+/**
+ * @param {unknown} value
+ * @returns {PromptPreset[]}
+ */
 function normalizePromptPresets(value) {
   const input = Array.isArray(value) ? value : [];
   const existing = new Map(input.filter((item) => item?.id).map((item) => [String(item.id), item]));
@@ -58,6 +90,10 @@ function normalizePromptPresets(value) {
   return result;
 }
 
+/**
+ * @param {unknown} id
+ * @returns {PromptPreset}
+ */
 function restoreBuiltinPromptPreset(id) {
   const preset = BUILTIN_PROMPT_PRESETS.find((item) => item.id === String(id || ''));
   if (!preset) throw new Error(`Built-in prompt preset ${id || 'unknown'} was not found.`);

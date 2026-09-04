@@ -7,19 +7,36 @@ const { runAiQualityCheck } = require('./aiQualityChecker');
 
 const QA_CHECKER_VERSION = 'qa-v1';
 
+/** @typedef {Record<string, any>} QaFinding */
+
+/**
+ * @param {QaFinding[]=} findings
+ * @returns {{ counts: Record<string, number>, total: number }}
+ */
 function createSummary(findings = []) {
+  /** @type {Record<string, number>} */
   const counts = { critical: 0, major: 0, minor: 0, info: 0 };
-  findings.forEach((finding) => { counts[finding.severity] = Number(counts[finding.severity] || 0) + 1; });
+  findings.forEach((finding) => {
+    const key = String(finding.severity);
+    counts[key] = Number(counts[key] || 0) + 1;
+  });
   return { counts, total: findings.length };
 }
 
+/**
+ * @param {QaFinding[]=} deterministic
+ * @param {QaFinding[]=} ai
+ * @returns {QaFinding[]}
+ */
 function mergeFindings(deterministic = [], ai = []) {
+  /** @type {Map<string, QaFinding>} */
   const selected = new Map();
   for (const finding of [...deterministic, ...ai]) {
     const key = [finding.category, finding.ruleId, finding.sourceEvidence, finding.targetRange?.start ?? ''].join('|');
     const current = selected.get(key);
     if (!current || (finding.origin === 'deterministic' && current.origin !== 'deterministic')) selected.set(key, finding);
   }
+  /** @type {Record<string, number>} */
   const severityRank = { critical: 0, major: 1, minor: 2, info: 3 };
   return Array.from(selected.values()).sort((left, right) => (
     severityRank[left.severity] - severityRank[right.severity]
@@ -28,29 +45,50 @@ function mergeFindings(deterministic = [], ai = []) {
   ));
 }
 
+/**
+ * @typedef {Object} QaCoordinatorOptions
+ * @property {any=} persistence
+ * @property {((payload: Record<string, unknown>) => Promise<any>)=} invokeAi
+ * @property {(() => Date)=} now
+ */
+
+/**
+ * @param {QaCoordinatorOptions=} options
+ */
 function createQaCoordinator(options = {}) {
   const persistence = options.persistence;
   const invokeAi = options.invokeAi;
   const now = options.now || (() => new Date());
   const currentHashes = new Map();
+  /** @type {Map<string, AbortController & { requestId?: string }>} */
   const activeRequests = new Map();
+  /** @type {Map<string, any>} */
   const resultCache = new Map();
   let lastError = '';
   let lastCompletedAt = '';
+  /** @type {any} */
   let latestResult = null;
   let consecutiveAiFailures = 0;
   let circuitOpenUntil = 0;
   let paused = false;
 
+  /**
+   * @param {Record<string, any>} snapshot
+   * @returns {string}
+   */
   function snapshotKey(snapshot) {
     return `${snapshot.document.id}:${snapshot.segment.segmentIndex}:${snapshot.segment.previewPartId}`;
   }
 
+  /**
+   * @param {Record<string, any>=} payload
+   * @returns {Promise<Record<string, any>>}
+   */
   async function checkSegment(payload = {}) {
-    const snapshot = createQaSnapshot(payload);
+    const snapshot = /** @type {Record<string, any>} */ (createQaSnapshot(payload));
     const key = snapshotKey(snapshot);
     currentHashes.set(key, snapshot.revision.contentHash);
-    const controller = new AbortController();
+    const controller = /** @type {AbortController & { requestId?: string }} */ (new AbortController());
     controller.requestId = snapshot.requestId;
     activeRequests.get(key)?.abort?.();
     activeRequests.set(key, controller);
@@ -62,10 +100,12 @@ function createQaCoordinator(options = {}) {
     });
     const fastCheckMs = Date.now() - fastStartedAt;
     const cacheKey = sha256(`${QA_CHECKER_VERSION}:${snapshot.revision.contentHash}:${payload.ai?.providerId || ''}:${payload.ai?.model || ''}`);
+    /** @type {any} */
     let aiResult = {
       findings: [], latencyMs: 0, status: payload.ai?.enabled === true ? 'pending' : 'disabled', repairAttempted: false,
       candidateCount: 0, displayedCount: 0, filteredCount: 0, providerId: '', model: ''
     };
+    /** @type {any} */
     let result = {
       requestId: snapshot.requestId,
       trigger: snapshot.trigger,
@@ -110,7 +150,7 @@ function createQaCoordinator(options = {}) {
     try {
       if (payload.ai?.enabled === true) {
         if (Date.now() < circuitOpenUntil) {
-          const error = new Error('AI quality checks are temporarily paused after repeated provider failures.');
+          const error = /** @type {any} */ (new Error('AI quality checks are temporarily paused after repeated provider failures.'));
           error.code = 'QA_CIRCUIT_OPEN';
           throw error;
         }
@@ -134,7 +174,7 @@ function createQaCoordinator(options = {}) {
             }
           });
           resultCache.set(cacheKey, aiResult);
-          if (resultCache.size > 500) resultCache.delete(resultCache.keys().next().value);
+          if (resultCache.size > 500) resultCache.delete(/** @type {string} */ (resultCache.keys().next().value));
         }
         consecutiveAiFailures = 0;
         circuitOpenUntil = 0;
@@ -187,7 +227,7 @@ function createQaCoordinator(options = {}) {
       lastCompletedAt = now().toISOString();
       lastError = '';
       return result;
-    } catch (error) {
+    } catch (/** @type {any} */ error) {
       if (payload.ai?.enabled === true && error?.name !== 'AbortError') {
         consecutiveAiFailures += 1;
         if (consecutiveAiFailures >= 3) {
@@ -226,10 +266,14 @@ function createQaCoordinator(options = {}) {
     }
   }
 
+  /**
+   * @param {Record<string, any>=} payload
+   * @returns {Promise<Record<string, any>>}
+   */
   async function checkDocument(payload = {}) {
     const segments = Array.isArray(payload.segments) ? payload.segments : [];
     if (!segments.length) {
-      const error = new Error('Document QA requires at least one segment.');
+      const error = /** @type {any} */ (new Error('Document QA requires at least one segment.'));
       error.code = 'QA_INVALID_REQUEST';
       throw error;
     }
@@ -246,7 +290,7 @@ function createQaCoordinator(options = {}) {
         });
       }
     }
-    await Promise.all(Array.from({ length: Math.min(concurrency, segments.length) }, worker));
+    await Promise.all(Array.from({ length: Math.min(concurrency, segments.length) }, () => worker()));
     return {
       document: payload.document || { id: payload.documentId || 'imported-document', name: payload.documentName || '' },
       status: results.some((item) => item.status === 'local-only') ? 'local-only' : 'complete',
@@ -258,6 +302,9 @@ function createQaCoordinator(options = {}) {
   return {
     checkSegment,
     checkDocument,
+    /**
+     * @param {Record<string, any>=} payload
+     */
     cancel(payload = {}) {
       const requestId = String(payload.requestId || '');
       const documentId = String(payload.documentId || '');
@@ -272,9 +319,12 @@ function createQaCoordinator(options = {}) {
       if (typeof payload.paused === 'boolean') paused = payload.paused;
       return { ok: true, cancelled, paused };
     },
+    /**
+     * @param {Record<string, any>=} payload
+     */
     saveFeedback(payload = {}) {
       if (!QA_FEEDBACK_STATES.includes(payload.state)) {
-        const error = new Error('Unsupported QA feedback state.');
+        const error = /** @type {any} */ (new Error('Unsupported QA feedback state.'));
         error.code = 'QA_INVALID_REQUEST';
         throw error;
       }
@@ -286,6 +336,9 @@ function createQaCoordinator(options = {}) {
         ruleId: String(payload.ruleId || '')
       });
     },
+    /**
+     * @param {unknown=} documentId
+     */
     listResults(documentId) { return persistence?.listQaResults?.(documentId) || []; },
     getStatus() {
       return {

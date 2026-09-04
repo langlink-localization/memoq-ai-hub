@@ -9,12 +9,13 @@
 
 ## Canonical commands
 - Install with `pnpm install` and `pnpm run install:desktop`.
-- Verify with `pnpm run test:desktop`, `pnpm run test:repo`, and `pnpm run build:plugin`.
+- Verify with `pnpm run typecheck`, `pnpm run test:desktop`, `pnpm run test:repo`, and `pnpm run build:plugin`.
 - Prepare or package releases only through the existing `prepare:release`, `package:desktop`, `zip:desktop`, or `package:windows` scripts.
 
 ## Working rules
 - Keep memoQ SDK and forwarding logic thin; provider and product behavior belongs in the desktop app.
 - Keep shared plugin/desktop shapes in `packages/contracts/`; update both consumers and tests when the wire contract changes.
+- New or edited modules under `apps/desktop/src/shared/` must keep `pnpm run typecheck` (JSDoc + `checkJs`) green; extend the typed surface rather than weakening it.
 - Do not commit provider credentials, local history, cache, logs, packaged output, or installed DLL state.
 - Do not claim an internal runtime capability is shipped unless it is exposed by the current UI and documented flow.
 

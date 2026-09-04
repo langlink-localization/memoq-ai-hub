@@ -15,6 +15,10 @@ const FIRST_RELEASE_VISIBLE_ASSET_TYPES = new Set([
   'custom_tm'
 ]);
 
+/**
+ * @param {Record<string, unknown>=} assetSelections
+ * @returns {{ glossaryAssetId?: string, customTmAssetId?: string }}
+ */
 function normalizeAssetSelections(assetSelections = {}) {
   const glossaryAssetId = String(assetSelections?.glossaryAssetId || '').trim();
   const customTmAssetId = String(assetSelections?.customTmAssetId || assetSelections?.customTm || '').trim();
@@ -24,6 +28,10 @@ function normalizeAssetSelections(assetSelections = {}) {
   };
 }
 
+/**
+ * @param {unknown=} assetBindings
+ * @returns {Array<{ assetId: string, purpose: string }>}
+ */
 function normalizeAssetBindings(assetBindings = []) {
   return (Array.isArray(assetBindings) ? assetBindings : [])
     .filter((binding) => FIRST_RELEASE_VISIBLE_ASSET_TYPES.has(String(binding?.purpose || '').trim()))
@@ -34,6 +42,16 @@ function normalizeAssetBindings(assetBindings = []) {
     .filter((binding) => binding.assetId && binding.purpose);
 }
 
+/**
+ * @typedef {Object} ProfilePolicyInput
+ * @property {unknown=} assetBindings
+ * @property {Record<string, unknown>=} assetSelections
+ * @property {unknown=} customTmMatchBuckets
+ */
+
+/**
+ * @param {ProfilePolicyInput=} profile
+ */
 function applyFirstReleaseProfilePolicy(profile = {}) {
   return {
     ...profile,
@@ -43,17 +61,29 @@ function applyFirstReleaseProfilePolicy(profile = {}) {
   };
 }
 
+/**
+ * @param {unknown=} placeholders
+ * @returns {unknown[]}
+ */
 function getFirstReleaseVisiblePlaceholders(placeholders = []) {
   return (Array.isArray(placeholders) ? placeholders : [])
     .filter((item) => !FIRST_RELEASE_DISABLED_PLACEHOLDER_TOKENS.has(String(item?.token || '').trim()));
 }
 
+/**
+ * @param {unknown} template
+ * @returns {string[]}
+ */
 function collectDisallowedPlaceholderTokens(template) {
   return listTemplatePlaceholders(template)
     .map((item) => String(item?.token || '').trim())
     .filter((token) => FIRST_RELEASE_DISABLED_PLACEHOLDER_TOKENS.has(token));
 }
 
+/**
+ * @param {import('./promptTemplate').ProfilePromptTemplatesInput=} profile
+ * @returns {string[]}
+ */
 function collectFirstReleaseProfilePlaceholderViolations(profile = {}) {
   const violations = new Set();
   const templates = [

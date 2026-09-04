@@ -23,6 +23,10 @@ const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
 
 const LOOPBACK_GATEWAY_HOSTS = new Set(['127.0.0.1', 'localhost']);
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeGatewayHost(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (!LOOPBACK_GATEWAY_HOSTS.has(normalized)) {
@@ -31,6 +35,10 @@ function normalizeGatewayHost(value) {
   return normalized;
 }
 
+/**
+ * @param {unknown} value
+ * @returns {number}
+ */
 function normalizeGatewayPort(value) {
   const normalized = Number(value);
   if (!Number.isInteger(normalized) || normalized < 1 || normalized > 65535) {

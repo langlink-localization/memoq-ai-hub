@@ -6,6 +6,9 @@
 
 const REQUIRED_LANGUAGE_FIELDS = ['sourceLanguage', 'targetLanguage'];
 
+/** @typedef {Record<string, unknown>} GatewayPayload */
+
+/** @type {Record<string, (payload: GatewayPayload) => string | null>} */
 const ROUTE_VALIDATORS = {
   mtTranslate: validateTranslatePayload,
   mtTranslateAggregate: validateTranslatePayload,
@@ -13,14 +16,26 @@ const ROUTE_VALIDATORS = {
   mtStoreTranslations: validateStoreTranslationsPayload
 };
 
+/**
+ * @param {unknown} value
+ * @returns {value is GatewayPayload}
+ */
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * @param {unknown} value
+ * @returns {value is string}
+ */
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+/**
+ * @param {Array<() => string | null>} rules
+ * @returns {string | null}
+ */
 function firstProblem(rules) {
   for (const rule of rules) {
     const problem = rule();
@@ -31,30 +46,47 @@ function firstProblem(rules) {
   return null;
 }
 
+/**
+ * @param {GatewayPayload} payload
+ * @returns {string | null}
+ */
 function validateTranslatePayload(payload) {
   return firstProblem([
     () => (Array.isArray(payload.segments) ? null : 'segments must be an array of segment objects.'),
     () => REQUIRED_LANGUAGE_FIELDS
       .map((field) => (isNonEmptyString(payload[field]) ? null : `${field} must be a non-empty string.`))
-      .find(Boolean)
+      .find(Boolean) || null
   ]);
 }
 
+/**
+ * @param {GatewayPayload} payload
+ * @returns {string | null}
+ */
 function validateAggregateResultPayload(payload) {
   return isNonEmptyString(payload.jobRequestId)
     ? null
     : 'jobRequestId must be a non-empty string.';
 }
 
+/**
+ * @param {GatewayPayload} payload
+ * @returns {string | null}
+ */
 function validateStoreTranslationsPayload(payload) {
   return firstProblem([
     () => REQUIRED_LANGUAGE_FIELDS
       .map((field) => (isNonEmptyString(payload[field]) ? null : `${field} must be a non-empty string.`))
-      .find(Boolean),
+      .find(Boolean) || null,
     () => (Array.isArray(payload.translations) ? null : 'translations must be an array of translation entries.')
   ]);
 }
 
+/**
+ * @param {string} routeKey
+ * @param {unknown} payload
+ * @returns {string | null}
+ */
 function validateGatewayPayload(routeKey, payload) {
   if (!isPlainObject(payload)) {
     return 'The request body must be a JSON object.';

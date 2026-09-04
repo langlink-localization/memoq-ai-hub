@@ -1,0 +1,39 @@
+id: jsdoc-typecheck-foundation
+title: memoQ AI Hub progressive JSDoc type checking
+status: in_progress
+owner: repository maintainers
+repos:
+  - path: ../..
+    role: source-of-truth
+source_plan: none
+spec_link: none
+github_links:
+  project: none
+  issues: []
+current_stage: qa-and-bilingual-typed
+last_verified_commit: "tsc 0 errors over shared + qa + bilingual + assetTmMatcher, desktop tests 616 (612 pass / 4 packaging skips), repo governance clean, lint zero warnings"
+next_action: >
+  Type the asset parser layer next (assetTerminology, assetTbStructure,
+  assetGlossaryParser, assetContextAssembler, assetContext, assetRules,
+  assetBriefParser, assetParseCache, assetPreviewBuilder), then the provider
+  modules (providerConfig, providerGovernance, providerResponseUtils), then
+  the runtime services. Every new module must join
+  apps/desktop/tsconfig.json's include list with strict checkJs green before
+  the next one starts.
+allowed_interruptions:
+  - emergency production fix
+  - security or data correctness issue
+drift_guard:
+  ui_contract: docs/ui-governance.md
+  toolchain_contract: AGENTS.md, package.json, and .github/workflows/ci.yml
+  validation_command: pnpm run lint && pnpm run typecheck && pnpm run test:desktop && pnpm run test:repo
+  source_of_truth: repository main branch, GitHub Actions, release tag, stable update manifest, and published release assets
+intentional_divergences: []
+resume_prompt: >
+  This initiative runs progressive strict type checking over the plain-JS
+  desktop sources through JSDoc annotations, tsc --noEmit (typescript 7.0.2),
+  the pnpm run typecheck script, and a CI step. The typed scope today is all of
+  apps/desktop/src/shared, the full src/qa and src/bilingual layers,
+  asset/assetTmMatcher.js, gatewayRequestValidation.js, and
+  rendererIpcSurface.js. Continue with next_action without weakening strict
+  mode or shrinking the typed surface.

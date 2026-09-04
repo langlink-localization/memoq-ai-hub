@@ -1,3 +1,12 @@
+/**
+ * @typedef {Object} MemoQMetadataFieldRule
+ * @property {string} ruleKey
+ * @property {string} metadataKey
+ * @property {'equals' | 'includes' | 'regex'} matcher
+ * @property {string} inputLabelKey
+ */
+
+/** @type {MemoQMetadataFieldRule[]} */
 const MEMOQ_METADATA_FIELDS = [
   { ruleKey: 'client', metadataKey: 'client', matcher: 'equals', inputLabelKey: 'context.matchClient' },
   { ruleKey: 'domain', metadataKey: 'domain', matcher: 'includes', inputLabelKey: 'context.matchDomain' },
@@ -9,6 +18,10 @@ const MEMOQ_METADATA_FIELDS = [
   { ruleKey: 'segmentStatus', metadataKey: 'segmentStatus', matcher: 'equals', inputLabelKey: 'mapping.segmentStatus' }
 ];
 
+/**
+ * Builds the empty metadata match form input used by the mapping rule editor.
+ * @returns {Record<string, string>}
+ */
 function createDefaultMetadataMatchInput() {
   return {
     client: '',
@@ -22,6 +35,11 @@ function createDefaultMetadataMatchInput() {
   };
 }
 
+/**
+ * Joins a mapping rule's non-empty condition values into a summary string.
+ * @param {Record<string, unknown>=} rule
+ * @returns {string}
+ */
 function summarizeRuleConditions(rule = {}) {
   return MEMOQ_METADATA_FIELDS
     .map((field) => String(rule[field.ruleKey] || '').trim())

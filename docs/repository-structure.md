@@ -6,6 +6,7 @@ This repository follows a standard monorepo topology. Runtime code, shared contr
 
 - `apps/`: deployable application packages.
 - `apps/desktop/`: Electron desktop application, local HTTP gateway, renderer UI, and desktop tests.
+- `apps/desktop/tsconfig.json`: strict `checkJs` scope for the progressively typed desktop modules (`pnpm run typecheck`; see `docs/initiatives/jsdoc-typecheck-foundation.yaml`).
 - `apps/desktop/src/runtime/runtime.js`: desktop runtime composition root and public API facade; product execution and resource state operations belong in sibling services and stores.
 - `apps/desktop/src/runtime/runtimeAggregationService.js`: aggregate request queue owner for grouping, deadlines, congestion state, rescue settlement, and job lifecycle.
 - `apps/desktop/src/runtime/runtimeProviderExecution.js`: provider execution boundary for concurrency slots, rate limiting, retries, and per-route throughput history.

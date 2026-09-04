@@ -1,3 +1,8 @@
+/**
+ * Normalizes raw memoQ/provider language text into a comparable form.
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeLanguageInput(value) {
   return String(value || '')
     .trim()
@@ -44,6 +49,11 @@ const LANGUAGE_ALIAS_MAP = new Map([
   ['arabic', 'ar']
 ]);
 
+/**
+ * Normalizes a language code or name into a canonical BCP-47-like tag.
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeCanonicalLanguageTag(value) {
   const normalized = normalizeLanguageInput(value);
   if (!normalized) {
@@ -52,11 +62,11 @@ function normalizeCanonicalLanguageTag(value) {
 
   const lower = normalized.toLowerCase();
   if (LANGUAGE_ALIAS_MAP.has(lower)) {
-    return LANGUAGE_ALIAS_MAP.get(lower);
+    return /** @type {string} */ (LANGUAGE_ALIAS_MAP.get(lower));
   }
   const spaced = lower.replace(/-/g, ' ');
   if (LANGUAGE_ALIAS_MAP.has(spaced)) {
-    return LANGUAGE_ALIAS_MAP.get(spaced);
+    return /** @type {string} */ (LANGUAGE_ALIAS_MAP.get(spaced));
   }
 
   const parts = lower.split('-').filter(Boolean);
@@ -82,11 +92,19 @@ function normalizeCanonicalLanguageTag(value) {
   return [language, ...normalizedRest].join('-');
 }
 
+/**
+ * @param {unknown} tag
+ * @returns {string}
+ */
 function getBaseLanguage(tag) {
   const normalized = normalizeCanonicalLanguageTag(tag);
   return normalized ? normalized.split('-')[0] : '';
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string[]}
+ */
 function getLanguageAliasKeys(value) {
   const canonical = normalizeCanonicalLanguageTag(value);
   if (!canonical) {

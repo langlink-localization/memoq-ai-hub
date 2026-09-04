@@ -1,7 +1,7 @@
 {
   "name": "memoq-ai-hub",
   "private": true,
-  "version": "1.0.38",
+  "version": "1.0.39",
   "packageManager": "pnpm@10.6.2",
   "engines": {
     "node": ">=22.12.0"
@@ -41,6 +41,7 @@
   },
   "scripts": {
     "lint": "eslint \"apps/desktop/src/**/*.{js,mjs,jsx}\" \"apps/desktop/test/**/*.{js,mjs}\" \"tooling/scripts/**/*.{js,mjs}\" \"tests/repo/**/*.mjs\" --max-warnings=0",
+    "typecheck": "tsc --noEmit -p apps/desktop/tsconfig.json",
     "install:desktop": "pnpm --dir apps/desktop install",
     "build:plugin": "powershell -ExecutionPolicy Bypass -File .\\tooling\\scripts\\build-windows.ps1 -Configuration Release",
     "test:plugin": "powershell -ExecutionPolicy Bypass -File .\\tooling\\scripts\\test-plugin-regression.ps1 -Configuration Release",
@@ -57,6 +58,7 @@
     "@eslint/js": "9.39.5",
     "eslint": "9.39.5",
     "eslint-plugin-react-hooks": "7.1.1",
-    "globals": "17.9.0"
+    "globals": "17.9.0",
+    "typescript": "7.0.2"
   }
 }

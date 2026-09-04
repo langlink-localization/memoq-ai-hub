@@ -30,7 +30,7 @@ The repository contains runtime code for more advanced capabilities, but not eve
 
 ## Current Release Highlights
 
-`v1.0.38` includes the product, performance, security, architecture, and reliability improvements delivered from `v1.0.20` through `v1.0.38`:
+`v1.0.39` includes the product, performance, security, architecture, and reliability improvements delivered from `v1.0.20` through `v1.0.39`:
 
 - Project Rules now exposes the existing metadata-routing engine as a complete operator workflow: create, edit, copy, enable, disable, delete, inspect hit counts, and test rules against memoQ project metadata.
 - Profiles can bind uploaded TMX or table-based Custom TM assets and choose which `AI Hub TM score` buckets are sent to AI. Context-aware TMX matches can reach `101%`, while memoQ's own fuzzy hint remains a separate reference.
@@ -45,6 +45,7 @@ The repository contains runtime code for more advanced capabilities, but not eve
 - The repository and release packages no longer include memoQ SDK binaries, AddinSigner, or official SDK samples. Source builds resolve the two required compile-time assemblies into an ignored local cache.
 - The memoQ plugin and desktop gateway now verify the shared contract version against each other before the first request, gateway POST payloads are shape-validated up front, and the local database gained versioned schema migrations.
 - The renderer app shell was decomposed into focused page-domain hooks and components, the renderer IPC surface is generated from a single table shared by preload and main, and the runtime gained explicit history-presentation and state-view services.
+- Strict type checking (JSDoc annotations checked by `tsc --noEmit`) now gates the shared contract layer, the QA and bilingual modules, and the renderer IPC surface through `pnpm run typecheck` and a CI step.
 
 ## Runtime Layout
 

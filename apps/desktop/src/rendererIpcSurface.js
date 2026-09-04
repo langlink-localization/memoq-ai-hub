@@ -6,6 +6,19 @@
 // here (plus, when needed, a worker requestHandlers entry) instead of parallel
 // edits in main.js and preload.js.
 
+/**
+ * @typedef {Object} MainLocalMethodSpec
+ * @property {string} channel
+ */
+
+/**
+ * @typedef {Object} WorkerProxiedMethodSpec
+ * @property {string} channel
+ * @property {string} worker
+ * @property {((...args: unknown[]) => unknown)=} workerPayload
+ */
+
+/** @type {Record<string, MainLocalMethodSpec>} */
 const MAIN_LOCAL_METHODS = {
   getGatewayBaseUrl: { channel: 'desktop:get-gateway-base-url' },
   getAppState: { channel: 'desktop:get-app-state' },
@@ -25,6 +38,7 @@ const MAIN_LOCAL_METHODS = {
   launchDownloadedInstallerUpdate: { channel: 'desktop:launch-downloaded-installer-update' }
 };
 
+/** @type {Record<string, WorkerProxiedMethodSpec>} */
 const WORKER_PROXIED_METHODS = {
   getHistoryEntry: {
     channel: 'desktop:get-history-entry',

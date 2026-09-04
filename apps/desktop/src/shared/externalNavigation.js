@@ -1,3 +1,15 @@
+/**
+ * @typedef {Object} NormalizeExternalUrlOptions
+ * @property {string=} label
+ * @property {boolean=} allowEmpty
+ */
+
+/**
+ * Normalizes an external link, refusing anything that is not a bare HTTPS URL.
+ * @param {unknown} value
+ * @param {NormalizeExternalUrlOptions=} options
+ * @returns {string}
+ */
 function normalizeExternalHttpsUrl(value, options = {}) {
   const label = String(options.label || 'External URL');
   const allowEmpty = options.allowEmpty === true;
@@ -27,6 +39,10 @@ function normalizeExternalHttpsUrl(value, options = {}) {
   return parsed.toString();
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeUpdateArtifactName(value) {
   const normalized = String(value || '').trim();
   if (!normalized) {

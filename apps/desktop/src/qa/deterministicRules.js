@@ -2,14 +2,30 @@
 
 const { normalizeFinding } = require('./qaContracts');
 
+/** @typedef {Record<string, unknown>} QaFindingInput */
+
+/**
+ * @param {RegExp} pattern
+ * @param {unknown} value
+ * @returns {string[]}
+ */
 function collect(pattern, value) {
   return (String(value || '').match(pattern) || []).map((item) => String(item)).sort();
 }
 
+/**
+ * @param {string[]} left
+ * @param {string[]} right
+ * @returns {boolean}
+ */
 function sameMultiset(left, right) {
   return left.length === right.length && left.every((item, index) => item === right[index]);
 }
 
+/**
+ * @param {unknown[]} findings
+ * @param {{ ruleId: unknown, title: unknown, message: unknown, sourceEvidence: unknown, severity?: string }} mismatch
+ */
 function addMismatch(findings, { ruleId, title, message, sourceEvidence, severity = 'major' }) {
   findings.push({
     category: 'formatting',
@@ -23,6 +39,18 @@ function addMismatch(findings, { ruleId, title, message, sourceEvidence, severit
   });
 }
 
+/**
+ * @typedef {Object} QaCheckSnapshot
+ * @property {{ source: string, target: string }} segment
+ * @property {{ contentHash: string }} revision
+ */
+
+/**
+ * @param {Record<string, any>} snapshot
+ * @param {unknown} rules
+ * @param {unknown[]} findings
+ * @returns {void}
+ */
 function runCustomRules(snapshot, rules, findings) {
   for (const rule of Array.isArray(rules) ? rules : []) {
     if (rule?.enabled === false) continue;
@@ -52,6 +80,17 @@ function runCustomRules(snapshot, rules, findings) {
   }
 }
 
+/**
+ * @typedef {Object} DeterministicCheckOptions
+ * @property {unknown=} terminologyMatches
+ * @property {unknown=} rules
+ */
+
+/**
+ * @param {Record<string, any>} snapshot
+ * @param {DeterministicCheckOptions=} options
+ * @returns {Array<Record<string, any>>}
+ */
 function runDeterministicChecks(snapshot, options = {}) {
   const source = snapshot.segment.source;
   const target = snapshot.segment.target;
@@ -63,6 +102,7 @@ function runDeterministicChecks(snapshot, options = {}) {
     findings.push({ category: 'accuracy', severity: 'major', title: 'Source and target are identical', message: 'The target is identical to the source.', sourceEvidence: source.slice(0, 500), ruleId: 'source-equals-target', confidence: 1 });
   }
 
+  /** @type {Array<[string, RegExp, string, string]>} */
   const structures = [
     ['numbers', /[-+]?\d+(?:[.,]\d+)*(?:%|‰)?/g, 'Numbers changed', 'Numbers in source and target do not match.'],
     ['dates', /\b(?:\d{1,4}[/.\-]\d{1,2}(?:[/.\-]\d{1,4})?|\d{1,2}:\d{2}(?::\d{2})?)\b/g, 'Dates or times changed', 'Dates or times in source and target do not match.'],

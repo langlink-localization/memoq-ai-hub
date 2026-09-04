@@ -6,6 +6,10 @@ const DEFAULT_CANDIDATE_LIMIT = 50;
 const CUSTOM_TM_MATCH_BUCKETS = Object.freeze(['101%', '100%', '95-99', '85-94', '75-84', '<75']);
 const DEFAULT_CUSTOM_TM_MATCH_BUCKETS = Object.freeze(['101%', '100%', '95-99', '85-94', '75-84']);
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeWhitespace(value) {
   return String(value || '')
     .normalize('NFKC')
@@ -15,26 +19,52 @@ function normalizeWhitespace(value) {
     .trim();
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeLanguageKey(value) {
   return String(value || '').trim().toLowerCase().replace(/_/g, '-');
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function getBaseLanguage(value) {
   return normalizeLanguageKey(value).split('-')[0] || '';
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function stripInlineMarkup(value) {
   return String(value || '')
     .replace(/<[^>]+>/g, (match) => ` ${match} `)
     .replace(/\{\d+\}/g, (match) => ` ${match} `);
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string[]}
+ */
 function extractPlaceholders(value) {
   const text = String(value || '');
   const matches = text.match(/(\{\d+\}|<[^>]+>|\{\{[^}]+\}\}|%[A-Za-z0-9_.-]+%|\$[A-Za-z0-9_.-]+)/g);
   return matches ? matches.map((item) => item.toLowerCase()) : [];
 }
 
+/**
+ * @typedef {Object} TmTokenizeOptions
+ * @property {boolean=} caseSensitive
+ */
+
+/**
+ * @param {unknown} value
+ * @param {TmTokenizeOptions=} options
+ * @returns {string[]}
+ */
 function tokenizeForTmMatch(value, options = {}) {
   const lower = options.caseSensitive === true
     ? stripInlineMarkup(value)
@@ -53,6 +83,11 @@ function tokenizeForTmMatch(value, options = {}) {
   return tokens;
 }
 
+/**
+ * @param {unknown=} left
+ * @param {unknown=} right
+ * @returns {number}
+ */
 function levenshteinDistance(left = [], right = []) {
   const source = Array.isArray(left) ? left : [];
   const target = Array.isArray(right) ? right : [];
@@ -81,6 +116,11 @@ function levenshteinDistance(left = [], right = []) {
   return previous[source.length];
 }
 
+/**
+ * @param {string[]=} leftTokens
+ * @param {string[]=} rightTokens
+ * @returns {number}
+ */
 function calculateTokenSimilarity(leftTokens = [], rightTokens = []) {
   const maxLength = Math.max(leftTokens.length, rightTokens.length);
   if (!maxLength) {
@@ -91,6 +131,11 @@ function calculateTokenSimilarity(leftTokens = [], rightTokens = []) {
   return Math.max(0, Math.min(100, Math.round((100 * (maxLength - distance)) / maxLength)));
 }
 
+/**
+ * @param {string[]=} leftTokens
+ * @param {string[]=} rightTokens
+ * @returns {number}
+ */
 function calculateTokenOverlap(leftTokens = [], rightTokens = []) {
   if (!leftTokens.length || !rightTokens.length) {
     return 0;
@@ -113,6 +158,11 @@ function calculateTokenOverlap(leftTokens = [], rightTokens = []) {
   return shared / Math.max(leftTokens.length, rightTokens.length);
 }
 
+/**
+ * @param {unknown} sourceText
+ * @param {unknown} candidateText
+ * @returns {number}
+ */
 function calculatePlaceholderPenalty(sourceText, candidateText) {
   const sourcePlaceholders = extractPlaceholders(sourceText);
   const candidatePlaceholders = extractPlaceholders(candidateText);
@@ -139,6 +189,11 @@ function calculatePlaceholderPenalty(sourceText, candidateText) {
   return Math.min(25, 8 + missing * 6);
 }
 
+/**
+ * @param {unknown} score
+ * @param {boolean=} hasContextMatch
+ * @returns {string}
+ */
 function bucketTmScore(score, hasContextMatch = false) {
   const normalized = Math.max(0, Math.min(101, Math.round(Number(score) || 0)));
   if (normalized === 100 && hasContextMatch) return '101%';
@@ -149,6 +204,10 @@ function bucketTmScore(score, hasContextMatch = false) {
   return '<75';
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string[]}
+ */
 function normalizeCustomTmMatchBuckets(value) {
   if (!Array.isArray(value)) {
     return [...DEFAULT_CUSTOM_TM_MATCH_BUCKETS];
@@ -168,6 +227,31 @@ function normalizeCustomTmMatchBuckets(value) {
   return normalized.length ? normalized : [...DEFAULT_CUSTOM_TM_MATCH_BUCKETS];
 }
 
+/** @typedef {Record<string, unknown>} CustomTmEntryInput */
+
+/**
+ * @typedef {Object} CustomTmEntry
+ * @property {string} id
+ * @property {string} sourceText
+ * @property {string} targetText
+ * @property {string} sourceTerm
+ * @property {string} targetTerm
+ * @property {string} sourceLang
+ * @property {string} targetLang
+ * @property {string} srcLang
+ * @property {string} tgtLang
+ * @property {string} assetId
+ * @property {string} assetName
+ * @property {Record<string, unknown>} metadata
+ * @property {Record<string, unknown>} context
+ */
+
+/**
+ * @param {CustomTmEntryInput=} entry
+ * @param {number=} index
+ * @param {{ id?: unknown, name?: unknown }=} asset
+ * @returns {CustomTmEntry | null}
+ */
 function normalizeCustomTmEntry(entry = {}, index = 0, asset = {}) {
   const sourceText = normalizeWhitespace(entry.sourceText || entry.sourceTerm || entry.source || '');
   const targetText = normalizeWhitespace(entry.targetText || entry.targetTerm || entry.target || '');
@@ -187,11 +271,15 @@ function normalizeCustomTmEntry(entry = {}, index = 0, asset = {}) {
     tgtLang: String(entry.targetLang || entry.tgtLang || ''),
     assetId: String(asset.id || entry.assetId || ''),
     assetName: String(asset.name || entry.assetName || ''),
-    metadata: entry.metadata && typeof entry.metadata === 'object' ? entry.metadata : {},
-    context: entry.context && typeof entry.context === 'object' ? entry.context : {}
+    metadata: entry.metadata && typeof entry.metadata === 'object' ? /** @type {Record<string, unknown>} */ (entry.metadata) : {},
+    context: entry.context && typeof entry.context === 'object' ? /** @type {Record<string, unknown>} */ (entry.context) : {}
   };
 }
 
+/**
+ * @param {CustomTmEntry[]=} entries
+ * @returns {string}
+ */
 function createCustomTmFingerprint(entries = []) {
   return crypto.createHash('sha256').update(JSON.stringify((entries || []).map((entry) => ({
     sourceText: entry.sourceText,
@@ -203,6 +291,12 @@ function createCustomTmFingerprint(entries = []) {
   })))).digest('hex');
 }
 
+/**
+ * @param {CustomTmEntry} entry
+ * @param {unknown} sourceLanguage
+ * @param {unknown} targetLanguage
+ * @returns {boolean}
+ */
 function languageMatches(entry, sourceLanguage, targetLanguage) {
   const source = normalizeLanguageKey(sourceLanguage);
   const target = normalizeLanguageKey(targetLanguage);
@@ -214,7 +308,19 @@ function languageMatches(entry, sourceLanguage, targetLanguage) {
   return sourceOk && targetOk;
 }
 
-function hasContextMatch(entry = {}, segment = {}) {
+/**
+ * @typedef {Object} TmMatchSegment
+ * @property {unknown=} sourceText
+ * @property {unknown=} plainText
+ * @property {{ previousSegment?: { sourceText?: unknown }, nextSegment?: { sourceText?: unknown } }=} neighborContext
+ */
+
+/**
+ * @param {CustomTmEntry=} entry
+ * @param {TmMatchSegment=} segment
+ * @returns {boolean}
+ */
+function hasContextMatch(entry = /** @type {CustomTmEntry} */ ({}), segment = /** @type {TmMatchSegment} */ ({})) {
   const context = entry.context && typeof entry.context === 'object' ? entry.context : {};
   const previous = segment?.neighborContext?.previousSegment;
   const next = segment?.neighborContext?.nextSegment;
@@ -227,7 +333,22 @@ function hasContextMatch(entry = {}, segment = {}) {
   );
 }
 
-function scoreCustomTmEntry(segment = {}, entry = {}) {
+/**
+ * @typedef {Object} CustomTmEntryScore
+ * @property {number} score
+ * @property {number} baseScore
+ * @property {number} penalty
+ * @property {string} bucket
+ * @property {number} tokenOverlap
+ * @property {boolean} contextMatched
+ */
+
+/**
+ * @param {TmMatchSegment=} segment
+ * @param {(CustomTmEntry & { tokens?: string[] })=} entry
+ * @returns {CustomTmEntryScore}
+ */
+function scoreCustomTmEntry(segment = /** @type {TmMatchSegment} */ ({}), entry = /** @type {CustomTmEntry & { tokens?: string[] }} */ ({})) {
   const sourceText = String(segment.sourceText || segment.plainText || '');
   const sourceTokens = tokenizeForTmMatch(sourceText);
   const entryTokens = entry.tokens || tokenizeForTmMatch(entry.sourceText);
@@ -246,6 +367,26 @@ function scoreCustomTmEntry(segment = {}, entry = {}) {
   };
 }
 
+/**
+ * @typedef {Object} CustomTmMatch
+ * @property {string} sourceText
+ * @property {string} targetText
+ * @property {string} sourceLang
+ * @property {string} targetLang
+ * @property {number} score
+ * @property {number} baseScore
+ * @property {number} penalty
+ * @property {string} bucket
+ * @property {string} scoreType
+ * @property {string} assetId
+ * @property {string} assetName
+ * @property {boolean} contextMatched
+ */
+
+/**
+ * @param {CustomTmMatch[]=} matches
+ * @returns {CustomTmMatch[]}
+ */
 function dedupeCustomTmMatches(matches = []) {
   const seen = new Set();
   const deduped = [];
@@ -267,18 +408,30 @@ function dedupeCustomTmMatches(matches = []) {
   return deduped;
 }
 
+/**
+ * @typedef {Object} CustomTmMatcher
+ * @property {Array<CustomTmEntry & { tokens: string[], tokenSet: Set<string> }>} entries
+ * @property {string} fingerprint
+ */
+
+/**
+ * @param {CustomTmEntryInput[]=} entries
+ * @returns {CustomTmMatcher}
+ */
 function createCustomTmMatcher(entries = []) {
-  const normalizedEntries = (entries || [])
-    .map((entry, index) => normalizeCustomTmEntry(entry, index, {
-      id: entry.assetId,
-      name: entry.assetName
-    }))
-    .filter(Boolean)
-    .map((entry) => ({
-      ...entry,
-      tokens: tokenizeForTmMatch(entry.sourceText),
-      tokenSet: new Set(tokenizeForTmMatch(entry.sourceText))
-    }));
+  const normalizedEntries = /** @type {Array<CustomTmEntry & { tokens: string[], tokenSet: Set<string> }>} */ (
+    (entries || [])
+      .map((entry, index) => normalizeCustomTmEntry(entry, index, {
+        id: entry.assetId,
+        name: entry.assetName
+      }))
+      .filter((item) => item !== null)
+      .map((entry) => ({
+        ...entry,
+        tokens: tokenizeForTmMatch(entry.sourceText),
+        tokenSet: new Set(tokenizeForTmMatch(entry.sourceText))
+      }))
+  );
 
   return {
     entries: normalizedEntries,
@@ -286,6 +439,22 @@ function createCustomTmMatcher(entries = []) {
   };
 }
 
+/**
+ * @typedef {Object} MatchCustomTmOptions
+ * @property {CustomTmMatcher=} matcher
+ * @property {TmMatchSegment=} segment
+ * @property {unknown=} sourceLanguage
+ * @property {unknown=} targetLanguage
+ * @property {number=} minScore
+ * @property {number=} maxMatches
+ * @property {number=} candidateLimit
+ * @property {unknown=} allowedBuckets
+ */
+
+/**
+ * @param {MatchCustomTmOptions=} options
+ * @returns {CustomTmMatch[]}
+ */
 function matchCustomTmEntries({
   matcher,
   segment,
