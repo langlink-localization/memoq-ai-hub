@@ -20,6 +20,7 @@
     "src/provider/providerConfig.js",
     "src/provider/providerGovernance.js",
     "src/provider/providerResponseUtils.js",
+    "src/provider/providerTransportSupport.js",
     "src/types/**/*.d.ts"
   ]
 }
