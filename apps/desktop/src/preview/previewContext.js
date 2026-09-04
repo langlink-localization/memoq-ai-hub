@@ -1,7 +1,14 @@
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeText(value) {
   return String(value || '').trim();
 }
 
+/**
+ * @param {any=} content
+ */
 function normalizePreviewContent(content = {}) {
   return {
     complexity: normalizeText(content.Complexity || content.complexity),
@@ -9,6 +16,9 @@ function normalizePreviewContent(content = {}) {
   };
 }
 
+/**
+ * @param {any=} range
+ */
 function normalizeFocusedRange(range = {}) {
   const startIndex = Number(range.StartIndex ?? range.startIndex);
   const length = Number(range.Length ?? range.length);
@@ -19,6 +29,9 @@ function normalizeFocusedRange(range = {}) {
   };
 }
 
+/**
+ * @param {any=} document
+ */
 function normalizeSourceDocument(document = {}) {
   return {
     documentGuid: normalizeText(document.DocumentGuid || document.documentGuid),
@@ -27,6 +40,9 @@ function normalizeSourceDocument(document = {}) {
   };
 }
 
+/**
+ * @param {any=} property
+ */
 function normalizePreviewProperty(property = {}) {
   return {
     name: normalizeText(property.Name || property.name),
@@ -34,6 +50,9 @@ function normalizePreviewProperty(property = {}) {
   };
 }
 
+/**
+ * @param {any=} part
+ */
 function normalizePreviewPart(part = {}) {
   return {
     previewPartId: normalizeText(part.PreviewPartId || part.previewPartId),
@@ -50,6 +69,10 @@ function normalizePreviewPart(part = {}) {
   };
 }
 
+/**
+ * @param {any=} existing
+ * @param {any=} incoming
+ */
 function mergePreviewPart(existing = {}, incoming = {}) {
   const next = normalizePreviewPart(incoming);
   return {
@@ -75,6 +98,10 @@ function mergePreviewPart(existing = {}, incoming = {}) {
   };
 }
 
+/**
+ * @param {unknown} text
+ * @returns {string}
+ */
 function stripFormattingMarkup(text) {
   return String(text || '')
     .replace(/<[^>]+>/g, ' ')
@@ -83,6 +110,11 @@ function stripFormattingMarkup(text) {
     .trim();
 }
 
+/**
+ * @param {unknown} text
+ * @param {number=} maxLength
+ * @returns {string}
+ */
 function truncate(text, maxLength = 240) {
   const normalized = String(text || '').trim();
   if (!normalized || normalized.length <= maxLength) {
@@ -92,6 +124,9 @@ function truncate(text, maxLength = 240) {
   return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
+/**
+ * @param {any=} previewState
+ */
 function buildPreviewStatusSnapshot(previewState = {}) {
   const previewPartsById = previewState.previewPartsById instanceof Map ? previewState.previewPartsById : new Map();
 
@@ -112,6 +147,11 @@ function buildPreviewStatusSnapshot(previewState = {}) {
   };
 }
 
+/**
+ * @param {any=} previewState
+ * @param {string=} sourceLanguage
+ * @param {string=} targetLanguage
+ */
 function getOrderedPreviewParts(previewState = {}, sourceLanguage = '', targetLanguage = '') {
   const previewPartsById = previewState.previewPartsById instanceof Map ? previewState.previewPartsById : new Map();
   const preferredOrder = Array.isArray(previewState.previewPartOrder) && previewState.previewPartOrder.length
@@ -130,6 +170,12 @@ function getOrderedPreviewParts(previewState = {}, sourceLanguage = '', targetLa
     });
 }
 
+/**
+ * @param {any=} previewState
+ * @param {any=} activePart
+ * @param {string=} sourceLanguage
+ * @param {string=} targetLanguage
+ */
 function getScopedPreviewParts(previewState = {}, activePart = null, sourceLanguage = '', targetLanguage = '') {
   const orderedParts = getOrderedPreviewParts(previewState, sourceLanguage, targetLanguage);
   if (!activePart?.sourceDocument?.documentGuid && !activePart?.sourceDocument?.documentName) {
@@ -146,6 +192,11 @@ function getScopedPreviewParts(previewState = {}, activePart = null, sourceLangu
   return scoped.length ? scoped : orderedParts;
 }
 
+/**
+ * @param {any=} previewState
+ * @param {string=} sourceLanguage
+ * @param {string=} targetLanguage
+ */
 function findActivePreviewPart(previewState = {}, sourceLanguage = '', targetLanguage = '') {
   const previewPartsById = previewState.previewPartsById instanceof Map ? previewState.previewPartsById : new Map();
   const activeIds = Array.isArray(previewState.activePreviewPartIds) ? previewState.activePreviewPartIds : [];
@@ -168,6 +219,12 @@ function findActivePreviewPart(previewState = {}, sourceLanguage = '', targetLan
   return getOrderedPreviewParts(previewState, sourceLanguage, targetLanguage)[0] || null;
 }
 
+/**
+ * @param {any[]=} scopedParts
+ * @param {any=} activePart
+ * @param {any=} segment
+ * @param {number=} totalSegments
+ */
 function findPreviewPartForSegment(scopedParts = [], activePart = null, segment = {}, totalSegments = 1) {
   const segmentSourceText = stripFormattingMarkup(segment.plainText || segment.sourceText || segment.text);
   if (!segmentSourceText) {
@@ -187,6 +244,12 @@ function findPreviewPartForSegment(scopedParts = [], activePart = null, segment 
   return totalSegments === 1 ? activePart : null;
 }
 
+/**
+ * @param {any[]=} scopedParts
+ * @param {number=} activeIndex
+ * @param {string=} direction
+ * @param {number=} windowSize
+ */
 function buildNeighborText(scopedParts = [], activeIndex = -1, direction = 'above', windowSize = 2) {
   if (activeIndex < 0) {
     return '';
@@ -202,6 +265,9 @@ function buildNeighborText(scopedParts = [], activeIndex = -1, direction = 'abov
     .join('\n');
 }
 
+/**
+ * @param {Record<string, any>=} options
+ */
 function buildPreviewSummary({ activePart = null, above = '', below = '' } = {}) {
   const lines = [];
   const documentName = normalizeText(activePart?.sourceDocument?.documentName);
@@ -227,6 +293,11 @@ function buildPreviewSummary({ activePart = null, above = '', below = '' } = {})
   return lines.join('\n');
 }
 
+/**
+ * @param {any=} previewState
+ * @param {any[]=} segments
+ * @param {Record<string, any>=} options
+ */
 function buildPreviewContextBundle(previewState = {}, segments = [], options = {}) {
   const sourceLanguage = normalizeText(options.sourceLanguage);
   const targetLanguage = normalizeText(options.targetLanguage);
