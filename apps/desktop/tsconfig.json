@@ -21,6 +21,8 @@
     "src/provider/providerGovernance.js",
     "src/provider/providerResponseUtils.js",
     "src/provider/providerTransportSupport.js",
+    "src/provider/providerPromptBuilder.js",
+    "src/provider/providerRegistry.js",
     "src/types/**/*.d.ts"
   ]
 }

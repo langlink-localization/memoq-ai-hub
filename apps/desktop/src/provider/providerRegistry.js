@@ -96,10 +96,19 @@ const QA_FINDINGS_SCHEMA = {
 
 const DEFAULT_PROFILE_SYSTEM_PROMPT = 'You are a precise translation assistant.';
 
+/**
+ * @param {Record<string, any>=} provider
+ * @returns {boolean}
+ */
 function isOpenRouterProvider(provider = {}) {
   return String(provider?.baseUrl || '').trim().toLowerCase().includes('openrouter.ai');
 }
 
+/**
+ * @param {Record<string, any>} provider
+ * @param {Record<string, any>} mappedError
+ * @returns {string}
+ */
 function buildConnectionTestFailureMessage(provider, mappedError) {
   const baseMessage = String(mappedError?.message || 'Connection test failed.').trim();
   const normalized = baseMessage.toLowerCase();
@@ -124,6 +133,10 @@ function buildConnectionTestFailureMessage(provider, mappedError) {
   return baseMessage;
 }
 
+/**
+ * @param {Record<string, any>} args
+ * @returns {string}
+ */
 function createPromptCacheKey({
   provider,
   modelName,
@@ -148,12 +161,20 @@ function createPromptCacheKey({
   return crypto.createHash('sha256').update(payload).digest('hex');
 }
 
+/**
+ * @param {Record<string, any>=} options
+ * @returns {Record<string, any>}
+ */
 function createProviderRegistry(options = {}) {
   const sdkLoader = options.sdkLoader || loadSdkModules;
   const fetchImpl = options.fetch || globalThis.fetch?.bind(globalThis);
   const { callTextModel, callStructuredModel, streamText } = createProviderTransport({ sdkLoader });
 
-  async function testConnection({ provider, apiKey, modelName, timeoutMs = 30000 }) {
+  /**
+ * @param {Record<string, any>} input
+ * @returns {Promise<any>}
+ */
+async function testConnection({ provider, apiKey, modelName, timeoutMs = 30000 }) {
     try {
       const result = await callTextModel({
         provider,
@@ -179,7 +200,11 @@ function createProviderRegistry(options = {}) {
     }
   }
 
-  async function generateText({
+  /**
+ * @param {Record<string, any>} input
+ * @returns {Promise<any>}
+ */
+async function generateText({
     provider,
     apiKey,
     modelName,
@@ -201,7 +226,11 @@ function createProviderRegistry(options = {}) {
     });
   }
 
-  async function checkQuality({
+  /**
+ * @param {Record<string, any>} input
+ * @returns {Promise<any>}
+ */
+async function checkQuality({
     provider,
     apiKey,
     modelName,
@@ -283,7 +312,11 @@ function createProviderRegistry(options = {}) {
     };
   }
 
-  async function translateSegment({
+  /**
+ * @param {Record<string, any>} input
+ * @returns {Promise<any>}
+ */
+async function translateSegment({
     provider,
     apiKey,
     modelName,
@@ -444,7 +477,11 @@ function createProviderRegistry(options = {}) {
     }
   }
 
-  async function discoverModels({
+  /**
+ * @param {Record<string, any>} input
+ * @returns {Promise<any>}
+ */
+async function discoverModels({
     provider,
     apiKey,
     timeoutMs = 30000
@@ -480,9 +517,9 @@ function createProviderRegistry(options = {}) {
         const payload = typeof response.json === 'function' ? await response.json() : {};
         const models = Array.isArray(payload?.data)
           ? payload.data
-            .map((item) => String(item?.id || '').trim())
+            .map((/** @type {any} */ item) => String(item?.id || '').trim())
             .filter(Boolean)
-            .map((modelName) => ({ modelName }))
+            .map((/** @type {any} */ modelName) => ({ modelName }))
           : [];
 
         return {
@@ -496,15 +533,15 @@ function createProviderRegistry(options = {}) {
       const page = await withAbortableTimeout(async ({ requestOptions }) => {
         try {
           return await client.models.list({}, requestOptions);
-        } catch (error) {
+        } catch (/** @type {any} */ error) {
           throw attachRetryAfter(error, error?.headers || error?.response?.headers);
         }
       }, timeoutMs);
       const models = Array.isArray(page?.data)
         ? page.data
-          .map((item) => String(item?.id || '').trim())
+          .map((/** @type {any} */ item) => String(item?.id || '').trim())
           .filter(Boolean)
-          .map((modelName) => ({ modelName }))
+          .map((/** @type {any} */ modelName) => ({ modelName }))
         : [];
 
       return {
@@ -522,7 +559,11 @@ function createProviderRegistry(options = {}) {
     }
   }
 
-  async function translateBatch({
+  /**
+ * @param {Record<string, any>} input
+ * @returns {Promise<any>}
+ */
+async function translateBatch({
     provider,
     apiKey,
     modelName,

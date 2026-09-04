@@ -41,6 +41,10 @@ const DEFAULT_BATCH_USER_PROMPT = [
 ].join('\n');
 const STRUCTURED_PROMPT_SCHEMA_VERSION = 'structured-v2';
 
+/**
+ * @param {Record<string, any>} metadata
+ * @param {Record<string, any>} segmentMetadata
+ */
 function createMetadataSection(metadata, segmentMetadata) {
   const normalizedMetadata = normalizeMemoQMetadata(metadata);
   const sections = [];
@@ -79,6 +83,12 @@ function createMetadataSection(metadata, segmentMetadata) {
   return sections;
 }
 
+/**
+ * @param {Record<string, any>} profile
+ * @param {unknown} requestType
+ * @param {unknown} renderedUserPrompt
+ * @param {any=} helpers
+ */
 function createInstructionSection(profile, requestType, renderedUserPrompt, helpers = {}) {
   const normalizedRequestType = helpers.normalizeRequestType
     ? helpers.normalizeRequestType(requestType)
@@ -103,6 +113,11 @@ function createInstructionSection(profile, requestType, renderedUserPrompt, help
   return lines.join('\n');
 }
 
+/**
+ * @param {Record<string, any>} profile
+ * @param {unknown} tmSource
+ * @param {unknown} tmTarget
+ */
 function createTmSection(profile, tmSource, tmTarget) {
   if (profile?.useBestFuzzyTm === false) {
     return '';
@@ -119,6 +134,11 @@ function createTmSection(profile, tmSource, tmTarget) {
   return lines.length ? ['Translation memory hints:', ...lines].join('\n') : '';
 }
 
+/**
+ * @param {any=} previewContext
+ * @param {any=} segmentPreviewContext
+ * @param {Record<string, any>=} profile
+ */
 function createPreviewSections(previewContext = {}, segmentPreviewContext = {}, profile = {}) {
   if (profile?.usePreviewContext === false) {
     return [];
@@ -180,6 +200,9 @@ function createPreviewSections(previewContext = {}, segmentPreviewContext = {}, 
   return sections.filter(Boolean);
 }
 
+/**
+ * @param {Record<string, any>} args
+ */
 function buildPromptTemplateContext({
   sourceLanguage,
   targetLanguage,
@@ -226,6 +249,10 @@ function buildPromptTemplateContext({
   });
 }
 
+/**
+ * @param {Record<string, any>=} template
+ * @param {Record<string, any>=} defaults
+ */
 function normalizeProfilePromptTemplateEntry(template = {}, defaults = {}) {
   return {
     systemPrompt: String(template?.systemPrompt || defaults.systemPrompt || DEFAULT_PROFILE_SYSTEM_PROMPT).trim() || DEFAULT_PROFILE_SYSTEM_PROMPT,
@@ -233,6 +260,10 @@ function normalizeProfilePromptTemplateEntry(template = {}, defaults = {}) {
   };
 }
 
+/**
+ * @param {Record<string, any>=} profile
+ * @returns {boolean}
+ */
 function hasExplicitPromptTemplateOverrides(profile = {}) {
   if (String(profile?.systemPrompt || '').trim() || String(profile?.userPrompt || '').trim()) {
     return true;
@@ -254,6 +285,10 @@ function hasExplicitPromptTemplateOverrides(profile = {}) {
   });
 }
 
+/**
+ * @param {Record<string, any>=} profile
+ * @param {string=} mode
+ */
 function resolveProfilePromptTemplate(profile = {}, mode = 'single') {
   const legacyTemplate = normalizeProfilePromptTemplateEntry({
     systemPrompt: profile?.systemPrompt,
@@ -279,7 +314,12 @@ function resolveProfilePromptTemplate(profile = {}, mode = 'single') {
   return singleTemplate;
 }
 
+/**
+ * @param {Record<string, any>} args
+ * @returns {Record<string, any>}
+ */
 function buildDocumentContext({ metadata, previewContext, profile, includeSummary = false }) {
+  /** @type {Record<string, any>} */
   const documentContext = {
     projectMetadata: [],
     documentName: '',
@@ -302,6 +342,9 @@ function buildDocumentContext({ metadata, previewContext, profile, includeSummar
   return documentContext;
 }
 
+/**
+ * @param {Record<string, any>=} segment
+ */
 function buildNeighborContext(segment = {}) {
   const previous = segment?.neighborContext?.previousSegment || null;
   const next = segment?.neighborContext?.nextSegment || null;
@@ -320,6 +363,9 @@ function buildNeighborContext(segment = {}) {
   };
 }
 
+/**
+ * @param {Record<string, any>} args
+ */
 function renderSegmentProfileInstructions({
   segment,
   sourceLanguage,
@@ -356,6 +402,9 @@ function renderSegmentProfileInstructions({
   });
 }
 
+/**
+ * @param {Record<string, any>} args
+ */
 function buildSegmentPayload({
   segment,
   profile,
@@ -367,7 +416,7 @@ function buildSegmentPayload({
   const customTmMatches = profile?.useCustomTm === false
     ? []
     : (Array.isArray(segment.customTmMatches) ? segment.customTmMatches : [])
-      .map((match) => ({
+      .map((/** @type {any} */ match) => ({
         sourceText: String(match.sourceText || ''),
         targetText: String(match.targetText || ''),
         score: Number(match.score || 0),
@@ -376,7 +425,7 @@ function buildSegmentPayload({
         assetName: String(match.assetName || ''),
         contextMatched: match.contextMatched === true
       }))
-      .filter((match) => match.sourceText && match.targetText);
+      .filter((/** @type {any} */ match) => match.sourceText && match.targetText);
   const matchedTerms = Array.isArray(segment?.tbContext?.termHits) ? segment.tbContext.termHits : [];
   const terminologyInstructions = String(segment?.tbContext?.glossaryText || '');
   const tbMetadataText = String(segment?.tbContext?.tbMetadataText || '');
@@ -417,6 +466,12 @@ function buildSegmentPayload({
   };
 }
 
+/**
+ * @param {any[]} lines
+ * @param {unknown} title
+ * @param {any[]=} entries
+ * @returns {void}
+ */
 function pushMarkdownSection(lines, title, entries = []) {
   const normalizedEntries = entries.filter(Boolean);
   if (!normalizedEntries.length) {
@@ -427,6 +482,9 @@ function pushMarkdownSection(lines, title, entries = []) {
   lines.push(...normalizedEntries);
 }
 
+/**
+ * @param {Record<string, any>} args
+ */
 function buildStableSystemPrompt({
   sourceLanguage,
   targetLanguage,
@@ -494,7 +552,7 @@ function buildStableSystemPrompt({
   }
 
   if (documentContext.projectMetadata.length) {
-    pushMarkdownSection(lines, 'Project Metadata', documentContext.projectMetadata.map((item) => `- ${item.label}: ${item.value}`));
+    pushMarkdownSection(lines, 'Project Metadata', documentContext.projectMetadata.map((/** @type {any} */ item) => `- ${item.label}: ${item.value}`));
   }
 
   const documentEntries = [];
@@ -514,6 +572,9 @@ function buildStableSystemPrompt({
   return lines.join('\n\n');
 }
 
+/**
+ * @param {Record<string, any>} args
+ */
 function buildRequestPayload({
   sourceLanguage,
   targetLanguage,
@@ -563,6 +624,10 @@ function buildRequestPayload({
   };
 }
 
+/**
+ * @param {Record<string, any>} args
+ * @param {any=} helpers
+ */
 function buildPrompt(args, helpers = {}) {
   const {
     sourceLanguage,
@@ -641,6 +706,10 @@ function buildPrompt(args, helpers = {}) {
   };
 }
 
+/**
+ * @param {Record<string, any>} args
+ * @param {any=} helpers
+ */
 function buildBatchPrompt(args, helpers = {}) {
   const {
     sourceLanguage,
