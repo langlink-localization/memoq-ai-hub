@@ -16,21 +16,34 @@ const {
 
 const ASSET_SEPARATOR = '\n\n---\n\n';
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function fingerprintText(value) {
   return crypto.createHash('sha256').update(String(value || '')).digest('hex');
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function hashObject(value) {
   return crypto.createHash('sha256').update(JSON.stringify(value || {})).digest('hex');
 }
 
+/**
+ * @param {any[]=} assets
+ * @param {any[]=} assetBindings
+ * @returns {any[]}
+ */
 function getBoundAssetsByPurpose(assets = [], assetBindings = []) {
   const assetById = new Map((Array.isArray(assets) ? assets : []).map((asset) => [asset.id, asset]));
 
   return (Array.isArray(assetBindings) ? assetBindings : [])
     .map((binding) => normalizeAssetBinding(binding))
     .filter(Boolean)
-    .map((binding) => ({
+    .map((/** @type {any} */ binding) => ({
       binding,
       asset: assetById.get(binding.assetId) || null
     }))
@@ -38,6 +51,10 @@ function getBoundAssetsByPurpose(assets = [], assetBindings = []) {
     .filter((entry) => !entry.binding.purpose || normalizeAssetPurpose(entry.asset.type) === entry.binding.purpose);
 }
 
+/**
+ * @param {any[]=} entries
+ * @returns {Record<string, any>}
+ */
 function combineParsedEntries(entries = []) {
   const nonEmpty = entries.filter((entry) => String(entry.text || '').trim());
   const text = nonEmpty.map((entry) => entry.text).join(ASSET_SEPARATOR);
@@ -50,6 +67,10 @@ function combineParsedEntries(entries = []) {
   };
 }
 
+/**
+ * @param {Record<string, any>=} input
+ * @returns {Record<string, any>}
+ */
 function buildAssetContext({
   assets = [],
   assetBindings = [],
@@ -78,7 +99,7 @@ function buildAssetContext({
       if (purpose === ASSET_PURPOSES.glossary) {
         glossaryEntries.push({
           ...parsed,
-          entries: (parsed.entries || []).map((term, termIndex) => ({
+          entries: (parsed.entries || []).map((/** @type {any} */ term, /** @type {any} */ termIndex) => ({
             ...term,
             id: `${entry.asset.id}:${term.id || `tb-${termIndex + 1}`}`,
             assetId: entry.asset.id,
@@ -93,7 +114,7 @@ function buildAssetContext({
           asset: entry.asset
         });
       }
-    } catch (error) {
+    } catch (/** @type {any} */ error) {
       throw new Error(`Failed to parse ${purpose} asset "${entry.asset.name}": ${error.message}`);
     }
   }
@@ -126,7 +147,7 @@ function buildAssetContext({
     ? `TB language pair: ${tb.languagePair.source || ''} -> ${tb.languagePair.target || ''}`.trim()
     : '';
   const customTmEntries = customTmParsedEntries.flatMap((entry) => (
-    (entry.parsed.entries || []).map((tmEntry) => ({
+    (entry.parsed.entries || []).map((/** @type {any} */ tmEntry) => ({
       ...tmEntry,
       assetId: tmEntry.assetId || entry.asset.id,
       assetName: tmEntry.assetName || entry.asset.name

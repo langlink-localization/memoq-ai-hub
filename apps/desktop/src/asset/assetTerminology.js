@@ -7,6 +7,12 @@ const {
 
 const NORMALIZED_MATCHER_VERSION = 'normalized-ac-v1';
 
+/** @typedef {Record<string, any>} TbEntry */
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeWhitespace(value) {
   return String(value || '')
     .replace(/\r\n/g, '\n')
@@ -16,16 +22,28 @@ function normalizeWhitespace(value) {
     .trim();
 }
 
+/**
+ * @param {unknown} value
+ * @returns {any[]}
+ */
 function toArray(value) {
   if (Array.isArray(value)) return value;
   return value == null ? [] : [value];
 }
 
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 function normalizeBoolean(value) {
   const normalized = String(value || '').trim().toLowerCase();
   return ['1', 'true', 'yes', 'y'].includes(normalized);
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeMatchMode(value) {
   const normalized = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
   if (normalized === 'wholeword') return 'whole_word';
@@ -36,10 +54,18 @@ function normalizeMatchMode(value) {
   return 'phrase';
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeLanguageKey(value) {
   return normalizeCanonicalLanguageTag(value) || '*';
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function stripMarkup(value) {
   return String(value || '')
     .replace(/<[^>]*>/g, ' ')
@@ -49,10 +75,19 @@ function stripMarkup(value) {
     .replace(/&amp;/gi, '&');
 }
 
+/**
+ * @param {string} char
+ * @returns {boolean}
+ */
 function isSeparatorChar(char) {
   return /[\s\u00a0_\-/\\.,;:!?()[\]{}"'`~@#$%^&*+=|<>]/.test(char);
 }
 
+/**
+ * @param {string} char
+ * @param {TbEntry=} entry
+ * @returns {string[]}
+ */
 function normalizeCharChunk(char, entry = {}) {
   const normalized = String(char || '').normalize('NFKC');
   const output = [];
@@ -79,6 +114,11 @@ function normalizeCharChunk(char, entry = {}) {
   return output;
 }
 
+/**
+ * @param {unknown} value
+ * @param {TbEntry=} entry
+ * @returns {{ text: string, map: number[], source: string }}
+ */
 function createNormalizedMatchSurface(value, entry = {}) {
   const source = stripMarkup(value);
   const chars = [];
@@ -112,15 +152,31 @@ function createNormalizedMatchSurface(value, entry = {}) {
   };
 }
 
+/**
+ * @param {unknown} value
+ * @param {TbEntry=} entry
+ * @returns {string}
+ */
 function normalizeTermMatchText(value, entry = {}) {
   return createNormalizedMatchSurface(value, entry).text;
 }
 
+/**
+ * @param {unknown} value
+ * @param {TbEntry=} entry
+ * @returns {string}
+ */
 function normalizeForMatch(value, entry = {}) {
   return normalizeTermMatchText(value, entry);
 }
 
+/**
+ * @param {Record<string, unknown>=} entry
+ * @param {number=} index
+ * @returns {TbEntry}
+ */
 function normalizeTbEntry(entry = {}, index = 0) {
+  /** @type {TbEntry} */
   const normalized = {
     id: String(entry.id || `tb-${index + 1}`).trim() || `tb-${index + 1}`,
     assetId: String(entry.assetId || '').trim(),
@@ -155,6 +211,10 @@ function normalizeTbEntry(entry = {}, index = 0) {
   return normalized;
 }
 
+/**
+ * @param {TbEntry=} entry
+ * @returns {TbEntry}
+ */
 function createReverseTerminologyEntry(entry = {}) {
   return {
     ...entry,
@@ -169,17 +229,31 @@ function createReverseTerminologyEntry(entry = {}) {
   };
 }
 
+/**
+ * @param {unknown=} entries
+ * @returns {string}
+ */
 function createTbFingerprint(entries = []) {
   return crypto.createHash('sha256').update(JSON.stringify(entries)).digest('hex');
 }
 
+/**
+ * @param {TbEntry[]=} entries
+ * @returns {{ nodes: any[] }}
+ */
 function createAutomaton(entries = []) {
+  /** @type {Array<{ next: Map<string, number>, fail: number, outputs: any[] }>} */
   const nodes = [{ next: new Map(), fail: 0, outputs: [] }];
 
+  /**
+   * @param {number} parentIndex
+   * @param {string} char
+   * @returns {number}
+   */
   function ensureNode(parentIndex, char) {
     const parent = nodes[parentIndex];
     if (parent.next.has(char)) {
-      return parent.next.get(char);
+      return /** @type {number} */ (parent.next.get(char));
     }
 
     const index = nodes.length;
@@ -200,13 +274,14 @@ function createAutomaton(entries = []) {
     nodes[nodeIndex].outputs.push(entry);
   }
 
+  /** @type {number[]} */
   const queue = [];
   for (const nextIndex of nodes[0].next.values()) {
     queue.push(nextIndex);
   }
 
   while (queue.length) {
-    const nodeIndex = queue.shift();
+    const nodeIndex = /** @type {number} */ (queue.shift());
     const node = nodes[nodeIndex];
 
     for (const [char, childIndex] of node.next.entries()) {
@@ -216,7 +291,7 @@ function createAutomaton(entries = []) {
       }
 
       if (nodes[failIndex].next.has(char)) {
-        nodes[childIndex].fail = nodes[failIndex].next.get(char);
+        nodes[childIndex].fail = /** @type {number} */ (nodes[failIndex].next.get(char));
       }
 
       nodes[childIndex].outputs = nodes[childIndex].outputs.concat(nodes[nodes[childIndex].fail].outputs);
@@ -227,6 +302,10 @@ function createAutomaton(entries = []) {
   return { nodes };
 }
 
+/**
+ * @param {unknown=} entries
+ * @returns {Record<string, any>}
+ */
 function createTerminologyMatcher(entries = []) {
   const normalizedEntries = toArray(entries)
     .map((entry, index) => normalizeTbEntry(entry, index))
@@ -235,6 +314,7 @@ function createTerminologyMatcher(entries = []) {
     entry.directionRank = 1;
     entry.matchDirection = 'forward';
   });
+  /** @type {Map<string, any[]>} */
   const buckets = new Map();
 
   for (const entry of normalizedEntries) {
@@ -275,23 +355,47 @@ function createTerminologyMatcher(entries = []) {
   };
 }
 
+/**
+ * @param {unknown=} entries
+ * @returns {Record<string, any>}
+ */
 function createTbMatcher(entries = []) {
   return createTerminologyMatcher(entries);
 }
 
+/**
+ * @param {string} text
+ * @param {number} index
+ * @returns {string}
+ */
 function charAt(text, index) {
   if (index < 0 || index >= text.length) return '';
   return text[index];
 }
 
+/**
+ * @param {string} char
+ * @returns {boolean}
+ */
 function isAsciiWordChar(char) {
   return /[0-9A-Za-z]/.test(char);
 }
 
+/**
+ * @param {string} char
+ * @returns {boolean}
+ */
 function isCjkChar(char) {
   return /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(char);
 }
 
+/**
+ * @param {string} text
+ * @param {number} start
+ * @param {number} end
+ * @param {TbEntry} entry
+ * @returns {boolean}
+ */
 function passesBoundary(text, start, end, entry) {
   if (entry.matchMode === 'phrase' || entry.matchMode === 'normalized') {
     const prev = charAt(text, start - 1);
@@ -313,6 +417,12 @@ function passesBoundary(text, start, end, entry) {
   return true;
 }
 
+/**
+ * @param {Record<string, any> | undefined} matcher
+ * @param {unknown} srcLang
+ * @param {unknown} tgtLang
+ * @returns {any[]}
+ */
 function getCandidateBuckets(matcher, srcLang, tgtLang) {
   const sourceFull = normalizeLanguageKey(srcLang);
   const targetFull = normalizeLanguageKey(tgtLang);
@@ -336,6 +446,12 @@ function getCandidateBuckets(matcher, srcLang, tgtLang) {
     .filter(Boolean);
 }
 
+/**
+ * @param {{ text: string, map: number[], source: string }} surface
+ * @param {number} normalizedStart
+ * @param {TbEntry} entry
+ * @returns {Record<string, any> | null}
+ */
 function createStructuredHit(surface, normalizedStart, entry) {
   const normalizedEnd = normalizedStart + entry.normalizedSourceTerm.length;
   if (normalizedStart < 0 || normalizedEnd > surface.text.length) {
@@ -366,6 +482,11 @@ function createStructuredHit(surface, normalizedStart, entry) {
   };
 }
 
+/**
+ * @param {{ nodes: any[] }} automaton
+ * @param {{ text: string, map: number[], source: string }} surface
+ * @returns {any[]}
+ */
 function matchAutomaton(automaton, surface) {
   const hits = [];
   let nodeIndex = 0;
@@ -403,6 +524,10 @@ function matchAutomaton(automaton, surface) {
   return hits;
 }
 
+/**
+ * @param {any[]=} hits
+ * @returns {any[]}
+ */
 function dedupeMatches(hits = []) {
   const selected = [];
   let cursor = -1;
@@ -418,6 +543,10 @@ function dedupeMatches(hits = []) {
   return selected;
 }
 
+/**
+ * @param {{ matcher?: Record<string, any>, text?: unknown, srcLang?: unknown, tgtLang?: unknown, metadata?: Record<string, unknown> }} options
+ * @returns {any[]}
+ */
 function matchTbEntries({ matcher, text, srcLang, tgtLang, metadata = {} }) {
   if (!matcher || !text) return [];
 
@@ -456,6 +585,10 @@ function matchTbEntries({ matcher, text, srcLang, tgtLang, metadata = {} }) {
   return dedupeMatches(hits);
 }
 
+/**
+ * @param {any[]=} matches
+ * @returns {string}
+ */
 function renderMatchedTerminologyBlock(matches = []) {
   const required = [];
   const forbidden = [];
@@ -490,9 +623,14 @@ function renderMatchedTerminologyBlock(matches = []) {
   return sections.join('\n\n').trim();
 }
 
+/**
+ * @param {any[]=} matches
+ * @param {Record<string, unknown>=} tb
+ * @returns {string}
+ */
 function renderMatchedTbMetadataBlock(matches = [], tb = {}) {
   const sections = [];
-  const languagePair = tb?.languagePair || {};
+  const languagePair = /** @type {Record<string, any>} */ (tb?.languagePair || {});
   if (languagePair.source || languagePair.target) {
     sections.push(`TB language pair: ${languagePair.source || ''} -> ${languagePair.target || ''}`.trim());
   }
@@ -513,11 +651,21 @@ function renderMatchedTbMetadataBlock(matches = [], tb = {}) {
   return sections.join('\n\n').trim();
 }
 
+/**
+ * @param {string} haystack
+ * @param {unknown[]=} variants
+ * @param {TbEntry=} entry
+ * @returns {boolean}
+ */
 function includesVariant(haystack, variants = [], entry) {
   const normalizedHaystack = normalizeForMatch(haystack, entry);
   return variants.some((variant) => normalizedHaystack.includes(normalizeForMatch(variant, entry)));
 }
 
+/**
+ * @param {{ translatedText?: unknown, matches?: any[] }=} options
+ * @returns {Record<string, any>}
+ */
 function evaluateTerminologyQa({ translatedText, matches = [] } = {}) {
   const issues = [];
 
@@ -526,7 +674,7 @@ function evaluateTerminologyQa({ translatedText, matches = [] } = {}) {
     const requiredVariants = [entry.targetTerm, ...(entry.allowedVariants || [])].filter(Boolean);
 
     if (entry.forbidden) {
-      if (includesVariant(translatedText, [entry.targetTerm], entry)) {
+      if (includesVariant(/** @type {string} */ (translatedText), [entry.targetTerm], entry)) {
         issues.push({
           type: 'forbidden_term_present',
           sourceTerm: entry.sourceTerm,
@@ -537,7 +685,7 @@ function evaluateTerminologyQa({ translatedText, matches = [] } = {}) {
       continue;
     }
 
-    if (!includesVariant(translatedText, requiredVariants, entry)) {
+    if (!includesVariant(/** @type {string} */ (translatedText), requiredVariants, entry)) {
       issues.push({
         type: 'required_term_missing',
         sourceTerm: entry.sourceTerm,

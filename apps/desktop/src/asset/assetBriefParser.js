@@ -3,6 +3,10 @@ const fs = require('fs');
 
 const MAX_BRIEF_CHARACTERS = 12000;
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeWhitespace(value) {
   return String(value || '')
     .replace(/\r\n/g, '\n')
@@ -12,10 +16,19 @@ function normalizeWhitespace(value) {
     .trim();
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function fingerprintText(value) {
   return crypto.createHash('sha256').update(String(value || '')).digest('hex');
 }
 
+/**
+ * @param {unknown} value
+ * @param {number} maxCharacters
+ * @returns {string}
+ */
 function truncateText(value, maxCharacters) {
   const normalized = String(value || '');
   if (!maxCharacters || normalized.length <= maxCharacters) {
@@ -25,6 +38,10 @@ function truncateText(value, maxCharacters) {
   return normalized.slice(0, maxCharacters).trimEnd();
 }
 
+/**
+ * @param {{ storedPath: string }} asset
+ * @returns {{ text: string, fingerprint: string, rowCount: number }}
+ */
 function parseBriefAsset(asset) {
   const raw = fs.readFileSync(asset.storedPath, 'utf8');
   const text = truncateText(normalizeWhitespace(raw), MAX_BRIEF_CHARACTERS);

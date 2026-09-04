@@ -1,3 +1,7 @@
+/**
+ * @param {unknown} requestType
+ * @returns {string}
+ */
 function normalizeRequestType(requestType) {
   const token = String(requestType || '').trim().replace(/[\s_-]+/g, '').toLowerCase();
   if (!token || token === 'plaintext') {
@@ -12,10 +16,19 @@ function normalizeRequestType(requestType) {
   return 'Plaintext';
 }
 
+/**
+ * @param {unknown} text
+ * @returns {string}
+ */
 function stripCodeFences(text) {
   return String(text || '').trim().replace(/^```(?:[a-z]+)?\s*/i, '').replace(/\s*```$/i, '').trim();
 }
 
+/**
+ * @param {unknown} text
+ * @param {unknown} requestType
+ * @returns {string}
+ */
 function normalizeTranslatedText(text, requestType) {
   let normalized = stripCodeFences(text);
 
@@ -31,6 +44,11 @@ function normalizeTranslatedText(text, requestType) {
   return normalized;
 }
 
+/**
+ * @param {unknown} value
+ * @param {string=} message
+ * @returns {number | null}
+ */
 function normalizeRetryAfterSeconds(value, message = '') {
   if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
     return value;
@@ -52,6 +70,10 @@ function normalizeRetryAfterSeconds(value, message = '') {
   return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
 }
 
+/**
+ * @param {unknown} message
+ * @returns {string}
+ */
 function buildForbiddenProviderMessage(message) {
   const normalized = String(message || '').trim();
   const lower = normalized.toLowerCase();
@@ -61,6 +83,10 @@ function buildForbiddenProviderMessage(message) {
   return normalized;
 }
 
+/**
+ * @param {any} error
+ * @returns {{ code: string, message: string, retryAfterSeconds: number | null }}
+ */
 function mapProviderError(error) {
   const message = String(error?.message || error || 'Unknown provider error');
   const lower = message.toLowerCase();
@@ -96,6 +122,10 @@ function mapProviderError(error) {
   return { code: 'PROVIDER_REQUEST_FAILED', message, retryAfterSeconds };
 }
 
+/**
+ * @param {any} response
+ * @returns {string}
+ */
 function extractResponseText(response) {
   if (typeof response?.output_text === 'string' && response.output_text.trim()) {
     return response.output_text.trim();
@@ -127,6 +157,10 @@ function extractResponseText(response) {
   return textParts.join('\n').trim();
 }
 
+/**
+ * @param {any} completion
+ * @returns {string}
+ */
 function extractChatText(completion) {
   const content = completion?.choices?.[0]?.message?.content;
   if (typeof content === 'string') {
@@ -134,13 +168,17 @@ function extractChatText(completion) {
   }
   if (Array.isArray(content)) {
     return content
-      .map((item) => (typeof item?.text === 'string' ? item.text : ''))
+      .map((/** @type {any} */ item) => (typeof item?.text === 'string' ? item.text : ''))
       .join('\n')
       .trim();
   }
   return '';
 }
 
+/**
+ * @param {unknown} text
+ * @returns {string}
+ */
 function extractJsonText(text) {
   const normalized = stripCodeFences(text);
   const trimmed = normalized.trim();
@@ -157,12 +195,19 @@ function extractJsonText(text) {
   return normalized;
 }
 
+/**
+ * @param {unknown} input
+ * @param {unknown} requestType
+ * @param {unknown[]=} expectedIndexes
+ * @returns {Array<{ index: number, text: string }>}
+ */
 function parseBatchTranslations(input, requestType, expectedIndexes = []) {
+  /** @type {any} */
   let payload = input;
   if (typeof input === 'string') {
     try {
       payload = JSON.parse(extractJsonText(input));
-    } catch (error) {
+    } catch (/** @type {any} */ error) {
       throw new Error(`Batch translation response is not valid JSON. Expected either [{"index":0,"text":"..."}] or {"translations":[{"index":0,"text":"..."}]}. ${error.message}`);
     }
   }
@@ -178,7 +223,7 @@ function parseBatchTranslations(input, requestType, expectedIndexes = []) {
   const expected = new Set(expectedIndexes.map((value) => Number(value)));
   const seen = new Set();
 
-  const translations = items.map((item) => {
+  const translations = items.map((/** @type {any} */ item) => {
     const index = Number(item?.index);
     if (!Number.isFinite(index)) {
       throw new Error('Batch translation response contains an invalid index.');
@@ -200,15 +245,21 @@ function parseBatchTranslations(input, requestType, expectedIndexes = []) {
     throw new Error(`Batch translation response returned ${seen.size} item(s); expected ${expected.size}.`);
   }
 
-  return translations.sort((left, right) => left.index - right.index);
+  return translations.sort((/** @type {any} */ left, /** @type {any} */ right) => left.index - right.index);
 }
 
+/**
+ * @param {unknown} input
+ * @param {unknown} requestType
+ * @returns {string}
+ */
 function parseSingleTranslation(input, requestType) {
+  /** @type {any} */
   let payload = input;
   if (typeof input === 'string') {
     try {
       payload = JSON.parse(extractJsonText(input));
-    } catch (error) {
+    } catch (/** @type {any} */ error) {
       throw new Error(`Single translation response is not valid JSON: ${error.message}`);
     }
   }

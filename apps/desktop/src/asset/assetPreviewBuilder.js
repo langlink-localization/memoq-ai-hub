@@ -5,7 +5,26 @@ const { ASSET_PURPOSES, normalizeAssetPurpose } = require('./assetRules');
 const DEFAULT_PREVIEW_MAX_ROWS = 50;
 const DEFAULT_PREVIEW_MAX_CHARACTERS = 2000;
 
-function buildAssetPreview(asset, parsed, options = {}, helpers = {}) {
+/**
+ * @typedef {Object} AssetPreviewOptions
+ * @property {unknown=} maxRows
+ * @property {unknown=} maxCharacters
+ * @property {boolean=} smartParsingAvailable
+ */
+
+/**
+ * @typedef {Object} AssetPreviewHelpers
+ * @property {(value: unknown) => string} normalizeWhitespace
+ * @property {(value: unknown, maxCharacters?: unknown) => string} truncateText
+ */
+
+/**
+ * @param {Record<string, any>} asset
+ * @param {any=} parsed
+ * @param {AssetPreviewOptions=} options
+ * @param {AssetPreviewHelpers=} helpers
+ */
+function buildAssetPreview(asset, parsed, options = {}, helpers = /** @type {AssetPreviewHelpers} */ ({})) {
   const {
     normalizeWhitespace,
     truncateText
@@ -47,7 +66,7 @@ function buildAssetPreview(asset, parsed, options = {}, helpers = {}) {
       type: assetType,
       rowCount: parsed.rowCount || entries.length,
       columns: ['sourceTerm', 'targetTerm', 'srcLang', 'tgtLang', 'forbidden', 'note'],
-      rows: rows.map((entry) => ({
+      rows: rows.map((/** @type {any} */ entry) => ({
         sourceTerm: entry.sourceTerm,
         targetTerm: entry.targetTerm,
         srcLang: entry.srcLang || '',
@@ -65,7 +84,7 @@ function buildAssetPreview(asset, parsed, options = {}, helpers = {}) {
       type: assetType,
       rowCount: parsed.rowCount || entries.length,
       columns: ['sourceText', 'targetText', 'sourceLang', 'targetLang'],
-      rows: rows.map((entry) => ({
+      rows: rows.map((/** @type {any} */ entry) => ({
         sourceText: entry.sourceText || entry.sourceTerm,
         targetText: entry.targetText || entry.targetTerm,
         sourceTerm: entry.sourceTerm || entry.sourceText,

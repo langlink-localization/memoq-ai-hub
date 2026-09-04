@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { normalizeCanonicalLanguageTag } = require('../shared/languageNormalization');
 
 const TB_STRUCTURE_SAMPLE_ROWS = 8;
+/** @type {Record<string, string[]>} */
 const SMART_ROLE_ALIASES = {
   id: ['id', 'entryid', 'termid', 'recordid'],
   sourceTerm: ['sourceterm', 'source', 'sourcetext', 'sourcestring', 'sourcephrase', 'srcterm', 'sourcelabel'],
@@ -27,6 +28,12 @@ const TB_LANGUAGE_HEADER_TOKENS = ['english', 'chinese', 'japanese', 'korean', '
 const TB_SIDE_META_SUFFIXES = ['def', 'definition'];
 const TB_SIDE_META_GENERIC_HEADERS = ['terminfo', 'termexample'];
 
+/** @typedef {Record<string, any>} TbStructureEntry */
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeWhitespace(value) {
   return String(value || '')
     .replace(/\r\n/g, '\n')
@@ -36,24 +43,44 @@ function normalizeWhitespace(value) {
     .trim();
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeHeader(value) {
   return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeIsoLanguageCode(value) {
   return normalizeCanonicalLanguageTag(value);
 }
 
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 function isBooleanLike(value) {
   const normalized = String(value || '').trim().toLowerCase();
   return ['0', '1', 'true', 'false', 'yes', 'no', 'y', 'n'].includes(normalized);
 }
 
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 function isNumericLike(value) {
   const normalized = String(value || '').trim();
   return normalized !== '' && /^-?\d+(\.\d+)?$/.test(normalized);
 }
 
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 function isLanguageLike(value) {
   const normalized = String(value || '').trim();
   if (!normalized) return false;
@@ -61,12 +88,21 @@ function isLanguageLike(value) {
     || /^[A-Za-z]+(?:[_-][A-Za-z]+)+$/.test(normalized);
 }
 
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 function isTextLike(value) {
   const normalized = normalizeWhitespace(value);
   if (!normalized) return false;
   return /[A-Za-z\u00C0-\u024F\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(normalized);
 }
 
+/**
+ * @param {any[]=} rows
+ * @param {number=} index
+ * @returns {Record<string, any>}
+ */
 function summarizeColumnSamples(rows = [], index = 0) {
   const samples = rows
     .map((row) => Array.isArray(row) ? normalizeWhitespace(row[index]) : '')
@@ -91,6 +127,12 @@ function summarizeColumnSamples(rows = [], index = 0) {
   };
 }
 
+/**
+ * @param {string} role
+ * @param {Record<string, any>} column
+ * @param {any[]} columns
+ * @returns {number}
+ */
 function scoreSmartRole(role, column, columns) {
   let score = 0;
   const normalizedName = column.normalizedName;
@@ -138,12 +180,16 @@ function scoreSmartRole(role, column, columns) {
 
   if (role === 'allowedVariants') {
     if (samples.textLikeRate >= 0.8) score += 6;
-    if (samples.samples.some((value) => /[|;,]/.test(value))) score += 20;
+    if (samples.samples.some((/** @type {any} */ value) => /[|;,]/.test(value))) score += 20;
   }
 
   return score;
 }
 
+/**
+ * @param {Record<string, any>=} assignments
+ * @returns {Record<string, any>}
+ */
 function buildDetectedMapping(assignments = {}) {
   return Object.fromEntries(
     Object.entries(assignments).map(([role, assignment]) => [role, {
@@ -155,6 +201,10 @@ function buildDetectedMapping(assignments = {}) {
   );
 }
 
+/**
+ * @param {Record<string, any>=} assignments
+ * @returns {Record<string, any>}
+ */
 function buildMappingConfidence(assignments = {}) {
   const scores = Object.values(assignments).map((assignment) => assignment.score).filter((score) => Number.isFinite(score));
   if (!scores.length) {
@@ -168,35 +218,62 @@ function buildMappingConfidence(assignments = {}) {
   };
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function hashObject(value) {
   return crypto.createHash('sha256').update(JSON.stringify(value || {})).digest('hex');
 }
 
+/**
+ * @param {any} normalizedName
+ * @param {any[]=} hints
+ * @returns {number}
+ */
 function rateHeaderByHints(normalizedName, hints = []) {
   if (!normalizedName) return 0;
   let score = 0;
-  for (const hint of hints) {
+  for (const hint of /** @type {any[]} */ (hints)) {
     if (normalizedName === hint) score += 100;
     else if (normalizedName.includes(hint) || hint.includes(normalizedName)) score += 55;
   }
   return score;
 }
 
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 function containsCjk(value) {
   return /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(String(value || ''));
 }
 
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 function containsLatin(value) {
   return /[A-Za-z]/.test(String(value || ''));
 }
 
+/**
+ * @param {any[]=} columns
+ * @param {(column: any, columns?: any[]) => number=} scorer
+ * @param {number=} minScore
+ * @returns {any | null}
+ */
 function selectTbStructureColumn(columns = [], scorer, minScore = 1) {
   const scored = columns
-    .map((column) => ({ column, score: scorer(column) }))
+    .map((/** @type {any} */ column) => ({ column, score: (/** @type {(column: any) => number} */ (scorer))(column) }))
     .sort((left, right) => right.score - left.score);
   return scored[0] && scored[0].score >= minScore ? scored[0] : null;
 }
 
+/**
+ * @param {Record<string, any>=} structure
+ * @returns {string}
+ */
 function buildTbStructureSummary(structure = {}) {
   const parts = [];
   if (structure.matchColumnName) parts.push(`match:${structure.matchColumnName}`);
@@ -206,11 +283,15 @@ function buildTbStructureSummary(structure = {}) {
   }
   if (Array.isArray(structure.noteColumnNames) && structure.noteColumnNames.length) parts.push(`notes:${structure.noteColumnNames.join('|')}`);
   if (Array.isArray(structure.entryMetaColumns) && structure.entryMetaColumns.length) {
-    parts.push(`entryMeta:${structure.entryMetaColumns.map((column) => column.name).join('|')}`);
+    parts.push(`entryMeta:${structure.entryMetaColumns.map((/** @type {any} */ column) => column.name).join('|')}`);
   }
   return parts.join(' ; ');
 }
 
+/**
+ * @param {unknown=} columnName
+ * @returns {boolean}
+ */
 function isExplicitLanguageHeader(columnName = '') {
   const raw = String(columnName || '').trim();
   const normalized = normalizeHeader(raw);
@@ -230,17 +311,27 @@ function isExplicitLanguageHeader(columnName = '') {
     && /[_-]/.test(raw);
 }
 
+/**
+ * @param {any[]=} columns
+ * @returns {any[]}
+ */
 function findExplicitLanguageColumns(columns = []) {
-  return columns.filter((column) => isExplicitLanguageHeader(column.name));
+  return columns.filter((/** @type {any} */ column) => isExplicitLanguageHeader(column.name));
 }
 
+/**
+ * @param {any[]=} columns
+ * @param {any[]=} mainColumns
+ * @param {any=} mainColumn
+ * @returns {any[]}
+ */
 function buildSideMetaColumns(columns = [], mainColumns = [], mainColumn) {
   const nextMainIndex = mainColumns
-    .filter((column) => column.index > mainColumn.index)
-    .map((column) => column.index)
+    .filter((/** @type {any} */ column) => column.index > mainColumn.index)
+    .map((/** @type {any} */ column) => column.index)
     .sort((left, right) => left - right)[0] ?? Number.POSITIVE_INFINITY;
-  const explicitDef = columns.filter((column) => normalizeHeader(column.name) === `${mainColumn.normalizedName}def`);
-  const genericTrailing = columns.filter((column) => (
+  const explicitDef = columns.filter((/** @type {any} */ column) => normalizeHeader(column.name) === `${mainColumn.normalizedName}def`);
+  const genericTrailing = columns.filter((/** @type {any} */ column) => (
     column.index > mainColumn.index
     && column.index < nextMainIndex
     && TB_SIDE_META_GENERIC_HEADERS.includes(column.normalizedName)
@@ -248,17 +339,27 @@ function buildSideMetaColumns(columns = [], mainColumns = [], mainColumn) {
   return [...explicitDef, ...genericTrailing];
 }
 
+/**
+ * @param {any[]=} columns
+ * @param {Set<any>=} usedIndexes
+ * @returns {any[]}
+ */
 function buildEntryMetaColumns(columns = [], usedIndexes = new Set()) {
-  return columns.filter((column) => !usedIndexes.has(column.index) && column.name.startsWith('Entry_'));
+  return columns.filter((/** @type {any} */ column) => !usedIndexes.has(column.index) && column.name.startsWith('Entry_'));
 }
 
+/**
+ * @param {any[]=} rows
+ * @param {Record<string, any>=} asset
+ * @returns {Record<string, any> | null}
+ */
 function inferExplicitTbStructure(rows = [], asset = {}) {
   if (!Array.isArray(rows) || rows.length < 2 || !Array.isArray(rows[0])) {
     return null;
   }
 
-  const header = rows[0].map((cell) => normalizeWhitespace(cell));
-  const columns = header.map((name, index) => ({
+  const header = rows[0].map((/** @type {any} */ cell) => normalizeWhitespace(cell));
+  const columns = header.map((/** @type {any} */ name, /** @type {any} */ index) => ({
     index,
     name,
     normalizedName: normalizeHeader(name),
@@ -280,8 +381,8 @@ function inferExplicitTbStructure(rows = [], asset = {}) {
   const usedIndexes = new Set([
     sourceColumn.index,
     targetColumn.index,
-    ...sourceMetaColumns.map((column) => column.index),
-    ...targetMetaColumns.map((column) => column.index)
+    ...sourceMetaColumns.map((/** @type {any} */ column) => column.index),
+    ...targetMetaColumns.map((/** @type {any} */ column) => column.index)
   ]);
   const entryMetaColumns = buildEntryMetaColumns(columns, usedIndexes);
 
@@ -297,17 +398,17 @@ function inferExplicitTbStructure(rows = [], asset = {}) {
       source: normalizeIsoLanguageCode(sourceColumn.name),
       target: normalizeIsoLanguageCode(targetColumn.name)
     },
-    noteColumnIndexes: entryMetaColumns.filter((column) => normalizeHeader(column.name) === 'entrynote').map((column) => column.index),
-    noteColumnNames: entryMetaColumns.filter((column) => normalizeHeader(column.name) === 'entrynote').map((column) => column.name),
-    entryMetaColumns: entryMetaColumns.map((column) => ({ index: column.index, name: column.name })),
-    sourceMetaColumns: sourceMetaColumns.map((column) => ({ index: column.index, name: column.name })),
-    targetMetaColumns: targetMetaColumns.map((column) => ({ index: column.index, name: column.name })),
+    noteColumnIndexes: entryMetaColumns.filter((/** @type {any} */ column) => normalizeHeader(column.name) === 'entrynote').map((/** @type {any} */ column) => column.index),
+    noteColumnNames: entryMetaColumns.filter((/** @type {any} */ column) => normalizeHeader(column.name) === 'entrynote').map((/** @type {any} */ column) => column.name),
+    entryMetaColumns: entryMetaColumns.map((/** @type {any} */ column) => ({ index: column.index, name: column.name })),
+    sourceMetaColumns: sourceMetaColumns.map((/** @type {any} */ column) => ({ index: column.index, name: column.name })),
+    targetMetaColumns: targetMetaColumns.map((/** @type {any} */ column) => ({ index: column.index, name: column.name })),
     sampleRows: rows.slice(1).filter((cells) => Array.isArray(cells) && cells.some(Boolean)).slice(0, TB_STRUCTURE_SAMPLE_ROWS),
     sourceOfTruth: 'header_inferred',
     confidence: { level: 'high', score: 0.98 }
   };
-  structure.summary = buildTbStructureSummary(structure);
-  structure.fingerprint = hashObject({
+  (/** @type {Record<string, any>} */ (structure)).summary = buildTbStructureSummary(structure);
+  (/** @type {Record<string, any>} */ (structure)).fingerprint = hashObject({
     sha256: structure.derivedFromSha256,
     matchColumnIndex: structure.matchColumnIndex,
     targetColumnIndex: structure.targetColumnIndex,
@@ -320,6 +421,11 @@ function inferExplicitTbStructure(rows = [], asset = {}) {
   return structure;
 }
 
+/**
+ * @param {any[]=} rows
+ * @param {Record<string, any>=} asset
+ * @returns {Record<string, any> | null}
+ */
 function buildManualTbStructure(rows = [], asset = {}) {
   const manualMapping = asset?.tbManualMapping && typeof asset.tbManualMapping === 'object'
     ? asset.tbManualMapping
@@ -359,8 +465,8 @@ function buildManualTbStructure(rows = [], asset = {}) {
     sourceOfTruth: 'manual_mapping',
     confidence: { level: 'high', score: 1 }
   };
-  structure.summary = buildTbStructureSummary(structure);
-  structure.fingerprint = hashObject({
+  (/** @type {Record<string, any>} */ (structure)).summary = buildTbStructureSummary(structure);
+  (/** @type {Record<string, any>} */ (structure)).fingerprint = hashObject({
     sha256: structure.derivedFromSha256,
     manualMapping,
     languagePair: structure.languagePair,
@@ -369,6 +475,11 @@ function buildManualTbStructure(rows = [], asset = {}) {
   return structure;
 }
 
+/**
+ * @param {any=} name
+ * @param {any=} normalizedName
+ * @returns {boolean}
+ */
 function isSchemaLikeTbHeaderName(name = '', normalizedName = '') {
   const raw = String(name || '').trim().toLowerCase().replace(/[_-]+/g, ' ');
   if (!raw || !normalizedName) {
@@ -382,43 +493,52 @@ function isSchemaLikeTbHeaderName(name = '', normalizedName = '') {
   return /\b(source|target|subject|lang|language|english|chinese|japanese|korean|domain|client|project|note|definition|comment|remark|example|forbidden|priority|variant|match|speech|case)\b/.test(raw);
 }
 
+/**
+ * @param {any[]=} columns
+ * @returns {boolean}
+ */
 function looksLikeTbHeaderRow(columns = []) {
   if (!Array.isArray(columns) || !columns.length) {
     return false;
   }
 
-  const namedColumns = columns.filter((column) => column.name);
+  const namedColumns = columns.filter((/** @type {any} */ column) => column.name);
   if (!namedColumns.length) {
     return false;
   }
 
-  const schemaLikeColumns = namedColumns.filter((column) => isSchemaLikeTbHeaderName(column.name, column.normalizedName));
+  const schemaLikeColumns = namedColumns.filter((/** @type {any} */ column) => isSchemaLikeTbHeaderName(column.name, column.normalizedName));
   if (!schemaLikeColumns.length) {
     return false;
   }
 
-  const mirroredValueColumns = namedColumns.filter((column) => (
+  const mirroredValueColumns = namedColumns.filter((/** @type {any} */ column) => (
     column.profile.textLikeRate >= 0.8
     && column.profile.samples.length > 0
-    && column.profile.samples.some((value) => normalizeHeader(value) === column.normalizedName)
+    && column.profile.samples.some((/** @type {any} */ value) => normalizeHeader(value) === column.normalizedName)
     && !isSchemaLikeTbHeaderName(column.name, column.normalizedName)
   ));
 
   return !(mirroredValueColumns.length >= Math.ceil(namedColumns.length / 2) && schemaLikeColumns.length < 2);
 }
 
+/**
+ * @param {any[]=} rows
+ * @param {Record<string, any>=} asset
+ * @returns {Record<string, any> | null}
+ */
 function deriveTbStructureFromRows(rows = [], asset = {}) {
   if (!Array.isArray(rows) || rows.length < 2) {
     return null;
   }
 
-  const header = rows[0].map((cell) => normalizeWhitespace(cell));
+  const header = rows[0].map((/** @type {any} */ cell) => normalizeWhitespace(cell));
   if (!header.some(Boolean)) {
     return null;
   }
 
   const sampleRows = rows.slice(1).filter((cells) => Array.isArray(cells) && cells.some(Boolean)).slice(0, TB_STRUCTURE_SAMPLE_ROWS);
-  const columns = header.map((name, index) => ({
+  const columns = header.map((/** @type {any} */ name, /** @type {any} */ index) => ({
     index,
     name,
     normalizedName: normalizeHeader(name),
@@ -429,30 +549,30 @@ function deriveTbStructureFromRows(rows = [], asset = {}) {
   }
   const ignored = new Set(
     columns
-      .filter((column) => TB_STRUCTURE_IGNORE_HEADERS.some((hint) => column.normalizedName.includes(hint)))
-      .map((column) => column.index)
+      .filter((/** @type {any} */ column) => TB_STRUCTURE_IGNORE_HEADERS.some((hint) => column.normalizedName.includes(hint)))
+      .map((/** @type {any} */ column) => column.index)
   );
-  const usableColumns = columns.filter((column) => !ignored.has(column.index));
+  const usableColumns = columns.filter((/** @type {any} */ column) => !ignored.has(column.index));
 
   const matchColumn = selectTbStructureColumn(usableColumns, (column) => {
     let score = rateHeaderByHints(column.normalizedName, TB_STRUCTURE_MATCH_HINTS);
     if (column.profile.textLikeRate >= 0.8) score += 20;
-    if (column.profile.samples.some((value) => containsLatin(value))) score += 15;
-    if (column.profile.samples.some((value) => containsCjk(value))) score -= 10;
+    if (column.profile.samples.some((/** @type {any} */ value) => containsLatin(value))) score += 15;
+    if (column.profile.samples.some((/** @type {any} */ value) => containsCjk(value))) score -= 10;
     return score;
   }, 60);
 
-  const targetColumn = selectTbStructureColumn(usableColumns.filter((column) => column.index !== matchColumn?.column.index), (column) => {
+  const targetColumn = selectTbStructureColumn(usableColumns.filter((/** @type {any} */ column) => column.index !== matchColumn?.column.index), (column) => {
     let score = rateHeaderByHints(column.normalizedName, TB_STRUCTURE_TARGET_HINTS);
     if (column.profile.textLikeRate >= 0.8) score += 15;
-    if (column.profile.samples.some((value) => containsCjk(value))) score += 20;
-    if (column.profile.samples.some((value) => containsLatin(value))) score += 5;
+    if (column.profile.samples.some((/** @type {any} */ value) => containsCjk(value))) score += 20;
+    if (column.profile.samples.some((/** @type {any} */ value) => containsLatin(value))) score += 5;
     return score;
   }, 60);
 
   const noteColumns = usableColumns
-    .filter((column) => column.index !== matchColumn?.column.index && column.index !== targetColumn?.column.index)
-    .filter((column) => rateHeaderByHints(column.normalizedName, TB_STRUCTURE_NOTE_HINTS) > 0)
+    .filter((/** @type {any} */ column) => column.index !== matchColumn?.column.index && column.index !== targetColumn?.column.index)
+    .filter((/** @type {any} */ column) => rateHeaderByHints(column.normalizedName, TB_STRUCTURE_NOTE_HINTS) > 0)
     .slice(0, 3);
 
   if (!matchColumn && !targetColumn) {
@@ -467,13 +587,13 @@ function deriveTbStructureFromRows(rows = [], asset = {}) {
     matchColumnName: matchColumn?.column.name || '',
     targetColumnIndex: targetColumn?.column.index ?? -1,
     targetColumnName: targetColumn?.column.name || '',
-    noteColumnIndexes: noteColumns.map((column) => column.index),
-    noteColumnNames: noteColumns.map((column) => column.name),
+    noteColumnIndexes: noteColumns.map((/** @type {any} */ column) => column.index),
+    noteColumnNames: noteColumns.map((/** @type {any} */ column) => column.name),
     sampleRows,
     source: 'derived'
   };
-  structure.summary = buildTbStructureSummary(structure);
-  structure.fingerprint = hashObject({
+  (/** @type {Record<string, any>} */ (structure)).summary = buildTbStructureSummary(structure);
+  (/** @type {Record<string, any>} */ (structure)).fingerprint = hashObject({
     sha256: structure.derivedFromSha256,
     kind: structure.kind,
     matchColumnIndex: structure.matchColumnIndex,
@@ -483,6 +603,11 @@ function deriveTbStructureFromRows(rows = [], asset = {}) {
   return structure;
 }
 
+/**
+ * @param {Record<string, any>=} structure
+ * @param {Record<string, any>=} asset
+ * @returns {boolean}
+ */
 function isValidTbStructure(structure = {}, asset = {}) {
   return structure
     && typeof structure === 'object'
@@ -491,6 +616,11 @@ function isValidTbStructure(structure = {}, asset = {}) {
     && Number(structure.matchColumnIndex) >= 0;
 }
 
+/**
+ * @param {any[]=} rows
+ * @param {Record<string, any>=} structure
+ * @returns {any[]}
+ */
 function buildEntriesFromTbStructure(rows = [], structure = {}) {
   if (!Array.isArray(rows) || rows.length < 2 || !isValidTbStructure(structure, { sha256: structure.derivedFromSha256 })) {
     return [];
@@ -505,17 +635,17 @@ function buildEntriesFromTbStructure(rows = [], structure = {}) {
         : sourceTerm;
       const entryMetadata = Object.fromEntries(
         (Array.isArray(structure.entryMetaColumns) ? structure.entryMetaColumns : [])
-          .map((column) => [column.name, normalizeWhitespace(cells[column.index] || '')])
+          .map((/** @type {any} */ column) => [column.name, normalizeWhitespace(cells[column.index] || '')])
           .filter(([, value]) => value)
       );
       const sourceMetadata = Object.fromEntries(
         (Array.isArray(structure.sourceMetaColumns) ? structure.sourceMetaColumns : [])
-          .map((column) => [column.name, normalizeWhitespace(cells[column.index] || '')])
+          .map((/** @type {any} */ column) => [column.name, normalizeWhitespace(cells[column.index] || '')])
           .filter(([, value]) => value)
       );
       const targetMetadata = Object.fromEntries(
         (Array.isArray(structure.targetMetaColumns) ? structure.targetMetaColumns : [])
-          .map((column) => [column.name, normalizeWhitespace(cells[column.index] || '')])
+          .map((/** @type {any} */ column) => [column.name, normalizeWhitespace(cells[column.index] || '')])
           .filter(([, value]) => value)
       );
       const notes = [

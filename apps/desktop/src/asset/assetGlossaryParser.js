@@ -50,11 +50,22 @@ const TABLE_FALLBACK_INDEXES = {
 };
 const SMART_REQUIRED_ROLES = ['sourceTerm', 'targetTerm'];
 
+/** @typedef {Record<string, any>} GlossaryEntry */
+/** @typedef {Record<string, any>} GlossaryAssetInput */
+
+/**
+ * @param {unknown} value
+ * @returns {any[]}
+ */
 function toArray(value) {
   if (Array.isArray(value)) return value;
   return value == null ? [] : [value];
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeWhitespace(value) {
   return String(value || '')
     .replace(/\r\n/g, '\n')
@@ -64,6 +75,11 @@ function normalizeWhitespace(value) {
     .trim();
 }
 
+/**
+ * @param {unknown} value
+ * @param {number} maxCharacters
+ * @returns {string}
+ */
 function truncateText(value, maxCharacters) {
   const normalized = String(value || '');
   if (!maxCharacters || normalized.length <= maxCharacters) {
@@ -73,6 +89,10 @@ function truncateText(value, maxCharacters) {
   return normalized.slice(0, maxCharacters).trimEnd();
 }
 
+/**
+ * @param {string} filePath
+ * @returns {string}
+ */
 function decodeTextFile(filePath) {
   const buffer = fs.readFileSync(filePath);
   if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe) {
@@ -102,19 +122,36 @@ function decodeTextFile(filePath) {
   return buffer.toString('utf8').replace(/^\uFEFF/, '');
 }
 
+/**
+ * @param {unknown} line
+ * @param {string | RegExp} delimiter
+ * @returns {any[]}
+ */
 function splitDelimitedLine(line, delimiter) {
   return String(line || '').split(delimiter).map((cell) => normalizeWhitespace(cell));
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeHeader(value) {
   return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 function normalizeBoolean(value) {
   const normalized = String(value || '').trim().toLowerCase();
   return ['1', 'true', 'yes', 'y'].includes(normalized);
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string[]}
+ */
 function parseAllowedVariants(value) {
   return String(value || '')
     .split(/[|;,]/)
@@ -122,6 +159,11 @@ function parseAllowedVariants(value) {
     .filter(Boolean);
 }
 
+/**
+ * @param {Record<string, any>=} raw
+ * @param {number=} index
+ * @returns {GlossaryEntry | null}
+ */
 function mapEntryRow(raw = {}, index = 0) {
   return normalizeTbEntry({
     id: raw.id || `tb-${index + 1}`,
@@ -144,13 +186,22 @@ function mapEntryRow(raw = {}, index = 0) {
   }, index);
 }
 
+/**
+ * @param {any} entries
+ * @returns {string}
+ */
 function createRenderedTb(entries) {
   const lines = entries
-    .filter((entry) => !entry.forbidden)
-    .map((entry) => `- "${entry.sourceTerm}" => "${entry.targetTerm}"`);
+    .filter((/** @type {any} */ entry) => !entry.forbidden)
+    .map((/** @type {any} */ entry) => `- "${entry.sourceTerm}" => "${entry.targetTerm}"`);
   return lines.length ? `Required terminology:\n${lines.join('\n')}` : '';
 }
 
+/**
+ * @param {unknown} text
+ * @param {string=} extension
+ * @returns {any[]}
+ */
 function collectRawTableRowsFromText(text, extension = '') {
   const normalized = normalizeWhitespace(text);
   if (!normalized) return [];
@@ -172,6 +223,10 @@ function collectRawTableRowsFromText(text, extension = '') {
     .filter((cells) => cells.some(Boolean));
 }
 
+/**
+ * @param {Record<string, any>} asset
+ * @returns {any[]}
+ */
 function collectRawTableRowsFromAsset(asset) {
   const extension = path.extname(String(asset?.fileName || asset?.name || '')).trim().toLowerCase();
   if (extension === '.xlsx') {
@@ -190,6 +245,14 @@ function collectRawTableRowsFromAsset(asset) {
   return collectRawTableRowsFromText(raw, extension);
 }
 
+/**
+ * @param {any} options
+ * @returns {Record<string, any>}
+ */
+/**
+ * @param {any} options
+ * @returns {Record<string, any>}
+ */
 function finalizeParsedTable({ entries = [], rows = [], assignments = {}, warnings = [], parsingMode = 'fallback', smartParsingAvailable = false, usedFallbackMapping = false, hasExplicitHeaders = false, tbStructure = null, tbStructuringMode = '' } = {}) {
   const assignedIndexes = new Set(Object.values(assignments).map((assignment) => assignment?.column?.index).filter((value) => Number.isInteger(value)));
   const headerCells = Array.isArray(rows[0]) ? rows[0].map((cell) => normalizeWhitespace(cell)) : [];
@@ -198,7 +261,7 @@ function finalizeParsedTable({ entries = [], rows = [], assignments = {}, warnin
     .filter((column) => !assignedIndexes.has(column.columnIndex));
 
   return {
-    entries: entries.filter(Boolean).slice(0, MAX_GLOSSARY_ROWS).map((entry, index) => mapEntryRow(entry, index)),
+    entries: entries.filter(Boolean).slice(0, MAX_GLOSSARY_ROWS).map((/** @type {any} */ entry, /** @type {any} */ index) => mapEntryRow(entry, index)),
     parseInfo: {
       parsingMode,
       smartParsingAvailable,
@@ -226,6 +289,13 @@ function finalizeParsedTable({ entries = [], rows = [], assignments = {}, warnin
   };
 }
 
+/**
+ * @param {any} row
+ * @param {any} headerMap
+ * @param {any[]=} candidates
+ * @param {number=} fallbackIndex
+ * @returns {unknown}
+ */
 function extractRowValue(row, headerMap, candidates = [], fallbackIndex = -1) {
   for (const candidate of candidates) {
     const key = headerMap.get(candidate);
@@ -241,6 +311,13 @@ function extractRowValue(row, headerMap, candidates = [], fallbackIndex = -1) {
   return '';
 }
 
+/**
+ * @param {any} row
+ * @param {any} headerMap
+ * @param {any} fallbackIndex
+ * @param {any=} fallbackMap
+ * @returns {GlossaryEntry | null}
+ */
 function buildEntryFromRow(row, headerMap, fallbackIndex, fallbackMap = TABLE_FALLBACK_INDEXES) {
   const fallback = fallbackIndex ? fallbackMap : {};
   const allowedVariants = parseAllowedVariants(extractRowValue(row, headerMap, ['allowedvariants'], fallback.allowedVariants ?? -1));
@@ -265,6 +342,12 @@ function buildEntryFromRow(row, headerMap, fallbackIndex, fallbackMap = TABLE_FA
   return entry.sourceTerm && entry.targetTerm ? entry : null;
 }
 
+/**
+ * @param {any[]=} rows
+ * @param {boolean=} smartParsingAvailable
+ * @param {any[]=} extraWarnings
+ * @returns {Record<string, any>}
+ */
 function parseTableRowsFallback(rows = [], smartParsingAvailable = false, extraWarnings = []) {
   if (!rows.length) {
     return finalizeParsedTable({ rows, smartParsingAvailable, warnings: extraWarnings });
@@ -278,8 +361,8 @@ function parseTableRowsFallback(rows = [], smartParsingAvailable = false, extraW
   const entries = dataRows
     .map((cells) => Array.isArray(cells) ? cells.map((cell) => normalizeWhitespace(cell)) : [])
     .filter((cells) => cells.some(Boolean))
-    .map((cells) => {
-      const row = Object.fromEntries(headerCells.map((header, index) => [header, cells[index]]));
+    .map((/** @type {any} */ cells) => {
+      const row = /** @type {any} */ (Object.fromEntries(headerCells.map((header, index) => [header, cells[index]])));
       row.__cells = cells;
       return buildEntryFromRow(row, headerMap, !hasExplicitHeaders, TABLE_FALLBACK_INDEXES);
     })
@@ -310,6 +393,10 @@ function parseTableRowsFallback(rows = [], smartParsingAvailable = false, extraW
   });
 }
 
+/**
+ * @param {any[]=} rows
+ * @returns {Record<string, any>}
+ */
 function parseTableRowsSmart(rows = []) {
   if (!rows.length || !Array.isArray(rows[0])) {
     return { ok: false, warnings: ['Smart parsing skipped because no table header row was detected.'] };
@@ -331,6 +418,7 @@ function parseTableRowsSmart(rows = []) {
     return { ok: false, warnings: ['Smart parsing had low confidence because the header row did not match known column patterns.'] };
   }
 
+  /** @type {Record<string, any>} */
   const assignments = {};
   const usedColumns = new Set();
   const rolePriority = ['sourceTerm', 'targetTerm', 'srcLang', 'tgtLang', 'domain', 'client', 'project', 'forbidden', 'note', 'priority', 'id', 'allowedVariants', 'matchMode', 'partOfSpeech', 'caseSensitive'];
@@ -376,8 +464,8 @@ function parseTableRowsSmart(rows = []) {
     .map((cells) => Array.isArray(cells) ? cells.map((cell) => normalizeWhitespace(cell)) : [])
     .filter((cells) => cells.some(Boolean));
   const entries = dataRows
-    .map((cells) => {
-      const pick = (role) => assignments[role] ? cells[assignments[role].column.index] : '';
+    .map((/** @type {any} */ cells) => {
+      const pick = (/** @type {any} */ role) => /** @type {any} */ (assignments)[role] ? cells[/** @type {any} */ (assignments[role]).column.index] : '';
       const entry = {
         id: pick('id'),
         sourceTerm: pick('sourceTerm'),
@@ -414,6 +502,11 @@ function parseTableRowsSmart(rows = []) {
   };
 }
 
+/**
+ * @param {any[]=} rows
+ * @param {Record<string, any>=} options
+ * @returns {Record<string, any>}
+ */
 function parseTableRows(rows = [], options = {}) {
   const smartParsingAvailable = options.smartParsingAvailable === true;
   if (!rows.length) {
@@ -435,6 +528,12 @@ function parseTableRows(rows = [], options = {}) {
   return parseTableRowsFallback(rows, false);
 }
 
+/**
+ * @param {unknown} text
+ * @param {string | RegExp} delimiter
+ * @param {Record<string, any>=} options
+ * @returns {Record<string, any>}
+ */
 function parseDelimitedGlossary(text, delimiter, options = {}) {
   const rows = String(text || '')
     .replace(/\r\n/g, '\n')
@@ -445,6 +544,11 @@ function parseDelimitedGlossary(text, delimiter, options = {}) {
   return parseTableRows(rows, options);
 }
 
+/**
+ * @param {unknown} text
+ * @param {Record<string, any>=} options
+ * @returns {Record<string, any>}
+ */
 function parsePlainGlossary(text, options = {}) {
   const normalized = normalizeWhitespace(text);
   if (!normalized) {
@@ -467,6 +571,11 @@ function parsePlainGlossary(text, options = {}) {
   );
 }
 
+/**
+ * @param {string} filePath
+ * @param {Record<string, any>=} options
+ * @returns {Record<string, any> | null}
+ */
 function parseWorkbookRows(filePath, options = {}) {
   const XLSX = require('xlsx');
   const workbook = XLSX.readFile(filePath, { dense: true });
@@ -492,6 +601,9 @@ function parseWorkbookRows(filePath, options = {}) {
   };
 }
 
+/**
+ * @returns {any}
+ */
 function readXmlParser() {
   const { XMLParser } = require('fast-xml-parser');
   return new XMLParser({
@@ -510,6 +622,10 @@ function readXmlParser() {
   });
 }
 
+/**
+ * @param {any} node
+ * @returns {unknown}
+ */
 function getTermValue(node) {
   if (typeof node === 'string') {
     return normalizeWhitespace(node);
@@ -520,6 +636,10 @@ function getTermValue(node) {
   return '';
 }
 
+/**
+ * @param {any} node
+ * @returns {string}
+ */
 function getXmlText(node) {
   if (node == null) {
     return '';
@@ -553,6 +673,10 @@ function getXmlText(node) {
   return '';
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function decodeBasicXmlEntities(value) {
   return String(value || '')
     .replace(/&lt;/g, '<')
@@ -562,8 +686,13 @@ function decodeBasicXmlEntities(value) {
     .replace(/&apos;/g, "'");
 }
 
+/**
+ * @param {any} value
+ * @returns {string}
+ */
 function normalizeTmxContextValue(value) {
   const decoded = decodeBasicXmlEntities(value);
+  /** @type {any[]} */
   const segValues = [];
   decoded.replace(/<seg\b[^>]*>([\s\S]*?)<\/seg>/gi, (_match, inner) => {
     segValues.push(normalizeWhitespace(String(inner || '').replace(/<[^>]+>/g, ' ')));
@@ -575,12 +704,22 @@ function normalizeTmxContextValue(value) {
   return normalizeWhitespace(decoded.replace(/<[^>]+>/g, ' '));
 }
 
+/**
+ * @param {Record<string, any>=} tuv
+ * @returns {string}
+ */
 function normalizeTmxLang(tuv = {}) {
   return normalizeWhitespace(tuv?.['@_lang'] || tuv?.['@_xml:lang'] || tuv?.['@_langcode']);
 }
 
+/**
+ * @param {Record<string, any>=} node
+ * @returns {{ metadata: Record<string, string>, context: Record<string, any> }}
+ */
 function collectTmxProps(node = {}) {
+  /** @type {Record<string, string>} */
   const metadata = {};
+  /** @type {Record<string, any>} */
   const context = {};
   for (const prop of toArray(node?.prop)) {
     const type = normalizeWhitespace(prop?.['@_type']).toLowerCase();
@@ -600,6 +739,11 @@ function collectTmxProps(node = {}) {
   return { metadata, context };
 }
 
+/**
+ * @param {unknown} text
+ * @param {GlossaryAssetInput=} asset
+ * @returns {Record<string, any>}
+ */
 function parseTmxEntries(text, asset = {}) {
   const parser = readXmlParser();
   const parsed = parser.parse(text);
@@ -649,6 +793,10 @@ function parseTmxEntries(text, asset = {}) {
   return entries.slice(0, MAX_CUSTOM_TM_ENTRIES);
 }
 
+/**
+ * @param {unknown} text
+ * @returns {Record<string, any>}
+ */
 function parseTbxGlossary(text) {
   const parser = readXmlParser();
   const parsed = parser.parse(text);
@@ -687,9 +835,14 @@ function parseTbxGlossary(text) {
   return rows.slice(0, MAX_GLOSSARY_ROWS);
 }
 
+/**
+ * @param {GlossaryAssetInput} asset
+ * @param {Record<string, any>=} options
+ * @returns {Record<string, any>}
+ */
 function parseGlossaryAsset(asset, options = {}) {
   const extension = path.extname(String(asset?.fileName || asset?.name || '')).trim().toLowerCase();
-  let parsed;
+  /** @type {any} */ let parsed;
   const tableLike = ['.csv', '.tsv', '.txt', '.xlsx'].includes(extension);
   const rawRows = tableLike ? collectRawTableRowsFromAsset(asset) : [];
   const manualStructure = tableLike ? buildManualTbStructure(rawRows, asset) : null;
@@ -823,9 +976,14 @@ function parseGlossaryAsset(asset, options = {}) {
   };
 }
 
+/**
+ * @param {GlossaryAssetInput} asset
+ * @param {Record<string, any>=} options
+ * @returns {Record<string, any>}
+ */
 function parseCustomTmAsset(asset, options = {}) {
   const extension = path.extname(String(asset?.fileName || asset?.name || '')).trim().toLowerCase();
-  let parsed;
+  /** @type {any} */ let parsed;
 
   if (extension === '.xlsx') {
     parsed = parseWorkbookRows(asset.storedPath, options);
@@ -857,7 +1015,7 @@ function parseCustomTmAsset(asset, options = {}) {
   }
 
   const limitedEntries = (parsed.entries || [])
-    .map((entry, index) => normalizeCustomTmEntry({
+    .map((/** @type {any} */ entry, /** @type {any} */ index) => normalizeCustomTmEntry({
       ...entry,
       sourceText: entry.sourceText || entry.sourceTerm,
       targetText: entry.targetText || entry.targetTerm,

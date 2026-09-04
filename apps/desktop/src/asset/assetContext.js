@@ -32,6 +32,12 @@ const {
   truncateText
 } = require('./assetBriefParser');
 
+/**
+ * @param {Record<string, any>} asset
+ * @param {any} cache
+ * @param {Record<string, any>=} options
+ * @returns {any}
+ */
 function getParsedAsset(asset, cache, options = {}) {
   return getCachedParsedAsset(asset, cache, options, {
     fingerprintText,
@@ -39,18 +45,21 @@ function getParsedAsset(asset, cache, options = {}) {
   });
 }
 
+/**
+ * @param {Record<string, any>} asset
+ * @param {Map<string, any>=} cache
+ * @param {Record<string, any>=} options
+ * @returns {any}
+ */
 function buildAssetPreview(asset, cache = new Map(), options = {}) {
   const parsed = getParsedAsset(asset, cache, options);
-  return buildAssetPreviewResult(asset, parsed, options, {
-    normalizeWhitespace,
-    truncateText
-  });
+  return buildAssetPreviewResult(asset, parsed, options, /** @type {any} */ ({ normalizeWhitespace, truncateText }));
 }
 
 module.exports = {
   ASSET_PURPOSES,
   ASSET_SEPARATOR,
-  buildAssetContext: (input = {}) => buildAssetContext({
+  buildAssetContext: (/** @type {Record<string, any>} */ input = {}) => buildAssetContext({
     ...input,
     getParsedAsset
   }),

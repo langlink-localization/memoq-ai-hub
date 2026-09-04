@@ -1,3 +1,8 @@
+/**
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
 function clampPositiveInteger(value, fallback) {
   const normalized = Number(value);
   if (!Number.isFinite(normalized) || normalized <= 0) {
@@ -6,6 +11,10 @@ function clampPositiveInteger(value, fallback) {
   return Math.max(1, Math.floor(normalized));
 }
 
+/**
+ * @param {unknown} value
+ * @returns {Record<string, any>}
+ */
 function parseRateLimitHint(value) {
   const raw = String(value || '').trim();
   if (!raw) {
@@ -59,11 +68,19 @@ function parseRateLimitHint(value) {
   };
 }
 
+/**
+ * @param {any} error
+ * @returns {boolean}
+ */
 function shouldRetryProviderError(error) {
   const code = String(error?.code || '').trim().toUpperCase();
   return ['PROVIDER_TIMEOUT', 'PROVIDER_NETWORK_FAILED', 'PROVIDER_RATE_LIMITED'].includes(code);
 }
 
+/**
+ * @param {unknown} value
+ * @returns {number | null}
+ */
 function normalizeRetryAfterSeconds(value) {
   if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
     return value;
@@ -75,6 +92,10 @@ function normalizeRetryAfterSeconds(value) {
   return null;
 }
 
+/**
+ * @param {unknown} message
+ * @returns {number | null}
+ */
 function extractRetryAfterSeconds(message) {
   const normalized = String(message || '').toLowerCase();
   const retryAfterMatch = normalized.match(/retry[-\s]?after[^0-9]*(\d+(?:\.\d+)?)/i);
@@ -85,6 +106,11 @@ function extractRetryAfterSeconds(message) {
   return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
 }
 
+/**
+ * @param {any} error
+ * @param {unknown} retryIndex
+ * @returns {number}
+ */
 function computeRetryDelayMs(error, retryIndex) {
   const retryAfterSeconds = normalizeRetryAfterSeconds(error?.retryAfterSeconds)
     ?? extractRetryAfterSeconds(error?.message || '');
@@ -96,8 +122,19 @@ function computeRetryDelayMs(error, retryIndex) {
   return Math.min(4000, 250 * (2 ** (attempt - 1)));
 }
 
+/**
+ * @typedef {Object} SemaphoreTicket
+ * @property {number} queuedMs
+ * @property {() => void} release
+ */
+
+/**
+ * @param {unknown=} limit
+ * @returns {{ acquire: () => Promise<SemaphoreTicket> }}
+ */
 function createSemaphore(limit = 1) {
   let active = 0;
+  /** @type {Array<(...args: any[]) => void>} */
   const queue = [];
   const normalizedLimit = clampPositiveInteger(limit, 1);
 
@@ -133,6 +170,15 @@ function createSemaphore(limit = 1) {
   };
 }
 
+/**
+ * @typedef {Object} RateLimitTicket
+ * @property {number} rateLimitedWaitMs
+ */
+
+/**
+ * @param {{ requestsPerWindow?: unknown, windowMs?: unknown, smoothness?: unknown }=} options
+ * @returns {{ acquire: () => Promise<RateLimitTicket> }}
+ */
 function createRateLimiter({ requestsPerWindow, windowMs, smoothness = 1 } = {}) {
   const normalizedRequests = clampPositiveInteger(requestsPerWindow, 0);
   const normalizedWindowMs = clampPositiveInteger(windowMs, 0);
@@ -148,10 +194,16 @@ function createRateLimiter({ requestsPerWindow, windowMs, smoothness = 1 } = {})
     };
   }
 
+  /** @type {number[]} */
   let timestamps = [];
   let lastIssuedAt = 0;
+  /** @type {Promise<any>} */
   let queue = Promise.resolve();
 
+  /**
+   * @param {number} delayMs
+   * @returns {Promise<void>}
+   */
   async function wait(delayMs) {
     if (!delayMs || delayMs <= 0) {
       return;
@@ -159,6 +211,10 @@ function createRateLimiter({ requestsPerWindow, windowMs, smoothness = 1 } = {})
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 
+  /**
+   * @param {number} now
+   * @returns {void}
+   */
   function trim(now) {
     timestamps = timestamps.filter((timestamp) => now - timestamp < normalizedWindowMs);
   }

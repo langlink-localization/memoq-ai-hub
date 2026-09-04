@@ -18,6 +18,10 @@ const ASSET_IMPORT_RULES = {
   }
 };
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeAssetPurpose(value) {
   const normalized = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
   if (normalized === ASSET_PURPOSES.glossary) return ASSET_PURPOSES.glossary;
@@ -26,6 +30,10 @@ function normalizeAssetPurpose(value) {
   return '';
 }
 
+/**
+ * @param {Record<string, unknown>=} binding
+ * @returns {{ assetId: string, purpose: string } | null}
+ */
 function normalizeAssetBinding(binding = {}) {
   const assetId = String(binding.assetId || '').trim();
   if (!assetId) {
@@ -46,6 +54,11 @@ function getAssetImportRules() {
   };
 }
 
+/**
+ * @param {unknown} assetType
+ * @param {unknown} sourcePath
+ * @returns {{ type: string, extension: string }}
+ */
 function validateAssetImport(assetType, sourcePath) {
   const normalizedType = normalizeAssetPurpose(assetType);
   const rules = ASSET_IMPORT_RULES[normalizedType];

@@ -1,3 +1,7 @@
+/** @typedef {Record<string, string>} ProviderTypeLookup */
+/** @typedef {Record<string, unknown>} ProviderRecord */
+
+/** @type {ProviderTypeLookup} */
 const DEFAULT_PROVIDER_TYPES = {
   openai: 'openai',
   'openai-compatible': 'openai-compatible',
@@ -9,26 +13,41 @@ const SUPPORTED_REQUEST_PATHS = new Set(['/responses', '/chat/completions']);
 const SUPPORTED_RESPONSE_FORMATS = new Set(['auto', 'json_schema', 'json_object', 'text']);
 const SUPPORTED_THROUGHPUT_MODES = new Set(['auto', 'reliable', 'fast', 'custom']);
 
+/** @type {Record<string, string>} */
 const DEFAULT_BASE_URLS = {
   openai: 'https://api.openai.com/v1',
   'openai-compatible': 'https://api.openai.com/v1'
 };
 
+/** @type {Record<string, string>} */
 const DEFAULT_MODELS = {
   openai: 'gpt-5.4-mini',
   'openai-compatible': 'gpt-5.4-mini'
 };
 
+/** @type {Record<string, string>} */
 const DEFAULT_PROVIDER_NAMES = {
   openai: 'OpenAI',
   'openai-compatible': 'OpenAI Compatible'
 };
 
+/** @type {Record<string, string>} */
 const DEFAULT_REQUEST_PATHS = {
   openai: '/responses',
   'openai-compatible': '/chat/completions'
 };
 
+/**
+ * @typedef {Object} ProviderCapabilityDefaults
+ * @property {boolean} supportsBatch
+ * @property {boolean} supportsStreaming
+ * @property {string} responseFormat
+ * @property {string} throughputMode
+ * @property {number} maxBatchSegments
+ * @property {number} maxBatchCharacters
+ */
+
+/** @type {Record<string, ProviderCapabilityDefaults>} */
 const DEFAULT_CAPABILITIES = {
   openai: {
     supportsBatch: true,
@@ -48,32 +67,62 @@ const DEFAULT_CAPABILITIES = {
   }
 };
 
+/**
+ * @param {unknown} type
+ * @returns {string}
+ */
 function normalizeProviderType(type) {
   return DEFAULT_PROVIDER_TYPES[String(type || '').trim().toLowerCase()] || 'openai';
 }
 
+/**
+ * @param {unknown} type
+ * @returns {boolean}
+ */
 function isSupportedProviderType(type) {
   return SUPPORTED_PROVIDER_TYPES.has(DEFAULT_PROVIDER_TYPES[String(type || '').trim().toLowerCase()]);
 }
 
+/**
+ * @param {unknown} type
+ * @returns {string}
+ */
 function getDefaultBaseUrl(type) {
   return DEFAULT_BASE_URLS[normalizeProviderType(type)];
 }
 
+/**
+ * @param {unknown} type
+ * @returns {string}
+ */
 function getDefaultRequestPath(type) {
   return DEFAULT_REQUEST_PATHS[normalizeProviderType(type)] || '';
 }
 
+/**
+ * @param {unknown} type
+ * @returns {string}
+ */
 function getDefaultProviderName(type) {
   return DEFAULT_PROVIDER_NAMES[normalizeProviderType(type)] || DEFAULT_PROVIDER_NAMES.openai;
 }
 
+/**
+ * @param {unknown} type
+ * @returns {string}
+ */
 function getDefaultModelName(type) {
   return DEFAULT_MODELS[normalizeProviderType(type)];
 }
 
+/**
+ * @param {unknown} responseFormat
+ * @param {string=} fallback
+ * @returns {string}
+ */
 function normalizeResponseFormat(responseFormat, fallback = 'auto') {
   const normalized = String(responseFormat || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  /** @type {Record<string, string>} */
   const aliases = {
     json: 'json_object',
     json_mode: 'json_object',
@@ -95,8 +144,14 @@ function normalizeResponseFormat(responseFormat, fallback = 'auto') {
   return SUPPORTED_RESPONSE_FORMATS.has(fallbackCandidate) ? fallbackCandidate : '';
 }
 
+/**
+ * @param {unknown} throughputMode
+ * @param {string=} fallback
+ * @returns {string}
+ */
 function normalizeThroughputMode(throughputMode, fallback = 'auto') {
   const normalized = String(throughputMode || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  /** @type {Record<string, string>} */
   const aliases = {
     balanced: 'auto',
     adaptive: 'auto',
@@ -118,6 +173,10 @@ function normalizeThroughputMode(throughputMode, fallback = 'auto') {
   return SUPPORTED_THROUGHPUT_MODES.has(fallbackCandidate) ? fallbackCandidate : 'auto';
 }
 
+/**
+ * @param {ProviderRecord=} provider
+ * @returns {boolean}
+ */
 function isDeepSeekProvider(provider = {}) {
   const baseUrl = String(provider.baseUrl || '').trim().toLowerCase();
   if (baseUrl.includes('deepseek')) {
@@ -125,9 +184,14 @@ function isDeepSeekProvider(provider = {}) {
   }
 
   const models = Array.isArray(provider.models) ? provider.models : [];
-  return models.some((model) => String(model?.modelName || model?.id || model || '').trim().toLowerCase().startsWith('deepseek-'));
+  return models.some((/** @type {any} */ model) => String(model?.modelName || model?.id || model || '').trim().toLowerCase().startsWith('deepseek-'));
 }
 
+/**
+ * @param {unknown} type
+ * @param {ProviderRecord=} provider
+ * @returns {string}
+ */
 function getDefaultResponseFormat(type, provider = {}) {
   const normalizedType = normalizeProviderType(type);
   if (normalizedType === 'openai-compatible' && isDeepSeekProvider(provider)) {
@@ -136,11 +200,19 @@ function getDefaultResponseFormat(type, provider = {}) {
   return DEFAULT_CAPABILITIES[normalizedType].responseFormat;
 }
 
+/**
+ * @param {unknown} requestPath
+ * @returns {string}
+ */
 function normalizeCompatibleRequestPath(requestPath) {
   const candidate = `/${String(requestPath || getDefaultRequestPath('openai-compatible')).trim().replace(/^\/+/, '').replace(/\/+$/, '')}`;
   return SUPPORTED_REQUEST_PATHS.has(candidate) ? candidate : getDefaultRequestPath('openai-compatible');
 }
 
+/**
+ * @param {unknown} requestPath
+ * @returns {string}
+ */
 function validateCompatibleRequestPath(requestPath) {
   const normalized = normalizeCompatibleRequestPath(requestPath);
   const candidate = `/${String(requestPath || normalized).trim().replace(/^\/+/, '').replace(/\/+$/, '')}`;
@@ -150,12 +222,16 @@ function validateCompatibleRequestPath(requestPath) {
   return normalized;
 }
 
+/**
+ * @param {ProviderRecord=} provider
+ * @returns {Record<string, any>}
+ */
 function getProviderCapabilities(provider = {}) {
   const type = normalizeProviderType(provider.type);
   const defaults = DEFAULT_CAPABILITIES[type];
-  const provided = provider.capabilities && typeof provider.capabilities === 'object'
+  const provided = /** @type {Record<string, any>} */ (provider.capabilities && typeof provider.capabilities === 'object'
     ? provider.capabilities
-    : {};
+    : {});
   const defaultResponseFormat = getDefaultResponseFormat(type, provider);
 
   return {
@@ -173,12 +249,17 @@ function getProviderCapabilities(provider = {}) {
   };
 }
 
+/**
+ * @param {ProviderRecord=} provider
+ * @param {unknown=} modelName
+ * @returns {string}
+ */
 function getProviderModelResponseFormat(provider = {}, modelName = '') {
   const providerCapabilities = getProviderCapabilities(provider);
   const normalizedModelName = String(modelName || '').trim().toLowerCase();
   const models = Array.isArray(provider.models) ? provider.models : [];
   const model = normalizedModelName
-    ? models.find((item) => {
+    ? models.find((/** @type {any} */ item) => {
       const itemId = String(item?.id || '').trim().toLowerCase();
       const itemName = String(item?.modelName || '').trim().toLowerCase();
       return itemName === normalizedModelName || itemId === normalizedModelName;
@@ -189,6 +270,10 @@ function getProviderModelResponseFormat(provider = {}, modelName = '') {
   return modelResponseFormat || providerCapabilities.responseFormat;
 }
 
+/**
+ * @param {ProviderRecord=} provider
+ * @returns {Record<string, any>}
+ */
 function sanitizeProvider(provider = {}) {
   const type = normalizeProviderType(provider.type);
 
@@ -205,6 +290,11 @@ function sanitizeProvider(provider = {}) {
   };
 }
 
+/**
+ * @param {unknown} value
+ * @param {unknown} fieldLabel
+ * @returns {void}
+ */
 function assertNoReplacementCharacter(value, fieldLabel) {
   const text = String(value || '');
   if (text.includes('\uFFFD')) {
@@ -212,6 +302,11 @@ function assertNoReplacementCharacter(value, fieldLabel) {
   }
 }
 
+/**
+ * @param {unknown} value
+ * @param {unknown} fieldLabel
+ * @returns {void}
+ */
 function assertLatin1HeaderSafe(value, fieldLabel) {
   const text = String(value || '');
   for (let index = 0; index < text.length; index += 1) {
@@ -221,6 +316,10 @@ function assertLatin1HeaderSafe(value, fieldLabel) {
   }
 }
 
+/**
+ * @param {{ apiKey?: unknown, baseUrl?: unknown, modelName?: unknown, requestPath?: unknown }} input
+ * @returns {void}
+ */
 function validateProviderRequestInput({ apiKey, baseUrl, modelName, requestPath = '' }) {
   assertNoReplacementCharacter(apiKey, 'Provider API key');
   assertNoReplacementCharacter(baseUrl, 'Provider base URL');
@@ -231,10 +330,19 @@ function validateProviderRequestInput({ apiKey, baseUrl, modelName, requestPath 
   }
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function trimSlashes(value) {
   return String(value || '').trim().replace(/^\/+/, '').replace(/\/+$/, '');
 }
 
+/**
+ * @param {unknown} baseUrl
+ * @param {unknown} requestPath
+ * @returns {string}
+ */
 function buildProviderRequestUrl(baseUrl, requestPath) {
   const normalizedBaseUrl = String(baseUrl || '').trim().replace(/\/+$/, '');
   const normalizedPath = trimSlashes(requestPath);
@@ -247,6 +355,10 @@ function buildProviderRequestUrl(baseUrl, requestPath) {
   return `${normalizedBaseUrl}/${normalizedPath}`;
 }
 
+/**
+ * @param {ProviderRecord} provider
+ * @returns {string}
+ */
 function resolveRequestPath(provider) {
   const sanitizedProvider = sanitizeProvider(provider);
   if (sanitizedProvider.type === 'openai') {

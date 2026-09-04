@@ -6,6 +6,12 @@ const {
   parseGlossaryAsset
 } = require('./assetGlossaryParser');
 
+/**
+ * @param {Record<string, any>} asset
+ * @param {Record<string, any>=} options
+ * @param {Record<string, any>=} helpers
+ * @returns {any}
+ */
 function parseAsset(asset, options = {}, helpers = {}) {
   if (!asset?.storedPath || !fs.existsSync(asset.storedPath)) {
     throw new Error(`Asset "${asset?.name || asset?.id || 'unknown'}" is missing its stored file.`);
@@ -30,6 +36,13 @@ function parseAsset(asset, options = {}, helpers = {}) {
   };
 }
 
+/**
+ * @param {Record<string, any>} asset
+ * @param {any} cache
+ * @param {Record<string, any>=} options
+ * @param {Record<string, any>=} helpers
+ * @returns {any}
+ */
 function getParsedAsset(asset, cache, options = {}, helpers = {}) {
   const parsingModeKey = options.smartParsingAvailable === true ? 'smart' : 'fallback';
   const cacheKey = `${asset.id}:${asset.sha256 || ''}:${parsingModeKey}`;

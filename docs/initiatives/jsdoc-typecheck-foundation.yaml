@@ -10,14 +10,12 @@ spec_link: none
 github_links:
   project: none
   issues: []
-current_stage: qa-and-bilingual-typed
-last_verified_commit: "tsc 0 errors over shared + qa + bilingual + assetTmMatcher, desktop tests 616 (612 pass / 4 packaging skips), repo governance clean, lint zero warnings"
+current_stage: provider-config-governance-and-response-utils-typed
+last_verified_commit: "tsc 0 errors over shared + qa + bilingual + asset layers + providerConfig/providerGovernance/providerResponseUtils; desktop tests 616 (612 pass / 4 packaging skips), repo governance clean, lint zero warnings"
 next_action: >
-  Type the asset parser layer next (assetTerminology, assetTbStructure,
-  assetGlossaryParser, assetContextAssembler, assetContext, assetRules,
-  assetBriefParser, assetParseCache, assetPreviewBuilder), then the provider
-  modules (providerConfig, providerGovernance, providerResponseUtils), then
-  the runtime services. Every new module must join
+  Type the remaining provider modules (providerPromptBuilder 701 lines,
+  providerRegistry 746 lines, providerTransportSupport 580 lines), then the
+  runtime services behind the composition root. Every new module must join
   apps/desktop/tsconfig.json's include list with strict checkJs green before
   the next one starts.
 allowed_interruptions:
@@ -33,7 +31,7 @@ resume_prompt: >
   This initiative runs progressive strict type checking over the plain-JS
   desktop sources through JSDoc annotations, tsc --noEmit (typescript 7.0.2),
   the pnpm run typecheck script, and a CI step. The typed scope today is all of
-  apps/desktop/src/shared, the full src/qa and src/bilingual layers,
-  asset/assetTmMatcher.js, gatewayRequestValidation.js, and
-  rendererIpcSurface.js. Continue with next_action without weakening strict
-  mode or shrinking the typed surface.
+  apps/desktop/src/shared, src/qa, src/bilingual, src/asset, and the provider
+  config/governance/response-utils modules, plus gatewayRequestValidation.js
+  and rendererIpcSurface.js. Continue with next_action without weakening
+  strict mode or shrinking the typed surface.
