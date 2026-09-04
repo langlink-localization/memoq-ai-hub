@@ -10,14 +10,24 @@ spec_link: none
 github_links:
   project: none
   issues: []
-current_stage: provider-config-governance-and-response-utils-typed
-last_verified_commit: "tsc 0 errors over shared + qa + bilingual + asset layers + providerConfig/providerGovernance/providerResponseUtils; desktop tests 616 (612 pass / 4 packaging skips), repo governance clean, lint zero warnings"
+current_stage: provider-layer-typed-runtime-surveyed
+last_verified_commit: "tsc 0 errors over included scope (shared/qa/bilingual/asset/provider x6 + validators/IPC); runtime error map surveyed"
 next_action: >
-  Type the remaining provider modules (providerPromptBuilder 701 lines,
-  providerRegistry 746 lines, providerTransportSupport 580 lines), then the
-  runtime services behind the composition root. Every new module must join
-  apps/desktop/tsconfig.json's include list with strict checkJs green before
-  the next one starts.
+  Type the runtime layer in ascending error-count batches (strict checkJs per
+  module, then add to tsconfig include). Surveyed counts: runtimeState 175,
+  previewContext 99 (pulled by runtime), runtimeHistoryBuilder 98,
+  runtimePersistence 89, runtimeTranslationSupport 63, runtimeHistory 38,
+  runtimeThroughput 32, runtimeHistoryIntegrationSupport 29,
+  runtimePromptSupport 22, runtimeAssetService 14, runtimeQaHistoryService 13,
+  runtimePreviewPolicy 13, runtimePromptPresetStore 12, runtimeRuleEngine 10,
+  previewSnapshotSettle 10, runtimePreviewStateSupport 2. Still unsurveyed:
+  runtime.js, runtimeTranslationService, runtimeAggregationService,
+  runtimeQaService, runtimeProfileService, runtimeProviderService,
+  runtimeProviderExecution, runtimeAssetTbService, runtimeHistoryPresentation,
+  runtimeStateView, runtimePreviewContextResolver. Use the established
+  batch-annotation workflow (function-list scan, JSDoc insertion script,
+  iterative tsc). Watch for the async-dangling insertion pitfall: match
+  "async function NAME(" not "function NAME(".
 allowed_interruptions:
   - emergency production fix
   - security or data correctness issue
