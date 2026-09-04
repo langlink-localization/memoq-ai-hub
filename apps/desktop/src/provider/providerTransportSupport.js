@@ -14,12 +14,22 @@ const {
 } = require('./providerResponseUtils');
 const { shouldRetryProviderError } = require('./providerGovernance');
 
+/**
+ * @returns {Promise<{ OpenAI: any }>}
+ */
 async function loadSdkModules() {
   return {
     OpenAI: require('openai')
   };
 }
 
+/**
+ * @param {any} OpenAIConstructor
+ * @param {Record<string, any>} provider
+ * @param {string} apiKey
+ * @param {unknown} timeoutMs
+ * @returns {any}
+ */
 function createClient(OpenAIConstructor, provider, apiKey, timeoutMs) {
   const sanitizedProvider = sanitizeProvider(provider);
   return new OpenAIConstructor({
@@ -30,6 +40,11 @@ function createClient(OpenAIConstructor, provider, apiKey, timeoutMs) {
   });
 }
 
+/**
+ * @param {unknown} systemPrompt
+ * @param {unknown} prompt
+ * @returns {any[]}
+ */
 function createChatMessages(systemPrompt, prompt) {
   const messages = [];
   if (systemPrompt) {
@@ -39,6 +54,12 @@ function createChatMessages(systemPrompt, prompt) {
   return messages;
 }
 
+/**
+ * @param {unknown} schema
+ * @param {unknown} name
+ * @param {unknown} description
+ * @returns {Record<string, any>}
+ */
 function createStructuredOutputFormat(schema, name, description) {
   return {
     type: 'json_schema',
@@ -49,6 +70,13 @@ function createStructuredOutputFormat(schema, name, description) {
   };
 }
 
+/**
+ * @param {unknown} responseFormat
+ * @param {unknown} schema
+ * @param {unknown} name
+ * @param {unknown} description
+ * @returns {Record<string, any> | null}
+ */
 function createChatResponseFormat(responseFormat, schema, name, description) {
   if (responseFormat === 'json_schema') {
     return {
@@ -67,6 +95,13 @@ function createChatResponseFormat(responseFormat, schema, name, description) {
   return null;
 }
 
+/**
+ * @param {unknown} responseFormat
+ * @param {unknown} schema
+ * @param {unknown} name
+ * @param {unknown} description
+ * @returns {Record<string, any> | null}
+ */
 function createResponsesTextFormat(responseFormat, schema, name, description) {
   if (responseFormat === 'json_schema') {
     return createStructuredOutputFormat(schema, name, description);
@@ -77,6 +112,11 @@ function createResponsesTextFormat(responseFormat, schema, name, description) {
   return null;
 }
 
+/**
+ * @param {Record<string, unknown>=} provider
+ * @param {string=} modelName
+ * @returns {string[]}
+ */
 function getStructuredResponseFormatCandidates(provider = {}, modelName = '') {
   const responseFormat = normalizeResponseFormat(getProviderModelResponseFormat(provider, modelName), 'auto');
   if (responseFormat === 'auto') {
@@ -85,6 +125,10 @@ function getStructuredResponseFormatCandidates(provider = {}, modelName = '') {
   return [responseFormat];
 }
 
+/**
+ * @param {unknown} message
+ * @returns {boolean}
+ */
 function looksLikeStructuredParseFailure(message) {
   const normalized = String(message || '').toLowerCase();
   return normalized.includes('translation response is not valid json')
@@ -96,6 +140,10 @@ function looksLikeStructuredParseFailure(message) {
     || normalized.includes('is not valid json');
 }
 
+/**
+ * @param {unknown} message
+ * @returns {boolean}
+ */
 function looksLikeStructuredCapabilityFailure(message) {
   const normalized = String(message || '').toLowerCase();
   if (!normalized) {
@@ -122,6 +170,11 @@ function looksLikeStructuredCapabilityFailure(message) {
   return mentionsStructuredOutput && indicatesIncompatibility;
 }
 
+/**
+ * @param {any[]} values
+ * @param {unknown} value
+ * @returns {void}
+ */
 function pushErrorSignal(values, value) {
   const text = String(value || '').trim();
   if (text && !values.includes(text)) {
@@ -129,7 +182,13 @@ function pushErrorSignal(values, value) {
   }
 }
 
+/**
+ * @param {any} error
+ * @param {Record<string, any>=} mapped
+ * @returns {string}
+ */
 function collectProviderErrorSignals(error, mapped = {}) {
+  /** @type {any[]} */
   const values = [];
   const bodyError = error?.response?.data?.error || error?.body?.error || error?.error;
 
@@ -154,6 +213,10 @@ function collectProviderErrorSignals(error, mapped = {}) {
   return values.join(' ');
 }
 
+/**
+ * @param {any} error
+ * @returns {boolean}
+ */
 function shouldFallbackFromStructuredCapabilityError(error) {
   const mapped = mapProviderError(error);
   if (shouldRetryProviderError(mapped) || ['PROVIDER_AUTH_FAILED', 'PROVIDER_CONFIG_INVALID'].includes(mapped.code)) {
@@ -163,6 +226,10 @@ function shouldFallbackFromStructuredCapabilityError(error) {
   return looksLikeStructuredCapabilityFailure(collectProviderErrorSignals(error, mapped));
 }
 
+/**
+ * @param {any} error
+ * @returns {boolean}
+ */
 function shouldFallbackFromStructuredError(error) {
   const mapped = mapProviderError(error);
   if (shouldRetryProviderError(mapped) || ['PROVIDER_AUTH_FAILED', 'PROVIDER_CONFIG_INVALID'].includes(mapped.code)) {
@@ -181,6 +248,12 @@ function shouldFallbackFromStructuredError(error) {
     || genericInvalidStructuredRequest;
 }
 
+/**
+ * @param {any} client
+ * @param {string} requestPath
+ * @param {Record<string, any>} request
+ * @returns {any}
+ */
 function buildStreamingRequest(client, requestPath, request) {
   const requestOptions = request?.requestOptions || {};
   if (requestPath === '/chat/completions') {
@@ -203,6 +276,11 @@ function buildStreamingRequest(client, requestPath, request) {
   }, requestOptions);
 }
 
+/**
+ * @param {any} headers
+ * @param {any} name
+ * @returns {string}
+ */
 function extractHeaderValue(headers, name) {
   if (!headers || !name) {
     return '';
@@ -223,6 +301,10 @@ function extractHeaderValue(headers, name) {
   return '';
 }
 
+/**
+ * @param {unknown} value
+ * @returns {number | null}
+ */
 function parseRetryAfterSeconds(value) {
   const normalized = String(value || '').trim();
   if (!normalized) {
@@ -243,6 +325,11 @@ function parseRetryAfterSeconds(value) {
   return null;
 }
 
+/**
+ * @param {any} error
+ * @param {any} headers
+ * @returns {any}
+ */
 function attachRetryAfter(error, headers) {
   const retryAfterSeconds = parseRetryAfterSeconds(extractHeaderValue(headers, 'retry-after'));
   if (retryAfterSeconds === null) {
@@ -252,6 +339,11 @@ function attachRetryAfter(error, headers) {
   return error;
 }
 
+/**
+ * @param {unknown} timeoutMs
+ * @param {unknown} cause
+ * @returns {Error}
+ */
 function createTimeoutError(timeoutMs, cause) {
   const error = new Error(`Provider request timed out after ${timeoutMs} ms`);
   if (cause) {
@@ -260,6 +352,11 @@ function createTimeoutError(timeoutMs, cause) {
   return error;
 }
 
+/**
+ * @param {any} timeoutMs
+ * @param {any} signal
+ * @returns {Record<string, any>}
+ */
 function createRequestOptions(timeoutMs, signal) {
   const requestOptions = {};
   if (timeoutMs && timeoutMs > 0) {
@@ -271,6 +368,13 @@ function createRequestOptions(timeoutMs, signal) {
   return requestOptions;
 }
 
+/**
+ * @template T
+ * @param {(args: { signal: any, requestOptions: any }) => Promise<T>} executor
+ * @param {any} timeoutMs
+ * @param {any=} externalSignal
+ * @returns {Promise<T>}
+ */
 async function withAbortableTimeout(executor, timeoutMs, externalSignal) {
   if ((!timeoutMs || timeoutMs <= 0) && !externalSignal) {
     return executor({
@@ -305,6 +409,11 @@ async function withAbortableTimeout(executor, timeoutMs, externalSignal) {
   }
 }
 
+/**
+ * @param {Record<string, any>} provider
+ * @param {Record<string, any>=} requestOptions
+ * @returns {Record<string, string>}
+ */
 function buildPromptCacheRequestFields(provider, requestOptions = {}) {
   if (requestOptions.providerPromptCacheEnabled !== true) {
     return {};
@@ -315,6 +424,7 @@ function buildPromptCacheRequestFields(provider, requestOptions = {}) {
     return {};
   }
 
+  /** @type {Record<string, string>} */
   const fields = {
     prompt_cache_key: String(requestOptions.promptCacheKey || '').trim()
   };
@@ -327,6 +437,10 @@ function buildPromptCacheRequestFields(provider, requestOptions = {}) {
   return fields;
 }
 
+/**
+ * @param {any} response
+ * @returns {number}
+ */
 function getCachedPromptTokens(response) {
   return Number(
     response?.usage?.prompt_tokens_details?.cached_tokens
@@ -335,7 +449,19 @@ function getCachedPromptTokens(response) {
   );
 }
 
+/**
+ * @typedef {Record<string, any>} ProviderTransportCallInput
+ */
+
+/**
+ * @param {{ sdkLoader?: () => Promise<{ OpenAI: any }> }=} options
+ * @returns {Record<string, any>}
+ */
 function createProviderTransport({ sdkLoader = loadSdkModules } = {}) {
+  /**
+   * @param {ProviderTransportCallInput} input
+   * @returns {Promise<any>}
+   */
   async function callTextModel({
     provider,
     apiKey,
@@ -375,7 +501,7 @@ function createProviderTransport({ sdkLoader = loadSdkModules } = {}) {
             max_tokens: maxOutputTokens,
             ...promptCacheFields
           }, requestOptions);
-        } catch (error) {
+        } catch (/** @type {any} */ error) {
           throw attachRetryAfter(error, error?.headers || error?.response?.headers);
         }
       }, timeoutMs, signal);
@@ -399,7 +525,7 @@ function createProviderTransport({ sdkLoader = loadSdkModules } = {}) {
           max_output_tokens: maxOutputTokens,
           ...promptCacheFields
         }, requestOptions);
-      } catch (error) {
+      } catch (/** @type {any} */ error) {
         throw attachRetryAfter(error, error?.headers || error?.response?.headers);
       }
     }, timeoutMs, signal);
@@ -413,6 +539,10 @@ function createProviderTransport({ sdkLoader = loadSdkModules } = {}) {
     };
   }
 
+  /**
+   * @param {ProviderTransportCallInput} input
+   * @returns {Promise<any>}
+   */
   async function callStructuredModel({
     provider,
     apiKey,
@@ -452,18 +582,18 @@ function createProviderTransport({ sdkLoader = loadSdkModules } = {}) {
         if (requestPath === '/chat/completions') {
           const completion = await withAbortableTimeout(async ({ requestOptions }) => {
             const chatResponseFormat = createChatResponseFormat(responseFormat, schema, name, description);
-            const request = {
+            const request = /** @type {any} */ ({
               model: normalizedModelName,
               messages: createChatMessages(systemPrompt, prompt),
               ...promptCacheFields
-            };
+            });
             if (chatResponseFormat) {
               request.response_format = chatResponseFormat;
             }
 
             try {
               return await client.chat.completions.create(request, requestOptions);
-            } catch (error) {
+            } catch (/** @type {any} */ error) {
               throw attachRetryAfter(error, error?.headers || error?.response?.headers);
             }
           }, timeoutMs, signal);
@@ -480,19 +610,19 @@ function createProviderTransport({ sdkLoader = loadSdkModules } = {}) {
 
         const response = await withAbortableTimeout(async ({ requestOptions }) => {
           const textFormat = createResponsesTextFormat(responseFormat, schema, name, description);
-          const request = {
+          const request = /** @type {any} */ ({
             model: normalizedModelName,
             instructions: systemPrompt,
             input: prompt,
             ...promptCacheFields
-          };
+          });
           if (textFormat) {
             request.text = { format: textFormat };
           }
 
           try {
             return await client.responses.create(request, requestOptions);
-          } catch (error) {
+          } catch (/** @type {any} */ error) {
             throw attachRetryAfter(error, error?.headers || error?.response?.headers);
           }
         }, timeoutMs, signal);
@@ -507,7 +637,7 @@ function createProviderTransport({ sdkLoader = loadSdkModules } = {}) {
             cachedPromptTokens: getCachedPromptTokens(response)
           }
         };
-      } catch (error) {
+      } catch (/** @type {any} */ error) {
         lastError = error;
         if (hasNextResponseFormat && shouldFallbackFromStructuredCapabilityError(error)) {
           continue;
@@ -519,6 +649,10 @@ function createProviderTransport({ sdkLoader = loadSdkModules } = {}) {
     throw lastError || new Error('No structured response format was available.');
   }
 
+  /**
+   * @param {ProviderTransportCallInput} input
+   * @returns {Promise<any>}
+   */
   async function streamText({
     provider,
     apiKey,
