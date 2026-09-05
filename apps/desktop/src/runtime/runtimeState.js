@@ -42,10 +42,18 @@ const DEFAULT_BATCH_USER_PROMPT = [
   '{{source-text}}'
 ].join('\n');
 
+/**
+ * @param {unknown} prefix
+ * @returns {string}
+ */
 function createId(prefix) {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
 }
 
+/**
+ * @param {Record<string, any>=} template
+ * @param {Record<string, any>=} defaults
+ */
 function normalizeProfilePromptEntry(template = {}, defaults = {}) {
   return {
     systemPrompt: String(template?.systemPrompt || defaults.systemPrompt || DEFAULT_PROFILE_SYSTEM_PROMPT).trim() || DEFAULT_PROFILE_SYSTEM_PROMPT,
@@ -53,6 +61,11 @@ function normalizeProfilePromptEntry(template = {}, defaults = {}) {
   };
 }
 
+/**
+ * @param {Record<string, any>=} profile
+ * @param {string=} legacySystemPrompt
+ * @param {string=} legacyUserPrompt
+ */
 function normalizeProfilePromptTemplates(profile = {}, legacySystemPrompt = DEFAULT_PROFILE_SYSTEM_PROMPT, legacyUserPrompt = DEFAULT_PROFILE_USER_PROMPT) {
   const rawPromptTemplates = profile?.promptTemplates && typeof profile.promptTemplates === 'object'
     ? profile.promptTemplates
@@ -78,6 +91,11 @@ function normalizeProfilePromptTemplates(profile = {}, legacySystemPrompt = DEFA
   return next;
 }
 
+/**
+ * @param {Record<string, any>=} profile
+ * @param {string=} mode
+ * @param {Record<string, any>=} options
+ */
 function resolveProfilePromptTemplate(profile = {}, mode = 'single', options = {}) {
   const promptTemplates = options.promptTemplates || normalizeProfilePromptTemplates(
     profile,
@@ -90,12 +108,16 @@ function resolveProfilePromptTemplate(profile = {}, mode = 'single', options = {
   });
 
   if (mode === 'batch') {
-    return promptTemplates.batch || single;
+    return /** @type {any} */ (promptTemplates).batch || single;
   }
 
   return single;
 }
 
+/**
+ * @param {Record<string, any>=} profile
+ * @returns {void}
+ */
 function validateProfilePromptTemplates(profile = {}) {
   validateProfileTemplates(profile);
 
@@ -105,6 +127,10 @@ function validateProfilePromptTemplates(profile = {}) {
   }
 }
 
+/**
+ * @param {unknown} value
+ * @returns {any}
+ */
 function normalizeAssetSelectionIds(value) {
   const items = Array.isArray(value) ? value : [value];
   const seen = new Set();
@@ -136,6 +162,10 @@ function normalizeAssetSelectionIds(value) {
   return next;
 }
 
+/**
+ * @param {any[]=} assetBindings
+ * @returns {Record<string, string>}
+ */
 function buildAssetSelectionsFromBindings(assetBindings = []) {
   const next = {};
 
@@ -159,6 +189,11 @@ function buildAssetSelectionsFromBindings(assetBindings = []) {
   return next;
 }
 
+/**
+ * @param {Record<string, any>=} profile
+ * @param {any[]=} assetBindings
+ * @returns {Record<string, any>}
+ */
 function normalizeProfileAssetSelections(profile = {}, assetBindings = []) {
   const fallbackSelections = buildAssetSelectionsFromBindings(assetBindings);
   if (!profile?.assetSelections || typeof profile.assetSelections !== 'object' || Array.isArray(profile.assetSelections)) {
@@ -191,6 +226,9 @@ function normalizeProfileAssetSelections(profile = {}, assetBindings = []) {
   return Object.keys(next).length ? next : fallbackSelections;
 }
 
+/**
+ * @param {Record<string, any>=} profile
+ */
 function normalizeProfileAssetBindings(profile = {}) {
   const legacyBindings = Array.isArray(profile.assetBindings)
     ? profile.assetBindings.map((binding) => normalizeAssetBinding(binding)).filter(Boolean)
@@ -213,6 +251,10 @@ function normalizeProfileAssetBindings(profile = {}) {
   ].filter(Boolean);
 }
 
+/**
+ * @param {Record<string, any>=} profile
+ * @returns {Record<string, any>}
+ */
 function ensureProfile(profile = {}) {
   const providerId = String(
     profile.providerId
@@ -296,6 +338,11 @@ function ensureProfile(profile = {}) {
   return normalizedProfile;
 }
 
+/**
+ * @param {Record<string, any>=} model
+ * @param {string=} providerType
+ * @returns {Record<string, any>}
+ */
 function ensureProviderModel(model = {}, providerType = 'openai') {
   const defaultConcurrency = providerType === 'openai' ? 2 : 1;
   return {
@@ -333,6 +380,11 @@ function ensureProviderModel(model = {}, providerType = 'openai') {
   };
 }
 
+/**
+ * @param {any[]=} models
+ * @param {unknown=} requestedId
+ * @returns {string}
+ */
 function resolveProviderDefaultModelId(models = [], requestedId = '') {
   const normalizedModels = Array.isArray(models) ? models : [];
   const explicitId = String(requestedId || '').trim();
@@ -349,6 +401,10 @@ function resolveProviderDefaultModelId(models = [], requestedId = '') {
     || '';
 }
 
+/**
+ * @param {unknown} status
+ * @returns {string}
+ */
 function normalizeProviderStatus(status) {
   const normalized = String(status || '').trim().toLowerCase();
   if (normalized === 'healthy') return 'connected';
@@ -359,6 +415,10 @@ function normalizeProviderStatus(status) {
     : 'not_tested';
 }
 
+/**
+ * @param {Record<string, any>=} provider
+ * @returns {Record<string, any>}
+ */
 function ensureProvider(provider = {}) {
   const sanitized = sanitizeProvider(provider);
   const models = Array.isArray(sanitized.models) ? sanitized.models : [];
@@ -387,6 +447,11 @@ function ensureProvider(provider = {}) {
   };
 }
 
+/**
+ * @param {Record<string, any>=} profile
+ * @param {Set<string>=} removedProviderIds
+ * @returns {void}
+ */
 function clearProfileProviderBindings(profile = {}, removedProviderIds = new Set()) {
   const nextProfile = { ...profile };
 
@@ -412,6 +477,11 @@ function clearProfileProviderBindings(profile = {}, removedProviderIds = new Set
   return nextProfile;
 }
 
+/**
+ * @param {any[]=} providers
+ * @returns {{ nextProviders: any[], removedProviderIds: Set<string> }}
+ * @returns {any[]}
+ */
 function normalizeProvidersForState(providers = []) {
   const nextProviders = [];
   const removedProviderIds = new Set();
@@ -430,6 +500,10 @@ function normalizeProvidersForState(providers = []) {
   return { nextProviders, removedProviderIds };
 }
 
+/**
+ * @param {Record<string, any>=} rule
+ * @returns {Record<string, any>}
+ */
 function ensureRule(rule = {}) {
   return {
     id: rule.id || createId('rule'),
@@ -449,6 +523,10 @@ function ensureRule(rule = {}) {
   };
 }
 
+/**
+ * @param {Record<string, any>=} asset
+ * @returns {Record<string, any>}
+ */
 function ensureAsset(asset = {}) {
   const normalized = asset && typeof asset === 'object' ? asset : {};
   const tbStructure = normalized.tbStructure && typeof normalized.tbStructure === 'object'
@@ -491,6 +569,10 @@ function ensureAsset(asset = {}) {
   };
 }
 
+/**
+ * @param {Record<string, any>=} preferences
+ * @returns {Record<string, any>}
+ */
 function ensureIntegrationPreferences(preferences = {}) {
   return {
     memoqVersion: ['10', '11', '12'].includes(String(preferences.memoqVersion || '').trim())
@@ -501,6 +583,10 @@ function ensureIntegrationPreferences(preferences = {}) {
   };
 }
 
+/**
+ * @param {Record<string, any>=} rawState
+ * @returns {Record<string, any>}
+ */
 function normalizeState(rawState) {
   const state = rawState && typeof rawState === 'object' ? rawState : createInitialState();
   const { nextProviders, removedProviderIds } = normalizeProvidersForState(state.providers);
