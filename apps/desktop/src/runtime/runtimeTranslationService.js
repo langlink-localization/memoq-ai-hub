@@ -42,10 +42,17 @@ const INTERACTIVE_ONLY_PREVIEW_PLACEHOLDERS = new Set([
   'below-target-text'
 ]);
 
+/**
+ * @param {any} value
+ * @param {any} message
+ */
 function resolveRetryAfterSeconds(value, message = '') {
   return normalizeRetryAfterSeconds(value) ?? extractRetryAfterSeconds(message);
 }
 
+/**
+ * @param {any} provider
+ */
 function selectModel(provider) {
   const models = Array.isArray(provider?.models) ? provider.models : [];
   const defaultModelId = String(provider?.defaultModelId || '').trim();
@@ -55,6 +62,9 @@ function selectModel(provider) {
     || null;
 }
 
+/**
+ * @param {any} state
+ */
 function hasSmartTbParsingCapability(state = {}) {
   return (Array.isArray(state.providers) ? state.providers : []).some((provider) => {
     if (!provider || provider.enabled === false) return false;
@@ -62,6 +72,9 @@ function hasSmartTbParsingCapability(state = {}) {
   });
 }
 
+/**
+ * @param {any} segmentLevelMetadata
+ */
 function buildSegmentMetadataIndex(segmentLevelMetadata = []) {
   return new Map(
     (Array.isArray(segmentLevelMetadata) ? segmentLevelMetadata : []).map((item) => [
@@ -90,6 +103,10 @@ function createRuntimeTranslationService({
   secretStore,
   nowIso
 }) {
+  /**
+   * @param {any} provider
+   * @param {any} modelId
+   */
   function selectRouteModel(provider, modelId = '') {
     const models = Array.isArray(provider?.models) ? provider.models : [];
     const requestedId = String(modelId || '').trim();
@@ -102,6 +119,10 @@ function createRuntimeTranslationService({
     return selectModel(provider);
   }
 
+  /**
+   * @param {any} segments
+   * @param {any} providerCapabilities
+   */
   function splitSegmentsForRoute(segments, providerCapabilities = {}) {
     const maxSegments = Number(providerCapabilities.maxBatchSegments || 0);
     const maxCharacters = Number(providerCapabilities.maxBatchCharacters || 0);
@@ -139,6 +160,10 @@ function createRuntimeTranslationService({
     return batches;
   }
 
+  /**
+   * @param {any} state
+   * @param {any} profile
+   */
   async function resolveProviderRoute(state, profile) {
     const preferredRoutes = [
       { providerId: profile?.providerId || '', modelId: '', routeKind: 'profile' },
@@ -363,7 +388,7 @@ function createRuntimeTranslationService({
             translatedText: result.text
           })
         });
-      } catch (error) {
+      } catch (/** @type {any} */ error) {
         if (error instanceof PromptTemplateError) {
           throw error;
         }
@@ -409,6 +434,11 @@ function createRuntimeTranslationService({
     };
   }
 
+  /**
+   * @param {any} attempts
+   * @param {any} throughput
+   * @param {any} extras
+   */
   function annotateAttemptsWithThroughput(attempts = [], throughput, extras = {}) {
     return (Array.isArray(attempts) ? attempts : []).map((attempt) => ({
       ...attempt,
@@ -538,7 +568,7 @@ function createRuntimeTranslationService({
         latencyMs: batchResult.latencyMs,
         error: null
       };
-    } catch (error) {
+    } catch (/** @type {any} */ error) {
       const failedBatchAttempt = createFailedBatchAttempt({
         route,
         batch,
@@ -576,7 +606,7 @@ function createRuntimeTranslationService({
         })
       })));
 
-      for (const { result } of splitResults.sort((left, right) => left.splitIndex - right.splitIndex)) {
+      for (const { result } of splitResults.sort((/** @type {any} */ left, /** @type {any} */ right) => left.splitIndex - right.splitIndex)) {
         translations.push(...result.translations);
         attempts.push(...result.attempts);
         latencyMs += Number(result.latencyMs || 0);
@@ -687,7 +717,7 @@ function createRuntimeTranslationService({
     let latencyMs = 0;
     let lastError = null;
 
-    for (const result of batchResults.sort((left, right) => left.batchIndex - right.batchIndex)) {
+    for (const result of batchResults.sort((/** @type {any} */ left, /** @type {any} */ right) => left.batchIndex - right.batchIndex)) {
       translated.push(...result.translations);
       attempts.push(...result.attempts);
       latencyMs += result.latencyMs;
@@ -704,6 +734,10 @@ function createRuntimeTranslationService({
     };
   }
 
+  /**
+   * @param {any} payload
+   * @param {any} internalOptions
+   */
   async function performTranslation(payload, internalOptions = {}) {
     const internalAssistantOperation = internalOptions.assistantOperation === 'polish'
       ? 'polish'
@@ -788,7 +822,7 @@ function createRuntimeTranslationService({
         },
         cache: parsedAssetCache
       });
-    } catch (error) {
+    } catch (/** @type {any} */ error) {
       return {
         statusCode: 400,
         body: {
@@ -919,7 +953,7 @@ function createRuntimeTranslationService({
         previewContext: effectiveRequestPreviewContext,
         segments: incomingSegments
       });
-    } catch (error) {
+    } catch (/** @type {any} */ error) {
       if (error instanceof PromptTemplateError) {
         return {
           statusCode: 502,
@@ -1091,7 +1125,7 @@ function createRuntimeTranslationService({
       if (routeResult.error) {
         terminalError = routeResult.error;
       }
-      } catch (error) {
+      } catch (/** @type {any} */ error) {
         if (error instanceof PromptTemplateError) {
           terminalError = {
             code: ERROR_CODES.promptTemplateInvalid,

@@ -6,6 +6,9 @@ const {
 
 const ACTIVE_PART_ONLY_FALLBACK_GRACE_MS = 250;
 
+/**
+ * @param {any} ms
+ */
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -20,10 +23,18 @@ function createRuntimePreviewContextResolver({
   previewContextPollMs,
   nowIso
 }) {
+  /**
+   * @param {any} text
+   * @param {any} maxCharacters
+   */
   function truncateDocumentText(text, maxCharacters = 18000) {
     return truncateSummarySourceText(text, maxCharacters);
   }
 
+  /**
+   * @param {any} text
+   * @param {any} maxCharacters
+   */
   function normalizeDocumentSummaryText(text, maxCharacters = 320) {
     const normalized = String(text || '').trim();
     if (!normalized) {
@@ -49,6 +60,9 @@ function createRuntimePreviewContextResolver({
       : flattened;
   }
 
+  /**
+   * @param {any} segments
+   */
   function attachNeighborContexts(segments = []) {
     for (let index = 0; index < segments.length; index += 1) {
       const previous = segments[index - 1] || null;
@@ -106,6 +120,10 @@ function createRuntimePreviewContextResolver({
     return normalizeDocumentSummaryText(result.text);
   }
 
+  /**
+   * @param {any} payload
+   * @param {any} incomingSegments
+   */
   function isSharedOnlyPreviewMode(payload, incomingSegments = []) {
     const useCase = String(payload?.profileResolution?.useCase || '').trim().toLowerCase();
     const requestType = String(payload?.requestType || '').trim().toLowerCase();
@@ -115,6 +133,11 @@ function createRuntimePreviewContextResolver({
       || requestType.includes('batch');
   }
 
+  /**
+   * @param {any} profile
+   * @param {any} payload
+   * @param {any} incomingSegments
+   */
   function buildPreviewFeaturePolicy(profile, payload, incomingSegments = []) {
     const sharedOnly = isSharedOnlyPreviewMode(payload, incomingSegments);
     const includeFullText = profile?.usePreviewFullText === true;
@@ -142,6 +165,12 @@ function createRuntimePreviewContextResolver({
     };
   }
 
+  /**
+   * @param {any} previewContext
+   * @param {any} lookup
+   * @param {any} policy
+   * @param {any} summaryDebug
+   */
   function buildRequestPreviewDebugContext(previewContext, lookup, policy, summaryDebug = null) {
     if (previewContext) {
       return {
@@ -191,6 +220,9 @@ function createRuntimePreviewContextResolver({
     };
   }
 
+  /**
+   * @param {any} policy
+   */
   function createSummaryDebugContext(policy) {
     return {
       requested: policy?.includeSummary === true,
@@ -206,6 +238,8 @@ function createRuntimePreviewContextResolver({
     };
   }
 
+  /**
+   */
   function createPreviewWarmupDebug() {
     return {
       attempted: false,
@@ -223,6 +257,10 @@ function createRuntimePreviewContextResolver({
     };
   }
 
+  /**
+   * @param {any} warmup
+   * @param {any} timedOut
+   */
   function finalizePreviewWarmupDebug(warmup, timedOut = false) {
     if (!warmup) {
       return null;
@@ -269,6 +307,9 @@ function createRuntimePreviewContextResolver({
     };
   }
 
+  /**
+   * @param {any} _
+   */
   function resolvePreviewMissReason({ lookup, policy, warmup, wantsLocalContext = false }) {
     if (lookup?.available) {
       return String(policy?.reason || lookup.reason || '');
@@ -299,6 +340,10 @@ function createRuntimePreviewContextResolver({
     return String(lookup?.reason || policy?.reason || 'document_not_cached');
   }
 
+  /**
+   * @param {any} segmentLookup
+   * @param {any} policy
+   */
   function buildSegmentPreviewDebugContext(segmentLookup, policy) {
     if (segmentLookup) {
       return {
@@ -360,6 +405,8 @@ function createRuntimePreviewContextResolver({
       };
     }
 
+    /**
+     */
     async function waitForPreviewContextCacheReady() {
       const warmup = {
         ...createPreviewWarmupDebug(),

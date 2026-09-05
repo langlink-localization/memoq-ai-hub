@@ -13,6 +13,9 @@ const {
 } = require('./runtimePromptSupport');
 const { CONTRACT_VERSION, ERROR_CODES } = require('../shared/desktopContract');
 
+/**
+ * @param {any} options
+ */
 function createRuntimeQaService(options = {}) {
   const {
     persistence,
@@ -80,7 +83,7 @@ function createRuntimeQaService(options = {}) {
           signal,
           timeoutMs: 30000
         });
-      } catch (error) {
+      } catch (/** @type {any} */ error) {
         if (error && typeof error === 'object') {
           error.providerId = String(provider.id || '');
           error.providerName = String(provider.name || '');
@@ -92,6 +95,8 @@ function createRuntimeQaService(options = {}) {
   });
   const assistantRequests = new Map();
 
+  /**
+   */
   function buildActivePreviewQaPayload() {
     const document = previewContextClient?.readActiveDocument?.();
     if (!document) return null;
@@ -106,7 +111,7 @@ function createRuntimeQaService(options = {}) {
         mappingCertain: false
       };
     }
-    const ordered = [...parts].sort((left, right) => Number(left.order || 0) - Number(right.order || 0));
+    const ordered = [...parts].sort((/** @type {any} */ left, /** @type {any} */ right) => Number(left.order || 0) - Number(right.order || 0));
     const activeIndex = ordered.findIndex((part) => String(part.previewPartId || '') === String(activePart.previewPartId || ''));
     return {
       trigger: 'preview-target-changed',
@@ -137,6 +142,8 @@ function createRuntimeQaService(options = {}) {
     };
   }
 
+  /**
+   */
   function readSettledActivePreviewPayload() {
     return settleActivePreviewSnapshot({
       readActive: () => buildActivePreviewQaPayload(),
@@ -145,6 +152,10 @@ function createRuntimeQaService(options = {}) {
     });
   }
 
+  /**
+   * @param {any} payload
+   * @param {any} options
+   */
   function prepareQaPayload(payload = {}, options = {}) {
     const activePayload = (!String(payload.segment?.source ?? payload.source ?? '').trim())
       ? ('activePreviewPayload' in options ? options.activePreviewPayload : buildActivePreviewQaPayload())
@@ -250,6 +261,9 @@ function createRuntimeQaService(options = {}) {
     };
   }
 
+  /**
+   * @param {any} payload
+   */
   async function prepareQaPayloadForCheck(payload = {}) {
     if (String(payload.segment?.source ?? payload.source ?? '').trim()) {
       return prepareQaPayload(payload);
@@ -258,6 +272,9 @@ function createRuntimeQaService(options = {}) {
     return prepareQaPayload(payload, { activePreviewPayload });
   }
 
+  /**
+   * @param {any} payload
+   */
   function resolveAssistantProfileAndRoute(payload = {}) {
     const state = loadState();
     const requestedProfileId = String(payload.profileId || '').trim();
@@ -313,6 +330,9 @@ function createRuntimeQaService(options = {}) {
     };
   }
 
+  /**
+   * @param {any} payload
+   */
   async function runPreviewAssistant(payload = {}) {
     const operation = payload.operation === 'polish' ? 'polish' : payload.operation === 'translate' ? 'translate' : '';
     if (!operation) {
@@ -416,6 +436,9 @@ function createRuntimeQaService(options = {}) {
     }
   }
 
+  /**
+   * @param {any} payload
+   */
   function cancelPreviewAssistant(payload = {}) {
     const requestId = String(payload.requestId || '').trim();
     let cancelled = 0;
@@ -428,10 +451,17 @@ function createRuntimeQaService(options = {}) {
     return { ok: true, cancelled };
   }
 
+  /**
+   * @param {any} payload
+   * @param {any} segments
+   * @param {any} concurrency
+   */
   async function checkQaSegmentsWithConcurrency(payload, segments, concurrency = 3) {
     const items = Array.isArray(segments) ? segments : [];
     const results = new Array(items.length);
     let cursor = 0;
+    /**
+     */
     async function worker() {
       while (cursor < items.length) {
         const index = cursor++;
@@ -472,13 +502,15 @@ function createRuntimeQaService(options = {}) {
             model: profile?.interactiveModelId || ''
           }
         }));
-      } catch (error) {
+      } catch (/** @type {any} */ error) {
         runtimeLogger.warn('qa-preview-check-skipped', 'Automatic local QA could not inspect the active Preview segment.', { error });
       }
     }, 750)
     : null;
   previewQaTimer?.unref?.();
 
+  /**
+   */
   function getStatus() {
     const status = qaCoordinator.getStatus();
     let currentSnapshot = null;
@@ -517,10 +549,16 @@ function createRuntimeQaService(options = {}) {
     };
   }
 
+  /**
+   * @param {any} payload
+   */
   async function checkSegment(payload = {}) {
     return qaCoordinator.checkSegment(await prepareQaPayloadForCheck({ trigger: 'manual', ...payload }));
   }
 
+  /**
+   * @param {any} payload
+   */
   async function checkDocument(payload = {}) {
     const segments = Array.isArray(payload.segments) ? payload.segments : [];
     if (!segments.length) {
@@ -541,6 +579,8 @@ function createRuntimeQaService(options = {}) {
     };
   }
 
+  /**
+   */
   function dispose() {
     if (previewQaTimer) clearInterval(previewQaTimer);
     cancelPreviewAssistant();

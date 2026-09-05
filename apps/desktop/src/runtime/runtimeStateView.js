@@ -25,6 +25,13 @@ function buildChecklist(state, history, integration, providers) {
   ];
 }
 
+/**
+ * @param {any} state
+ * @param {any} providers
+ * @param {any} history
+ * @param {any} integration
+ * @param {any} updateStatus
+ */
 function buildNotices(state, providers, history, integration, updateStatus) {
   const notices = [];
   if (!integration.installations.length) notices.push('No memoQ installation directory was detected.');
@@ -52,6 +59,9 @@ function createRuntimeStateView({
   bypassTranslationCacheProfileIds,
   paths
 }) {
+  /**
+   * @param {any} filters
+   */
   function getState(filters = {}) {
     const state = loadState();
     const includeHistoryExplorer = filters.includeHistoryExplorer !== false;
@@ -91,7 +101,7 @@ function createRuntimeStateView({
       promptPresets: filters.includePromptPresets === false ? [] : state.promptPresets,
       memoqMetadataMapping: {
         rules: [...state.mappingRules]
-          .sort((a, b) => Number(a.priority || 999) - Number(b.priority || 999))
+          .sort((/** @type {any} */ a, /** @type {any} */ b) => Number(a.priority || 999) - Number(b.priority || 999))
           .map((rule) => ({ ...rule, conditionSummary: summarizeRuleConditions(rule) }))
       },
       providerHub: {

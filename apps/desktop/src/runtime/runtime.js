@@ -612,7 +612,7 @@ async function createRuntime(options = {}) {
           durationMs: Date.now() - startedAtMs
         });
         return result;
-      } catch (error) {
+      } catch (/** @type {any} */ error) {
         runtimeLogger.error('translation-failed', 'Translation request failed.', {
           requestId: nextPayload.requestId,
           traceId: nextPayload.traceId,

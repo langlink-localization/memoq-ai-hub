@@ -16,6 +16,9 @@ const {
   resolveThroughputSettings
 } = require('./runtimeThroughput');
 
+/**
+ * @param {any} options
+ */
 function createRuntimeProviderExecution(options = {}) {
   const rescueConcurrency = Number.isFinite(Number(options.rescueConcurrency))
     ? Math.max(1, Math.floor(Number(options.rescueConcurrency)))
@@ -25,11 +28,18 @@ function createRuntimeProviderExecution(options = {}) {
   const providerRateLimits = new Map();
   const throughputStats = new Map();
 
+  /**
+   * @param {any} route
+   * @param {any} slotKind
+   */
   function getRouteKey(route, slotKind = '') {
     const baseKey = `${String(route?.provider?.id || '')}:${String(route?.model?.id || route?.model?.modelName || '')}`;
     return slotKind ? `${baseKey}:${slotKind}` : baseKey;
   }
 
+  /**
+   * @param {any} route
+   */
   function getThroughputRecorder(route) {
     const routeKey = getRouteKey(route);
     let recorder = throughputStats.get(routeKey);
@@ -40,18 +50,31 @@ function createRuntimeProviderExecution(options = {}) {
     return recorder;
   }
 
+  /**
+   * @param {any} route
+   */
   function getThroughputStats(route) {
     return getThroughputRecorder(route).snapshot();
   }
 
+  /**
+   * @param {any} route
+   * @param {any} attempts
+   */
   function recordThroughputAttempts(route, attempts = []) {
     getThroughputRecorder(route).record(attempts);
   }
 
+  /**
+   * @param {any} route
+   */
   function getThroughputSettings(route) {
     return resolveThroughputSettings(route, getThroughputStats(route));
   }
 
+  /**
+   * @param {any} route
+   */
   function getConcurrencyLimit(route) {
     const throughput = getThroughputSettings(route);
     if (Number.isFinite(Number(throughput.providerConcurrency)) && Number(throughput.providerConcurrency) > 0) {
@@ -71,6 +94,9 @@ function createRuntimeProviderExecution(options = {}) {
     return Math.max(1, parsed.recommendedConcurrency || 1);
   }
 
+  /**
+   * @param {any} route
+   */
   function getRateLimiterConfig(route) {
     const parsed = parseRateLimitHint(route?.model?.rateLimitHint || '');
     if (parsed.requestsPerSecond && parsed.requestsPerSecond > 0) {
@@ -82,6 +108,10 @@ function createRuntimeProviderExecution(options = {}) {
     return null;
   }
 
+  /**
+   * @param {any} route
+   * @param {any} isBatch
+   */
   function getRetryAttempts(route, isBatch = false) {
     if (route?.model?.retryEnabled === false) return 0;
     const configured = Number(route?.model?.retryAttempts);
@@ -90,6 +120,11 @@ function createRuntimeProviderExecution(options = {}) {
     return Math.min(isBatch ? 1 : 2, budget);
   }
 
+  /**
+   * @param {any} route
+   * @param {any} operation
+   * @param {any} executionOptions
+   */
   async function withProviderSlot(route, operation, executionOptions = {}) {
     const slotKind = executionOptions.rescue === true ? 'rescue' : '';
     const routeKey = getRouteKey(route, slotKind);
@@ -107,6 +142,10 @@ function createRuntimeProviderExecution(options = {}) {
     }
   }
 
+  /**
+   * @param {any} route
+   * @param {any} operation
+   */
   async function withProviderRateLimit(route, operation) {
     const routeKey = getRouteKey(route);
     const limiterConfig = getRateLimiterConfig(route);
@@ -121,6 +160,9 @@ function createRuntimeProviderExecution(options = {}) {
     return operation(acquisition.rateLimitedWaitMs || 0);
   }
 
+  /**
+   * @param {any} _
+   */
   async function run({ route, isBatch = false, rescue = false, execute }) {
     const maxRetries = getRetryAttempts(route, isBatch);
     let retryCount = 0;
@@ -138,7 +180,7 @@ function createRuntimeProviderExecution(options = {}) {
           }, { rescue });
         });
         return { ...result, retryCount, queuedMs: totalQueuedMs, rateLimitedWaitMs: totalRateLimitedWaitMs, retryAfterSeconds };
-      } catch (error) {
+      } catch (/** @type {any} */ error) {
         if (error instanceof PromptTemplateError) throw error;
         const mapped = error?.mappedError || mapProviderError(error);
         retryAfterSeconds = normalizeRetryAfterSeconds(mapped?.retryAfterSeconds)

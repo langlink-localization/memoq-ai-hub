@@ -23,6 +23,9 @@ const DEFAULT_AGGREGATE_CONGESTED_MAX_BUFFERED_SEGMENTS = 10;
 const DEFAULT_AGGREGATE_CONGESTED_MAX_BUFFERED_CHARACTERS = 6000;
 const DEFAULT_AGGREGATE_CONGESTION_RECOVERY_SUCCESSES = 3;
 
+/**
+ * @param {any} options
+ */
 function resolveRuntimeAggregationSettings(options = {}) {
   const softDeadlineMs = Number.isFinite(Number(options.aggregateSoftDeadlineMs))
     ? Math.max(1, Number(options.aggregateSoftDeadlineMs))
@@ -44,15 +47,24 @@ function resolveRuntimeAggregationSettings(options = {}) {
   };
 }
 
+/**
+ * @param {any} payload
+ */
 function getPayloadSegmentCount(payload = {}) {
   return Array.isArray(payload.segments) ? payload.segments.length : 0;
 }
 
+/**
+ * @param {any} payload
+ */
 function getPayloadCharacterCount(payload = {}) {
   return (Array.isArray(payload.segments) ? payload.segments : [])
     .reduce((total, segment) => total + String(segment?.text || segment?.plainText || '').length, 0);
 }
 
+/**
+ * @param {any} options
+ */
 function createRuntimeAggregationService(options = {}) {
   const settings = options.settings || resolveRuntimeAggregationSettings(options);
   const runtimeLogger = options.runtimeLogger || { info() {} };
@@ -81,10 +93,16 @@ function createRuntimeAggregationService(options = {}) {
   const aggregateRescueCollectWindowMs = settings.rescueCollectWindowMs;
   const aggregateRescueMinSettleTranslations = settings.rescueMinSettleTranslations;
 
+  /**
+   * @param {any} value
+   */
   function cloneJson(value) {
     return JSON.parse(JSON.stringify(value || {}));
   }
 
+  /**
+   * @param {any} payload
+   */
   function createAggregationGroupId(payload = {}) {
     const metadata = normalizeMemoQMetadata(payload.metadata || {});
     const profileResolution = payload.profileResolution || {};
@@ -102,6 +120,9 @@ function createRuntimeAggregationService(options = {}) {
     ].join('|');
   }
 
+  /**
+   * @param {any} groupId
+   */
   function ensureAggregationGroup(groupId) {
     let group = aggregateGroups.get(groupId);
     if (!group) {
@@ -118,6 +139,9 @@ function createRuntimeAggregationService(options = {}) {
     return group;
   }
 
+  /**
+   * @param {any} groupId
+   */
   function getAggregateGroupHealth(groupId) {
     let health = aggregateGroupHealth.get(groupId);
     if (!health) {
@@ -133,6 +157,10 @@ function createRuntimeAggregationService(options = {}) {
     return health;
   }
 
+  /**
+   * @param {any} groupId
+   * @param {any} reason
+   */
   function markAggregateGroupCongested(groupId, reason) {
     const health = getAggregateGroupHealth(groupId);
     health.congested = true;
@@ -142,6 +170,9 @@ function createRuntimeAggregationService(options = {}) {
     health.updatedAtMs = Date.now();
   }
 
+  /**
+   * @param {any} groupId
+   */
   function markAggregateGroupStable(groupId) {
     const health = getAggregateGroupHealth(groupId);
     if (!health.congested) {
@@ -156,6 +187,9 @@ function createRuntimeAggregationService(options = {}) {
     }
   }
 
+  /**
+   * @param {any} groupId
+   */
   function getAggregateBufferLimits(groupId) {
     const health = getAggregateGroupHealth(groupId);
     if (health.congested) {
@@ -176,6 +210,9 @@ function createRuntimeAggregationService(options = {}) {
     };
   }
 
+  /**
+   * @param {any} group
+   */
   function clearAggregationTimers(group) {
     if (group.quietTimer) {
       clearTimeout(group.quietTimer);
@@ -187,6 +224,9 @@ function createRuntimeAggregationService(options = {}) {
     }
   }
 
+  /**
+   * @param {any} entry
+   */
   function scheduleAggregateJobCleanup(entry) {
     const cleanupTimer = setTimeout(() => {
       if (aggregateJobs.get(entry.jobRequestId) === entry) {
@@ -196,6 +236,10 @@ function createRuntimeAggregationService(options = {}) {
     cleanupTimer.unref?.();
   }
 
+  /**
+   * @param {any} group
+   * @param {any} reason
+   */
   function scheduleAggregationFlush(group, reason = 'quiet_window') {
     if (group.flushing) {
       return;
@@ -227,6 +271,9 @@ function createRuntimeAggregationService(options = {}) {
     }
   }
 
+  /**
+   * @param {any} entries
+   */
   function buildAggregatePayload(entries) {
     const firstPayload = entries[0]?.payload || {};
     const aggregatePayload = cloneJson(firstPayload);
@@ -276,6 +323,10 @@ function createRuntimeAggregationService(options = {}) {
     return { aggregatePayload, mappings };
   }
 
+  /**
+   * @param {any} job
+   * @param {any} settleMode
+   */
   function maybeCloseAggregateJob(job, settleMode = 'normal') {
     if (!job || job.closed || job.entries.some((entry) => !entry.settled)) {
       return;
@@ -293,6 +344,11 @@ function createRuntimeAggregationService(options = {}) {
     job.closedBy = settleMode;
   }
 
+  /**
+   * @param {any} entry
+   * @param {any} result
+   * @param {any} settleMode
+   */
   function settleAggregateEntry(entry, result, settleMode = 'normal') {
     if (!entry || entry.settled) {
       return false;
@@ -307,6 +363,10 @@ function createRuntimeAggregationService(options = {}) {
     return true;
   }
 
+  /**
+   * @param {any} entry
+   * @param {any} reason
+   */
   function buildAggregateTimeoutResult(entry, reason) {
     const fallbackState = entry.fallbackState || (entry.fallbackStarted ? 'fallback_in_progress' : 'fallback_not_started');
     return {
@@ -343,11 +403,19 @@ function createRuntimeAggregationService(options = {}) {
     };
   }
 
+  /**
+   * @param {any} response
+   */
   function getFallbackProviderQueuedMs(response) {
     const body = response?.body || {};
     return Number(body.providerQueuedMs || body.aggregation?.providerQueuedMs || 0);
   }
 
+  /**
+   * @param {any} entry
+   * @param {any} rescueResult
+   * @param {any} reason
+   */
   function buildRescueFallbackResult(entry, rescueResult, reason) {
     const translations = Array.isArray(rescueResult.translations) ? rescueResult.translations : [];
     const missingCount = Math.max(0, entry.segmentCount - translations.length);
@@ -393,6 +461,10 @@ function createRuntimeAggregationService(options = {}) {
     };
   }
 
+  /**
+   * @param {any} entry
+   * @param {any} reason
+   */
   async function settleAggregateEntryWithRescue(entry, reason = 'soft_deadline') {
     if (!entry || entry.settled || entry.fallbackStarted) {
       return false;
@@ -432,7 +504,7 @@ function createRuntimeAggregationService(options = {}) {
 
     const buildResult = () => ({
       statusCode: lastStatusCode,
-      translations: Array.from(translationsByIndex.values()).sort((left, right) => left.index - right.index),
+      translations: Array.from(translationsByIndex.values()).sort((/** @type {any} */ left, /** @type {any} */ right) => left.index - right.index),
       error: lastError,
       providerQueuedMs,
       providerId,
@@ -487,7 +559,7 @@ function createRuntimeAggregationService(options = {}) {
           entry.firstRescueSuccessAtMs = Date.now();
           entry.fallbackState = 'partial_available';
         }
-      } catch (error) {
+      } catch (/** @type {any} */ error) {
         const mappedError = mapProviderError(error);
         lastError = {
           code: mappedError.code || ERROR_CODES.translationFailed,
@@ -578,7 +650,7 @@ function createRuntimeAggregationService(options = {}) {
         firstSuccessMs: Number(entry.firstRescueSuccessAtMs ? entry.firstRescueSuccessAtMs - entry.fallbackStartedAtMs : 0)
       });
       return settled;
-    } catch (error) {
+    } catch (/** @type {any} */ error) {
       const mappedError = mapProviderError(error);
       entry.fallbackState = 'fallback_failed';
       entry.fallbackError = {
@@ -603,6 +675,12 @@ function createRuntimeAggregationService(options = {}) {
     }
   }
 
+  /**
+   * @param {any} entries
+   * @param {any} aggregateResponse
+   * @param {any} mappings
+   * @param {any} flushReason
+   */
   function resolveAggregateEntriesFromResponse(entries, aggregateResponse, mappings, flushReason) {
     const body = aggregateResponse?.body || {};
     const translationsByEntry = new Map(entries.map((entry) => [entry.jobRequestId, []]));
@@ -673,6 +751,10 @@ function createRuntimeAggregationService(options = {}) {
     return { successCount, missingCount: missingCountTotal, fallbackCount, lateIgnoredCount };
   }
 
+  /**
+   * @param {any} groupId
+   * @param {any} flushReason
+   */
   async function flushAggregationGroup(groupId, flushReason = 'quiet_window') {
     const group = aggregateGroups.get(groupId);
     if (!group || group.flushing) {
@@ -767,7 +849,7 @@ function createRuntimeAggregationService(options = {}) {
           settleMode: 'normal'
         });
       }
-    } catch (error) {
+    } catch (/** @type {any} */ error) {
       const mappedError = mapProviderError(error);
       const segmentCount = entries.reduce((total, entry) => total + entry.segmentCount, 0);
       runtimeLogger.info('aggregate-complete', 'Aggregate request failed.', {
@@ -803,6 +885,9 @@ function createRuntimeAggregationService(options = {}) {
     }
   }
 
+  /**
+   * @param {any} payload
+   */
   async function submitAggregateTranslation(payload = {}) {
     const requestId = payload.requestId || createId('req');
     const traceId = payload.traceId || createId('trace');
@@ -894,6 +979,9 @@ function createRuntimeAggregationService(options = {}) {
     };
   }
 
+  /**
+   * @param {any} payload
+   */
   async function waitAggregateTranslation(payload = {}) {
     const jobRequestId = String(payload.jobRequestId || payload.requestId || '').trim();
     const requestId = String(payload.requestId || jobRequestId || createId('req'));
@@ -971,6 +1059,8 @@ function createRuntimeAggregationService(options = {}) {
     return result;
   }
 
+  /**
+   */
   function dispose() {
     for (const group of aggregateGroups.values()) clearAggregationTimers(group);
     aggregateGroups.clear();

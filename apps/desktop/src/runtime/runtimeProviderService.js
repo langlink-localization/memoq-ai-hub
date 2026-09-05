@@ -13,6 +13,9 @@ const {
   resolveProviderDefaultModelId
 } = require('./runtimeState');
 
+/**
+ * @param {any} provider
+ */
 function selectModel(provider) {
   const models = Array.isArray(provider?.models) ? provider.models : [];
   const defaultModelId = String(provider?.defaultModelId || '').trim();
@@ -22,6 +25,9 @@ function selectModel(provider) {
     || null;
 }
 
+/**
+ * @param {any} provider
+ */
 function assertSupportedProviderDraft(provider = {}) {
   if (!isSupportedProviderType(provider?.type)) {
     throw new Error('Only OpenAI and OpenAI-compatible providers are supported.');
@@ -40,6 +46,10 @@ function createRuntimeProviderService({
   providerRegistry,
   nowIso
 }) {
+  /**
+   * @param {any} state
+   * @param {any} providerDraft
+   */
   async function testProviderDraftAgainstState(state, providerDraft = {}) {
     const currentProvider = state.providers.find((item) => item.id === providerDraft.id);
     assertSupportedProviderDraft({ ...currentProvider, ...providerDraft });
@@ -77,6 +87,10 @@ function createRuntimeProviderService({
     };
   }
 
+  /**
+   * @param {any} state
+   * @param {any} providerDraft
+   */
   async function discoverProviderModelsAgainstState(state, providerDraft = {}) {
     const currentProvider = state.providers.find((item) => item.id === providerDraft.id);
     assertSupportedProviderDraft({ ...currentProvider, ...providerDraft });
@@ -108,6 +122,9 @@ function createRuntimeProviderService({
     };
   }
 
+  /**
+   * @param {any} provider
+   */
   async function saveProvider(provider) {
     const state = loadState();
     const currentProvider = state.providers.find((item) => item.id === provider.id);
@@ -154,14 +171,23 @@ function createRuntimeProviderService({
     };
   }
 
+  /**
+   * @param {any} providerDraft
+   */
   async function testProviderDraft(providerDraft) {
     return testProviderDraftAgainstState(loadState(), providerDraft || {});
   }
 
+  /**
+   * @param {any} providerDraft
+   */
   async function discoverProviderModels(providerDraft) {
     return discoverProviderModelsAgainstState(loadState(), providerDraft || {});
   }
 
+  /**
+   * @param {any} providerId
+   */
   async function deleteProvider(providerId) {
     const state = loadState();
     const provider = state.providers.find((item) => item.id === providerId);
@@ -183,6 +209,10 @@ function createRuntimeProviderService({
     return { ok: true };
   }
 
+  /**
+   * @param {any} providerId
+   * @param {any} modelId
+   */
   function deleteProviderModel(providerId, modelId) {
     const state = loadState();
     const provider = state.providers.find((item) => item.id === providerId);
@@ -212,6 +242,9 @@ function createRuntimeProviderService({
     return { ok: true };
   }
 
+  /**
+   * @param {any} providerId
+   */
   async function testProviderConnection(providerId) {
     const state = loadState();
     const provider = state.providers.find((item) => item.id === providerId);

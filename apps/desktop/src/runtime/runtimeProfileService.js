@@ -9,6 +9,11 @@ function createRuntimeProfileService({
   createId,
   onProfileDeleted = () => {}
 }) {
+  /**
+   * @param {any} state
+   * @param {any} metadata
+   * @param {any} explicitProfileId
+   */
   function resolveProfile(state, metadata = {}, explicitProfileId = '') {
     if (explicitProfileId) {
       return { matchedRule: null, profile: state.profiles.find((item) => item.id === explicitProfileId) || null };
@@ -31,6 +36,9 @@ function createRuntimeProfileService({
     };
   }
 
+  /**
+   * @param {any} profile
+   */
   function saveProfile(profile) {
     const state = loadState();
     const blockedTokens = collectFirstReleaseProfilePlaceholderViolations(profile);
@@ -46,6 +54,9 @@ function createRuntimeProfileService({
     return nextProfile;
   }
 
+  /**
+   * @param {any} profileId
+   */
   function setDefaultProfile(profileId) {
     const state = loadState();
     const normalizedProfileId = String(profileId || '').trim();
@@ -57,6 +68,9 @@ function createRuntimeProfileService({
     return { ok: true, defaultProfileId: state.defaultProfileId };
   }
 
+  /**
+   * @param {any} profileId
+   */
   function duplicateProfile(profileId) {
     const state = loadState();
     const source = state.profiles.find((item) => item.id === profileId);
@@ -67,6 +81,9 @@ function createRuntimeProfileService({
     return copy;
   }
 
+  /**
+   * @param {any} profileId
+   */
   function deleteProfile(profileId) {
     const state = loadState();
     const profile = state.profiles.find((item) => item.id === profileId);
@@ -88,6 +105,9 @@ function createRuntimeProfileService({
     return { ok: true };
   }
 
+  /**
+   * @param {any} rule
+   */
   function saveMappingRule(rule) {
     const state = loadState();
     const requestedProfileId = String(rule?.profileId || '').trim();
@@ -108,6 +128,9 @@ function createRuntimeProfileService({
     return nextRule;
   }
 
+  /**
+   * @param {any} ruleId
+   */
   function deleteMappingRule(ruleId) {
     const state = loadState();
     state.mappingRules = state.mappingRules.filter((item) => item.id !== ruleId);
@@ -115,6 +138,9 @@ function createRuntimeProfileService({
     return { ok: true };
   }
 
+  /**
+   * @param {any} metadata
+   */
   function testMapping(metadata) {
     const state = loadState();
     const normalized = normalizeMemoQMetadata(metadata || {});

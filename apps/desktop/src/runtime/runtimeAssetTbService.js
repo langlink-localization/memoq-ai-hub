@@ -10,6 +10,9 @@ const DEFAULT_ASSET_PREVIEW_MAX_CHARACTERS = 2000;
 // behind the loadState/saveState boundary; parsedAssetCache is the shared
 // parsed-asset eviction cache owned by the runtime composition root.
 function createRuntimeAssetTbService({ loadState, saveState, parsedAssetCache }) {
+  /**
+   * @param {any} value
+   */
   function normalizeManualMapping(value = {}) {
     return {
       srcColumn: String(value?.srcColumn || '').trim(),
@@ -17,6 +20,9 @@ function createRuntimeAssetTbService({ loadState, saveState, parsedAssetCache })
     };
   }
 
+  /**
+   * @param {any} value
+   */
   function normalizeLanguagePair(value = {}) {
     return {
       source: String(value?.source || '').trim(),
@@ -24,10 +30,19 @@ function createRuntimeAssetTbService({ loadState, saveState, parsedAssetCache })
     };
   }
 
+  /**
+   * @param {any} state
+   * @param {any} assetId
+   */
   function findAssetById(state, assetId) {
     return state.assets.find((item) => item.id === String(assetId || '').trim()) || null;
   }
 
+  /**
+   * @param {any} state
+   * @param {any} assetId
+   * @param {any} nextTbState
+   */
   function updateAssetTbState(state, assetId, nextTbState = {}) {
     const asset = findAssetById(state, assetId);
     if (!asset) {
@@ -43,6 +58,10 @@ function createRuntimeAssetTbService({ loadState, saveState, parsedAssetCache })
     return ensureAsset(asset);
   }
 
+  /**
+   * @param {any} asset
+   * @param {any} preview
+   */
   function createDetectedTbState(asset, preview = {}) {
     if (!preview?.tbStructure || !preview?.tbStructureFingerprint) {
       return null;
@@ -63,6 +82,10 @@ function createRuntimeAssetTbService({ loadState, saveState, parsedAssetCache })
     };
   }
 
+  /**
+   * @param {any} asset
+   * @param {any} preview
+   */
   function isAppliedTbStructurePreview(asset, preview = {}) {
     if (!preview?.tbStructureAvailable) {
       return false;
@@ -76,6 +99,11 @@ function createRuntimeAssetTbService({ loadState, saveState, parsedAssetCache })
     return Boolean(previewFingerprint && previewFingerprint === String(asset?.tbStructure?.fingerprint || '').trim());
   }
 
+  /**
+   * @param {any} state
+   * @param {any} asset
+   * @param {any} options
+   */
   function buildAssetPreviewResponse(state, asset, options = {}) {
     const preview = buildAssetPreview(asset, parsedAssetCache, {
       maxRows: options.maxRows || DEFAULT_ASSET_PREVIEW_MAX_ROWS,
@@ -93,6 +121,10 @@ function createRuntimeAssetTbService({ loadState, saveState, parsedAssetCache })
     };
   }
 
+  /**
+   * @param {any} assetId
+   * @param {any} payload
+   */
   function applyAssetTbStructure(assetId, payload = {}) {
     const state = loadState();
     const normalizedAssetId = String(assetId || '').trim();
@@ -125,6 +157,10 @@ function createRuntimeAssetTbService({ loadState, saveState, parsedAssetCache })
     return updateAssetTbState(state, normalizedAssetId, detectedTbState);
   }
 
+  /**
+   * @param {any} assetId
+   * @param {any} payload
+   */
   function saveAssetTbConfig(assetId, payload = {}) {
     const state = loadState();
     const asset = findAssetById(state, assetId);

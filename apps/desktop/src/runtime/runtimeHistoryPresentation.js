@@ -10,14 +10,22 @@ const { buildHistorySummary } = require('./runtimeHistoryIntegrationSupport');
 // diagnostic payload stays reachable through the prototype for internal
 // runtime callers.
 function createRuntimeHistoryPresentation({ persistence }) {
+  /**
+   */
   function loadHistoryEntries() {
     return persistence.listHistory();
   }
 
+  /**
+   * @param {any} entryId
+   */
   function loadHistoryEntry(entryId) {
     return persistence.getHistoryEntry(entryId);
   }
 
+  /**
+   * @param {any} entry
+   */
   function buildHistoryIssueFlags(entry = {}) {
     const attempts = Array.isArray(entry.attempts) ? entry.attempts : [];
     const latencyMs = Number(entry.latencyMs);
@@ -37,6 +45,9 @@ function createRuntimeHistoryPresentation({ persistence }) {
     };
   }
 
+  /**
+   * @param {any} entry
+   */
   function buildHistoryListItem(entry = {}) {
     const summary = buildHistorySummary(entry);
     const item = {

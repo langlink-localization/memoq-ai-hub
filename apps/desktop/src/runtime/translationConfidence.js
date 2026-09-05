@@ -11,16 +11,26 @@ const REPAIR_PENALTY = 0.15;
 const FALLBACK_PENALTY = 0.20;
 const INFO_LIMIT = 120;
 
+/**
+ * @param {any} value
+ */
 function clampUnit(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return null;
   return Math.max(0, Math.min(1, number));
 }
 
+/**
+ * @param {any} text
+ */
 function extractStructuralTokens(text) {
   return String(text || '').match(/<[^>]+>|\{\{[^}]+\}\}|\{\d+\}|%\d*\$?[a-z]/gi) || [];
 }
 
+/**
+ * @param {any} sourceText
+ * @param {any} translatedText
+ */
 function calculateStructuralValidity(sourceText, translatedText) {
   const sourceTokens = extractStructuralTokens(sourceText).sort();
   const targetTokens = extractStructuralTokens(translatedText).sort();
@@ -30,6 +40,10 @@ function calculateStructuralValidity(sourceText, translatedText) {
     : 0;
 }
 
+/**
+ * @param {any} qaSummary
+ * @param {any} matchCount
+ */
 function calculateTerminologyCompliance(qaSummary, matchCount = 0) {
   const total = Math.max(0, Number(matchCount) || 0);
   if (total === 0) return null;
@@ -37,6 +51,9 @@ function calculateTerminologyCompliance(qaSummary, matchCount = 0) {
   return clampUnit((total - Math.min(total, issues)) / total);
 }
 
+/**
+ * @param {any} matches
+ */
 function calculateTmSupport(matches = []) {
   const scores = matches
     .map((match) => Number(match?.score))
@@ -45,6 +62,9 @@ function calculateTmSupport(matches = []) {
   return scores.length ? Math.max(...scores) : null;
 }
 
+/**
+ * @param {any} signals
+ */
 function calculateTranslationConfidence(signals = {}) {
   const normalized = {
     structuralValidity: clampUnit(signals.structuralValidity),
@@ -71,6 +91,9 @@ function calculateTranslationConfidence(signals = {}) {
   };
 }
 
+/**
+ * @param {any} _
+ */
 function createTranslationInfo({ signals = {}, terminologyMatchCount = 0, locale = 'en' } = {}) {
   const zh = /^zh(?:-|$)/i.test(String(locale || ''));
   const parts = [];
@@ -86,6 +109,9 @@ function createTranslationInfo({ signals = {}, terminologyMatchCount = 0, locale
   return parts.join('; ').slice(0, INFO_LIMIT);
 }
 
+/**
+ * @param {any} _
+ */
 function enrichTranslationResult({ segment = {}, translation = {}, providerScoreComparable = false, targetLanguage = '' } = {}) {
   const terminologyMatches = Array.isArray(segment?.tbContext?.matches) ? segment.tbContext.matches : [];
   const qaSummary = segment.qaSummary || null;

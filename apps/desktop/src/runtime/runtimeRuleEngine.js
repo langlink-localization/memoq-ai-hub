@@ -19,7 +19,7 @@ function matchRegex(value, expression) {
   if (!pattern) return true;
   try {
     return new RegExp(pattern, 'i').test(toSafeString(value));
-  } catch (_error) {
+  } catch (/** @type {any} */ _error) {
     return false;
   }
 }
@@ -90,7 +90,7 @@ function evaluateRule(rule, metadata = {}) {
  * @returns {{ rule: any, reasons: string[] } | null}
  */
 function resolveRuleMatch(rules = [], metadata = {}) {
-  const sorted = [...rules].sort((left, right) => Number(left.priority || 999) - Number(right.priority || 999));
+  const sorted = [...rules].sort((/** @type {any} */ left, /** @type {any} */ right) => Number(left.priority || 999) - Number(right.priority || 999));
   for (const rule of sorted) {
     const result = evaluateRule(rule, metadata);
     if (result.matched) {

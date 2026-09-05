@@ -111,7 +111,7 @@ function summarizeThroughputStats(stats = {}) {
   const latencies = Array.isArray(stats.latenciesMs)
     ? stats.latenciesMs.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value >= 0)
     : [];
-  const sortedLatencies = [...latencies].sort((left, right) => left - right);
+  const sortedLatencies = [...latencies].sort((/** @type {any} */ left, /** @type {any} */ right) => left - right);
   const p95LatencyMs = sortedLatencies.length
     ? sortedLatencies[Math.min(sortedLatencies.length - 1, Math.ceil(sortedLatencies.length * 0.95) - 1)]
     : null;
