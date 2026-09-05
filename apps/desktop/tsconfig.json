@@ -23,20 +23,12 @@
     "src/provider/providerTransportSupport.js",
     "src/provider/providerPromptBuilder.js",
     "src/provider/providerRegistry.js",
-    "src/runtime/runtimePersistence.js",
-    "src/runtime/runtimeHistory.js",
-    "src/runtime/runtimeHistoryIntegrationSupport.js",
-    "src/runtime/runtimeThroughput.js",
-    "src/runtime/runtimePromptSupport.js",
     "src/runtime/runtimeQaHistoryService.js",
     "src/runtime/runtimePreviewPolicy.js",
     "src/runtime/runtimePromptPresetStore.js",
     "src/runtime/runtimeRuleEngine.js",
     "src/runtime/previewSnapshotSettle.js",
     "src/runtime/runtimePreviewStateSupport.js",
-    "src/runtime/runtimeHistoryBuilder.js",
-    "src/runtime/runtimeTranslationSupport.js",
-    "src/preview/previewContext.js",
     "src/types/**/*.d.ts"
   ]
 }
