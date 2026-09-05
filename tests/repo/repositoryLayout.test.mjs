@@ -142,6 +142,9 @@ test('dependency and CI governance is reproducible', () => {
   assert.equal(rootPackage.devDependencies?.['@eslint/js'], '9.39.5');
   assert.equal(rootPackage.devDependencies?.['eslint-plugin-react-hooks'], '7.1.1');
   assert.equal(rootPackage.devDependencies?.globals, '17.9.0');
+  assert.equal(rootPackage.devDependencies?.typescript, '7.0.2');
+  assert.match(rootPackage.scripts?.typecheck, /^tsc --noEmit/);
+  assert.equal(fs.existsSync(path.join(repoRoot, 'apps', 'desktop', 'tsconfig.json')), true);
   assert.match(eslintConfig, /eslint\.configs\.recommended/);
   assert.match(eslintConfig, /react-hooks\/rules-of-hooks/);
   assert.equal(desktopPackage.engines?.node, '>=22.12.0');
@@ -206,6 +209,7 @@ test('dependency and CI governance is reproducible', () => {
   assert.match(ciWorkflow, /^permissions:\n  contents: read$/m);
   assert.match(ciWorkflow, /pnpm run test:repo/);
   assert.match(ciWorkflow, /pnpm run lint/);
+  assert.match(ciWorkflow, /pnpm run typecheck/);
   assert.match(packageWindowsScript, /pnpm install --frozen-lockfile/);
   assert.doesNotMatch(packageWindowsScript, /Invoke-NativeStep "pnpm install" \{ pnpm install \}/);
 });
