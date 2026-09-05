@@ -3,6 +3,10 @@
 const DEFAULT_SETTLE_MS = 400;
 const DEFAULT_MAX_WAITS = 3;
 
+/**
+ * @param {any} payload
+ * @returns {string}
+ */
 function previewSnapshotSignature(payload) {
   if (!payload || payload.mappingCertain === false) {
     return 'unmapped';
@@ -21,6 +25,10 @@ function previewSnapshotSignature(payload) {
   ].join('|');
 }
 
+/**
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
 function defaultSleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -29,6 +37,18 @@ function defaultSleep(ms) {
 // active segment triggers a content request whose answer lands a moment later.
 // Reading while that push is still in flight returns stale segment data, so
 // callers wait until consecutive reads agree before trusting the snapshot.
+/**
+ * @typedef {Object} SettlePreviewOptions
+ * @property {(() => any)=} readActive
+ * @property {number=} settleMs
+ * @property {number=} maxWaits
+ * @property {((ms: number) => Promise<void>)=} sleep
+ */
+
+/**
+ * @param {SettlePreviewOptions=} options
+ * @returns {Promise<any>}
+ */
 async function settleActivePreviewSnapshot(options = {}) {
   const readActive = typeof options.readActive === 'function' ? options.readActive : (() => null);
   const settleMs = Number.isFinite(Number(options.settleMs)) ? Math.max(0, Number(options.settleMs)) : DEFAULT_SETTLE_MS;

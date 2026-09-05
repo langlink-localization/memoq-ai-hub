@@ -7,6 +7,9 @@ const {
   normalizeSourceDocument
 } = require('../preview/previewContext');
 
+/**
+ * @returns {Record<string, any>}
+ */
 function createPreviewState() {
   return {
     status: 'disconnected',
@@ -25,6 +28,11 @@ function createPreviewState() {
   };
 }
 
+/**
+ * @param {any} previewState
+ * @param {any[]=} parts
+ * @returns {void}
+ */
 function mergePreviewParts(previewState, parts = []) {
   for (const item of Array.isArray(parts) ? parts : []) {
     const normalized = normalizePreviewPart(item);

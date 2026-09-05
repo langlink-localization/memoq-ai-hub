@@ -57,8 +57,8 @@ function normalizePreviewPart(part = {}) {
   return {
     previewPartId: normalizeText(part.PreviewPartId || part.previewPartId),
     previewProperties: (Array.isArray(part.PreviewProperties || part.previewProperties) ? (part.PreviewProperties || part.previewProperties) : [])
-      .map((item) => normalizePreviewProperty(item))
-      .filter((item) => item.name),
+      .map((/** @type {any} */ item) => normalizePreviewProperty(item))
+      .filter((/** @type {any} */ item) => item.name),
     sourceDocument: normalizeSourceDocument(part.SourceDocument || part.sourceDocument),
     sourceLangCode: normalizeText(part.SourceLangCode || part.sourceLangCode),
     targetLangCode: normalizeText(part.TargetLangCode || part.targetLangCode),
@@ -161,9 +161,9 @@ function getOrderedPreviewParts(previewState = {}, sourceLanguage = '', targetLa
   const normalizedTargetLanguage = normalizeText(targetLanguage).toLowerCase();
 
   return preferredOrder
-    .map((previewPartId) => previewPartsById.get(previewPartId))
+    .map((/** @type {any} */ previewPartId) => previewPartsById.get(previewPartId))
     .filter(Boolean)
-    .filter((part) => {
+    .filter((/** @type {any} */ part) => {
       const sourceMatch = !normalizedSourceLanguage || normalizeText(part.sourceLangCode).toLowerCase() === normalizedSourceLanguage;
       const targetMatch = !normalizedTargetLanguage || normalizeText(part.targetLangCode).toLowerCase() === normalizedTargetLanguage;
       return sourceMatch && targetMatch;
@@ -184,7 +184,7 @@ function getScopedPreviewParts(previewState = {}, activePart = null, sourceLangu
 
   const activeGuid = normalizeText(activePart.sourceDocument.documentGuid);
   const activeName = normalizeText(activePart.sourceDocument.documentName);
-  const scoped = orderedParts.filter((part) => (
+  const scoped = orderedParts.filter((/** @type {any} */ part) => (
     (activeGuid && normalizeText(part.sourceDocument?.documentGuid) === activeGuid)
     || (activeName && normalizeText(part.sourceDocument?.documentName) === activeName)
   ));
@@ -232,7 +232,7 @@ function findPreviewPartForSegment(scopedParts = [], activePart = null, segment 
   }
 
   const normalizedSegment = segmentSourceText.toLowerCase();
-  const exactMatches = scopedParts.filter((part) => stripFormattingMarkup(part.sourceContent?.content).toLowerCase() === normalizedSegment);
+  const exactMatches = scopedParts.filter((/** @type {any} */ part) => stripFormattingMarkup(part.sourceContent?.content).toLowerCase() === normalizedSegment);
   if (exactMatches.length === 1) {
     return exactMatches[0];
   }
@@ -260,7 +260,7 @@ function buildNeighborText(scopedParts = [], activeIndex = -1, direction = 'abov
     : scopedParts.slice(activeIndex + 1, activeIndex + 1 + windowSize);
 
   return items
-    .map((part) => stripFormattingMarkup(part.sourceContent?.content))
+    .map((/** @type {any} */ part) => stripFormattingMarkup(part.sourceContent?.content))
     .filter(Boolean)
     .join('\n');
 }
@@ -311,15 +311,15 @@ function buildPreviewContextBundle(previewState = {}, segments = [], options = {
   }
 
   const scopedParts = getScopedPreviewParts(previewState, activePart, sourceLanguage, targetLanguage);
-  const activeIndex = scopedParts.findIndex((part) => part.previewPartId === activePart.previewPartId);
+  const activeIndex = scopedParts.findIndex((/** @type {any} */ part) => part.previewPartId === activePart.previewPartId);
   const activeAbove = buildNeighborText(scopedParts, activeIndex, 'above');
   const activeBelow = buildNeighborText(scopedParts, activeIndex, 'below');
   const shared = {
     activePreviewPartId: activePart.previewPartId,
     sourceDocument: activePart.sourceDocument,
     previewProperties: activePart.previewProperties,
-    fullText: scopedParts.map((part) => stripFormattingMarkup(part.sourceContent?.content)).filter(Boolean).join('\n'),
-    fullTargetText: scopedParts.map((part) => stripFormattingMarkup(part.targetContent?.content)).filter(Boolean).join('\n'),
+    fullText: scopedParts.map((/** @type {any} */ part) => stripFormattingMarkup(part.sourceContent?.content)).filter(Boolean).join('\n'),
+    fullTargetText: scopedParts.map((/** @type {any} */ part) => stripFormattingMarkup(part.targetContent?.content)).filter(Boolean).join('\n'),
     summary: buildPreviewSummary({ activePart, above: activeAbove, below: activeBelow }),
     sourceText: stripFormattingMarkup(activePart.sourceContent?.content),
     targetText: stripFormattingMarkup(activePart.targetContent?.content)
@@ -334,7 +334,7 @@ function buildPreviewContextBundle(previewState = {}, segments = [], options = {
       continue;
     }
 
-    const matchedIndex = scopedParts.findIndex((part) => part.previewPartId === matchedPart.previewPartId);
+    const matchedIndex = scopedParts.findIndex((/** @type {any} */ part) => part.previewPartId === matchedPart.previewPartId);
     const above = buildNeighborText(scopedParts, matchedIndex, 'above');
     const below = buildNeighborText(scopedParts, matchedIndex, 'below');
 

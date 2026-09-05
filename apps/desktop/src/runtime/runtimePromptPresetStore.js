@@ -6,6 +6,9 @@ const {
   restoreBuiltinPromptPreset
 } = require('../shared/promptPresets');
 
+/**
+ * @param {any} options
+ */
 function createRuntimePromptPresetStore(options = {}) {
   const { loadState, saveState } = options;
   const timestamp = options.nowIso || (() => new Date().toISOString());
@@ -14,36 +17,45 @@ function createRuntimePromptPresetStore(options = {}) {
     throw new TypeError('Prompt preset state accessors are required.');
   }
 
+  /**
+   * @param {Record<string, any>=} preset
+   */
   function save(preset = {}) {
     const state = loadState();
-    const existing = state.promptPresets.find((item) => item.id === String(preset.id || '')) || null;
+    const existing = state.promptPresets.find((/** @type {any} */ item) => item.id === String(preset.id || '')) || null;
     const next = normalizePromptPreset({
       ...preset,
       id: String(preset.id || '').trim() || createPresetId(),
       builtin: existing?.builtin === true,
       updatedAt: timestamp()
     }, existing || {});
-    const index = state.promptPresets.findIndex((item) => item.id === next.id);
+    const index = state.promptPresets.findIndex((/** @type {any} */ item) => item.id === next.id);
     if (index >= 0) state.promptPresets[index] = next;
     else state.promptPresets.push(next);
     saveState(state);
     return next;
   }
 
+  /**
+   * @param {unknown} presetId
+   */
   function remove(presetId) {
     const state = loadState();
-    const preset = state.promptPresets.find((item) => item.id === String(presetId || ''));
+    const preset = state.promptPresets.find((/** @type {any} */ item) => item.id === String(presetId || ''));
     if (!preset) return { ok: true, deleted: false };
     if (preset.builtin) throw new Error('Built-in prompt presets cannot be deleted; restore the default instead.');
-    state.promptPresets = state.promptPresets.filter((item) => item.id !== preset.id);
+    state.promptPresets = state.promptPresets.filter((/** @type {any} */ item) => item.id !== preset.id);
     saveState(state);
     return { ok: true, deleted: true };
   }
 
+  /**
+   * @param {unknown} presetId
+   */
   function restoreBuiltin(presetId) {
     const state = loadState();
     const restored = restoreBuiltinPromptPreset(presetId);
-    const index = state.promptPresets.findIndex((item) => item.id === restored.id);
+    const index = state.promptPresets.findIndex((/** @type {any} */ item) => item.id === restored.id);
     if (index >= 0) state.promptPresets[index] = restored;
     else state.promptPresets.push(restored);
     saveState(state);
