@@ -3,10 +3,14 @@ const {
   buildBatchPrompt
 } = require('../provider/providerPromptBuilder');
 
+/**
+ * @param {Record<string, any>=} entry
+ * @returns {Record<string, any>}
+ */
 function buildHistorySummary(entry = {}) {
   const segments = Array.isArray(entry.segments) ? entry.segments : [];
   const preview = segments
-    .map((segment) => String(segment.targetText || segment.sourceText || '').trim())
+    .map((/** @type {any} */ segment) => String(segment.targetText || segment.sourceText || '').trim())
     .filter(Boolean)
     .slice(0, 2)
     .join(' | ');
@@ -17,6 +21,9 @@ function buildHistorySummary(entry = {}) {
   };
 }
 
+/**
+ * @param {Record<string, any>} args
+ */
 function buildHistoryPromptViewSingle({
   payload,
   profile,
@@ -52,6 +59,9 @@ function buildHistoryPromptViewSingle({
   };
 }
 
+/**
+ * @param {Record<string, any>} args
+ */
 function createSingleRequestMetadata({
   payload,
   profile,
@@ -82,6 +92,9 @@ function createSingleRequestMetadata({
   };
 }
 
+/**
+ * @param {Record<string, any>} args
+ */
 function buildHistoryPromptViewBatch({
   payload,
   profile,
@@ -101,12 +114,12 @@ function buildHistoryPromptViewBatch({
     requestType: payload?.requestType || 'Plaintext',
     assetContext
   });
-  const translationByIndex = new Map((translations || []).map((item) => [Number(item.index), String(item.text || '')]));
+  const translationByIndex = new Map((translations || []).map((/** @type {any} */ item) => [Number(item.index), String(item.text || '')]));
 
   return {
     systemPrompt: rendered.systemPrompt,
     userPrompt: rendered.prompt,
-    items: (segments || []).map((segment) => {
+    items: (segments || []).map((/** @type {any} */ segment) => {
       const renderedItem = rendered.renderedBatchInstructions.find((item) => Number(item?.index) === Number(segment?.index));
 
       return {
@@ -120,6 +133,9 @@ function buildHistoryPromptViewBatch({
   };
 }
 
+/**
+ * @param {Record<string, any>} args
+ */
 function createBatchRequestMetadata({
   payload,
   profile,
@@ -130,7 +146,7 @@ function createBatchRequestMetadata({
   requestMetadata = {},
   buildTemplatePreflightContext
 }) {
-  const translationByIndex = new Map((translations || []).map((item) => [Number(item.index), String(item.text || '')]));
+  const translationByIndex = new Map((translations || []).map((/** @type {any} */ item) => [Number(item.index), String(item.text || '')]));
   const rendered = buildHistoryPromptViewBatch({
     payload,
     profile,
@@ -141,7 +157,7 @@ function createBatchRequestMetadata({
     buildTemplatePreflightContext
   });
   const normalizedItems = Array.isArray(requestMetadata.items) && requestMetadata.items.length
-    ? requestMetadata.items.map((item) => ({
+    ? requestMetadata.items.map((/** @type {any} */ item) => ({
       index: Number(item.index),
       itemKind: 'batch_item',
       userPrompt: String(item.promptInstructions || item.userPrompt || ''),
@@ -154,8 +170,8 @@ function createBatchRequestMetadata({
     mode: 'batch',
     requestKind: 'batch',
     batchIndexes: Array.isArray(requestMetadata.batchIndexes) && requestMetadata.batchIndexes.length
-      ? requestMetadata.batchIndexes.map((value) => Number(value))
-      : normalizedItems.map((item) => Number(item.index)),
+      ? requestMetadata.batchIndexes.map((/** @type {any} */ value) => Number(value))
+      : normalizedItems.map((/** @type {any} */ item) => Number(item.index)),
     segmentCount: Number.isFinite(Number(requestMetadata.segmentCount))
       ? Number(requestMetadata.segmentCount)
       : normalizedItems.length,
@@ -166,6 +182,9 @@ function createBatchRequestMetadata({
   };
 }
 
+/**
+ * @param {Record<string, any>} args
+ */
 function summarizeContextSources({
   profile,
   normalizedMetadata,
@@ -181,13 +200,13 @@ function summarizeContextSources({
     normalizedMetadata?.documentId ? `Document ID: ${normalizedMetadata.documentId}` : ''
   ].filter(Boolean).join('\n');
   const terminology = (incomingSegments || [])
-    .flatMap((segment) => segment?.tbContext?.termHits || [])
+    .flatMap((/** @type {any} */ segment) => segment?.tbContext?.termHits || [])
     .slice(0, 8)
-    .map((item) => `${item.sourceTerm || ''} => ${item.targetTerm || ''}`.trim())
+    .map((/** @type {any} */ item) => `${item.sourceTerm || ''} => ${item.targetTerm || ''}`.trim())
     .filter(Boolean)
     .join('\n');
   const tmHints = (incomingSegments || [])
-    .map((segment) => {
+    .map((/** @type {any} */ segment) => {
       const source = String(segment?.tmSource || '').trim();
       const target = String(segment?.tmTarget || '').trim();
       if (!source && !target) {
@@ -198,7 +217,7 @@ function summarizeContextSources({
     .filter(Boolean)
     .join('\n');
   const tmDiagnostics = (incomingSegments || [])
-    .map((segment) => {
+    .map((/** @type {any} */ segment) => {
       const diagnostics = segment?.tmDiagnostics && typeof segment.tmDiagnostics === 'object'
         ? segment.tmDiagnostics
         : null;
@@ -221,12 +240,12 @@ function summarizeContextSources({
     .filter(Boolean)
     .join('\n\n');
   const customTmMatches = (incomingSegments || [])
-    .flatMap((segment) => (segment?.customTmMatches || []).map((match) => ({
+    .flatMap((/** @type {any} */ segment) => (segment?.customTmMatches || []).map((/** @type {any} */ match) => ({
       index: Number(segment?.index),
       match
     })))
     .slice(0, 8)
-    .map(({ index, match }) => `#${index}: ${Number(match.score || 0)}% ${match.bucket || ''} ${match.sourceText || '-'} => ${match.targetText || '-'}${match.assetName ? ` (${match.assetName})` : ''}`)
+    .map((/** @type {any} */ _ref) => { const { index, match } = _ref; return `#${index}: ${Number(match.score || 0)}% ${match.bucket || ''} ${match.sourceText || '-'} => ${match.targetText || '-'}${match.assetName ? ` (${match.assetName})` : ''}`; })
     .filter(Boolean)
     .join('\n');
   const previewContext = effectiveRequestPreviewContext
@@ -249,6 +268,9 @@ function summarizeContextSources({
   };
 }
 
+/**
+ * @param {any[]=} attempts
+ */
 function buildHistoryPromptViewFromAttempts(attempts = []) {
   const sourceAttempts = attempts.filter((attempt) => attempt?.requestMetadata && attempt.providerId !== 'cache' && attempt.providerId !== 'adaptive-cache');
   const successfulAttempts = sourceAttempts.filter((attempt) => attempt.success);
@@ -289,9 +311,13 @@ function buildHistoryPromptViewFromAttempts(attempts = []) {
   return {};
 }
 
+/**
+ * @param {any[]=} attempts
+ * @returns {Record<string, any> | null}
+ */
 function buildHistoryThroughputSummary(attempts = []) {
   const providerAttempts = (Array.isArray(attempts) ? attempts : [])
-    .filter((attempt) => attempt && attempt.providerId !== 'cache' && attempt.providerId !== 'adaptive-cache');
+    .filter((/** @type {any} */ attempt) => attempt && attempt.providerId !== 'cache' && attempt.providerId !== 'adaptive-cache');
   if (!providerAttempts.length) {
     return null;
   }
@@ -324,6 +350,10 @@ function buildHistoryThroughputSummary(attempts = []) {
   };
 }
 
+/**
+ * @param {Record<string, any>} args
+ * @returns {Record<string, any> | null}
+ */
 function buildHistoryEntry({
   createId,
   requestId,
@@ -366,7 +396,7 @@ function buildHistoryEntry({
           translations,
           requestMetadata: {
             mode: 'batch',
-            batchIndexes: incomingSegments.map((segment) => segment.index),
+            batchIndexes: incomingSegments.map((/** @type {any} */ segment) => segment.index),
             segmentCount: incomingSegments.length
           },
           buildTemplatePreflightContext
@@ -435,23 +465,23 @@ function buildHistoryEntry({
       previewWarmup: resolvedPreview.previewWarmup || null
     },
     assembledPrompt: {
-      systemPrompt: String(promptView?.single?.systemPrompt || promptView?.batch?.systemPrompt || ''),
+      systemPrompt: String((/** @type {any} */ (promptView))?.single?.systemPrompt || (/** @type {any} */ (promptView))?.batch?.systemPrompt || ''),
       userPrompt: String(
-        promptView?.single?.userPrompt
-        || promptView?.batch?.userPrompt
+        (/** @type {any} */ (promptView))?.single?.userPrompt
+        || (/** @type {any} */ (promptView))?.batch?.userPrompt
         || ''
       ),
-      items: Array.isArray(promptView?.batch?.items)
-        ? promptView.batch.items.map((item) => ({
+      items: Array.isArray((/** @type {any} */ (promptView))?.batch?.items)
+        ? (/** @type {any} */ (promptView)).batch.items.map((/** @type {any} */ item) => ({
           segmentIndex: Number(item.segmentIndex ?? item.index),
           sourceText: String(item.sourceText || ''),
           promptInstructions: String(item.promptInstructions || item.userPrompt || item.content || '')
         }))
-        : (promptView?.single?.userPrompt || promptView?.single?.sourceText)
+        : ((/** @type {any} */ (promptView))?.single?.userPrompt || (/** @type {any} */ (promptView))?.single?.sourceText)
           ? [{
-            segmentIndex: Number(promptView?.single?.segmentIndexes?.[0] ?? incomingSegments?.[0]?.index ?? 0),
-            sourceText: String(promptView?.single?.sourceText || incomingSegments?.[0]?.sourceText || ''),
-            promptInstructions: String(promptView?.single?.userPrompt || '')
+            segmentIndex: Number((/** @type {any} */ (promptView))?.single?.segmentIndexes?.[0] ?? incomingSegments?.[0]?.index ?? 0),
+            sourceText: String((/** @type {any} */ (promptView))?.single?.sourceText || incomingSegments?.[0]?.sourceText || ''),
+            promptInstructions: String((/** @type {any} */ (promptView))?.single?.userPrompt || '')
           }]
           : []
     },
@@ -465,9 +495,9 @@ function buildHistoryEntry({
     result: terminalError ? { error: terminalError } : { translations },
     qaSummary: {
       terminology: {
-        ok: incomingSegments.every((segment) => segment.qaSummary?.ok !== false),
+        ok: incomingSegments.every((/** @type {any} */ segment) => segment.qaSummary?.ok !== false),
         blocking: false,
-        issues: incomingSegments.flatMap((segment) => segment.qaSummary?.issues || [])
+        issues: incomingSegments.flatMap((/** @type {any} */ segment) => segment.qaSummary?.issues || [])
       }
     },
     promptView,
@@ -477,11 +507,11 @@ function buildHistoryEntry({
     context: {
       segments: payloadSegments || []
     },
-    segments: (payloadSegments || []).map((segment, idx) => {
+    segments: (payloadSegments || []).map((/** @type {any} */ segment, /** @type {any} */ idx) => {
       const segmentIndex = Number.isFinite(Number(segment.index)) ? Number(segment.index) : idx;
-      const translated = translations.find((item) => Number(item.index) === segmentIndex);
+      const translated = translations.find((/** @type {any} */ item) => Number(item.index) === segmentIndex);
       const segmentMetadata = segmentMetadataIndex.get(segmentIndex) || {};
-      const incomingSegment = incomingSegments.find((item) => item.index === segmentIndex);
+      const incomingSegment = incomingSegments.find((/** @type {any} */ item) => item.index === segmentIndex);
       return {
         id: createId('histseg'),
         segmentIndex,
