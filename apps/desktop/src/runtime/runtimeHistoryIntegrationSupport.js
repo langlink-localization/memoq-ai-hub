@@ -9,6 +9,11 @@ const {
   ensureIntegrationPreferences
 } = require('./runtimeState');
 
+/**
+ * @param {any[]} historyEntries
+ * @param {unknown} providerId
+ * @returns {Record<string, any>}
+ */
 function buildHistoryMetrics(historyEntries, providerId) {
   const threshold = Date.now() - (24 * 60 * 60 * 1000);
   const scoped = historyEntries.filter((entry) => (
@@ -41,6 +46,10 @@ function buildHistoryMetrics(historyEntries, providerId) {
   };
 }
 
+/**
+ * @param {unknown} value
+ * @returns {number}
+ */
 function roundPercent(value) {
   if (!Number.isFinite(value)) {
     return null;
@@ -48,6 +57,10 @@ function roundPercent(value) {
   return Number(value.toFixed(1));
 }
 
+/**
+ * @param {unknown[]=} values
+ * @returns {number}
+ */
 function average(values = []) {
   const finiteValues = values.filter((value) => Number.isFinite(value));
   if (!finiteValues.length) {
@@ -56,11 +69,19 @@ function average(values = []) {
   return Math.round(finiteValues.reduce((sum, value) => sum + value, 0) / finiteValues.length);
 }
 
+/**
+ * @param {unknown} value
+ * @returns {number | null}
+ */
 function normalizeLatency(value) {
   const normalized = Number(value);
   return Number.isFinite(normalized) && normalized >= 0 ? normalized : null;
 }
 
+/**
+ * @param {Record<string, any>=} entry
+ * @returns {number}
+ */
 function normalizeSegmentCount(entry = {}) {
   const explicit = Number(entry.segmentCount);
   if (Number.isFinite(explicit) && explicit >= 0) {
@@ -69,23 +90,43 @@ function normalizeSegmentCount(entry = {}) {
   return Array.isArray(entry.segments) ? entry.segments.length : 0;
 }
 
+/**
+ * @param {Record<string, any>=} entry
+ * @returns {any[]}
+ */
 function collectAttempts(entry = {}) {
   return Array.isArray(entry.attempts) ? entry.attempts : [];
 }
 
+/**
+ * @param {Record<string, any>=} attempt
+ * @returns {boolean}
+ */
 function isTimeoutAttempt(attempt = {}) {
   const errorCode = String(attempt?.errorCode || '').trim().toUpperCase();
   return errorCode === 'PROVIDER_TIMEOUT' || errorCode === 'TRANSLATION_TIMEOUT';
 }
 
+/**
+ * @param {Record<string, any>=} attempt
+ * @returns {boolean}
+ */
 function isRateLimitAttempt(attempt = {}) {
   return String(attempt?.errorCode || '').trim().toUpperCase() === 'PROVIDER_RATE_LIMITED';
 }
 
+/**
+ * @param {Record<string, any>=} attempt
+ * @returns {boolean}
+ */
 function isBatchFallback(entry = {}) {
   return hasHistoryFallback(entry);
 }
 
+/**
+ * @param {unknown=} providerId
+ * @returns {Record<string, any>}
+ */
 function createProviderMetricAccumulator(providerId = '') {
   return {
     providerId: String(providerId || '').trim(),
@@ -101,6 +142,10 @@ function createProviderMetricAccumulator(providerId = '') {
   };
 }
 
+/**
+ * @param {Record<string, any>=} accumulator
+ * @returns {Record<string, any>}
+ */
 function finalizeProviderMetrics(accumulator = createProviderMetricAccumulator()) {
   return {
     successRate24h: accumulator.scopedCount
@@ -117,6 +162,11 @@ function finalizeProviderMetrics(accumulator = createProviderMetricAccumulator()
   };
 }
 
+/**
+ * @param {any[]=} historyEntries
+ * @param {number=} nowMs
+ * @returns {Map<string, any>}
+ */
 function buildHistoryMetricsByProvider(historyEntries = [], nowMs = Date.now()) {
   const threshold = nowMs - (24 * 60 * 60 * 1000);
   const metricsByProvider = new Map();
@@ -162,6 +212,10 @@ function buildHistoryMetricsByProvider(historyEntries = [], nowMs = Date.now()) 
     .map(([providerId, accumulator]) => [providerId, finalizeProviderMetrics(accumulator)]));
 }
 
+/**
+ * @param {any[]=} historyEntries
+ * @returns {Record<string, any>}
+ */
 function buildHistoryInsights(historyEntries = []) {
   const entries = Array.isArray(historyEntries) ? historyEntries : [];
   const totalRequests = entries.length;
@@ -225,6 +279,11 @@ function buildHistoryInsights(historyEntries = []) {
   };
 }
 
+/**
+ * @param {Record<string, any>} state
+ * @param {Record<string, any>=} overrides
+ * @returns {Record<string, any>}
+ */
 function buildIntegrationConfig(state, overrides = {}) {
   const preferences = ensureIntegrationPreferences({
     ...(state?.integrationPreferences || {}),

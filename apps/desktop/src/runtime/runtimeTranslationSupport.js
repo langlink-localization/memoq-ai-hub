@@ -14,6 +14,11 @@ const STRUCTURED_PROMPT_SCHEMA_VERSION = 'structured-v2';
 const DOCUMENT_SUMMARY_SOURCE_VERSION = 'summary-source-v4';
 const DOCUMENT_SUMMARY_SOURCE_LIMIT = 18000;
 
+/**
+ * @param {unknown} value
+ * @param {number=} maxCharacters
+ * @returns {string}
+ */
 function truncateSummarySourceText(value, maxCharacters = DOCUMENT_SUMMARY_SOURCE_LIMIT) {
   const normalized = String(value || '');
   if (!maxCharacters || normalized.length <= maxCharacters) {
@@ -22,6 +27,12 @@ function truncateSummarySourceText(value, maxCharacters = DOCUMENT_SUMMARY_SOURC
   return `${normalized.slice(0, maxCharacters)}\n\n[Truncated for preview-context summary generation]`;
 }
 
+/**
+ * @param {Record<string, any>=} profile
+ * @param {string=} mode
+ * @param {Set<string>=} interactiveOnlyTokens
+ * @returns {Set<string>}
+ */
 function collectInteractiveOnlyPlaceholders(profile = {}, mode = 'single', interactiveOnlyTokens = new Set()) {
   const placeholders = [];
   const templatePair = resolveProfilePromptTemplate(profile, mode);
@@ -47,6 +58,10 @@ function collectInteractiveOnlyPlaceholders(profile = {}, mode = 'single', inter
   return placeholders;
 }
 
+/**
+ * @param {Record<string, any>} args
+ * @returns {{ eligible: boolean, reason?: string }}
+ */
 function validateRequestEligibility({ payload, profile, incomingSegments, interactiveOnlyTokens }) {
   const useCase = String(payload?.profileResolution?.useCase || '').trim().toLowerCase();
   const sharedOnly = isSharedOnlyPreviewRequest(payload, incomingSegments);
@@ -69,10 +84,19 @@ function validateRequestEligibility({ payload, profile, incomingSegments, intera
   return { ok: true };
 }
 
+/**
+ * @param {unknown} profileNames
+ * @param {unknown} entityLabel
+ * @returns {string}
+ */
 function buildProfileReferenceMessage(profileNames, entityLabel) {
   return `${entityLabel} is still referenced by: ${profileNames.join(', ')}. Remove those references first.`;
 }
 
+/**
+ * @param {Record<string, any>} args
+ * @returns {string}
+ */
 function createTranslationCacheKey({
   providerId,
   modelName,
@@ -147,6 +171,10 @@ function createTranslationCacheKey({
   return crypto.createHash('sha256').update(payload).digest('hex');
 }
 
+/**
+ * @param {Record<string, any>} args
+ * @returns {string}
+ */
 function createAdaptiveTranslationCacheKey({
   sourceLanguage,
   targetLanguage,
@@ -164,11 +192,24 @@ function createAdaptiveTranslationCacheKey({
   })).digest('hex');
 }
 
+/**
+ * @param {Record<string, any>} entries
+ * @param {unknown} key
+ * @returns {unknown}
+ */
 function readCacheEntries(entries, key) {
   const entry = (entries || []).find((item) => item.key === key);
   return entry ? String(entry.text || '') : '';
 }
 
+/**
+ * @param {Record<string, any>} entries
+ * @param {unknown} key
+ * @param {unknown} text
+ * @param {unknown} now
+ * @param {number} limit
+ * @returns {void}
+ */
 function writeCacheEntries(entries, key, text, now, limit) {
   const nextEntry = {
     key,
@@ -185,16 +226,32 @@ function writeCacheEntries(entries, key, text, now, limit) {
   };
 }
 
+/**
+ * @param {Record<string, any>} state
+ * @param {unknown} key
+ * @returns {unknown}
+ */
 function readTranslationCache(state, key) {
   return readCacheEntries(state.translationCache, key);
 }
 
+/**
+ * @param {Record<string, any>} state
+ * @param {unknown} key
+ * @param {unknown} text
+ * @param {unknown} now
+ * @returns {void}
+ */
 function writeTranslationCache(state, key, text, now) {
   const result = writeCacheEntries(state.translationCache, key, text, now, 2000);
   state.translationCache = result.entries;
   return result.nextEntry;
 }
 
+/**
+ * @param {Record<string, any>} args
+ * @returns {string}
+ */
 function createDocumentSummaryCacheKey({
   providerId,
   modelName,
@@ -215,20 +272,44 @@ function createDocumentSummaryCacheKey({
   })).digest('hex');
 }
 
+/**
+ * @param {Record<string, any>} state
+ * @param {unknown} key
+ * @returns {unknown}
+ */
 function readDocumentSummaryCache(state, key) {
   return readCacheEntries(state.documentSummaryCache, key);
 }
 
+/**
+ * @param {Record<string, any>} state
+ * @param {unknown} key
+ * @param {unknown} text
+ * @param {unknown} now
+ * @returns {void}
+ */
 function writeDocumentSummaryCache(state, key, text, now) {
   const result = writeCacheEntries(state.documentSummaryCache, key, text, now, 300);
   state.documentSummaryCache = result.entries;
   return result.nextEntry;
 }
 
+/**
+ * @param {Record<string, any>} state
+ * @param {unknown} key
+ * @returns {unknown}
+ */
 function readPromptResponseCache(state, key) {
   return readCacheEntries(state.promptResponseCache, key);
 }
 
+/**
+ * @param {Record<string, any>} state
+ * @param {unknown} key
+ * @param {unknown} text
+ * @param {unknown} now
+ * @returns {void}
+ */
 function writePromptResponseCache(state, key, text, now) {
   const result = writeCacheEntries(state.promptResponseCache, key, text, now, 500);
   state.promptResponseCache = result.entries;

@@ -1,5 +1,10 @@
 const SUPPORTED_THROUGHPUT_MODES = new Set(['auto', 'reliable', 'fast', 'custom']);
 
+/**
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
 function clampPositiveInteger(value, fallback) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) {
@@ -8,8 +13,14 @@ function clampPositiveInteger(value, fallback) {
   return Math.max(1, Math.floor(numeric));
 }
 
+/**
+ * @param {unknown} value
+ * @param {string=} fallback
+ * @returns {string}
+ */
 function normalizeThroughputMode(value, fallback = 'auto') {
   const normalized = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  /** @type {Record<string, string>} */
   const aliases = {
     balanced: 'auto',
     adaptive: 'auto',
@@ -25,16 +36,28 @@ function normalizeThroughputMode(value, fallback = 'auto') {
   return SUPPORTED_THROUGHPUT_MODES.has(fallback) ? fallback : 'auto';
 }
 
+/**
+ * @param {Record<string, any>=} route
+ * @returns {boolean}
+ */
 function isOpenAICompatibleRoute(route = {}) {
   return String(route?.provider?.type || '').trim().toLowerCase() === 'openai-compatible';
 }
 
+/**
+ * @param {Record<string, any>=} route
+ * @returns {boolean}
+ */
 function isDeepSeekRoute(route = {}) {
   const baseUrl = String(route?.provider?.baseUrl || '').trim().toLowerCase();
   const modelName = String(route?.model?.modelName || route?.model?.id || '').trim().toLowerCase();
   return baseUrl.includes('deepseek') || modelName.startsWith('deepseek-');
 }
 
+/**
+ * @param {Record<string, any>=} route
+ * @returns {string}
+ */
 function getContextTier(route = {}) {
   const configured = Number(route?.model?.contextWindowTokens || route?.model?.contextTokens || 0);
   const modelName = String(route?.model?.modelName || '').trim().toLowerCase();
@@ -50,6 +73,10 @@ function getContextTier(route = {}) {
   return 'standard';
 }
 
+/**
+ * @param {Record<string, any>=} route
+ * @returns {Record<string, any>}
+ */
 function getBaseDefaults(route = {}) {
   if (isDeepSeekRoute(route) || isOpenAICompatibleRoute(route)) {
     return {
@@ -70,6 +97,10 @@ function getBaseDefaults(route = {}) {
   };
 }
 
+/**
+ * @param {Record<string, any>=} stats
+ * @returns {Record<string, any>}
+ */
 function summarizeThroughputStats(stats = {}) {
   const completed = clampPositiveInteger(stats.completed || stats.total || 0, 0);
   const successes = clampPositiveInteger(stats.successes || 0, 0);
@@ -102,6 +133,11 @@ function summarizeThroughputStats(stats = {}) {
   };
 }
 
+/**
+ * @param {Record<string, any>=} route
+ * @param {Record<string, any>=} stats
+ * @returns {Record<string, any>}
+ */
 function resolveThroughputSettings(route = {}, stats = {}) {
   const capabilities = route?.capabilities || {};
   const model = route?.model || {};
@@ -181,11 +217,20 @@ function resolveThroughputSettings(route = {}, stats = {}) {
   };
 }
 
+/**
+ * @param {unknown=} limit
+ * @returns {Record<string, any>}
+ */
 function createThroughputStatsRecorder(limit = 24) {
+  /** @type {any[]} */
   const rows = [];
   const normalizedLimit = clampPositiveInteger(limit, 24);
 
   return {
+    /**
+     * @param {any[]=} attempts
+     * @returns {void}
+     */
     record(attempts = []) {
       for (const attempt of Array.isArray(attempts) ? attempts : []) {
         if (!attempt || attempt.providerId === 'cache' || attempt.providerId === 'adaptive-cache') {

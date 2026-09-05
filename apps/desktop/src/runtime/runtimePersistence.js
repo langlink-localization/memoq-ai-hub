@@ -11,6 +11,10 @@ const QA_RETENTION_DAYS = 30;
 // before user_version tracking start at 0 and receive every migration in order.
 const SCHEMA_VERSION = 1;
 
+/**
+ * @param {any} db
+ * @returns {void}
+ */
 function createSchema(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS app_state (id TEXT PRIMARY KEY, data_json TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -71,7 +75,7 @@ const SCHEMA_MIGRATIONS = [
   {
     version: 1,
     name: 'baseline-history-and-segment-columns',
-    up(db) {
+    up(/** @type {any} */ db) {
       ensureColumn(db, 'translation_history', 'provider_id TEXT DEFAULT \'\'');
       ensureColumn(db, 'translation_history', 'provider_name TEXT DEFAULT \'\'');
       ensureColumn(db, 'translation_history', 'model_name TEXT DEFAULT \'\'');
@@ -86,16 +90,29 @@ const SCHEMA_MIGRATIONS = [
   }
 ];
 
+/**
+ * @param {any} db
+ * @returns {number}
+ */
 function readUserVersion(db) {
   const row = db.get('PRAGMA user_version');
   const version = Number(row?.user_version ?? row?.value ?? 0);
   return Number.isInteger(version) && version > 0 ? version : 0;
 }
 
+/**
+ * @param {any} db
+ * @param {number} version
+ * @returns {void}
+ */
 function writeUserVersion(db, version) {
   db.exec(`PRAGMA user_version = ${Number(version)}`);
 }
 
+/**
+ * @param {any} db
+ * @returns {{ migrated: boolean, fromVersion: number, toVersion: number }}
+ */
 function applySchemaMigrations(db) {
   const tableRow = db.get(
     "SELECT COUNT(*) AS table_count FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
@@ -109,7 +126,7 @@ function applySchemaMigrations(db) {
     const error = new Error(
       `Desktop database schema version ${currentVersion} is newer than this app supports (${SCHEMA_VERSION}).`
     );
-    error.code = 'SCHEMA_VERSION_TOO_NEW';
+    (/** @type {any} */ (error)).code = 'SCHEMA_VERSION_TOO_NEW';
     throw error;
   }
 
@@ -139,6 +156,9 @@ function applySchemaMigrations(db) {
   return { migrated: true, fromVersion: currentVersion, toVersion: SCHEMA_VERSION };
 }
 
+/**
+ * @returns {Record<string, any>}
+ */
 function createInitialState() {
   return {
     profiles: [],
@@ -159,6 +179,12 @@ function createInitialState() {
   };
 }
 
+/**
+ * @param {any} db
+ * @param {string} tableName
+ * @param {string} definition
+ * @returns {void}
+ */
 function ensureColumn(db, tableName, definition) {
   if (typeof db.all !== 'function') {
     return;
@@ -170,13 +196,18 @@ function ensureColumn(db, tableName, definition) {
   }
 
   const columns = db.all(`PRAGMA table_info(${tableName})`);
-  if (columns.some((column) => String(column?.name || '').trim() === columnName)) {
+  if (columns.some((/** @type {any} */ column) => String(column?.name || '').trim() === columnName)) {
     return;
   }
 
   db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${definition}`);
 }
 
+/**
+ * @param {unknown} value
+ * @param {unknown} fallback
+ * @returns {any}
+ */
 function parseJson(value, fallback) {
   if (typeof value !== 'string' || !value.trim()) {
     return fallback;
@@ -189,6 +220,11 @@ function parseJson(value, fallback) {
   }
 }
 
+/**
+ * @param {Record<string, any>} state
+ * @param {(state: Record<string, any>) => Record<string, any>} normalizeState
+ * @returns {Record<string, any>}
+ */
 function normalizeConfigState(state, normalizeState) {
   const normalized = normalizeState(state);
   return {
@@ -202,6 +238,12 @@ function normalizeConfigState(state, normalizeState) {
   };
 }
 
+/**
+ * @param {any} db
+ * @param {string} payload
+ * @param {string} updatedAt
+ * @returns {void}
+ */
 function upsertAppState(db, payload, updatedAt) {
   const existing = db.get('SELECT id FROM app_state WHERE id = $id', { $id: GLOBAL_STATE_ID });
   const params = {
@@ -218,11 +260,20 @@ function upsertAppState(db, payload, updatedAt) {
   db.run('INSERT INTO app_state (id, data_json, updated_at) VALUES ($id, $data, $updatedAt)', params);
 }
 
+/**
+ * @param {any} db
+ * @param {string} tableName
+ * @returns {number}
+ */
 function getTableCount(db, tableName) {
   const row = db.get(`SELECT COUNT(*) AS row_count FROM ${tableName}`);
   return Number(row?.row_count || 0);
 }
 
+/**
+ * @param {Record<string, any>=} entry
+ * @returns {Record<string, any>}
+ */
 function normalizeHistoryEntry(entry = {}) {
   return {
     id: String(entry.id || '').trim(),
@@ -239,6 +290,11 @@ function normalizeHistoryEntry(entry = {}) {
   };
 }
 
+/**
+ * @param {any} db
+ * @param {Record<string, any>} entry
+ * @returns {void}
+ */
 function insertHistoryEntry(db, entry) {
   const normalized = normalizeHistoryEntry(entry);
   if (!normalized.id) {
@@ -270,7 +326,7 @@ function insertHistoryEntry(db, entry) {
   });
 
   const segments = Array.isArray(normalized.payload?.segments) ? normalized.payload.segments : [];
-  segments.forEach((segment, index) => {
+  segments.forEach((/** @type {any} */ segment, /** @type {any} */ index) => {
     db.run(`
       INSERT OR REPLACE INTO translation_history_segments (
         id, history_id, segment_index, source_text, target_text, segment_json
@@ -288,6 +344,11 @@ function insertHistoryEntry(db, entry) {
   });
 }
 
+/**
+ * @param {any} db
+ * @param {number=} limit
+ * @returns {void}
+ */
 function trimHistory(db, limit = HISTORY_LIMIT) {
   const rows = db.all(`
     SELECT id
@@ -296,7 +357,7 @@ function trimHistory(db, limit = HISTORY_LIMIT) {
   `);
   const staleRows = rows.slice(limit);
 
-  staleRows.forEach((row) => {
+  staleRows.forEach((/** @type {any} */ row) => {
     db.run('DELETE FROM translation_history_segments WHERE history_id = $historyId', {
       $historyId: row.id
     });
@@ -306,16 +367,25 @@ function trimHistory(db, limit = HISTORY_LIMIT) {
   });
 }
 
+/**
+ * @param {any} db
+ * @returns {any[]}
+ */
 function listHistoryEntries(db) {
   return db.all(`
     SELECT entry_json
     FROM translation_history
     ORDER BY submitted_at DESC, completed_at DESC, id DESC
   `)
-    .map((row) => parseJson(row?.entry_json, null))
+    .map((/** @type {any} */ row) => parseJson(row?.entry_json, null))
     .filter(Boolean);
 }
 
+/**
+ * @param {any} db
+ * @param {unknown} entryId
+ * @returns {any | null}
+ */
 function getHistoryEntry(db, entryId) {
   const normalizedId = String(entryId || '').trim();
   if (!normalizedId) {
@@ -331,6 +401,12 @@ function getHistoryEntry(db, entryId) {
   return parseJson(row?.entry_json, null);
 }
 
+/**
+ * @param {any} db
+ * @param {string} tableName
+ * @param {unknown} key
+ * @returns {string}
+ */
 function readCacheEntry(db, tableName, key) {
   const normalizedKey = String(key || '').trim();
   if (!normalizedKey) {
@@ -340,6 +416,14 @@ function readCacheEntry(db, tableName, key) {
   return row ? String(row.text_value || '') : '';
 }
 
+/**
+ * @param {any} db
+ * @param {string} tableName
+ * @param {unknown} key
+ * @param {unknown} text
+ * @param {unknown} updatedAt
+ * @param {number} limit
+ */
 function writeCacheEntry(db, tableName, key, text, updatedAt, limit) {
   const normalizedKey = String(key || '').trim();
   if (!normalizedKey) {
@@ -368,7 +452,7 @@ function writeCacheEntry(db, tableName, key, text, updatedAt, limit) {
       ORDER BY updated_at DESC, cache_key DESC
     `).slice(limit);
 
-    staleRows.forEach((row) => {
+    staleRows.forEach((/** @type {any} */ row) => {
       db.run(`DELETE FROM ${tableName} WHERE cache_key = $key`, {
         $key: row.cache_key
       });
@@ -378,12 +462,21 @@ function writeCacheEntry(db, tableName, key, text, updatedAt, limit) {
   return nextEntry;
 }
 
+/**
+ * @param {any} db
+ * @param {string} tableName
+ * @returns {{ clearedCount: number }}
+ */
 function clearCacheTable(db, tableName) {
   const clearedCount = getTableCount(db, tableName);
   db.run(`DELETE FROM ${tableName}`);
   return { clearedCount };
 }
 
+/**
+ * @param {any[]=} entries
+ * @returns {any[]}
+ */
 function normalizeLegacyHistoryEntries(entries = []) {
   const seen = new Set();
   const nextEntries = [];
@@ -403,6 +496,11 @@ function normalizeLegacyHistoryEntries(entries = []) {
   return nextEntries;
 }
 
+/**
+ * @param {any[]=} entries
+ * @param {number=} limit
+ * @returns {any[]}
+ */
 function normalizeLegacyCacheEntries(entries = [], limit = 0) {
   const seen = new Set();
   const nextEntries = [];
@@ -428,12 +526,18 @@ function normalizeLegacyCacheEntries(entries = [], limit = 0) {
   return nextEntries;
 }
 
+/**
+ * @param {Record<string, any>} row
+ * @param {Record<string, any>} result
+ * @returns {Record<string, any>}
+ */
 function buildQaHistoryItem(row, result) {
   const findings = Array.isArray(result.findings) ? result.findings : [];
+  /** @type {Record<string, number>} */
   const severityCounts = { critical: 0, major: 0, minor: 0, info: 0 };
   for (const finding of findings) {
     if (Object.prototype.hasOwnProperty.call(severityCounts, finding?.severity)) {
-      severityCounts[finding.severity] += 1;
+      severityCounts[String(finding?.severity)] = (severityCounts[String(finding?.severity)] || 0) + 1;
     }
   }
   const execution = result.execution || {};
@@ -470,8 +574,13 @@ function buildQaHistoryItem(row, result) {
   };
 }
 
+/**
+ * @param {any} db
+ * @param {{ nowIso: () => string, normalizeState: (state: Record<string, any>) => Record<string, any> }} deps
+ * @returns {Record<string, any>}
+ */
 function createRuntimePersistence(db, { nowIso, normalizeState }) {
-  function pruneQaData(referenceTime = new Date()) {
+  function pruneQaData(referenceTime = /** @type {any} */ (new Date())) {
     const referenceIso = referenceTime instanceof Date ? referenceTime.toISOString() : String(referenceTime || nowIso());
     db.run('DELETE FROM qa_results WHERE expires_at <= $referenceIso', { $referenceIso: referenceIso });
     db.run(`
@@ -480,7 +589,7 @@ function createRuntimePersistence(db, { nowIso, normalizeState }) {
     `);
   }
 
-  function saveConfigState(state) {
+  function saveConfigState(/** @type {Record<string, any>} */ state) {
     const normalized = normalizeConfigState(state, normalizeState);
     const payload = JSON.stringify(normalized);
     upsertAppState(db, payload, nowIso());
@@ -582,10 +691,10 @@ function createRuntimePersistence(db, { nowIso, normalizeState }) {
     listHistory() {
       return listHistoryEntries(db);
     },
-    getHistoryEntry(entryId) {
+    getHistoryEntry(/** @type {any} */ entryId) {
       return getHistoryEntry(db, entryId);
     },
-    deleteHistoryEntries(entryIds = []) {
+    deleteHistoryEntries(/** @type {any[]=} */ entryIds = []) {
       const normalizedIds = Array.from(new Set(
         (Array.isArray(entryIds) ? entryIds : [])
           .map((item) => String(item || '').trim())
@@ -609,35 +718,35 @@ function createRuntimePersistence(db, { nowIso, normalizeState }) {
 
       return { deletedCount: normalizedIds.length };
     },
-    appendHistoryEntry(entry) {
+    appendHistoryEntry(/** @type {any} */ entry) {
       db.transaction(() => {
         insertHistoryEntry(db, entry);
         trimHistory(db, HISTORY_LIMIT);
       });
       return entry;
     },
-    readTranslationCache(key) {
+    readTranslationCache(/** @type {unknown} */ key) {
       return readCacheEntry(db, 'translation_cache', key);
     },
-    writeTranslationCache(key, text, updatedAt = nowIso()) {
+    writeTranslationCache(/** @type {unknown} */ key, /** @type {unknown} */ text, /** @type {unknown} */ updatedAt = nowIso()) {
       return writeCacheEntry(db, 'translation_cache', key, text, updatedAt, TRANSLATION_CACHE_LIMIT);
     },
     clearTranslationCache() {
       return clearCacheTable(db, 'translation_cache');
     },
-    readPromptResponseCache(key) {
+    readPromptResponseCache(/** @type {unknown} */ key) {
       return readCacheEntry(db, 'prompt_response_cache', key);
     },
-    writePromptResponseCache(key, text, updatedAt = nowIso()) {
+    writePromptResponseCache(/** @type {unknown} */ key, /** @type {unknown} */ text, /** @type {unknown} */ updatedAt = nowIso()) {
       return writeCacheEntry(db, 'prompt_response_cache', key, text, updatedAt, PROMPT_RESPONSE_CACHE_LIMIT);
     },
-    readDocumentSummaryCache(key) {
+    readDocumentSummaryCache(/** @type {unknown} */ key) {
       return readCacheEntry(db, 'document_summary_cache', key);
     },
-    writeDocumentSummaryCache(key, text, updatedAt = nowIso()) {
+    writeDocumentSummaryCache(/** @type {unknown} */ key, /** @type {unknown} */ text, /** @type {unknown} */ updatedAt = nowIso()) {
       return writeCacheEntry(db, 'document_summary_cache', key, text, updatedAt, DOCUMENT_SUMMARY_CACHE_LIMIT);
     },
-    saveQaResult(result, retentionDays = QA_RETENTION_DAYS) {
+    saveQaResult(/** @type {Record<string, any>} */ result, retentionDays = QA_RETENTION_DAYS) {
       const requestId = String(result?.requestId || '').trim();
       const documentId = String(result?.document?.id || result?.documentId || '').trim();
       const contentHash = String(result?.contentHash || '').trim();
@@ -666,7 +775,7 @@ function createRuntimePersistence(db, { nowIso, normalizeState }) {
       pruneQaData(new Date(timestamp));
       return result;
     },
-    listQaResults(documentId) {
+    listQaResults(/** @type {unknown} */ documentId) {
       pruneQaData();
       const normalizedDocumentId = String(documentId || '').trim();
       if (!normalizedDocumentId) return [];
@@ -675,10 +784,10 @@ function createRuntimePersistence(db, { nowIso, normalizeState }) {
         WHERE document_id = $documentId
         ORDER BY updated_at DESC, request_id DESC
       `, { $documentId: normalizedDocumentId })
-        .map((row) => parseJson(row?.result_json, null))
+        .map((/** @type {any} */ row) => parseJson(row?.result_json, null))
         .filter(Boolean);
     },
-    listQaResultsAll(filters = {}) {
+    listQaResultsAll(/** @type {Record<string, any>=} */ filters = {}) {
       pruneQaData();
       const documentId = String(filters.documentId || '').trim();
       const trigger = String(filters.trigger || '').trim();
@@ -719,7 +828,7 @@ function createRuntimePersistence(db, { nowIso, normalizeState }) {
       }
       return items;
     },
-    readQaResult(requestId) {
+    readQaResult(/** @type {unknown} */ requestId) {
       const normalizedRequestId = String(requestId || '').trim();
       if (!normalizedRequestId) return null;
       const row = db.get('SELECT result_json FROM qa_results WHERE request_id = $requestId', {
@@ -727,17 +836,17 @@ function createRuntimePersistence(db, { nowIso, normalizeState }) {
       });
       return parseJson(row?.result_json, null);
     },
-    listQaFeedback(requestId) {
+    listQaFeedback(/** @type {unknown} */ requestId) {
       const normalizedRequestId = String(requestId || '').trim();
       if (!normalizedRequestId) return [];
       return db.all(
         'SELECT feedback_json FROM qa_feedback WHERE request_id = $requestId ORDER BY created_at ASC',
         { $requestId: normalizedRequestId }
       )
-        .map((row) => parseJson(row?.feedback_json, null))
+        .map((/** @type {any} */ row) => parseJson(row?.feedback_json, null))
         .filter(Boolean);
     },
-    deleteQaResults(requestIds = []) {
+    deleteQaResults(/** @type {any[]=} */ requestIds = []) {
       const ids = [...new Set((Array.isArray(requestIds) ? requestIds : [])
         .map((id) => String(id || '').trim())
         .filter(Boolean))];
@@ -753,7 +862,7 @@ function createRuntimePersistence(db, { nowIso, normalizeState }) {
       });
       return { deletedCount };
     },
-    saveQaFeedback(feedback) {
+    saveQaFeedback(/** @type {Record<string, any>} */ feedback) {
       const id = String(feedback?.id || '').trim();
       const requestId = String(feedback?.requestId || '').trim();
       const findingId = String(feedback?.findingId || '').trim();

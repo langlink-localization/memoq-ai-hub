@@ -7,37 +7,70 @@ const {
 const SLOW_HISTORY_LATENCY_MS = 30000;
 const HISTORY_ISSUE_FILTERS = new Set(['failed', 'timeout', 'rate_limit', 'fallback', 'slow']);
 
+/**
+ * @param {unknown} value
+ * @returns {number | null}
+ */
 function parseTimeMs(value) {
   const parsed = parseTimestampToEpochMs(value);
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
+/**
+ * @param {unknown} value
+ * @param {boolean=} endOfDay
+ * @returns {number | null}
+ */
 function parseLocalFilterDate(value, endOfDay = false) {
   const parsed = parseDateInputToEpochMs(value, { endOfDay });
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function formatLocalTimestamp(value) {
   return formatTimestampForLocalDisplay(value, { fallback: '' });
 }
 
+/**
+ * @param {Record<string, any>=} entry
+ * @returns {any[]}
+ */
 function getHistoryAttempts(entry = {}) {
   return Array.isArray(entry.attempts) ? entry.attempts : [];
 }
 
+/**
+ * @param {Record<string, any>=} attempt
+ * @returns {string}
+ */
 function getHistoryAttemptErrorCode(attempt = {}) {
   return String(attempt?.errorCode || '').trim().toUpperCase();
 }
 
+/**
+ * @param {Record<string, any>=} attempt
+ * @returns {boolean}
+ */
 function isHistoryTimeoutAttempt(attempt = {}) {
   const errorCode = getHistoryAttemptErrorCode(attempt);
   return errorCode === 'PROVIDER_TIMEOUT' || errorCode === 'TRANSLATION_TIMEOUT';
 }
 
+/**
+ * @param {Record<string, any>=} attempt
+ * @returns {boolean}
+ */
 function isHistoryRateLimitAttempt(attempt = {}) {
   return getHistoryAttemptErrorCode(attempt) === 'PROVIDER_RATE_LIMITED';
 }
 
+/**
+ * @param {Record<string, any>=} entry
+ * @returns {boolean}
+ */
 function hasHistoryFallback(entry = {}) {
   if (entry?.issueFlags?.fallback === true) {
     return true;
@@ -51,6 +84,11 @@ function hasHistoryFallback(entry = {}) {
   return getHistoryAttempts(entry).some((attempt) => attempt?.finalizedByFallbackRoute === true);
 }
 
+/**
+ * @param {Record<string, any>=} entry
+ * @param {string=} issue
+ * @returns {boolean}
+ */
 function matchesHistoryIssue(entry = {}, issue = '') {
   const normalizedIssue = String(issue || '').trim().toLowerCase();
   if (!normalizedIssue || !HISTORY_ISSUE_FILTERS.has(normalizedIssue)) {
@@ -85,6 +123,11 @@ function matchesHistoryIssue(entry = {}, issue = '') {
   return true;
 }
 
+/**
+ * @param {any[]} historyEntries
+ * @param {Record<string, any>=} filters
+ * @returns {any[]}
+ */
 function filterHistoryEntries(historyEntries, filters = {}) {
   const dateFromMs = parseLocalFilterDate(filters.dateFrom);
   const dateToMs = parseLocalFilterDate(filters.dateTo, true);
@@ -102,8 +145,8 @@ function filterHistoryEntries(historyEntries, filters = {}) {
     if (filters.status && entry.status !== filters.status) return false;
     if (filters.issue && !matchesHistoryIssue(entry, filters.issue)) return false;
     const submittedAtMs = parseTimeMs(entry.submittedAt);
-    if (Number.isFinite(dateFromMs) && Number.isFinite(submittedAtMs) && submittedAtMs < dateFromMs) return false;
-    if (Number.isFinite(dateToMs) && Number.isFinite(submittedAtMs) && submittedAtMs > dateToMs) return false;
+    if (Number.isFinite(dateFromMs) && Number.isFinite(submittedAtMs) && Number(submittedAtMs) < Number(dateFromMs)) return false;
+    if (Number.isFinite(dateToMs) && Number.isFinite(submittedAtMs) && Number(submittedAtMs) > Number(dateToMs)) return false;
     if (!keyword) return true;
     const summaryText = [
       entry.requestId,

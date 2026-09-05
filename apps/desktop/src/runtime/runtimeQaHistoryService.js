@@ -3,6 +3,9 @@
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * @param {Record<string, any>} options
+ */
 function createRuntimeQaHistoryService(options = {}) {
   const { persistence, exportsDir } = options;
   const loadXlsx = options.loadXlsx || (() => require('xlsx'));
@@ -19,6 +22,9 @@ function createRuntimeQaHistoryService(options = {}) {
     return { items: persistence.listQaResultsAll(filters || {}) };
   }
 
+  /**
+   * @param {Record<string, any>=} payload
+   */
   function getEntry(payload = {}) {
     const requestId = String(payload?.requestId || '').trim();
     const result = persistence.readQaResult(requestId);
@@ -26,21 +32,27 @@ function createRuntimeQaHistoryService(options = {}) {
       return null;
     }
     const item = persistence.listQaResultsAll({ limit: 500 })
-      .find((entry) => entry.requestId === requestId) || null;
+      .find((/** @type {any} */ entry) => entry.requestId === requestId) || null;
     return { result, item, feedback: persistence.listQaFeedback(requestId) };
   }
 
+  /**
+   * @param {any[]=} requestIds
+   */
   function remove(requestIds = []) {
     return persistence.deleteQaResults(requestIds);
   }
 
+  /**
+   * @param {Record<string, any>=} options
+   */
   function exportHistory(options = {}) {
     const XLSX = loadXlsx();
     const items = options.scope === 'selected'
       ? persistence.listQaResultsAll({ limit: 500 })
-        .filter((item) => (options.selectedIds || []).includes(item.requestId))
+        .filter((/** @type {any} */ item) => (options.selectedIds || []).includes(item.requestId))
       : persistence.listQaResultsAll(options.filters || {});
-    const rows = items.map((item) => ({
+    const rows = items.map((/** @type {any} */ item) => ({
       requestId: item.requestId,
       checkedAt: item.updatedAt,
       document: item.documentName || item.documentId,

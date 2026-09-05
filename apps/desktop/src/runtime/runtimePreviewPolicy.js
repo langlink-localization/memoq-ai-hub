@@ -1,3 +1,8 @@
+/**
+ * @param {any} payload
+ * @param {any[]=} incomingSegments
+ * @returns {boolean}
+ */
 function isSharedOnlyPreviewRequest(payload, incomingSegments = []) {
   const useCase = String(payload?.profileResolution?.useCase || '').trim().toLowerCase();
   const requestType = String(payload?.requestType || '').trim().toLowerCase();
@@ -7,6 +12,10 @@ function isSharedOnlyPreviewRequest(payload, incomingSegments = []) {
     || requestType.includes('batch');
 }
 
+/**
+ * @param {any=} status
+ * @returns {string}
+ */
 function normalizeHelperWarmupState(status = {}) {
   if (status.available === false || String(status.state || '').trim().toLowerCase() === 'missing') {
     return 'missing';
@@ -18,6 +27,11 @@ function normalizeHelperWarmupState(status = {}) {
   return state || 'disconnected';
 }
 
+/**
+ * @param {any=} status
+ * @param {string=} normalizedStatus
+ * @returns {boolean}
+ */
 function looksLikePreviewStartupTimeout(status = {}, normalizedStatus = '') {
   if (status.available === false || status.connected === true) {
     return false;

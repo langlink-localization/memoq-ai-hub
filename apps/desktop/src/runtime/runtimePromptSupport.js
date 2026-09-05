@@ -25,11 +25,19 @@ const {
   }
 } = require('./runtimeState');
 
+/**
+ * @param {any[]} assets
+ * @param {any[]=} assetBindings
+ * @returns {string[]}
+ */
 function summarizeAssets(assets, assetBindings = []) {
   const boundIds = new Set(assetBindings.map((binding) => binding.assetId));
   return assets.filter((asset) => boundIds.has(asset.id)).map((asset) => `${asset.type}:${asset.name}`);
 }
 
+/**
+ * @returns {Record<string, any>}
+ */
 function createEmptyAssetContext() {
   return {
     glossaryText: '',
@@ -54,6 +62,9 @@ function createEmptyAssetContext() {
   };
 }
 
+/**
+ * @param {Record<string, any>} args
+ */
 function buildSegmentTbContext({
   assetContext,
   segment,
@@ -95,6 +106,9 @@ function buildSegmentTbContext({
   };
 }
 
+/**
+ * @param {Record<string, any>} args
+ */
 function buildSegmentCustomTmContext({
   assetContext,
   segment,
@@ -132,6 +146,9 @@ function buildSegmentCustomTmContext({
   };
 }
 
+/**
+ * @param {Record<string, any>} args
+ */
 function buildTemplatePreflightContext({
   payload,
   profile,
@@ -169,6 +186,9 @@ function buildTemplatePreflightContext({
   });
 }
 
+/**
+ * @param {Record<string, any>} args
+ */
 function validateRuntimePromptTemplates({
   payload,
   profile,
