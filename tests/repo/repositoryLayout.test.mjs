@@ -125,17 +125,48 @@ test('gitignore protects generated outputs and local scratch paths', () => {
 test('dependency and CI governance is reproducible', () => {
   const rootPackage = JSON.parse(readFile('package.json'));
   const desktopPackage = JSON.parse(readFile('apps/desktop/package.json'));
+  const workspaceSettings = readFile('pnpm-workspace.yaml');
   const lockfile = readFile('pnpm-lock.yaml');
   const ciWorkflow = readFile('.github/workflows/ci.yml');
   const releaseWorkflow = readFile('.github/workflows/release.yml');
   const packageWindowsScript = readFile('tooling/scripts/package-windows.ps1');
   const eslintConfig = readFile('eslint.config.mjs');
 
-  assert.deepEqual(rootPackage.pnpm?.onlyBuiltDependencies, [
-    'electron',
-    'electron-winstaller',
+  // pnpm >= 10 reads build-approval and override settings from
+  // pnpm-workspace.yaml; the `pnpm` field in package.json is ignored.
+  assert.match(workspaceSettings, /^onlyBuiltDependencies:\n  - electron\n  - electron-winstaller\n  - esbuild$/m);
+  for (const overriddenPackage of [
+    'shell-quote',
+    'tar',
+    '@xmldom/xmldom',
+    'brace-expansion@^1',
+    'brace-expansion@^2',
+    'fast-uri',
+    'fast-xml-builder',
+    'ip-address',
+    'lodash',
+    'nanoid',
+    'path-to-regexp',
+    'picomatch@^2',
+    'picomatch@^4',
+    'postcss',
+    'tmp',
+    'vite',
+    'qs',
+    'body-parser',
+    '@tootallnate/once',
     'esbuild',
-  ]);
+    '@electron/packager',
+    'extract-zip',
+    'browserslist',
+  ]) {
+    const escaped = overriddenPackage.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    assert.match(
+      workspaceSettings,
+      new RegExp(`^  (?:'${escaped}'|${escaped}): `, 'm'),
+      `Security override must stay in pnpm-workspace.yaml: ${overriddenPackage}`
+    );
+  }
   assert.equal(rootPackage.engines?.node, '>=22.12.0');
   assert.match(rootPackage.scripts?.lint, /^eslint /);
   assert.equal(rootPackage.devDependencies?.eslint, '9.39.5');
@@ -174,14 +205,19 @@ test('dependency and CI governance is reproducible', () => {
       vite: '8.2.0',
     }
   );
-  assert.equal(rootPackage.pnpm?.overrides?.['body-parser'], '1.20.6');
-  assert.equal(rootPackage.pnpm?.overrides?.['@tootallnate/once'], '2.0.1');
-  assert.equal(rootPackage.pnpm?.overrides?.esbuild, '0.28.1');
-  assert.equal(rootPackage.pnpm?.overrides?.['@electron/packager'], '18.4.4');
-  assert.equal(
-    rootPackage.pnpm?.overrides?.['extract-zip'],
-    'npm:@electron-internal/extract-zip@1.0.5'
+  assert.match(workspaceSettings, /^  body-parser: 1\.20\.6$/m);
+  assert.match(workspaceSettings, /^  '@tootallnate\/once': 2\.0\.1$/m);
+  assert.match(workspaceSettings, /^  esbuild: 0\.28\.1$/m);
+  assert.match(workspaceSettings, /^  '@electron\/packager': 18\.4\.4$/m);
+  assert.match(
+    workspaceSettings,
+    /^  extract-zip: npm:@electron-internal\/extract-zip@1\.0\.5$/m
   );
+  // Patched floors for audited advisories must not regress.
+  assert.match(workspaceSettings, /^  browserslist: \^4\.28\.7$/m);
+  assert.match(workspaceSettings, /^  qs: \^6\.16\.0$/m);
+  assert.match(workspaceSettings, /^  '@xmldom\/xmldom': \^0\.8\.15$/m);
+  assert.match(workspaceSettings, /^  fast-uri: \^3\.1\.6$/m);
   assert.match(lockfile, /^lockfileVersion: '9\.0'$/m);
   assert.match(lockfile, /^  apps\/desktop:$/m);
   for (const vulnerablePackage of [
