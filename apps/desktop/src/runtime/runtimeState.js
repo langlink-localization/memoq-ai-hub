@@ -65,30 +65,26 @@ function normalizeProfilePromptEntry(template = {}, defaults = {}) {
  * @param {Record<string, any>=} profile
  * @param {string=} legacySystemPrompt
  * @param {string=} legacyUserPrompt
+ * @returns {{ single: { systemPrompt: string, userPrompt: string }, batch: { systemPrompt: string, userPrompt: string }, qa: { systemPrompt: string, userPrompt: string } }}
  */
 function normalizeProfilePromptTemplates(profile = {}, legacySystemPrompt = DEFAULT_PROFILE_SYSTEM_PROMPT, legacyUserPrompt = DEFAULT_PROFILE_USER_PROMPT) {
   const rawPromptTemplates = profile?.promptTemplates && typeof profile.promptTemplates === 'object'
     ? profile.promptTemplates
     : {};
-  const single = normalizeProfilePromptEntry(rawPromptTemplates.single, {
-    systemPrompt: legacySystemPrompt,
-    userPrompt: legacyUserPrompt
-  });
-  const next = { single };
-
-  next.batch = rawPromptTemplates.batch && typeof rawPromptTemplates.batch === 'object'
-    ? normalizeProfilePromptEntry(rawPromptTemplates.batch, {
-      systemPrompt: DEFAULT_BATCH_SYSTEM_PROMPT,
-      userPrompt: DEFAULT_BATCH_USER_PROMPT
-    })
-    : normalizeProfilePromptEntry({}, {
-      systemPrompt: DEFAULT_BATCH_SYSTEM_PROMPT,
-      userPrompt: DEFAULT_BATCH_USER_PROMPT
-    });
-
-  next.qa = normalizeQaPromptTemplate(rawPromptTemplates.qa);
-
-  return next;
+  const batchDefaults = {
+    systemPrompt: DEFAULT_BATCH_SYSTEM_PROMPT,
+    userPrompt: DEFAULT_BATCH_USER_PROMPT
+  };
+  return {
+    single: normalizeProfilePromptEntry(rawPromptTemplates.single, {
+      systemPrompt: legacySystemPrompt,
+      userPrompt: legacyUserPrompt
+    }),
+    batch: rawPromptTemplates.batch && typeof rawPromptTemplates.batch === 'object'
+      ? normalizeProfilePromptEntry(rawPromptTemplates.batch, batchDefaults)
+      : normalizeProfilePromptEntry({}, batchDefaults),
+    qa: normalizeQaPromptTemplate(rawPromptTemplates.qa)
+  };
 }
 
 /**
@@ -108,7 +104,7 @@ function resolveProfilePromptTemplate(profile = {}, mode = 'single', options = {
   });
 
   if (mode === 'batch') {
-    return /** @type {any} */ (promptTemplates).batch || single;
+    return promptTemplates.batch || single;
   }
 
   return single;
@@ -450,7 +446,7 @@ function ensureProvider(provider = {}) {
 /**
  * @param {Record<string, any>=} profile
  * @param {Set<string>=} removedProviderIds
- * @returns {void}
+ * @returns {Record<string, any>}
  */
 function clearProfileProviderBindings(profile = {}, removedProviderIds = new Set()) {
   const nextProfile = { ...profile };
@@ -480,7 +476,6 @@ function clearProfileProviderBindings(profile = {}, removedProviderIds = new Set
 /**
  * @param {any[]=} providers
  * @returns {{ nextProviders: any[], removedProviderIds: Set<string> }}
- * @returns {any[]}
  */
 function normalizeProvidersForState(providers = []) {
   const nextProviders = [];

@@ -29,6 +29,18 @@
     "src/runtime/runtimeRuleEngine.js",
     "src/runtime/previewSnapshotSettle.js",
     "src/runtime/runtimePreviewStateSupport.js",
+    "src/runtime/runtimeState.js",
+    "src/runtime/runtimeHistory.js",
+    "src/runtime/runtimeHistoryBuilder.js",
+    "src/runtime/runtimeHistoryIntegrationSupport.js",
+    "src/runtime/runtimeHistoryPresentation.js",
+    "src/runtime/runtimePersistence.js",
+    "src/runtime/runtimePromptSupport.js",
+    "src/runtime/runtimeProviderExecution.js",
+    "src/runtime/runtimeTranslationSupport.js",
+    "src/runtime/runtimeTranslationService.js",
+    "src/runtime/translationConfidence.js",
+    "src/runtime/runtimeAssetTbService.js",
     "src/types/**/*.d.ts"
   ]
 }

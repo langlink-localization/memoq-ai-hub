@@ -492,10 +492,12 @@ function createRuntimeAggregationService(options = {}) {
 
     const translationsByIndex = new Map();
     let providerQueuedMs = 0;
+    /** @type {Record<string, any> | null} */
     let lastError = null;
     let lastStatusCode = 502;
     let providerId = '';
     let model = '';
+    /** @type {Record<string, any> | null} */
     let profileResolution = null;
     const segments = Array.isArray(entry.payload.segments) ? entry.payload.segments : [];
     let nextSegmentIndex = 0;
@@ -777,7 +779,9 @@ function createRuntimeAggregationService(options = {}) {
       startedAtMs,
       flushReason,
       segmentCount: entries.reduce((total, entry) => total + entry.segmentCount, 0),
+      /** @type {NodeJS.Timeout | null} */
       softTimer: null,
+      /** @type {NodeJS.Timeout | null} */
       hardTimer: null,
       closed: false,
       closedBy: ''
@@ -794,7 +798,7 @@ function createRuntimeAggregationService(options = {}) {
         }
       }
     }, aggregateSoftDeadlineMs);
-    aggregateJob.softTimer.unref?.();
+    aggregateJob.softTimer?.unref?.();
     aggregateJob.hardTimer = setTimeout(() => {
       markAggregateGroupCongested(groupId, 'hard_deadline');
       for (const entry of entries) {
@@ -803,7 +807,7 @@ function createRuntimeAggregationService(options = {}) {
         }
       }
     }, aggregateHardDeadlineMs);
-    aggregateJob.hardTimer.unref?.();
+    aggregateJob.hardTimer?.unref?.();
 
     try {
       const { aggregatePayload, mappings } = buildAggregatePayload(entries);

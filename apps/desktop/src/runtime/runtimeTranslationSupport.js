@@ -31,7 +31,7 @@ function truncateSummarySourceText(value, maxCharacters = DOCUMENT_SUMMARY_SOURC
  * @param {Record<string, any>=} profile
  * @param {string=} mode
  * @param {Set<string>=} interactiveOnlyTokens
- * @returns {Set<string>}
+ * @returns {Array<{ fieldName: string, fieldLabel: string, token: string, required: boolean }>}
  */
 function collectInteractiveOnlyPlaceholders(profile = {}, mode = 'single', interactiveOnlyTokens = new Set()) {
   const placeholders = [];
@@ -60,7 +60,7 @@ function collectInteractiveOnlyPlaceholders(profile = {}, mode = 'single', inter
 
 /**
  * @param {Record<string, any>} args
- * @returns {{ eligible: boolean, reason?: string }}
+ * @returns {{ ok: boolean, code?: string, message?: string }}
  */
 function validateRequestEligibility({ payload, profile, incomingSegments, interactiveOnlyTokens }) {
   const useCase = String(payload?.profileResolution?.useCase || '').trim().toLowerCase();
@@ -85,7 +85,7 @@ function validateRequestEligibility({ payload, profile, incomingSegments, intera
 }
 
 /**
- * @param {unknown} profileNames
+ * @param {unknown[]} profileNames
  * @param {unknown} entityLabel
  * @returns {string}
  */
@@ -193,9 +193,9 @@ function createAdaptiveTranslationCacheKey({
 }
 
 /**
- * @param {Record<string, any>} entries
+ * @param {any[]} entries
  * @param {unknown} key
- * @returns {unknown}
+ * @returns {string}
  */
 function readCacheEntries(entries, key) {
   const entry = (entries || []).find((item) => item.key === key);
@@ -203,12 +203,12 @@ function readCacheEntries(entries, key) {
 }
 
 /**
- * @param {Record<string, any>} entries
+ * @param {any[]} entries
  * @param {unknown} key
  * @param {unknown} text
- * @param {unknown} now
+ * @param {() => unknown} now
  * @param {number} limit
- * @returns {void}
+ * @returns {{ nextEntry: { key: unknown, text: string, updatedAt: unknown }, entries: any[] }}
  */
 function writeCacheEntries(entries, key, text, now, limit) {
   const nextEntry = {
@@ -229,7 +229,7 @@ function writeCacheEntries(entries, key, text, now, limit) {
 /**
  * @param {Record<string, any>} state
  * @param {unknown} key
- * @returns {unknown}
+ * @returns {string}
  */
 function readTranslationCache(state, key) {
   return readCacheEntries(state.translationCache, key);
@@ -239,8 +239,8 @@ function readTranslationCache(state, key) {
  * @param {Record<string, any>} state
  * @param {unknown} key
  * @param {unknown} text
- * @param {unknown} now
- * @returns {void}
+ * @param {() => unknown} now
+ * @returns {{ key: unknown, text: string, updatedAt: unknown }}
  */
 function writeTranslationCache(state, key, text, now) {
   const result = writeCacheEntries(state.translationCache, key, text, now, 2000);
@@ -275,7 +275,7 @@ function createDocumentSummaryCacheKey({
 /**
  * @param {Record<string, any>} state
  * @param {unknown} key
- * @returns {unknown}
+ * @returns {string}
  */
 function readDocumentSummaryCache(state, key) {
   return readCacheEntries(state.documentSummaryCache, key);
@@ -285,8 +285,8 @@ function readDocumentSummaryCache(state, key) {
  * @param {Record<string, any>} state
  * @param {unknown} key
  * @param {unknown} text
- * @param {unknown} now
- * @returns {void}
+ * @param {() => unknown} now
+ * @returns {{ key: unknown, text: string, updatedAt: unknown }}
  */
 function writeDocumentSummaryCache(state, key, text, now) {
   const result = writeCacheEntries(state.documentSummaryCache, key, text, now, 300);
@@ -297,7 +297,7 @@ function writeDocumentSummaryCache(state, key, text, now) {
 /**
  * @param {Record<string, any>} state
  * @param {unknown} key
- * @returns {unknown}
+ * @returns {string}
  */
 function readPromptResponseCache(state, key) {
   return readCacheEntries(state.promptResponseCache, key);
@@ -307,8 +307,8 @@ function readPromptResponseCache(state, key) {
  * @param {Record<string, any>} state
  * @param {unknown} key
  * @param {unknown} text
- * @param {unknown} now
- * @returns {void}
+ * @param {() => unknown} now
+ * @returns {{ key: unknown, text: string, updatedAt: unknown }}
  */
 function writePromptResponseCache(state, key, text, now) {
   const result = writeCacheEntries(state.promptResponseCache, key, text, now, 500);

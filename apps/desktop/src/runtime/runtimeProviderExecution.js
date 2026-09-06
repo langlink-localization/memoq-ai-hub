@@ -23,7 +23,7 @@ function createRuntimeProviderExecution(options = {}) {
   const rescueConcurrency = Number.isFinite(Number(options.rescueConcurrency))
     ? Math.max(1, Math.floor(Number(options.rescueConcurrency)))
     : 2;
-  const sleep = options.sleep || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const sleep = options.sleep || ((/** @type {number} */ ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   const providerSlots = new Map();
   const providerRateLimits = new Map();
   const throughputStats = new Map();
@@ -168,13 +168,14 @@ function createRuntimeProviderExecution(options = {}) {
     let retryCount = 0;
     let totalQueuedMs = 0;
     let totalRateLimitedWaitMs = 0;
+    /** @type {number | null} */
     let retryAfterSeconds = null;
 
     while (true) {
       try {
-        const result = await withProviderRateLimit(route, async (rateLimitedWaitMs) => {
+        const result = await withProviderRateLimit(route, async (/** @type {number} */ rateLimitedWaitMs) => {
           totalRateLimitedWaitMs += rateLimitedWaitMs;
-          return withProviderSlot(route, async (queuedMs) => {
+          return withProviderSlot(route, async (/** @type {number} */ queuedMs) => {
             totalQueuedMs += queuedMs;
             return execute({ retryCount, queuedMs, totalQueuedMs, rateLimitedWaitMs, totalRateLimitedWaitMs, retryAfterSeconds });
           }, { rescue });
@@ -186,13 +187,13 @@ function createRuntimeProviderExecution(options = {}) {
         retryAfterSeconds = normalizeRetryAfterSeconds(mapped?.retryAfterSeconds)
           ?? extractRetryAfterSeconds(mapped?.message || error?.message || '');
         if (retryCount >= maxRetries || !shouldRetryProviderError(mapped)) {
-          const finalError = new Error(mapped.message);
-          finalError.mappedError = mapped;
-          finalError.retryCount = retryCount;
-          finalError.queuedMs = totalQueuedMs;
-          finalError.rateLimitedWaitMs = totalRateLimitedWaitMs;
-          finalError.retryAfterSeconds = retryAfterSeconds;
-          throw finalError;
+          throw Object.assign(new Error(mapped.message), {
+            mappedError: mapped,
+            retryCount,
+            queuedMs: totalQueuedMs,
+            rateLimitedWaitMs: totalRateLimitedWaitMs,
+            retryAfterSeconds
+          });
         }
         retryCount += 1;
         await sleep(computeRetryDelayMs(mapped, retryCount));

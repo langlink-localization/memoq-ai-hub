@@ -282,6 +282,10 @@ function createRuntimePreviewContextResolver({
     };
   }
 
+  /**
+   * @param {any} warmup
+   * @param {{ requestPreviewContext?: Record<string, any> | null, segmentPreviewContexts?: Map<number, Record<string, any>> | Array<Record<string, any>> }} [context]
+   */
   function reconcilePreviewWarmupDebug(warmup, {
     requestPreviewContext = null,
     segmentPreviewContexts = new Map()

@@ -43,10 +43,7 @@ function normalizeAssetBindings(assetBindings = []) {
 }
 
 /**
- * @typedef {Object} ProfilePolicyInput
- * @property {unknown=} assetBindings
- * @property {Record<string, unknown>=} assetSelections
- * @property {unknown=} customTmMatchBuckets
+ * @typedef {{ [key: string]: unknown, assetBindings?: unknown, assetSelections?: Record<string, unknown>, customTmMatchBuckets?: unknown }} ProfilePolicyInput
  */
 
 /**

@@ -96,6 +96,185 @@ const QA_FINDINGS_SCHEMA = {
 
 const DEFAULT_PROFILE_SYSTEM_PROMPT = 'You are a precise translation assistant.';
 
+/** @typedef {import('./providerPromptBuilder').PromptProfileInput} PromptProfileInput */
+/** @typedef {import('./providerPromptBuilder').PromptPreviewContextInput} PromptPreviewContextInput */
+/** @typedef {import('./providerPromptBuilder').SegmentPreviewContextInput} SegmentPreviewContextInput */
+/** @typedef {import('./providerPromptBuilder').PromptAssetContextInput} PromptAssetContextInput */
+/** @typedef {import('./providerPromptBuilder').PromptTbContextInput} PromptTbContextInput */
+/** @typedef {import('./providerPromptBuilder').CustomTmMatchInput} CustomTmMatchInput */
+/** @typedef {import('./providerPromptBuilder').StructuredSegmentPayload} StructuredSegmentPayload */
+/** @typedef {import('./providerPromptBuilder').BuiltBatchPrompt} BuiltBatchPrompt */
+
+/**
+ * @typedef {Object} RegistryRequestOptions
+ * @property {boolean=} localPromptCacheEnabled
+ * @property {((key: string) => string)=} readPromptCache
+ * @property {((key: string, text: string) => void)=} writePromptCache
+ * @property {boolean=} providerPromptCacheEnabled
+ * @property {string=} promptCacheTtlHint
+ * @property {string=} promptCacheKey
+ */
+
+/**
+ * @typedef {Object} PromptCacheInfo
+ * @property {string} key
+ * @property {'local' | 'provider' | 'none'} layer
+ * @property {boolean} hit
+ */
+
+/**
+ * @typedef {Object} RegistryProviderRef
+ * @property {string=} id
+ * @property {string=} name
+ * @property {string=} type
+ * @property {string=} baseUrl
+ * @property {string=} requestPath
+ * @property {Record<string, unknown>=} capabilities
+ */
+
+/**
+ * @typedef {Object} ConnectionTestResult
+ * @property {boolean} ok
+ * @property {number | null} latencyMs
+ * @property {string=} code
+ * @property {string} message
+ */
+
+/**
+ * @typedef {Object} DiscoverModelsResult
+ * @property {boolean} ok
+ * @property {Array<{ modelName: string }>} models
+ * @property {string=} code
+ * @property {string=} message
+ */
+
+/**
+ * @typedef {Object} QualityCheckResult
+ * @property {unknown} output
+ * @property {number} latencyMs
+ * @property {Record<string, unknown> | null} providerMetadata
+ * @property {string} providerId
+ * @property {string} providerName
+ * @property {string} model
+ */
+
+/**
+ * @typedef {Object} TranslateSegmentResult
+ * @property {string} text
+ * @property {number} latencyMs
+ * @property {{ mode: 'single', segmentIndexes: number[], systemPrompt: string, promptPreview: string, userPrompt: string, items: StructuredSegmentPayload[] }=} requestMetadata
+ * @property {PromptCacheInfo} promptCache
+ */
+
+/**
+ * @typedef {Object} BatchRequestMetadata
+ * @property {'batch'} mode
+ * @property {number[]} batchIndexes
+ * @property {number} segmentCount
+ * @property {string} systemPrompt
+ * @property {string} userPrompt
+ * @property {string} promptPreview
+ * @property {Array<{ index: number, sourceText: string, userPrompt: string }>} items
+ */
+
+/**
+ * @typedef {Object} TranslateBatchResult
+ * @property {Array<{ index: number, text: string }>} translations
+ * @property {number} latencyMs
+ * @property {PromptCacheInfo} promptCache
+ * @property {BatchRequestMetadata=} requestMetadata
+ */
+
+/**
+ * @typedef {Object} GenerateTextInput
+ * @property {RegistryProviderRef} provider
+ * @property {string=} apiKey
+ * @property {string=} modelName
+ * @property {unknown=} systemPrompt
+ * @property {unknown=} prompt
+ * @property {number=} maxOutputTokens
+ * @property {number=} temperature
+ * @property {number=} timeoutMs
+ */
+
+/**
+ * @typedef {Object} CheckQualityInput
+ * @property {RegistryProviderRef} provider
+ * @property {string=} apiKey
+ * @property {string=} modelName
+ * @property {import('../qa/qaContracts').QaSnapshot} snapshot
+ * @property {Array<Record<string, unknown>>=} terminology
+ * @property {Array<Record<string, unknown>>=} tmMatches
+ * @property {Array<Record<string, unknown>>=} naturalLanguageRules
+ * @property {Record<string, unknown>=} promptTemplate
+ * @property {string=} additionalInstruction
+ * @property {string=} repairInstruction
+ * @property {number=} timeoutMs
+ * @property {AbortSignal=} signal
+ */
+
+/**
+ * @typedef {Object} TranslateSegmentInput
+ * @property {RegistryProviderRef} provider
+ * @property {string=} apiKey
+ * @property {string=} modelName
+ * @property {unknown=} sourceLanguage
+ * @property {unknown=} targetLanguage
+ * @property {unknown=} sourceText
+ * @property {unknown=} tmSource
+ * @property {unknown=} tmTarget
+ * @property {CustomTmMatchInput[]=} customTmMatches
+ * @property {Record<string, unknown>=} metadata
+ * @property {PromptPreviewContextInput=} previewContext
+ * @property {PromptProfileInput=} profile
+ * @property {unknown=} requestType
+ * @property {PromptAssetContextInput=} assetContext
+ * @property {PromptTbContextInput=} tbContext
+ * @property {Record<string, unknown>=} segmentMetadata
+ * @property {SegmentPreviewContextInput=} segmentPreviewContext
+ * @property {Record<string, any>=} neighborContext
+ * @property {RegistryRequestOptions=} requestOptions
+ * @property {string=} operation
+ * @property {number=} timeoutMs
+ */
+
+/**
+ * @typedef {Object} DiscoverModelsInput
+ * @property {RegistryProviderRef} provider
+ * @property {string=} apiKey
+ * @property {number=} timeoutMs
+ */
+
+/**
+ * @typedef {Object} TranslateBatchSegmentInput
+ * @property {unknown=} index
+ * @property {unknown=} sourceText
+ * @property {unknown=} tmSource
+ * @property {unknown=} tmTarget
+ * @property {CustomTmMatchInput[]=} customTmMatches
+ * @property {Record<string, unknown>=} segmentMetadata
+ * @property {SegmentPreviewContextInput | null=} previewContext
+ * @property {PromptTbContextInput & { fingerprint?: string }=} tbContext
+ * @property {Record<string, any>=} neighborContext
+ */
+
+/**
+ * @typedef {Object} TranslateBatchInput
+ * @property {RegistryProviderRef} provider
+ * @property {string=} apiKey
+ * @property {string=} modelName
+ * @property {unknown=} sourceLanguage
+ * @property {unknown=} targetLanguage
+ * @property {TranslateBatchSegmentInput[]=} segments
+ * @property {Record<string, unknown>=} metadata
+ * @property {PromptPreviewContextInput=} previewContext
+ * @property {PromptProfileInput=} profile
+ * @property {unknown=} requestType
+ * @property {number=} timeoutMs
+ * @property {PromptAssetContextInput=} assetContext
+ * @property {RegistryRequestOptions=} requestOptions
+ */
+
 /**
  * @param {Record<string, any>=} provider
  * @returns {boolean}
@@ -163,7 +342,6 @@ function createPromptCacheKey({
 
 /**
  * @param {Record<string, any>=} options
- * @returns {Record<string, any>}
  */
 function createProviderRegistry(options = {}) {
   const sdkLoader = options.sdkLoader || loadSdkModules;
@@ -171,8 +349,8 @@ function createProviderRegistry(options = {}) {
   const { callTextModel, callStructuredModel, streamText } = createProviderTransport({ sdkLoader });
 
   /**
- * @param {Record<string, any>} input
- * @returns {Promise<any>}
+ * @param {{ provider: RegistryProviderRef, apiKey?: string, modelName?: string, timeoutMs?: number }} input
+ * @returns {Promise<ConnectionTestResult>}
  */
 async function testConnection({ provider, apiKey, modelName, timeoutMs = 30000 }) {
     try {
@@ -201,8 +379,8 @@ async function testConnection({ provider, apiKey, modelName, timeoutMs = 30000 }
   }
 
   /**
- * @param {Record<string, any>} input
- * @returns {Promise<any>}
+ * @param {GenerateTextInput} input
+ * @returns {Promise<{ text?: string, latencyMs?: number, providerMetadata?: Record<string, unknown> | null }>}
  */
 async function generateText({
     provider,
@@ -227,8 +405,8 @@ async function generateText({
   }
 
   /**
- * @param {Record<string, any>} input
- * @returns {Promise<any>}
+ * @param {CheckQualityInput} input
+ * @returns {Promise<QualityCheckResult>}
  */
 async function checkQuality({
     provider,
@@ -313,8 +491,8 @@ async function checkQuality({
   }
 
   /**
- * @param {Record<string, any>} input
- * @returns {Promise<any>}
+ * @param {TranslateSegmentInput} input
+ * @returns {Promise<TranslateSegmentResult>}
  */
 async function translateSegment({
     provider,
@@ -478,8 +656,8 @@ async function translateSegment({
   }
 
   /**
- * @param {Record<string, any>} input
- * @returns {Promise<any>}
+ * @param {DiscoverModelsInput} input
+ * @returns {Promise<DiscoverModelsResult>}
  */
 async function discoverModels({
     provider,
@@ -517,9 +695,9 @@ async function discoverModels({
         const payload = typeof response.json === 'function' ? await response.json() : {};
         const models = Array.isArray(payload?.data)
           ? payload.data
-            .map((/** @type {any} */ item) => String(item?.id || '').trim())
+            .map((/** @type {Record<string, unknown>} */ item) => String(item?.id || '').trim())
             .filter(Boolean)
-            .map((/** @type {any} */ modelName) => ({ modelName }))
+            .map((/** @type {string} */ modelName) => ({ modelName }))
           : [];
 
         return {
@@ -539,9 +717,9 @@ async function discoverModels({
       }, timeoutMs);
       const models = Array.isArray(page?.data)
         ? page.data
-          .map((/** @type {any} */ item) => String(item?.id || '').trim())
+          .map((/** @type {Record<string, unknown>} */ item) => String(item?.id || '').trim())
           .filter(Boolean)
-          .map((/** @type {any} */ modelName) => ({ modelName }))
+          .map((/** @type {string} */ modelName) => ({ modelName }))
         : [];
 
       return {
@@ -560,8 +738,8 @@ async function discoverModels({
   }
 
   /**
- * @param {Record<string, any>} input
- * @returns {Promise<any>}
+ * @param {TranslateBatchInput} input
+ * @returns {Promise<TranslateBatchResult>}
  */
 async function translateBatch({
     provider,
@@ -660,6 +838,7 @@ async function translateBatch({
         requestOptions.writePromptCache(promptCacheKey, JSON.stringify({ translations }));
       }
 
+      /** @type {BatchRequestMetadata} */
       const requestMetadata = {
         mode: 'batch',
         batchIndexes: expectedIndexes,
@@ -707,6 +886,7 @@ async function translateBatch({
         requestOptions.writePromptCache(promptCacheKey, JSON.stringify({ translations }));
       }
 
+      /** @type {BatchRequestMetadata} */
       const requestMetadata = {
         mode: 'batch',
         batchIndexes: expectedIndexes,

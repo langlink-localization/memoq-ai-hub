@@ -10,24 +10,32 @@ spec_link: none
 github_links:
   project: none
   issues: []
-current_stage: provider-layer-typed-runtime-surveyed
-last_verified_commit: "tsc 0 errors over included scope (shared/qa/bilingual/asset/provider x6 + validators/IPC); runtime error map surveyed"
+current_stage: runtime-mismatches-cleared-provider-deep-typed
+last_verified_commit: >
+  tsc 0 errors over the gated scope (shared/qa/bilingual/asset/provider x6 +
+  runtime x18 including runtimeTranslationService); all non-TS7006/TS7031
+  mismatches in the runtime layer fixed (runtimeState, runtimeHistory,
+  runtimeHistoryBuilder, runtimeHistoryIntegrationSupport,
+  runtimeHistoryPresentation, runtimePersistence, runtimePromptSupport,
+  runtimeProviderExecution, runtimeTranslationSupport, runtimeTranslationService,
+  translationConfidence, runtimeAssetTbService fully typed and gated);
+  providerPromptBuilder/providerRegistry moved from parameter-any to deep
+  typedefs (profile/segment/preview/TB shapes, structured request payloads,
+  registry request/result objects); QA snapshot typed via QaSnapshot typedef in
+  qaContracts.
 next_action: >
-  Type the runtime layer in ascending error-count batches (strict checkJs per
-  module, then add to tsconfig include). Surveyed counts: runtimeState 175,
-  previewContext 99 (pulled by runtime), runtimeHistoryBuilder 98,
-  runtimePersistence 89, runtimeTranslationSupport 63, runtimeHistory 38,
-  runtimeThroughput 32, runtimeHistoryIntegrationSupport 29,
-  runtimePromptSupport 22, runtimeAssetService 14, runtimeQaHistoryService 13,
-  runtimePreviewPolicy 13, runtimePromptPresetStore 12, runtimeRuleEngine 10,
-  previewSnapshotSettle 10, runtimePreviewStateSupport 2. Still unsurveyed:
-  runtime.js, runtimeTranslationService, runtimeAggregationService,
-  runtimeQaService, runtimeProfileService, runtimeProviderService,
-  runtimeProviderExecution, runtimeAssetTbService, runtimeHistoryPresentation,
-  runtimeStateView, runtimePreviewContextResolver. Use the established
+  Remaining runtime modules carry only implicit-any parameters (TS7006/TS7031,
+  no mismatch errors) and are not yet in tsconfig include: runtime.js 41,
+  runtimePreviewContextResolver 26, runtimeProviderService 24,
+  runtimeAggregationService 20, runtimeProfileService 17, runtimeQaService 33,
+  runtimeAssetService 14. Transitive modules pulled by runtime.js remain
+  unsurveyed: src/preview/previewContextClient, src/update/updateService,
+  src/database.js, src/integration/integrationService. Use the established
   batch-annotation workflow (function-list scan, JSDoc insertion script,
   iterative tsc). Watch for the async-dangling insertion pitfall: match
-  "async function NAME(" not "function NAME(".
+  "async function NAME(" not "function NAME(". Keep deep typedefs for provider
+  shapes in providerPromptBuilder/providerRegistry rather than reintroducing
+  parameter-any annotations.
 allowed_interruptions:
   - emergency production fix
   - security or data correctness issue
@@ -41,7 +49,7 @@ resume_prompt: >
   This initiative runs progressive strict type checking over the plain-JS
   desktop sources through JSDoc annotations, tsc --noEmit (typescript 7.0.2),
   the pnpm run typecheck script, and a CI step. The typed scope today is all of
-  apps/desktop/src/shared, src/qa, src/bilingual, src/asset, and the provider
-  config/governance/response-utils modules, plus gatewayRequestValidation.js
-  and rendererIpcSurface.js. Continue with next_action without weakening
-  strict mode or shrinking the typed surface.
+  apps/desktop/src/shared, src/qa, src/bilingual, src/asset, the provider
+  modules (deep typedefs for prompt builder and registry), 18 runtime modules,
+  plus gatewayRequestValidation.js and rendererIpcSurface.js. Continue with
+  next_action without weakening strict mode or shrinking the typed surface.

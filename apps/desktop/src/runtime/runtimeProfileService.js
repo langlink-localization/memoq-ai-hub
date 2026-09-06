@@ -7,7 +7,7 @@ function createRuntimeProfileService({
   loadState,
   saveState,
   createId,
-  onProfileDeleted = () => {}
+  onProfileDeleted = (/** @type {any} */ _profileId) => {}
 }) {
   /**
    * @param {any} state
@@ -112,9 +112,9 @@ function createRuntimeProfileService({
     const state = loadState();
     const requestedProfileId = String(rule?.profileId || '').trim();
     if (!requestedProfileId || !state.profiles.some((profile) => profile.id === requestedProfileId)) {
-      const error = new Error(`Profile ${requestedProfileId || '(empty)'} not found`);
-      error.code = 'PROFILE_NOT_FOUND';
-      throw error;
+      throw Object.assign(new Error(`Profile ${requestedProfileId || '(empty)'} not found`), {
+        code: 'PROFILE_NOT_FOUND'
+      });
     }
     const requestedId = String(rule?.id || '').trim();
     const index = requestedId ? state.mappingRules.findIndex((item) => item.id === requestedId) : -1;

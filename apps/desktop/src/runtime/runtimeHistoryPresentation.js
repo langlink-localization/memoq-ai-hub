@@ -9,6 +9,9 @@ const { buildHistorySummary } = require('./runtimeHistoryIntegrationSupport');
 // The list item carries only IPC-serializable own fields; the original
 // diagnostic payload stays reachable through the prototype for internal
 // runtime callers.
+/**
+ * @param {{ persistence: any }} dependencies
+ */
 function createRuntimeHistoryPresentation({ persistence }) {
   /**
    */
@@ -31,14 +34,14 @@ function createRuntimeHistoryPresentation({ persistence }) {
     const latencyMs = Number(entry.latencyMs);
     return {
       failed: String(entry.status || '').trim().toLowerCase() === 'failed',
-      timeout: attempts.some((attempt) => {
+      timeout: attempts.some((/** @type {any} */ attempt) => {
         const errorCode = String(attempt?.errorCode || '').trim().toUpperCase();
         return errorCode === 'PROVIDER_TIMEOUT' || errorCode === 'TRANSLATION_TIMEOUT';
       }),
-      rate_limit: attempts.some((attempt) => String(attempt?.errorCode || '').trim().toUpperCase() === 'PROVIDER_RATE_LIMITED'),
+      rate_limit: attempts.some((/** @type {any} */ attempt) => String(attempt?.errorCode || '').trim().toUpperCase() === 'PROVIDER_RATE_LIMITED'),
       fallback: hasHistoryFallback(entry),
       slow: Number.isFinite(latencyMs) && latencyMs > SLOW_HISTORY_LATENCY_MS,
-      cache_hit: attempts.some((attempt) => {
+      cache_hit: attempts.some((/** @type {any} */ attempt) => {
         const cacheKind = String(attempt?.cacheKind || '').trim().toLowerCase();
         return cacheKind === 'exact' || cacheKind === 'adaptive';
       })

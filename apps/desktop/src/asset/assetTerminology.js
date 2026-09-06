@@ -663,7 +663,7 @@ function includesVariant(haystack, variants = [], entry) {
 }
 
 /**
- * @param {{ translatedText?: unknown, matches?: any[] }=} options
+ * @param {{ sourceText?: unknown, translatedText?: unknown, matches?: any[] }=} options
  * @returns {Record<string, any>}
  */
 function evaluateTerminologyQa({ translatedText, matches = [] } = {}) {

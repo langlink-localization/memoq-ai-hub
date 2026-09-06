@@ -48,18 +48,18 @@ function buildHistoryMetrics(historyEntries, providerId) {
 
 /**
  * @param {unknown} value
- * @returns {number}
+ * @returns {number | null}
  */
 function roundPercent(value) {
   if (!Number.isFinite(value)) {
     return null;
   }
-  return Number(value.toFixed(1));
+  return Number((/** @type {number} */ (value)).toFixed(1));
 }
 
 /**
- * @param {unknown[]=} values
- * @returns {number}
+ * @param {number[]=} values
+ * @returns {number | null}
  */
 function average(values = []) {
   const finiteValues = values.filter((value) => Number.isFinite(value));
@@ -116,7 +116,7 @@ function isRateLimitAttempt(attempt = {}) {
 }
 
 /**
- * @param {Record<string, any>=} attempt
+ * @param {Record<string, any>=} entry
  * @returns {boolean}
  */
 function isBatchFallback(entry = {}) {
@@ -246,6 +246,7 @@ function buildHistoryInsights(historyEntries = []) {
   const successRate = totalRequests ? roundPercent((successCount / totalRequests) * 100) : null;
   const avgLatencyMs = latencyCount ? Math.round(latencyTotal / latencyCount) : null;
 
+  /** @type {any[]} */
   const providerBreakdown = [];
 
   const attentionItems = [];

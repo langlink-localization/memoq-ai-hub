@@ -108,6 +108,9 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * @param {Record<string, any>=} options
+ */
 async function createRuntime(options = {}) {
   const secretStore = options.secretStore;
   if (!secretStore || typeof secretStore.has !== 'function' || typeof secretStore.get !== 'function'
@@ -294,6 +297,9 @@ async function createRuntime(options = {}) {
     }
   }
 
+  /**
+   * @param {Record<string, any>=} statusPatch
+   */
   function updatePreviewBridgeStatus(statusPatch = {}) {
     if (typeof statusPatch !== 'object' || !statusPatch) {
       return buildPreviewStatusSnapshot(previewState);
@@ -310,6 +316,9 @@ async function createRuntime(options = {}) {
     return buildPreviewStatusSnapshot(previewState);
   }
 
+  /**
+   * @param {Record<string, any>=} payload
+   */
   function ingestPreviewContentUpdate(payload = {}) {
     const previewParts = payload.PreviewParts || payload.previewParts || [];
     mergePreviewParts(previewState, previewParts);
@@ -317,6 +326,9 @@ async function createRuntime(options = {}) {
     return buildPreviewStatusSnapshot(previewState);
   }
 
+  /**
+   * @param {Record<string, any>=} payload
+   */
   function ingestPreviewHighlight(payload = {}) {
     const activePreviewParts = payload.ActivePreviewParts || payload.activePreviewParts || [];
     mergePreviewParts(previewState, activePreviewParts);
@@ -330,6 +342,9 @@ async function createRuntime(options = {}) {
     return buildPreviewStatusSnapshot(previewState);
   }
 
+  /**
+   * @param {Record<string, any>=} payload
+   */
   function ingestPreviewPartIds(payload = {}) {
     const previewPartIds = Array.isArray(payload.PreviewPartIds || payload.previewPartIds)
       ? (payload.PreviewPartIds || payload.previewPartIds)
@@ -344,7 +359,8 @@ async function createRuntime(options = {}) {
     const runtimeStartedMs = parseTimeMs(runtimeIdentity.runtimeStartedAt);
     const statusUpdatedAtMs = parseTimeMs(status.lastUpdatedAt);
     const normalizedStatus = String(status.state || status.status || 'disconnected').trim().toLowerCase() || 'disconnected';
-    const staleStatus = !Number.isFinite(statusUpdatedAtMs) || (Number.isFinite(runtimeStartedMs) && statusUpdatedAtMs < runtimeStartedMs);
+    const staleStatus = !Number.isFinite(statusUpdatedAtMs)
+      || (Number.isFinite(runtimeStartedMs) && Number(statusUpdatedAtMs) < Number(runtimeStartedMs));
     const timeoutRetryState = looksLikePreviewStartupTimeout(status, normalizedStatus);
     const shouldTreatAsStarting = status.available !== false
       && status.connected !== true
@@ -506,6 +522,9 @@ async function createRuntime(options = {}) {
     exportQaHistory(options = {}) {
       return qaHistoryService.exportHistory(options);
     },
+    /**
+     * @param {Record<string, any>=} payload
+     */
     async inspectBilingualFile(payload = {}) {
       const { parseBilingualFile } = require('../bilingual/bilingualFile');
       const { writeQaReports } = require('../bilingual/qaReport');
@@ -719,6 +738,9 @@ async function createRuntime(options = {}) {
         }
       };
     },
+    /**
+     * @param {Record<string, any>=} options
+     */
     exportHistory(options = {}) {
       const XLSX = require('xlsx');
       const entriesSource = loadHistoryEntries();

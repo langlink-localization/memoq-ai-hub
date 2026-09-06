@@ -14,6 +14,15 @@ const {
 const { CONTRACT_VERSION, ERROR_CODES } = require('../shared/desktopContract');
 
 /**
+ * @param {string} message
+ * @param {string} code
+ * @returns {Error & { code: string }}
+ */
+function createQaError(message, code) {
+  return Object.assign(new Error(message), { code });
+}
+
+/**
  * @param {any} options
  */
 function createRuntimeQaService(options = {}) {
@@ -56,17 +65,13 @@ function createRuntimeQaService(options = {}) {
       const provider = state.providers.find((item) => item.id === providerId && item.enabled !== false)
         || state.providers.find((item) => item.enabled !== false);
       if (!provider) {
-        const error = new Error('No enabled AI provider is available for quality checking.');
-        error.code = ERROR_CODES.qaProviderUnavailable;
-        throw error;
+        throw createQaError('No enabled AI provider is available for quality checking.', ERROR_CODES.qaProviderUnavailable);
       }
       const selectedModel = (provider.models || []).find((item) => (item.id === model || item.modelName === model) && item.enabled !== false)
         || selectModel(provider);
       const apiKey = await secretStore.get(provider.secretRef);
       if (!selectedModel || !apiKey || typeof providerRegistry.checkQuality !== 'function') {
-        const error = new Error('The selected provider is not ready for AI quality checking.');
-        error.code = ERROR_CODES.qaProviderUnavailable;
-        throw error;
+        throw createQaError('The selected provider is not ready for AI quality checking.', ERROR_CODES.qaProviderUnavailable);
       }
       try {
         return await providerRegistry.checkQuality({
@@ -178,9 +183,7 @@ function createRuntimeQaService(options = {}) {
         .map((asset) => String(asset.id)));
       const invalidId = selectedGlossaryIds.find((assetId) => !validGlossaryIds.has(assetId));
       if (invalidId) {
-        const error = new Error(`Glossary asset "${invalidId}" is not available.`);
-        error.code = ERROR_CODES.qaInvalidRequest;
-        throw error;
+        throw createQaError(`Glossary asset "${invalidId}" is not available.`, ERROR_CODES.qaInvalidRequest);
       }
       effectiveAssetBindings = [
         ...effectiveAssetBindings.filter((binding) => binding?.purpose !== ASSET_PURPOSES.glossary),
@@ -282,9 +285,7 @@ function createRuntimeQaService(options = {}) {
       || state.profiles.find((item) => item.id === state.defaultProfileId)
       || null;
     if (!profile) {
-      const error = new Error('No profile is configured for the Preview Assistant.');
-      error.code = ERROR_CODES.providerNotConfigured;
-      throw error;
+      throw createQaError('No profile is configured for the Preview Assistant.', ERROR_CODES.providerNotConfigured);
     }
     const providerId = String(payload.providerId || profile.interactiveProviderId || profile.providerId || '').trim();
     const provider = state.providers.find((item) => item.id === providerId && item.enabled !== false)
@@ -295,9 +296,7 @@ function createRuntimeQaService(options = {}) {
         || selectModel(provider))
       : null;
     if (!provider || !model) {
-      const error = new Error('No enabled provider and model are available for the Preview Assistant.');
-      error.code = ERROR_CODES.providerNotConfigured;
-      throw error;
+      throw createQaError('No enabled provider and model are available for the Preview Assistant.', ERROR_CODES.providerNotConfigured);
     }
     let assetBindings = Array.isArray(profile.assetBindings) ? [...profile.assetBindings] : [];
     if (payload.assets?.mode === 'override') {
@@ -309,9 +308,7 @@ function createRuntimeQaService(options = {}) {
         .map((asset) => String(asset.id)));
       const invalidId = requestedIds.find((assetId) => !glossaryIds.has(assetId));
       if (invalidId) {
-        const error = new Error(`Glossary asset "${invalidId}" is not available.`);
-        error.code = ERROR_CODES.qaInvalidRequest;
-        throw error;
+        throw createQaError(`Glossary asset "${invalidId}" is not available.`, ERROR_CODES.qaInvalidRequest);
       }
       assetBindings = [
         ...assetBindings.filter((binding) => binding?.purpose !== ASSET_PURPOSES.glossary),
@@ -336,20 +333,14 @@ function createRuntimeQaService(options = {}) {
   async function runPreviewAssistant(payload = {}) {
     const operation = payload.operation === 'polish' ? 'polish' : payload.operation === 'translate' ? 'translate' : '';
     if (!operation) {
-      const error = new Error('Preview Assistant operation must be translate or polish.');
-      error.code = ERROR_CODES.qaInvalidRequest;
-      throw error;
+      throw createQaError('Preview Assistant operation must be translate or polish.', ERROR_CODES.qaInvalidRequest);
     }
     const activePayload = await readSettledActivePreviewPayload();
     if (!activePayload?.mappingCertain) {
-      const error = new Error('The active memoQ segment could not be mapped with confidence.');
-      error.code = ERROR_CODES.qaMappingUncertain;
-      throw error;
+      throw createQaError('The active memoQ segment could not be mapped with confidence.', ERROR_CODES.qaMappingUncertain);
     }
     if (operation === 'polish' && !String(activePayload.segment?.target || '').trim()) {
-      const error = new Error('A current target translation is required for polishing.');
-      error.code = ERROR_CODES.qaInvalidRequest;
-      throw error;
+      throw createQaError('A current target translation is required for polishing.', ERROR_CODES.qaInvalidRequest);
     }
     const requestId = String(payload.requestId || crypto.randomUUID());
     const { state, profile, route } = resolveAssistantProfileAndRoute(payload);
@@ -398,21 +389,15 @@ function createRuntimeQaService(options = {}) {
         includeDiagnostics: true
       });
       if (requestState.cancelled) {
-        const error = new Error('The Preview Assistant request was cancelled.');
-        error.code = ERROR_CODES.qaRequestCancelled;
-        throw error;
+        throw createQaError('The Preview Assistant request was cancelled.', ERROR_CODES.qaRequestCancelled);
       }
       const currentPayload = prepareQaPayload({ profileId: profile.id, assets: payload.assets || { mode: 'inherit' } });
       const currentSnapshot = createQaSnapshot(currentPayload);
       if (currentSnapshot.revision.contentHash !== requestState.contentHash) {
-        const error = new Error('The active memoQ segment changed before the Preview Assistant completed.');
-        error.code = ERROR_CODES.qaRequestCancelled;
-        throw error;
+        throw createQaError('The active memoQ segment changed before the Preview Assistant completed.', ERROR_CODES.qaRequestCancelled);
       }
       if (response.statusCode !== 200 || response.body?.success !== true) {
-        const error = new Error(response.body?.error?.message || 'The Preview Assistant request failed.');
-        error.code = response.body?.error?.code || ERROR_CODES.translationFailed;
-        throw error;
+        throw createQaError(response.body?.error?.message || 'The Preview Assistant request failed.', response.body?.error?.code || ERROR_CODES.translationFailed);
       }
       return {
         requestId,
@@ -562,9 +547,7 @@ function createRuntimeQaService(options = {}) {
   async function checkDocument(payload = {}) {
     const segments = Array.isArray(payload.segments) ? payload.segments : [];
     if (!segments.length) {
-      const error = new Error('At least one segment is required for a document quality check.');
-      error.code = ERROR_CODES.qaInvalidRequest;
-      throw error;
+      throw createQaError('At least one segment is required for a document quality check.', ERROR_CODES.qaInvalidRequest);
     }
     const results = await checkQaSegmentsWithConcurrency(
       { trigger: payload.trigger || 'batch', ...payload },

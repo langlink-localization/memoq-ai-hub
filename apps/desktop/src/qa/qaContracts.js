@@ -80,8 +80,21 @@ function normalizeContext(context = {}, policy = {}) {
  */
 
 /**
+ * @typedef {Object} QaSnapshot
+ * @property {string} requestId
+ * @property {string} trigger
+ * @property {{ id: string, name: string }} document
+ * @property {{ previewPartId: string, segmentIndex: number, source: string, target: string, sourceFocusedRange: unknown, targetFocusedRange: unknown }} segment
+ * @property {{ source: string, target: string }} languages
+ * @property {{ above: string, below: string, summary: string, fullText: string }} context
+ * @property {{ includeSummary: boolean, includeFullText: boolean, maxAdjacentCharacters: number }} contextPolicy
+ * @property {{ profileId: string, ruleSetVersion: string, glossaryFingerprint: string, tmFingerprint: string, promptVersion: string }} configuration
+ * @property {{ previewRevision: number, capturedAt: string, contentHash: string }} revision
+ */
+
+/**
  * @param {QaSnapshotPayload=} payload
- * @returns {Record<string, unknown>}
+ * @returns {QaSnapshot}
  */
 function createQaSnapshot(payload = {}) {
   const segment = /** @type {Record<string, unknown>} */ (payload.segment && typeof payload.segment === 'object' ? payload.segment : {});
@@ -147,7 +160,7 @@ function createQaSnapshot(payload = {}) {
     contextPolicy: snapshot.contextPolicy,
     configuration: snapshot.configuration
   }));
-  return /** @type {Record<string, unknown>} */ (deepFreeze(snapshot));
+  return /** @type {QaSnapshot} */ (deepFreeze(snapshot));
 }
 
 /**

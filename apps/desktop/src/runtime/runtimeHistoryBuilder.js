@@ -352,7 +352,7 @@ function buildHistoryThroughputSummary(attempts = []) {
 
 /**
  * @param {Record<string, any>} args
- * @returns {Record<string, any> | null}
+ * @returns {Record<string, any>}
  */
 function buildHistoryEntry({
   createId,

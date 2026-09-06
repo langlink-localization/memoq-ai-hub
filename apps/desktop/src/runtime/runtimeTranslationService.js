@@ -56,8 +56,8 @@ function resolveRetryAfterSeconds(value, message = '') {
 function selectModel(provider) {
   const models = Array.isArray(provider?.models) ? provider.models : [];
   const defaultModelId = String(provider?.defaultModelId || '').trim();
-  return models.find((model) => model.id === defaultModelId && model.enabled !== false)
-    || models.find((model) => model.enabled)
+  return models.find((/** @type {any} */ model) => model.id === defaultModelId && model.enabled !== false)
+    || models.find((/** @type {any} */ model) => model.enabled)
     || models[0]
     || null;
 }
@@ -66,9 +66,9 @@ function selectModel(provider) {
  * @param {any} state
  */
 function hasSmartTbParsingCapability(state = {}) {
-  return (Array.isArray(state.providers) ? state.providers : []).some((provider) => {
+  return (Array.isArray(state.providers) ? state.providers : []).some((/** @type {any} */ provider) => {
     if (!provider || provider.enabled === false) return false;
-    return Array.isArray(provider.models) && provider.models.some((model) => model?.enabled !== false);
+    return Array.isArray(provider.models) && provider.models.some((/** @type {any} */ model) => model?.enabled !== false);
   });
 }
 
@@ -84,6 +84,7 @@ function buildSegmentMetadataIndex(segmentLevelMetadata = []) {
   );
 }
 
+/** @param {Record<string, any>} dependencies */
 function createRuntimeTranslationService({
   aggregateRescueBatchSize,
   aggregateRescueSingleTimeoutMs,
@@ -111,7 +112,7 @@ function createRuntimeTranslationService({
     const models = Array.isArray(provider?.models) ? provider.models : [];
     const requestedId = String(modelId || '').trim();
     if (requestedId) {
-      const explicit = models.find((model) => model.id === requestedId && model.enabled !== false);
+      const explicit = models.find((/** @type {any} */ model) => model.id === requestedId && model.enabled !== false);
       if (explicit) {
         return explicit;
       }
@@ -129,7 +130,7 @@ function createRuntimeTranslationService({
     const supportsBatch = providerCapabilities.supportsBatch !== false;
 
     if (!supportsBatch || segments.length <= 1) {
-      return segments.map((segment) => [segment]);
+      return segments.map((/** @type {any} */ segment) => [segment]);
     }
 
     const batches = [];
@@ -181,7 +182,7 @@ function createRuntimeTranslationService({
         continue;
       }
 
-      const provider = state.providers.find((item) => item.id === providerId && item.enabled);
+      const provider = state.providers.find((/** @type {any} */ item) => item.id === providerId && item.enabled);
       if (!provider) {
         continue;
       }
@@ -195,7 +196,7 @@ function createRuntimeTranslationService({
       });
     }
 
-    const fallbackProviders = state.providers.filter((item) => item.enabled && !seen.has(item.id));
+    const fallbackProviders = state.providers.filter((/** @type {any} */ item) => item.enabled && !seen.has(item.id));
     for (const provider of fallbackProviders) {
       candidates.push({
         provider,
@@ -208,6 +209,9 @@ function createRuntimeTranslationService({
     return candidates.filter((candidate) => candidate.provider && candidate.model);
   }
 
+  /**
+   * @param {Record<string, any>} args
+   */
   async function translateBatchWithRoute({
     state,
     route,
@@ -233,7 +237,7 @@ function createRuntimeTranslationService({
         modelName: route.model.modelName,
         sourceLanguage: payload.sourceLanguage,
         targetLanguage: payload.targetLanguage,
-        segments: batch.map((segment) => ({
+        segments: batch.map((/** @type {any} */ segment) => ({
           index: segment.index,
           sourceText: segment.sourceText,
           tmSource: segment.tmSource,
@@ -252,8 +256,8 @@ function createRuntimeTranslationService({
         assetContext,
         requestOptions: {
           localPromptCacheEnabled: !payload.assistantOperation,
-          readPromptCache: (key) => persistence.readPromptResponseCache(key),
-          writePromptCache: (key, text) => persistence.writePromptResponseCache(key, text, nowIso()),
+          readPromptCache: (/** @type {any} */ key) => persistence.readPromptResponseCache(key),
+          writePromptCache: (/** @type {any} */ key, /** @type {any} */ text) => persistence.writePromptResponseCache(key, text, nowIso()),
           providerPromptCacheEnabled: route.model.promptCacheEnabled === true,
           promptCacheTtlHint: route.model.promptCacheTtlHint || ''
         }
@@ -275,7 +279,7 @@ function createRuntimeTranslationService({
         effectiveExecutionMode: 'batch',
         batchSize: batch.length,
         finalizedByFallbackRoute: false,
-        segmentIndexes: batch.map((segment) => segment.index),
+        segmentIndexes: batch.map((/** @type {any} */ segment) => segment.index),
         retryCount: batchResult.retryCount || 0,
         queuedMs: batchResult.queuedMs || 0,
         rateLimitedWaitMs: batchResult.rateLimitedWaitMs || 0,
@@ -299,6 +303,9 @@ function createRuntimeTranslationService({
     };
   }
 
+  /**
+   * @param {Record<string, any>} args
+   */
   async function translateSegmentsSequentially({
     state,
     route,
@@ -347,8 +354,8 @@ function createRuntimeTranslationService({
             neighborContext: segment.neighborContext || null,
             requestOptions: {
               localPromptCacheEnabled: !payload.assistantOperation,
-              readPromptCache: (key) => persistence.readPromptResponseCache(key),
-              writePromptCache: (key, text) => persistence.writePromptResponseCache(key, text, nowIso()),
+              readPromptCache: (/** @type {any} */ key) => persistence.readPromptResponseCache(key),
+              writePromptCache: (/** @type {any} */ key, /** @type {any} */ text) => persistence.writePromptResponseCache(key, text, nowIso()),
               providerPromptCacheEnabled: route.model.promptCacheEnabled === true,
               promptCacheTtlHint: route.model.promptCacheTtlHint || ''
             }
@@ -457,6 +464,9 @@ function createRuntimeTranslationService({
     }));
   }
 
+  /**
+   * @param {Record<string, any>} args
+   */
   function createFailedBatchAttempt({
     route,
     batch,
@@ -482,7 +492,7 @@ function createRuntimeTranslationService({
       effectiveExecutionMode: 'batch',
       batchSize: batch.length,
       finalizedByFallbackRoute: false,
-      segmentIndexes: batch.map((segment) => segment.index),
+      segmentIndexes: batch.map((/** @type {any} */ segment) => segment.index),
       retryCount: Number(error?.retryCount || 0),
       queuedMs: Number(error?.queuedMs || 0),
       rateLimitedWaitMs: Number(error?.rateLimitedWaitMs || 0),
@@ -498,7 +508,7 @@ function createRuntimeTranslationService({
         translations: [],
         requestMetadata: {
           mode: 'batch',
-          batchIndexes: batch.map((segment) => segment.index),
+          batchIndexes: batch.map((/** @type {any} */ segment) => segment.index),
           segmentCount: batch.length,
           fallbackStage
         }
@@ -514,6 +524,10 @@ function createRuntimeTranslationService({
     };
   }
 
+  /**
+   * @param {Record<string, any>} args
+   * @returns {Promise<{ translations: any[], attempts: any[], latencyMs: number, error: any }>}
+   */
   async function translateBatchWithAdaptiveFallback({
     state,
     route,
@@ -624,6 +638,9 @@ function createRuntimeTranslationService({
     }
   }
 
+  /**
+   * @param {Record<string, any>} args
+   */
   async function translatePendingSegmentsWithRoute({
     state,
     route,
@@ -659,7 +676,7 @@ function createRuntimeTranslationService({
     };
     const batches = splitSegmentsForRoute(pendingSegments, effectiveCapabilities);
     const batchResults = await Promise.all(
-      batches.map(async (batch, batchIndex) => {
+      batches.map(async (/** @type {any} */ batch, /** @type {any} */ batchIndex) => {
         if (!forceSingle && batch.length > 1 && route.capabilities.supportsBatch && typeof providerRegistry.translateBatch === 'function') {
           const batchResult = await translateBatchWithAdaptiveFallback({
             state,
@@ -834,7 +851,7 @@ function createRuntimeTranslationService({
       };
     }
     const segmentMetadataIndex = buildSegmentMetadataIndex(normalizedMetadata.segmentLevelMetadata);
-    const incomingSegments = (payload.segments || []).map((segment, idx) => {
+    const incomingSegments = (payload.segments || []).map((/** @type {any} */ segment, /** @type {any} */ idx) => {
       const segmentIndex = Number.isFinite(Number(segment.index)) ? Number(segment.index) : idx;
       return {
         index: segmentIndex,
@@ -903,7 +920,7 @@ function createRuntimeTranslationService({
       }
     }
 
-    if (!requestPreviewContext && !incomingSegments.some((segment) => segment.previewContext)) {
+    if (!requestPreviewContext && !incomingSegments.some((/** @type {any} */ segment) => segment.previewContext)) {
       const previewBundle = buildPreviewContextBundle(previewState, incomingSegments, {
         sourceLanguage: payload.sourceLanguage,
         targetLanguage: payload.targetLanguage
@@ -973,7 +990,7 @@ function createRuntimeTranslationService({
 
     for (const route of routes) {
       try {
-      let remainingSegments = incomingSegments.filter((segment) => !translatedByIndex.has(segment.index));
+      let remainingSegments = incomingSegments.filter((/** @type {any} */ segment) => !translatedByIndex.has(segment.index));
       if (!remainingSegments.length) {
         break;
       }
@@ -1069,7 +1086,7 @@ function createRuntimeTranslationService({
           effectiveExecutionMode: 'single',
           batchSize: remainingSegments.length,
           finalizedByFallbackRoute: false,
-          segmentIndexes: remainingSegments.map((segment) => segment.index),
+          segmentIndexes: remainingSegments.map((/** @type {any} */ segment) => segment.index),
           cacheKind: '',
           errorCode: 'PROVIDER_AUTH_FAILED',
           rateLimitedWaitMs: 0,
@@ -1108,7 +1125,7 @@ function createRuntimeTranslationService({
 
       for (const translation of routeResult.translations) {
         translatedByIndex.set(translation.index, translation);
-        const originalSegment = remainingSegments.find((segment) => segment.index === translation.index);
+        const originalSegment = remainingSegments.find((/** @type {any} */ segment) => segment.index === translation.index);
         if (profile.cacheEnabled && originalSegment?.cacheKey) {
           persistence.writeTranslationCache(originalSegment.cacheKey, translation.text, nowIso());
         }
@@ -1231,7 +1248,7 @@ function createRuntimeTranslationService({
             translations,
             requestMetadata: {
               mode: 'batch',
-              batchIndexes: incomingSegments.map((segment) => segment.index),
+              batchIndexes: incomingSegments.map((/** @type {any} */ segment) => segment.index),
               segmentCount: incomingSegments.length
             }
           });
@@ -1294,14 +1311,14 @@ function createRuntimeTranslationService({
 
     const latestState = loadState();
     if (resolved.matchedRule) {
-      const rule = latestState.mappingRules.find((item) => item.id === resolved.matchedRule.id);
+      const rule = latestState.mappingRules.find((/** @type {any} */ item) => item.id === resolved.matchedRule.id);
       if (rule) {
         rule.hitCount = Number(rule.hitCount || 0) + 1;
       }
     }
 
     if (winningRoute) {
-      const provider = latestState.providers.find((item) => item.id === winningRoute.provider.id);
+      const provider = latestState.providers.find((/** @type {any} */ item) => item.id === winningRoute.provider.id);
       if (provider) {
         provider.status = terminalError ? 'failed' : 'connected';
         provider.lastCheckedAt = completedAt;

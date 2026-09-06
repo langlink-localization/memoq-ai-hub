@@ -9,6 +9,9 @@ const DEFAULT_ASSET_PREVIEW_MAX_CHARACTERS = 2000;
 // structure adoption, and manual TB mapping configuration. State access stays
 // behind the loadState/saveState boundary; parsedAssetCache is the shared
 // parsed-asset eviction cache owned by the runtime composition root.
+/**
+ * @param {{ loadState: () => any, saveState: (state: any) => any, parsedAssetCache: Map<string, any> }} dependencies
+ */
 function createRuntimeAssetTbService({ loadState, saveState, parsedAssetCache }) {
   /**
    * @param {any} value
@@ -35,7 +38,7 @@ function createRuntimeAssetTbService({ loadState, saveState, parsedAssetCache })
    * @param {any} assetId
    */
   function findAssetById(state, assetId) {
-    return state.assets.find((item) => item.id === String(assetId || '').trim()) || null;
+    return state.assets.find((/** @type {any} */ item) => item.id === String(assetId || '').trim()) || null;
   }
 
   /**

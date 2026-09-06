@@ -42,6 +42,95 @@ const DEFAULT_BATCH_USER_PROMPT = [
 const STRUCTURED_PROMPT_SCHEMA_VERSION = 'structured-v2';
 
 /**
+ * @typedef {Object} PromptBuilderHelpers
+ * @property {(requestType: unknown) => string=} normalizeRequestType
+ */
+
+/**
+ * @typedef {Object} PromptProfileInput
+ * @property {string=} translationStyle
+ * @property {boolean=} useMetadata
+ * @property {boolean=} useBestFuzzyTm
+ * @property {boolean=} useCustomTm
+ * @property {unknown=} customTmMatchBuckets
+ * @property {boolean=} usePreviewContext
+ * @property {boolean=} usePreviewFullText
+ * @property {boolean=} usePreviewSummary
+ * @property {boolean=} usePreviewAboveBelow
+ * @property {boolean=} usePreviewTargetText
+ * @property {string=} systemPrompt
+ * @property {string=} userPrompt
+ * @property {{ single?: { systemPrompt?: unknown, userPrompt?: unknown }, batch?: { systemPrompt?: unknown, userPrompt?: unknown }}=} promptTemplates
+ * @property {string=} assistantAdditionalInstruction
+ */
+
+/**
+ * @typedef {Object} PromptPreviewContextInput
+ * @property {string=} documentName
+ * @property {string=} documentId
+ * @property {string=} activePreviewPartId
+ * @property {string=} summary
+ * @property {string=} fullText
+ * @property {{ documentName?: string, documentGuid?: string }=} sourceDocument
+ */
+
+/**
+ * @typedef {Object} SegmentPreviewContextInput
+ * @property {string=} previewPartId
+ * @property {string=} targetText
+ * @property {string=} above
+ * @property {string=} below
+ * @property {string=} aboveSourceText
+ * @property {string=} aboveTargetText
+ * @property {string=} belowSourceText
+ * @property {string=} belowTargetText
+ */
+
+/**
+ * @typedef {Object} PromptAssetContextInput
+ * @property {string=} glossaryText
+ * @property {string=} tbMetadataText
+ * @property {string=} briefText
+ * @property {string=} glossaryFingerprint
+ * @property {string=} briefFingerprint
+ * @property {string=} customTmFingerprint
+ */
+
+/**
+ * @typedef {Object} CustomTmMatchInput
+ * @property {string=} sourceText
+ * @property {string=} targetText
+ * @property {number|string=} score
+ * @property {string=} bucket
+ * @property {string=} scoreType
+ * @property {string=} assetName
+ * @property {boolean=} contextMatched
+ */
+
+/**
+ * @typedef {Object} PromptTbContextInput
+ * @property {string=} glossaryText
+ * @property {string=} tbMetadataText
+ * @property {string=} sourcePlainText
+ * @property {Array<{ sourceTerm?: string, targetTerm?: string, forbidden?: boolean }>=} termHits
+ * @property {CustomTmMatchInput[]=} customTmMatches
+ */
+
+/**
+ * @typedef {Object} PromptSegmentInput
+ * @property {unknown=} index
+ * @property {unknown=} sourceText
+ * @property {unknown=} plainText
+ * @property {unknown=} tmSource
+ * @property {unknown=} tmTarget
+ * @property {PromptTbContextInput=} tbContext
+ * @property {CustomTmMatchInput[]=} customTmMatches
+ * @property {Record<string, unknown>=} segmentMetadata
+ * @property {SegmentPreviewContextInput | null=} previewContext
+ * @property {Record<string, any> | null=} neighborContext
+ */
+
+/**
  * @param {Record<string, any>} metadata
  * @param {Record<string, any>} segmentMetadata
  */
@@ -84,10 +173,10 @@ function createMetadataSection(metadata, segmentMetadata) {
 }
 
 /**
- * @param {Record<string, any>} profile
+ * @param {PromptProfileInput} profile
  * @param {unknown} requestType
  * @param {unknown} renderedUserPrompt
- * @param {any=} helpers
+ * @param {PromptBuilderHelpers=} helpers
  */
 function createInstructionSection(profile, requestType, renderedUserPrompt, helpers = {}) {
   const normalizedRequestType = helpers.normalizeRequestType
@@ -114,7 +203,7 @@ function createInstructionSection(profile, requestType, renderedUserPrompt, help
 }
 
 /**
- * @param {Record<string, any>} profile
+ * @param {PromptProfileInput} profile
  * @param {unknown} tmSource
  * @param {unknown} tmTarget
  */
@@ -135,9 +224,9 @@ function createTmSection(profile, tmSource, tmTarget) {
 }
 
 /**
- * @param {any=} previewContext
- * @param {any=} segmentPreviewContext
- * @param {Record<string, any>=} profile
+ * @param {PromptPreviewContextInput=} previewContext
+ * @param {SegmentPreviewContextInput=} segmentPreviewContext
+ * @param {PromptProfileInput=} profile
  */
 function createPreviewSections(previewContext = {}, segmentPreviewContext = {}, profile = {}) {
   if (profile?.usePreviewContext === false) {
@@ -201,7 +290,22 @@ function createPreviewSections(previewContext = {}, segmentPreviewContext = {}, 
 }
 
 /**
- * @param {Record<string, any>} args
+ * @typedef {Object} PromptTemplateContextArgs
+ * @property {unknown} sourceLanguage
+ * @property {unknown} targetLanguage
+ * @property {unknown=} sourceText
+ * @property {unknown=} tmSource
+ * @property {unknown=} tmTarget
+ * @property {PromptProfileInput=} profile
+ * @property {PromptAssetContextInput=} assetContext
+ * @property {PromptTbContextInput=} tbContext
+ * @property {PromptPreviewContextInput=} previewContext
+ * @property {SegmentPreviewContextInput | null=} segmentPreviewContext
+ */
+
+/**
+ * @param {PromptTemplateContextArgs} args
+ * @returns {Record<string, string>}
  */
 function buildPromptTemplateContext({
   sourceLanguage,
@@ -250,8 +354,13 @@ function buildPromptTemplateContext({
 }
 
 /**
+ * @typedef {{ systemPrompt: string, userPrompt: string }} ProfilePromptTemplateEntry
+ */
+
+/**
  * @param {Record<string, any>=} template
  * @param {Record<string, any>=} defaults
+ * @returns {ProfilePromptTemplateEntry}
  */
 function normalizeProfilePromptTemplateEntry(template = {}, defaults = {}) {
   return {
@@ -286,8 +395,9 @@ function hasExplicitPromptTemplateOverrides(profile = {}) {
 }
 
 /**
- * @param {Record<string, any>=} profile
+ * @param {PromptProfileInput=} profile
  * @param {string=} mode
+ * @returns {ProfilePromptTemplateEntry}
  */
 function resolveProfilePromptTemplate(profile = {}, mode = 'single') {
   const legacyTemplate = normalizeProfilePromptTemplateEntry({
@@ -315,11 +425,27 @@ function resolveProfilePromptTemplate(profile = {}, mode = 'single') {
 }
 
 /**
- * @param {Record<string, any>} args
- * @returns {Record<string, any>}
+ * @typedef {Object} DocumentContextInput
+ * @property {Record<string, unknown>=} metadata
+ * @property {PromptPreviewContextInput=} previewContext
+ * @property {PromptProfileInput=} profile
+ * @property {boolean=} includeSummary
+ */
+
+/**
+ * @typedef {Object} DocumentContext
+ * @property {Array<{ label: string, value: string }>} projectMetadata
+ * @property {string} documentName
+ * @property {string} documentId
+ * @property {string=} summary
+ */
+
+/**
+ * @param {DocumentContextInput} args
+ * @returns {DocumentContext}
  */
 function buildDocumentContext({ metadata, previewContext, profile, includeSummary = false }) {
-  /** @type {Record<string, any>} */
+  /** @type {DocumentContext} */
   const documentContext = {
     projectMetadata: [],
     documentName: '',
@@ -343,7 +469,21 @@ function buildDocumentContext({ metadata, previewContext, profile, includeSummar
 }
 
 /**
+ * @typedef {Object} NeighborSegmentView
+ * @property {number} index
+ * @property {string} sourceText
+ * @property {string} targetText
+ */
+
+/**
+ * @typedef {Object} NeighborContextView
+ * @property {NeighborSegmentView | null} previousSegment
+ * @property {NeighborSegmentView | null} nextSegment
+ */
+
+/**
  * @param {Record<string, any>=} segment
+ * @returns {NeighborContextView}
  */
 function buildNeighborContext(segment = {}) {
   const previous = segment?.neighborContext?.previousSegment || null;
@@ -364,7 +504,7 @@ function buildNeighborContext(segment = {}) {
 }
 
 /**
- * @param {Record<string, any>} args
+ * @param {{ segment: PromptSegmentInput, sourceLanguage: unknown, targetLanguage: unknown, previewContext?: PromptPreviewContextInput, profile?: PromptProfileInput, assetContext?: PromptAssetContextInput, mode?: string }} args
  */
 function renderSegmentProfileInstructions({
   segment,
@@ -403,7 +543,34 @@ function renderSegmentProfileInstructions({
 }
 
 /**
- * @param {Record<string, any>} args
+ * @typedef {Object} StructuredCustomTmMatch
+ * @property {string} sourceText
+ * @property {string} targetText
+ * @property {number} score
+ * @property {string} bucket
+ * @property {string} scoreType
+ * @property {string} assetName
+ * @property {boolean} contextMatched
+ */
+
+/**
+ * @typedef {Object} StructuredSegmentPayload
+ * @property {number} index
+ * @property {string} sourceText
+ * @property {string} sourcePlainText
+ * @property {Array<{ sourceTerm?: string, targetTerm?: string, forbidden?: boolean }>} matchedTerms
+ * @property {NeighborContextView} neighborContext
+ * @property {{ sourceText: string, targetText: string, available: boolean }} tmHints
+ * @property {{ matches: StructuredCustomTmMatch[], available: boolean, selectedBuckets: string[], guidance: string }} customTmMatches
+ * @property {{ instructions: string, tbMetadataText: string, matches: Array<{ sourceTerm?: string, targetTerm?: string, forbidden?: boolean }>, available: boolean }} terminology
+ * @property {import('../shared/memoqMetadataNormalizer').NormalizedSegmentMetadataItem | null} segmentMetadata
+ * @property {{ targetText: string, previewPartId: string } | null} previewContext
+ * @property {string} profileInstructions
+ */
+
+/**
+ * @param {{ segment: PromptSegmentInput, profile?: PromptProfileInput, profileInstructions?: string }} args
+ * @returns {StructuredSegmentPayload}
  */
 function buildSegmentPayload({
   segment,
@@ -416,7 +583,7 @@ function buildSegmentPayload({
   const customTmMatches = profile?.useCustomTm === false
     ? []
     : (Array.isArray(segment.customTmMatches) ? segment.customTmMatches : [])
-      .map((/** @type {any} */ match) => ({
+      .map((/** @type {CustomTmMatchInput} */ match) => ({
         sourceText: String(match.sourceText || ''),
         targetText: String(match.targetText || ''),
         score: Number(match.score || 0),
@@ -425,7 +592,7 @@ function buildSegmentPayload({
         assetName: String(match.assetName || ''),
         contextMatched: match.contextMatched === true
       }))
-      .filter((/** @type {any} */ match) => match.sourceText && match.targetText);
+      .filter((/** @type {StructuredCustomTmMatch} */ match) => match.sourceText && match.targetText);
   const matchedTerms = Array.isArray(segment?.tbContext?.termHits) ? segment.tbContext.termHits : [];
   const terminologyInstructions = String(segment?.tbContext?.glossaryText || '');
   const tbMetadataText = String(segment?.tbContext?.tbMetadataText || '');
@@ -483,7 +650,22 @@ function pushMarkdownSection(lines, title, entries = []) {
 }
 
 /**
- * @param {Record<string, any>} args
+ * @typedef {Object} StableSystemPromptArgs
+ * @property {unknown} sourceLanguage
+ * @property {unknown} targetLanguage
+ * @property {unknown=} requestType
+ * @property {Record<string, unknown>=} metadata
+ * @property {PromptPreviewContextInput=} previewContext
+ * @property {PromptProfileInput=} profile
+ * @property {Record<string, string>} templateContext
+ * @property {'single' | 'batch' | string=} mode
+ * @property {string=} operation
+ * @property {PromptBuilderHelpers=} helpers
+ */
+
+/**
+ * @param {StableSystemPromptArgs} args
+ * @returns {string}
  */
 function buildStableSystemPrompt({
   sourceLanguage,
@@ -543,12 +725,12 @@ function buildStableSystemPrompt({
 
   if (String(profile?.translationStyle || '').trim()) {
     pushMarkdownSection(lines, 'Translation Style', [
-      `- ${String(profile.translationStyle).trim()}`
+      `- ${String(profile?.translationStyle || '').trim()}`
     ]);
   }
 
   if (String(profile?.assistantAdditionalInstruction || '').trim()) {
-    pushMarkdownSection(lines, 'Additional Instructions', [`- ${String(profile.assistantAdditionalInstruction).trim()}`]);
+    pushMarkdownSection(lines, 'Additional Instructions', [`- ${String(profile?.assistantAdditionalInstruction || '').trim()}`]);
   }
 
   if (documentContext.projectMetadata.length) {
@@ -573,7 +755,33 @@ function buildStableSystemPrompt({
 }
 
 /**
- * @param {Record<string, any>} args
+ * @typedef {Object} StructuredRequestPayload
+ * @property {string} schemaVersion
+ * @property {string} operation
+ * @property {string} requestType
+ * @property {string} sourceLanguage
+ * @property {string} targetLanguage
+ * @property {DocumentContext} documentContext
+ * @property {{ profileInstructions: string }} sharedInstructions
+ * @property {StructuredSegmentPayload[]} segments
+ */
+
+/**
+ * @typedef {Object} BuildRequestPayloadArgs
+ * @property {unknown} sourceLanguage
+ * @property {unknown} targetLanguage
+ * @property {unknown=} requestType
+ * @property {Record<string, unknown>=} metadata
+ * @property {PromptPreviewContextInput=} previewContext
+ * @property {PromptProfileInput=} profile
+ * @property {PromptSegmentInput[]=} segments
+ * @property {PromptAssetContextInput=} assetContext
+ * @property {string=} operation
+ */
+
+/**
+ * @param {BuildRequestPayloadArgs} args
+ * @returns {StructuredRequestPayload}
  */
 function buildRequestPayload({
   sourceLanguage,
@@ -590,7 +798,7 @@ function buildRequestPayload({
   const mode = normalizedSegments.length > 1 ? 'batch' : 'single';
   const shouldRenderProfileInstructions = hasExplicitPromptTemplateOverrides(profile);
   const segmentInstructions = shouldRenderProfileInstructions
-    ? normalizedSegments.map((segment) => renderSegmentProfileInstructions({
+    ? normalizedSegments.map((/** @type {PromptSegmentInput} */ segment) => renderSegmentProfileInstructions({
       segment,
       sourceLanguage,
       targetLanguage,
@@ -625,8 +833,37 @@ function buildRequestPayload({
 }
 
 /**
- * @param {Record<string, any>} args
- * @param {any=} helpers
+ * @typedef {Object} BuildPromptArgs
+ * @property {unknown} sourceLanguage
+ * @property {unknown} targetLanguage
+ * @property {unknown} sourceText
+ * @property {unknown=} tmSource
+ * @property {unknown=} tmTarget
+ * @property {Record<string, unknown>=} metadata
+ * @property {PromptPreviewContextInput=} previewContext
+ * @property {SegmentPreviewContextInput=} segmentPreviewContext
+ * @property {PromptProfileInput=} profile
+ * @property {unknown=} requestType
+ * @property {PromptAssetContextInput=} assetContext
+ * @property {PromptTbContextInput=} tbContext
+ * @property {CustomTmMatchInput[]=} customTmMatches
+ * @property {Record<string, unknown>=} segmentMetadata
+ * @property {Record<string, any>=} neighborContext
+ * @property {string=} operation
+ */
+
+/**
+ * @typedef {Object} BuiltPrompt
+ * @property {string} systemPrompt
+ * @property {string} prompt
+ * @property {StructuredRequestPayload} payload
+ * @property {StructuredSegmentPayload | null} renderedSegment
+ */
+
+/**
+ * @param {BuildPromptArgs} args
+ * @param {PromptBuilderHelpers=} helpers
+ * @returns {BuiltPrompt}
  */
 function buildPrompt(args, helpers = {}) {
   const {
@@ -707,8 +944,29 @@ function buildPrompt(args, helpers = {}) {
 }
 
 /**
- * @param {Record<string, any>} args
- * @param {any=} helpers
+ * @typedef {Object} BuildBatchPromptArgs
+ * @property {unknown} sourceLanguage
+ * @property {unknown} targetLanguage
+ * @property {PromptSegmentInput[]=} segments
+ * @property {Record<string, unknown>=} metadata
+ * @property {PromptPreviewContextInput=} previewContext
+ * @property {PromptProfileInput=} profile
+ * @property {unknown=} requestType
+ * @property {PromptAssetContextInput=} assetContext
+ */
+
+/**
+ * @typedef {Object} BuiltBatchPrompt
+ * @property {string} systemPrompt
+ * @property {string} prompt
+ * @property {StructuredRequestPayload} payload
+ * @property {StructuredSegmentPayload[]} renderedBatchInstructions
+ */
+
+/**
+ * @param {BuildBatchPromptArgs} args
+ * @param {PromptBuilderHelpers=} helpers
+ * @returns {BuiltBatchPrompt}
  */
 function buildBatchPrompt(args, helpers = {}) {
   const {

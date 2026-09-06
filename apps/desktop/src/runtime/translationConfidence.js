@@ -56,9 +56,9 @@ function calculateTerminologyCompliance(qaSummary, matchCount = 0) {
  */
 function calculateTmSupport(matches = []) {
   const scores = matches
-    .map((match) => Number(match?.score))
+    .map((/** @type {any} */ match) => Number(match?.score))
     .filter(Number.isFinite)
-    .map((score) => Math.max(0, Math.min(100, score)) / 100);
+    .map((/** @type {number} */ score) => Math.max(0, Math.min(100, score)) / 100);
   return scores.length ? Math.max(...scores) : null;
 }
 
@@ -74,15 +74,17 @@ function calculateTranslationConfidence(signals = {}) {
     repairApplied: signals.repairApplied === true,
     fallbackApplied: signals.fallbackApplied === true
   };
-  const independentSignals = ['terminologyCompliance', 'tmSupport', 'providerScore']
-    .filter((key) => normalized[key] != null);
+  /** @type {Array<'terminologyCompliance' | 'tmSupport' | 'providerScore'>} */
+  const candidateSignals = ['terminologyCompliance', 'tmSupport', 'providerScore'];
+  const independentSignals = candidateSignals.filter((key) => normalized[key] != null);
   if (normalized.structuralValidity == null || independentSignals.length === 0) {
     return { confidence: 0, signals: normalized };
   }
 
+  /** @type {Array<'structuralValidity' | 'terminologyCompliance' | 'tmSupport' | 'providerScore'>} */
   const available = ['structuralValidity', ...independentSignals];
   const weight = available.reduce((sum, key) => sum + SIGNAL_WEIGHTS[key], 0);
-  const weighted = available.reduce((sum, key) => sum + normalized[key] * SIGNAL_WEIGHTS[key], 0) / weight;
+  const weighted = available.reduce((sum, key) => sum + /** @type {number} */ (normalized[key]) * SIGNAL_WEIGHTS[key], 0) / weight;
   const penalties = (normalized.repairApplied ? REPAIR_PENALTY : 0)
     + (normalized.fallbackApplied ? FALLBACK_PENALTY : 0);
   return {
