@@ -119,7 +119,7 @@ Unblock-File -LiteralPath "C:\Program Files\memoQ\memoQ-11\Addins\MemoQ.AI.Hub.P
 ### 4.3 绑定术语表
 
 - 在 **TB** 下拉框中选择已上传的术语表
-- 如需使用本地上传的 TMX 或表格记忆库，在 **Custom TM** 下拉框中选择对应资产
+- 如需使用本地上传的 TMX 或表格 TM 文件，在 **Custom TM** 下拉框中选择对应资产
 - 如无术语表，可保持为空
 
 ### 4.4 更多设置
