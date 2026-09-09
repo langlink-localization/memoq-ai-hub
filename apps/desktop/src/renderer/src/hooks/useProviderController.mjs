@@ -3,6 +3,7 @@ import {
   createDraftEntry,
   discardDraftEntry,
   getResolvedRecords,
+  hasDraftChanges,
   updateDraftEntry
 } from '../editorDrafts.mjs';
 import { getProviderDraftSeed } from '../providerDraftDefaults.mjs';

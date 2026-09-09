@@ -59,6 +59,8 @@ export default [
       'react-hooks': reactHooks
     },
     rules: {
+      'no-undef': 'error',
+      'no-use-before-define': ['error', { functions: false, classes: true, variables: true }],
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn'
     }

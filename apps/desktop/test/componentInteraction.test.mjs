@@ -1,11 +1,40 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createServer } from 'vite';
+import fs from 'node:fs/promises';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { build, createServer } from 'vite';
+import { createElement } from 'react';
+import { renderToString } from 'react-dom/server';
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const desktopRoot = path.resolve(testDir, '..');
+
+test('app initializes every controller and renders the startup screen before IPC data arrives', async (t) => {
+  const outDir = await fs.mkdtemp(path.join(desktopRoot, '.startup-test-'));
+  t.after(() => fs.rm(outDir, { recursive: true, force: true }));
+  await build({
+    configFile: path.join(desktopRoot, 'vite.renderer.config.mjs'),
+    logLevel: 'silent',
+    build: {
+      ssr: path.join(desktopRoot, 'src/renderer/src/App.jsx'),
+      outDir,
+      minify: true,
+      commonjsOptions: { include: [/node_modules/, /src[\\/]shared/] },
+      rolldownOptions: { output: { entryFileNames: 'startup.mjs' } }
+    }
+  });
+  const { default: App } = await import(pathToFileURL(path.join(outDir, 'startup.mjs')).href);
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { memoqDesktop: {} } });
+  t.after(() => {
+    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow);
+    else delete globalThis.window;
+  });
+  const html = renderToString(createElement(App));
+  assert.match(html, /class="app-initial-loading"/);
+  assert.match(html, /role="status"/);
+});
 
 async function loadRendererComponent(modulePath) {
   const server = await createServer({

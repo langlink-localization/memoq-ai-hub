@@ -171,16 +171,6 @@ export default function App() {
   }
 
   const logs = useLogsController({ api, t, message, modal, notifyError, appState: state });
-  const historyFiltersController = useHistoryFilters({
-    api,
-    refresh,
-    beginPendingOperation,
-    setHistoryRefreshing,
-    setSelectedHistoryIds,
-    setSelectedHistoryId,
-    setProviderInsightFocus
-  });
-  const { historyFilters } = historyFiltersController;
   const {
     providerId,
     setProviderId,
@@ -227,6 +217,16 @@ export default function App() {
     testProvider,
     discoverProviderModels
   } = useProviderController({ api, t, message, modal, notifyError, refresh, requestNavigation, requestPageNavigation, state });
+  const historyFiltersController = useHistoryFilters({
+    api,
+    refresh,
+    beginPendingOperation,
+    setHistoryRefreshing,
+    setSelectedHistoryIds,
+    setSelectedHistoryId,
+    setProviderInsightFocus
+  });
+  const { historyFilters } = historyFiltersController;
   const {
     profileId,
     setProfileId,
@@ -253,6 +253,13 @@ export default function App() {
     createEmptyProfile,
     confirmDeleteProfile
   } = useProfileController({ api, t, message, modal, notifyError, refresh, beginPendingOperation, requestNavigation, state, providerItems });
+  const providerDraftsRef = useRef(providerDraftsById);
+  const profileDraftsRef = useRef(profileDraftsById);
+  providerDraftsRef.current = providerDraftsById;
+  profileDraftsRef.current = profileDraftsById;
+  const hasUnsavedDrafts = Object.values(providerDraftsById).some((entry) => entry?.isNew || entry?.dirtyFields?.length)
+    || Object.values(profileDraftsById).some((entry) => entry?.isNew || entry?.dirtyFields?.length);
+  const shellNavigationMode = getShellNavigationMode(viewportWidth);
 
   function beginPendingOperation(key, setPending, pendingValue = true) {
     const endOperation = pendingOperationsRef.current.begin(key);
@@ -641,8 +648,10 @@ export default function App() {
 
   function closeHistoryDetail() {
     setSelectedHistoryId('');
-    setHistoryDetailRecord(null);
-    setHistoryDetailError('');
+  }
+
+  function returnFromProviderInsightFocus() {
+    requestPageNavigation('history');
   }
 
   function confirmDeleteAsset(assetId) {
@@ -790,7 +799,7 @@ export default function App() {
               importingAssetType={importingAssetType}
               onImportAsset={importAsset}
               onDeleteAsset={confirmDeleteAsset}
-              onPreviewAsset={openAssetPreview}
+              onPreviewAsset={assetPreview.openAssetPreview}
             />
           )}
 
