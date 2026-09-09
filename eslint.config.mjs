@@ -3,6 +3,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 
 const correctnessRules = {
+  'no-undef': 'error',
   'no-constant-binary-expression': 'error',
   'no-unreachable-loop': 'error',
   'no-unsafe-finally': 'error'
@@ -49,6 +50,16 @@ export default [
     }
   },
   {
+    files: ['apps/desktop/src/main.js'],
+    languageOptions: {
+      globals: {
+        // Electron Forge's Vite plugin replaces these main-process constants.
+        MAIN_WINDOW_VITE_DEV_SERVER_URL: 'readonly',
+        MAIN_WINDOW_VITE_NAME: 'readonly'
+      }
+    }
+  },
+  {
     files: ['apps/desktop/src/renderer/src/**/*.{js,mjs,jsx}'],
     languageOptions: {
       sourceType: 'module',
@@ -59,7 +70,6 @@ export default [
       'react-hooks': reactHooks
     },
     rules: {
-      'no-undef': 'error',
       'no-use-before-define': ['error', { functions: false, classes: true, variables: true }],
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn'

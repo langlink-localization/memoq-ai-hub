@@ -3384,6 +3384,34 @@ test('runtime omits mapping notice when no mapping rules exist', async () => {
   }
 });
 
+test('dashboard keeps preview failure and prepared update notices after state-view extraction', async () => {
+  const tempRoot = createTempAppRoot();
+  let previewStatus = { state: 'error', available: false, lastError: 'Preview helper unavailable' };
+  let updateStatus = { updateStatus: 'prepared', preparedDirectory: 'C:/Updates/ready' };
+  const runtime = await createRuntime({
+    appDataRoot: tempRoot,
+    previewContextClient: { getStatus: () => ({ ...previewStatus, lastUpdatedAt: new Date().toISOString() }) },
+    updateService: { getStatus: () => updateStatus }
+  });
+  try {
+    let notices = runtime.getAppState().dashboard.notices;
+    assert.ok(notices.includes('Preview bridge unavailable: Preview helper unavailable'));
+    assert.ok(notices.includes('A prepared update is ready at C:/Updates/ready.'));
+
+    previewStatus = { state: 'connected', connected: true };
+    updateStatus = { updateStatus: 'available', latestVersion: newerDesktopPackageVersion };
+    notices = runtime.getAppState().dashboard.notices;
+    assert.ok(notices.some((notice) => /^Preview bridge connected:/.test(notice)));
+    assert.ok(notices.includes(`Update available: ${newerDesktopPackageVersion}.`));
+
+    updateStatus = { updateStatus: 'error', lastError: 'Update network unavailable' };
+    assert.ok(runtime.getAppState().dashboard.notices.includes('Update check failed: Update network unavailable'));
+  } finally {
+    runtime.dispose();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('runtime resolves preview-context from helper cache and caches document summaries', async () => {
   const tempRoot = createTempAppRoot();
   const previewLookups = [];

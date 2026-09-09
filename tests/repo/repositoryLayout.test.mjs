@@ -159,6 +159,7 @@ test('dependency and CI governance is reproducible', () => {
     '@electron/packager',
     'extract-zip',
     'browserslist',
+    'js-yaml@^4',
   ]) {
     const escaped = overriddenPackage.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
     assert.match(

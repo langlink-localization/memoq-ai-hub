@@ -31,8 +31,9 @@ function buildChecklist(state, history, integration, providers) {
  * @param {any} history
  * @param {any} integration
  * @param {any} updateStatus
+ * @param {any} previewStatus
  */
-function buildNotices(state, providers, history, integration, updateStatus) {
+function buildNotices(state, providers, history, integration, updateStatus, previewStatus = {}) {
   const notices = [];
   if (!integration.installations.length) notices.push('No memoQ installation directory was detected.');
   if (!providers.length) notices.push('No provider has been configured yet.');
@@ -40,8 +41,20 @@ function buildNotices(state, providers, history, integration, updateStatus) {
   if (unhealthy.length) notices.push(`${unhealthy.map((provider) => provider.name).join(', ')} need attention.`);
   const latest = history[0];
   if (latest) notices.push(latest.status === 'success' ? `Latest translation succeeded: ${latest.requestId}` : `Latest translation failed: ${latest.requestId}`);
-  if (updateStatus.updateStatus === 'available') notices.push(`Version ${updateStatus.latestVersion || ''} is available.`);
-  if (updateStatus.updateStatus === 'error') notices.push(updateStatus.lastError || 'The last update check failed.');
+  const previewConnection = String(previewStatus.status || '').trim().toLowerCase();
+  if (previewConnection === 'connected') {
+    notices.push(`Preview bridge connected: ${previewStatus.activePreviewPartCount || 0} active part(s), ${previewStatus.cachedPreviewPartCount || 0} cached part(s).`);
+  } else if (previewConnection === 'error' && previewStatus.lastError) {
+    notices.push(`Preview bridge unavailable: ${previewStatus.lastError}`);
+  }
+  if (updateStatus?.updateStatus === 'available' && updateStatus?.latestVersion) {
+    notices.push(`Update available: ${updateStatus.latestVersion}.`);
+  } else if (updateStatus?.updateStatus === 'prepared' && updateStatus?.preparedDirectory) {
+    notices.push(`A prepared update is ready at ${updateStatus.preparedDirectory}.`);
+  } else if (updateStatus?.updateStatus === 'error' && updateStatus?.lastError) {
+    notices.push(`Update check failed: ${updateStatus.lastError}`);
+  }
+  if (!notices.length) notices.push('The app is ready for first-time configuration.');
   return notices;
 }
 
@@ -85,7 +98,7 @@ function createRuntimeStateView({
           previewStatus
         },
         updateCenter: updateStatus,
-        notices: buildNotices(state, providers, history, integration, updateStatus)
+        notices: buildNotices(state, providers, history, integration, updateStatus, previewStatus)
       },
       integration,
       previewBridge: previewStatus,

@@ -28,6 +28,7 @@ overrides:
   '@electron/packager': 18.4.4
   extract-zip: npm:@electron-internal/extract-zip@1.0.5
   browserslist: ^4.28.7
+  js-yaml@^4: 4.3.2
 
 onlyBuiltDependencies:
   - electron

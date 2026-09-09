@@ -36,12 +36,28 @@ function createMainSecretService(options = {}) {
   const safeStorage = options.safeStorage !== undefined ? options.safeStorage : resolveSafeStorage();
   const storePath = path.join(paths.appDataRoot, 'provider-secrets.json');
 
-  const encryptionReady = Boolean(
-    safeStorage
-    && typeof safeStorage.encryptString === 'function'
-    && typeof safeStorage.decryptString === 'function'
-    && (typeof safeStorage.isEncryptionAvailable !== 'function' || safeStorage.isEncryptionAvailable())
-  );
+  let migrationComplete = false;
+
+  // On Windows Electron only enables safeStorage after app.ready. This service
+  // is constructed earlier, so readiness must never be frozen at construction.
+  function isEncryptionReady() {
+    try {
+      return Boolean(
+        safeStorage
+        && typeof safeStorage.encryptString === 'function'
+        && typeof safeStorage.decryptString === 'function'
+        && (typeof safeStorage.isEncryptionAvailable !== 'function' || safeStorage.isEncryptionAvailable())
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function prepareEncryptedStore() {
+    if (!isEncryptionReady()) return false;
+    if (!migrationComplete) migrationComplete = migrateLegacyValues();
+    return true;
+  }
 
   function encryptToCipherText(plainText) {
     return safeStorage.encryptString(String(plainText)).toString('base64');
@@ -83,7 +99,7 @@ function createMainSecretService(options = {}) {
       return '';
     }
     if (value.startsWith(ENCRYPTED_PREFIX)) {
-      if (!encryptionReady) {
+      if (!isEncryptionReady()) {
         logger.warn('secret-decrypt-unavailable', 'Stored secret is encrypted but OS encryption is unavailable.');
         return '';
       }
@@ -99,10 +115,6 @@ function createMainSecretService(options = {}) {
   }
 
   function migrateLegacyValues() {
-    if (!encryptionReady) {
-      return;
-    }
-
     try {
       const state = readState();
       const migrated = {};
@@ -127,7 +139,7 @@ function createMainSecretService(options = {}) {
       }
 
       if (!changed) {
-        return;
+        return true;
       }
 
       writeState(migrated);
@@ -136,17 +148,21 @@ function createMainSecretService(options = {}) {
       } catch {
       }
       logger.info('secrets-migrated', 'Legacy secrets were migrated to OS-level encryption.');
+      return true;
     } catch {
       logger.error('secrets-migration-failed', 'Legacy secret migration failed; the original store was preserved.');
+      return false;
     }
   }
 
   function has(id) {
+    if (!prepareEncryptedStore()) return false;
     const value = readState()[id];
-    return Boolean(encryptionReady && typeof value === 'string' && value.startsWith(ENCRYPTED_PREFIX));
+    return Boolean(typeof value === 'string' && value.startsWith(ENCRYPTED_PREFIX));
   }
 
   function get(id) {
+    if (!prepareEncryptedStore()) return '';
     return decryptStoredValue(readState()[id]);
   }
 
@@ -155,7 +171,7 @@ function createMainSecretService(options = {}) {
     if (!value) {
       return;
     }
-    if (!encryptionReady) {
+    if (!prepareEncryptedStore()) {
       throw createSecretStorageUnavailableError();
     }
     const state = readState();
@@ -182,7 +198,7 @@ function createMainSecretService(options = {}) {
   }
 
   function listIds() {
-    if (!encryptionReady) {
+    if (!prepareEncryptedStore()) {
       return [];
     }
     return Object.entries(readState())
@@ -190,7 +206,7 @@ function createMainSecretService(options = {}) {
       .map(([id]) => id);
   }
 
-  migrateLegacyValues();
+  prepareEncryptedStore();
 
   return {
     has,
@@ -199,7 +215,7 @@ function createMainSecretService(options = {}) {
     delete: deleteSecret,
     listIds,
     isEncryptionActive() {
-      return encryptionReady;
+      return isEncryptionReady();
     }
   };
 }
