@@ -1,3 +1,4 @@
+const { createRuntimeProviderStatus } = require('./runtimeProviderStatus');
 const { buildAssetContext } = require('../asset/assetContext');
 const { evaluateTerminologyQa } = require('../asset/assetTerminology');
 const {
@@ -100,6 +101,7 @@ function createRuntimeTranslationService({
   profileService,
   providerExecution,
   providerRegistry,
+  providerStatus = createRuntimeProviderStatus(),
   runtimeIdentity,
   secretStore,
   nowIso
@@ -756,6 +758,20 @@ function createRuntimeTranslationService({
    * @param {any} internalOptions
    */
   async function performTranslation(payload, internalOptions = {}) {
+    const statusOperations = new Map();
+    try {
+      return await performTranslationWithStatus(payload, internalOptions, statusOperations);
+    } finally {
+      for (const operation of statusOperations.values()) providerStatus.release(operation);
+    }
+  }
+
+  /**
+   * @param {any} payload
+   * @param {any} internalOptions
+   * @param {Map<string, import('./runtimeProviderStatus').ProviderStatusToken>} statusOperations
+   */
+  async function performTranslationWithStatus(payload, internalOptions, statusOperations) {
     const internalAssistantOperation = internalOptions.assistantOperation === 'polish'
       ? 'polish'
       : internalOptions.assistantOperation === 'translate'
@@ -1070,6 +1086,7 @@ function createRuntimeTranslationService({
         break;
       }
 
+      statusOperations.set(route.provider.id, providerStatus.begin(route.provider));
       const secret = await secretStore.get(route.provider.secretRef);
 
       if (!secret) {
@@ -1318,13 +1335,12 @@ function createRuntimeTranslationService({
     }
 
     if (winningRoute) {
-      const provider = latestState.providers.find((/** @type {any} */ item) => item.id === winningRoute.provider.id);
-      if (provider) {
-        provider.status = terminalError ? 'failed' : 'connected';
-        provider.lastCheckedAt = completedAt;
-        provider.lastError = terminalError ? terminalError.message : '';
-        provider.lastLatencyMs = totalLatencyMs || null;
-      }
+      providerStatus.apply(latestState, statusOperations.get(winningRoute.provider.id), {
+        status: terminalError ? 'failed' : 'connected',
+        lastCheckedAt: completedAt,
+        lastError: terminalError ? terminalError.message : '',
+        lastLatencyMs: totalLatencyMs || null
+      });
     }
 
     saveState(latestState);

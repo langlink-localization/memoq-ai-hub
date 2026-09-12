@@ -48,6 +48,7 @@ function createWorkerSupervisor(options = {}) {
 
   let worker = null;
   let workerGeneration = 0;
+  let acceptingWorkerMessages = false;
   let workerRequestId = 0;
   let quitting = false;
   let everStarted = false;
@@ -65,14 +66,6 @@ function createWorkerSupervisor(options = {}) {
 
   function getStartupState() {
     return startupState;
-  }
-
-  function sendToWorker(message) {
-    try {
-      worker?.send?.(message);
-    } catch {
-      // The worker may be mid-exit; dropped messages are covered by pending-request rejection.
-    }
   }
 
   function takePendingRequest(id) {
@@ -141,6 +134,9 @@ function createWorkerSupervisor(options = {}) {
   }
 
   function recordFailureAndScheduleRespawn(reason) {
+    acceptingWorkerMessages = false;
+    clearStableTimer();
+    rejectPendingRequests({ message: reason, code: 'DESKTOP_WORKER_RESTARTING', statusCode: 503 });
     consecutiveFailures += 1;
     const attempt = consecutiveFailures;
 
@@ -217,6 +213,16 @@ function createWorkerSupervisor(options = {}) {
   }
 
   function handleMainRequest(message) {
+    const requester = worker;
+    const generation = workerGeneration;
+    const isCurrent = () => requester === worker && generation === workerGeneration
+      && acceptingWorkerMessages && !quitting;
+    // Main-process work can outlive a worker. Never dispatch queued work or
+    // deliver credentials/errors into a different worker generation.
+    function sendToWorker(response) {
+      if (!isCurrent()) return;
+      try { requester?.send?.(response); } catch { /* The requester may be exiting. */ }
+    }
     if (!mainRequestHandler) {
       sendToWorker({
         type: 'main-response',
@@ -228,7 +234,7 @@ function createWorkerSupervisor(options = {}) {
     }
 
     Promise.resolve()
-      .then(() => mainRequestHandler({ channel: message.channel, payload: message.payload }))
+      .then(() => isCurrent() ? mainRequestHandler({ channel: message.channel, payload: message.payload }) : undefined)
       .then((result) => {
         sendToWorker({ type: 'main-response', id: message.id, ok: true, result });
       })
@@ -256,6 +262,7 @@ function createWorkerSupervisor(options = {}) {
 
   function handleWorkerExit(code, signal, exitedWorker) {
     worker = null;
+    acceptingWorkerMessages = false;
     clearStableTimer();
 
     if (exitedWorker?.stdout) {
@@ -298,10 +305,11 @@ function createWorkerSupervisor(options = {}) {
 
     const spawned = forkWorker(workerPath, [], buildForkOptions());
     worker = spawned;
+    acceptingWorkerMessages = true;
     logger.info('worker-start', 'Starting desktop background worker.', { generation });
 
     spawned.on('message', (message) => {
-      if (generation === workerGeneration) {
+      if (generation === workerGeneration && worker === spawned && acceptingWorkerMessages && !quitting) {
         handleWorkerMessage(message);
       }
     });
@@ -329,13 +337,16 @@ function createWorkerSupervisor(options = {}) {
   }
 
   function invoke(channel, payload, requestOptions = {}) {
+    if (quitting) {
+      throw createWorkerError({ message: 'Desktop background worker is shutting down.', code: 'DESKTOP_WORKER_SHUTDOWN', statusCode: 503 });
+    }
     if (!worker && !quitting && respawnTimer === null) {
       if (!everStarted) {
         start();
       }
     }
 
-    if (!worker) {
+    if (!worker || !acceptingWorkerMessages) {
       const state = startupState;
       const error = new Error(
         state.status === 'error'
@@ -391,6 +402,7 @@ function createWorkerSupervisor(options = {}) {
 
   function requestShutdown() {
     quitting = true;
+    acceptingWorkerMessages = false;
     clearRespawnTimer();
     clearStableTimer();
     rejectPendingRequests({

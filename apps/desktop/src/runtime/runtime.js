@@ -1,3 +1,4 @@
+const { createRuntimeProviderStatus } = require('./runtimeProviderStatus');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -246,7 +247,9 @@ async function createRuntime(options = {}) {
       bypassTranslationCacheProfileIds.delete(normalizeProfileId(profileId));
     }
   });
+  const providerStatus = createRuntimeProviderStatus();
   const providerService = createRuntimeProviderService({
+    providerStatus,
     loadState,
     saveState,
     loadHistoryEntries,
@@ -400,6 +403,7 @@ async function createRuntime(options = {}) {
   }
 
   const translationService = createRuntimeTranslationService({
+    providerStatus,
     aggregateRescueBatchSize,
     aggregateRescueSingleTimeoutMs,
     consumeTranslationCacheBypass,

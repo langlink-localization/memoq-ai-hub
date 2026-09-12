@@ -6374,3 +6374,78 @@ test('dashboard polling preserves global history completion without loading hist
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
+
+test('late translations cannot overwrite provider edits, rotated credentials, or newer connection checks', async () => {
+  for (const change of ['settings', 'credential', 'connection-check']) {
+    const tempRoot = createTempAppRoot();
+    let runtime;
+    let release;
+    let started;
+    const providerStarted = new Promise(resolve => { started = resolve; });
+    try {
+      runtime = await createRuntime({ appDataRoot: tempRoot, providerRegistry: {
+        testConnection: async () => ({ ok: false, message: 'New check failed', latencyMs: 2 }),
+        translateSegment: async ({ sourceText }) => { started(); await new Promise(resolve => { release = resolve; }); return { text: sourceText + ' translated', latencyMs: 4 }; }
+      } });
+      const provider = await runtime.saveProvider({ name: 'Status race', type: 'openai', baseUrl: 'https://api.openai.com/v1', apiKey: 'test-key', models: [{ modelName: 'gpt-4.1-mini', enabled: true }] });
+      const profile = await runtime.saveProfile({ name: 'Status profile', providerId: provider.id, interactiveProviderId: provider.id, interactiveModelId: provider.models[0].id, cacheEnabled: false, usePreviewFullText: false });
+      const pending = runtime.translate({ contractVersion: '1', requestId: `STATUS-${change}`, sourceLanguage: 'EN', targetLanguage: 'ZH', requestType: 'Plaintext', profileResolution: { profileId: profile.id, useCase: 'interactive' }, segments: [{ index: 0, text: 'Example', plainText: 'Example' }] });
+      await providerStarted;
+      if (change === 'connection-check') await runtime.testProviderConnection(provider.id);
+      else await runtime.saveProvider({ id: provider.id, ...(change === 'settings' ? { baseUrl: 'https://example.com/v1' } : { apiKey: 'test-rotated' }) });
+      const before = runtime.getAppState().providerHub.providers.find(item => item.id === provider.id);
+      release();
+      assert.equal((await pending).statusCode, 200, 'in-flight translation still returns its result');
+      const after = runtime.getAppState().providerHub.providers.find(item => item.id === provider.id);
+      assert.equal(after.status, before.status, `${change} status must survive old translation completion`);
+      assert.equal(after.lastError, before.lastError);
+      assert.equal(runtime.getAppState().historyExplorer.items.length, 1, 'translation history remains recorded');
+    } finally { release?.(); runtime?.dispose(); fs.rmSync(tempRoot, { recursive: true, force: true }); }
+  }
+});
+
+test('cache-only translations do not claim a failed provider is connected', async () => {
+  const tempRoot = createTempAppRoot();
+  let runtime;
+  let remoteCalls = 0;
+  try {
+    runtime = await createRuntime({ appDataRoot: tempRoot, providerRegistry: {
+      testConnection: async () => ({ ok: false, message: 'Offline', latencyMs: 2 }),
+      translateSegment: async () => { remoteCalls += 1; return { text: 'Cached result', latencyMs: 4 }; }
+    } });
+    const provider = await runtime.saveProvider({ name: 'Cache status', type: 'openai', apiKey: 'test-key', models: [{ modelName: 'gpt-4.1-mini', enabled: true }] });
+    const profile = await runtime.saveProfile({ name: 'Cache profile', providerId: provider.id, interactiveProviderId: provider.id, interactiveModelId: provider.models[0].id, cacheEnabled: true, usePreviewFullText: false });
+    const payload = { contractVersion: '1', sourceLanguage: 'EN', targetLanguage: 'ZH', requestType: 'Plaintext', profileResolution: { profileId: profile.id, useCase: 'interactive' }, segments: [{ index: 0, text: 'Cache example', plainText: 'Cache example' }] };
+    assert.equal((await runtime.translate({ ...payload, requestId: 'CACHE-FIRST' })).statusCode, 200);
+    assert.equal(runtime.getAppState().providerHub.providers.find(item => item.id === provider.id).status, 'connected');
+    await runtime.testProviderConnection(provider.id);
+    assert.equal((await runtime.translate({ ...payload, requestId: 'CACHE-SECOND' })).statusCode, 200);
+    assert.equal(remoteCalls, 1);
+    assert.equal(runtime.getAppState().providerHub.providers.find(item => item.id === provider.id).status, 'failed');
+  } finally { runtime?.dispose(); fs.rmSync(tempRoot, { recursive: true, force: true }); }
+});
+
+test('successful fallback clears the primary error while retaining failed-attempt diagnostics', async () => {
+  const tempRoot = createTempAppRoot();
+  let runtime;
+  try {
+    runtime = await createRuntime({ appDataRoot: tempRoot, providerRegistry: {
+      testConnection: async () => ({ ok: true, message: 'ok', latencyMs: 1 }),
+      translateSegment: async ({ provider }) => {
+        if (provider.name === 'Primary failing') { const error = new Error('Primary unavailable'); error.status = 401; throw error; }
+        return { text: 'Fallback result', latencyMs: 3 };
+      }
+    } });
+    const primary = await runtime.saveProvider({ name: 'Primary failing', type: 'openai', apiKey: 'test-primary', models: [{ modelName: 'gpt-4.1-mini', enabled: true }] });
+    const fallback = await runtime.saveProvider({ name: 'Fallback working', type: 'openai', apiKey: 'test-fallback', models: [{ modelName: 'gpt-4.1-mini', enabled: true }] });
+    const profile = await runtime.saveProfile({ name: 'Fallback profile', interactiveProviderId: primary.id, interactiveModelId: primary.models[0].id, fallbackProviderId: fallback.id, fallbackModelId: fallback.models[0].id, cacheEnabled: false, usePreviewFullText: false });
+    const result = await runtime.translate({ contractVersion: '1', requestId: 'FALLBACK-COMPLETE', sourceLanguage: 'EN', targetLanguage: 'ZH', requestType: 'Plaintext', profileResolution: { profileId: profile.id, useCase: 'interactive' }, segments: [{ index: 0, text: 'Example', plainText: 'Example' }] });
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.body.partial, false);
+    assert.equal(result.body.error, null);
+    const state = runtime.getAppState();
+    assert.equal(state.historyExplorer.items[0].status, 'success');
+    assert.ok(state.historyExplorer.items[0].attempts.some(attempt => attempt.providerId === primary.id && !attempt.success));
+    assert.equal(state.providerHub.providers.find(item => item.id === fallback.id).status, 'connected');
+  } finally { runtime?.dispose(); fs.rmSync(tempRoot, { recursive: true, force: true }); }
+});

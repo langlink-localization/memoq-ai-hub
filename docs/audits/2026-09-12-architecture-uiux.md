@@ -1,5 +1,7 @@
 # Architecture and UI/UX release-candidate audit
 
+This records the first-pass candidate committed as `101f12b`. See the [second architecture pass](2026-09-12-architecture-round2.md) for subsequent changes and final package evidence.
+
 Date: 2026-09-12, Asia/Shanghai. Candidate: **1.0.45**, based on `82eed89` (1.0.44).
 
 ## Review outcome

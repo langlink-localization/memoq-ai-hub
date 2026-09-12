@@ -41,7 +41,10 @@ test('packaged desktop bundle loads governed runtime modules from ASAR', {
 
   const archivedFiles = new Set(asar.listPackage(packagedAsarPath));
   const extractedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'memoq-packaged-runtime-'));
+  const previousResourcesPath = process.resourcesPath;
   try {
+    // Node-based extraction must use the same external resources as Electron.
+    process.resourcesPath = path.join(packagedAppDir, 'resources');
     asar.extractAll(packagedAsarPath, extractedRoot);
     const packagedRequire = (bundlePath) => require(path.join(extractedRoot, '.vite', 'build', bundlePath));
 
@@ -65,6 +68,8 @@ test('packaged desktop bundle loads governed runtime modules from ASAR', {
 
     const providerBundle = packagedRequire(path.join('provider', 'providerRegistry.js'));
     const databaseBundle = packagedRequire('database.js');
+    const runtimeBundle = packagedRequire(path.join('runtime', 'runtime.js'));
+    assert.equal(typeof runtimeBundle.createRuntime, 'function');
     assert.equal(typeof providerBundle.createProviderRegistry, 'function');
     assert.equal(typeof databaseBundle.createDatabase, 'function');
 
@@ -75,6 +80,8 @@ test('packaged desktop bundle loads governed runtime modules from ASAR', {
     assert.equal(archivedFiles.has('\\.vite\\build\\secretStore.js'), false);
     assert.equal([...archivedFiles].some((filePath) => filePath.startsWith('\\node_modules\\electron-store\\')), false);
   } finally {
+    if (previousResourcesPath === undefined) delete process.resourcesPath;
+    else process.resourcesPath = previousResourcesPath;
     fs.rmSync(extractedRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });

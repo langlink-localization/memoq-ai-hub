@@ -47,6 +47,7 @@ export default defineConfig({
         'runtime/runtimePromptPresetStore': path.resolve(__dirname, 'src/runtime/runtimePromptPresetStore.js'),
         'runtime/runtimeProfileService': path.resolve(__dirname, 'src/runtime/runtimeProfileService.js'),
         'runtime/runtimeProviderExecution': path.resolve(__dirname, 'src/runtime/runtimeProviderExecution.js'),
+        'runtime/runtimeProviderStatus': path.resolve(__dirname, 'src/runtime/runtimeProviderStatus.js'),
         'runtime/runtimeProviderService': path.resolve(__dirname, 'src/runtime/runtimeProviderService.js'),
         'runtime/runtimeQaService': path.resolve(__dirname, 'src/runtime/runtimeQaService.js'),
         'runtime/runtimePreviewContextResolver': path.resolve(__dirname, 'src/runtime/runtimePreviewContextResolver.js'),

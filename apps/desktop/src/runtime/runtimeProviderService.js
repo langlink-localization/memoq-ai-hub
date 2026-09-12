@@ -1,3 +1,4 @@
+const { createRuntimeProviderStatus } = require('./runtimeProviderStatus');
 const {
   getDefaultModelName,
   getDefaultRequestPath,
@@ -44,17 +45,9 @@ function createRuntimeProviderService({
   loadHistoryEntries,
   secretStore,
   providerRegistry,
-  nowIso
+  nowIso,
+  providerStatus = createRuntimeProviderStatus()
 }) {
-  // IPC handlers run concurrently. A test may publish status only while no
-  // newer operation has touched this provider; never retain a state snapshot
-  // across secret-store or provider-network awaits for a later write.
-  const providerOperations = new Map();
-  function beginProviderOperation(providerId) {
-    const operation = Symbol();
-    providerOperations.set(providerId, operation);
-    return operation;
-  }
   /**
    * @param {any} state
    * @param {any} providerDraft
@@ -163,11 +156,11 @@ function createRuntimeProviderService({
       }
     }
 
-    providerOperations.delete(nextProvider.id);
+    providerStatus.invalidate(nextProvider.id);
     if (provider.apiKey) {
       await secretStore.set(nextProvider.secretRef, provider.apiKey);
     }
-    providerOperations.delete(nextProvider.id);
+    providerStatus.invalidate(nextProvider.id);
     delete nextProvider.apiKey;
     const latestState = loadState();
     const index = latestState.providers.findIndex((item) => item.id === nextProvider.id);
@@ -222,7 +215,7 @@ function createRuntimeProviderService({
       throw new Error(buildProfileReferenceMessage(referencedBy, `Provider "${provider.name}"`));
     }
 
-    providerOperations.delete(providerId);
+    providerStatus.invalidate(providerId);
     state.providers = state.providers.filter((item) => item.id !== providerId);
     saveState(state);
     await secretStore.delete(provider.secretRef);
@@ -253,7 +246,7 @@ function createRuntimeProviderService({
       throw new Error(buildProfileReferenceMessage(referencedBy, `Model "${model.modelName}"`));
     }
 
-    providerOperations.delete(providerId);
+    providerStatus.invalidate(providerId);
     provider.models = (provider.models || []).filter((item) => item.id !== modelId);
     provider.defaultModelId = resolveProviderDefaultModelId(
       provider.models,
@@ -270,26 +263,21 @@ function createRuntimeProviderService({
     const state = loadState();
     const provider = state.providers.find((item) => item.id === providerId);
     if (!provider) throw new Error(`Provider ${providerId} not found`);
-    const operation = beginProviderOperation(providerId);
-    const fingerprint = JSON.stringify(provider);
+    const operation = providerStatus.begin(provider);
     let result;
     try {
       result = await testProviderDraftAgainstState(state, provider);
     } catch (error) {
-      if (providerOperations.get(providerId) === operation) providerOperations.delete(providerId);
+      providerStatus.release(operation);
       throw error;
     }
     const latestState = loadState();
-    const latestProvider = latestState.providers.find((item) => item.id === providerId);
-    if (latestProvider && providerOperations.get(providerId) === operation
-      && JSON.stringify(latestProvider) === fingerprint) {
-      latestProvider.status = result.status;
-      latestProvider.lastCheckedAt = result.testedAt || nowIso();
-      latestProvider.lastError = result.ok ? '' : result.message;
-      latestProvider.lastLatencyMs = result.latencyMs;
-      saveState(latestState);
-    }
-    if (providerOperations.get(providerId) === operation) providerOperations.delete(providerId);
+    if (providerStatus.apply(latestState, operation, {
+      status: result.status,
+      lastCheckedAt: result.testedAt || nowIso(),
+      lastError: result.ok ? '' : result.message,
+      lastLatencyMs: result.latencyMs
+    })) saveState(latestState);
     return {
       ok: result.ok,
       status: result.status,

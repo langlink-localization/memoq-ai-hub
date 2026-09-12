@@ -135,3 +135,50 @@ test('a delayed secret read cannot repopulate cache after deletion', async () =>
   respondFromMain((message) => message.channel === 'secrets.get', { value: '' });
   assert.equal(await nextRead, '');
 });
+
+test('concurrent reads of one credential share a single main-process request', async () => {
+  const { store, sent, respondFromMain } = createIpcHarness();
+  const reads = Array.from({ length: 24 }, () => store.get('shared'));
+  const other = store.get('other');
+  const sharedRequests = sent.filter(message => message.channel === 'secrets.get' && message.payload.id === 'shared');
+  // Settle every request even on the old implementation so a failing assertion does not leave timers behind.
+  for (const request of sharedRequests) store.handleMessage({ type: 'main-response', id: request.id, ok: true, result: { value: 'test-shared' } });
+  respondFromMain(message => message.payload.id === 'other', { value: 'test-other' });
+  assert.deepEqual(await Promise.all(reads), Array(24).fill('test-shared'));
+  assert.equal(await other, 'test-other');
+  assert.equal(sharedRequests.length, 1);
+});
+
+test('failed shared credential reads release their slot and can retry', async () => {
+  const { store, sent, respondFromMain } = createIpcHarness();
+  const results = Promise.allSettled([store.get('retry'), store.get('retry')]);
+  const requests = sent.filter(message => message.channel === 'secrets.get');
+  for (const request of requests) store.handleMessage({ type: 'main-response', id: request.id, ok: false, error: { message: 'transient failure' } });
+  assert.deepEqual((await results).map(result => result.status), ['rejected', 'rejected']);
+  const retry = store.get('retry');
+  respondFromMain(message => message.channel === 'secrets.get', { value: 'test-recovered' });
+  assert.equal(await retry, 'test-recovered');
+  assert.equal(requests.length, 1);
+});
+
+test('reads after deletion cannot join an obsolete in-flight credential read', async () => {
+  const { store, sent, respondFromMain } = createIpcHarness();
+  const oldRead = store.get('changed');
+  const oldRequest = sent.at(-1);
+  const deletion = store.delete('changed');
+  respondFromMain(message => message.channel === 'secrets.delete', { ok: true });
+  await deletion;
+  const newRead = store.get('changed');
+  const newRequest = sent.at(-1);
+  assert.notEqual(newRequest.id, oldRequest.id);
+  store.handleMessage({ type: 'main-response', id: oldRequest.id, ok: true, result: { value: 'test-old' } });
+  await oldRead;
+  const joinedRead = store.get('changed');
+  const lastRequest = sent.at(-1);
+  // Older completion must not evict a newer pending slot.
+  for (const request of new Set([newRequest, lastRequest])) store.handleMessage({ type: 'main-response', id: request.id, ok: true, result: { value: '' } });
+  assert.equal(await newRead, '');
+  assert.equal(await joinedRead, '');
+  assert.equal(lastRequest.id, newRequest.id);
+  assert.equal(store.has('changed'), false);
+});

@@ -14,6 +14,7 @@ function createWorkerSecretStore(options = {}) {
     message: 'Worker-local credential persistence is disabled. Use the Electron main-process secure storage bridge.'
   });
   const decryptedCache = new Map();
+  const pendingReads = new Map();
   const idCache = new Set();
   const pendingRequests = new Map();
   let requestSequence = 0;
@@ -73,17 +74,29 @@ function createWorkerSecretStore(options = {}) {
     }
 
     const generation = cacheGeneration;
-    const value = useMainProcess
-      ? String((await requestMain('secrets.get', { id: key }))?.value || '')
-      : String((await localStore.get(key)) || '');
+    const existing = pendingReads.get(key);
+    if (existing?.generation === generation) return existing.promise;
 
-    // An empty response can mean temporarily unavailable OS decryption, even
-    // while listIds still reports the saved credential. Let the next read retry.
-    if (value && generation === cacheGeneration) {
-      decryptedCache.set(key, value);
-      idCache.add(key);
+    const entry = { generation, promise: null };
+    entry.promise = (async () => {
+      const value = useMainProcess
+        ? String((await requestMain('secrets.get', { id: key }))?.value || '')
+        : String((await localStore.get(key)) || '');
+
+      // Empty decryption results remain retryable. Concurrent callers share only
+      // the in-flight read; a mutation gives subsequent readers a fresh owner.
+      if (value && generation === cacheGeneration) {
+        decryptedCache.set(key, value);
+        idCache.add(key);
+      }
+      return value;
+    })();
+    pendingReads.set(key, entry);
+    try {
+      return await entry.promise;
+    } finally {
+      if (pendingReads.get(key) === entry) pendingReads.delete(key);
     }
-    return value;
   }
 
   function has(id) {

@@ -103,3 +103,7 @@ Provider network/secret operations must re-read configuration after awaiting ext
 `runtimePersistence.getHistoryOverview()` owns the small dashboard history projection (count and latest outcome). `runtimeStateView` uses it independently of history-explorer filters, so lightweight polling does not reset setup progress or parse full diagnostic JSON.
 
 Renderer read ownership lives in `requestLifecycle.mjs` and `hooks/useRequestLifecycle.mjs`. The app-state request and dashboard publication have separate owners because dashboard polling must not replace unrelated editor state. `editorNavigation.mjs` owns discard/stay policy for the project-rule drawer and page navigation; controller pending registries reject duplicate operations.
+
+Provider health ownership is shared by connection tests and translation through `runtimeProviderStatus`. Tokens are scoped to actual provider operations and their configuration snapshots; cache-only results cannot publish health. Translation releases all request tokens in its outer lifecycle wrapper, including error exits. This changes status publication, not provider execution concurrency or translation history.
+
+The worker supervisor binds main-process callbacks to the requesting worker generation. Retirement closes message acceptance and rejects pending calls before process exit. Credential read coalescing is owned by `secretBridge`; replacement after mutation and completion cleanup are guarded by the pending entry identity.

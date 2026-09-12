@@ -341,3 +341,74 @@ test('invoke while restarting surfaces a restarting error instead of forking a d
   timers.fireFirst();
   assert.equal(spawned.length, 2);
 });
+
+test('main-process replies stay with the worker generation that requested them', async () => {
+  for (const fail of [false, true]) {
+    let finish;
+    const { supervisor, spawned, timers } = createHarness({
+      mainRequestHandler: () => new Promise((resolve, reject) => { finish = fail ? reject : resolve; })
+    });
+    supervisor.start();
+    spawned[0].emit('message', { type: 'main-request', id: 'old-main', channel: 'secrets.get', payload: {} });
+    await new Promise(resolve => setImmediate(resolve));
+    spawned[0].emit('exit', 1, null);
+    timers.fireFirst();
+    finish(fail ? new Error('old failure') : { value: 'test-value' });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(spawned[1].sent.length, 0, 'a replacement must never receive an earlier worker reply');
+  }
+});
+
+test('queued main-process work is dropped if its worker exits before dispatch', async () => {
+  let calls = 0;
+  const { supervisor, spawned } = createHarness({ mainRequestHandler: () => { calls += 1; } });
+  supervisor.start();
+  spawned[0].emit('message', { type: 'main-request', id: 'queued', channel: 'secrets.set', payload: {} });
+  spawned[0].emit('exit', 1, null);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls, 0);
+});
+
+test('exited workers cannot publish readiness or dispatch main requests during backoff', async () => {
+  let calls = 0;
+  const { supervisor, spawned } = createHarness({ mainRequestHandler: () => { calls += 1; } });
+  supervisor.start();
+  spawned[0].emit('exit', 1, null);
+  emitStatus(spawned[0], 'ready');
+  spawned[0].emit('message', { type: 'main-request', id: 'late', channel: 'secrets.get', payload: {} });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(supervisor.getStartupState().status, 'restarting');
+  assert.equal(calls, 0);
+});
+
+test('shutdown rejects new invocations while the worker is still exiting', () => {
+  const { supervisor, spawned } = createHarness();
+  supervisor.start();
+  supervisor.requestShutdown();
+  assert.throws(() => supervisor.invoke('saveProvider', {}), error => error.code === 'DESKTOP_WORKER_SHUTDOWN');
+  emitStatus(spawned[0], 'ready');
+  assert.notEqual(supervisor.getStartupState().status, 'ready');
+  assert.equal(spawned[0].sent.filter(message => message.channel === 'saveProvider').length, 0);
+});
+
+test('a worker marked for restart cannot accept requests or restore readiness', () => {
+  const { supervisor, spawned } = createHarness();
+  supervisor.start();
+  emitStatus(spawned[0], 'error', 'startup failed');
+  emitStatus(spawned[0], 'ready');
+  assert.equal(supervisor.getStartupState().status, 'restarting');
+  assert.throws(() => supervisor.invoke('getAppState', {}), error => error.code === 'DESKTOP_WORKER_RESTARTING');
+});
+
+test('restart rejection clears pending deadlines before a delayed worker exit', async () => {
+  const { supervisor, spawned, timers } = createHarness({ backoffScheduleMs: [10] });
+  supervisor.start();
+  const pending = supervisor.invoke('getAppState', {});
+  emitStatus(spawned[0], 'error', 'unhealthy');
+  await assert.rejects(pending, error => error.code === 'DESKTOP_WORKER_RESTARTING');
+  assert.equal(timers.pendingCount(), 1, 'only respawn remains even if process exit has not arrived');
+  timers.fireByDelay(10);
+  emitStatus(spawned[1], 'ready');
+  spawned[0].emit('exit', 1, null);
+  assert.equal(supervisor.getStartupState().status, 'ready');
+});
