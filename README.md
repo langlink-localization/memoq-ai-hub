@@ -30,7 +30,7 @@ The repository contains runtime code for more advanced capabilities, but not eve
 
 ## Current Release Highlights
 
-The local **v1.0.45 release candidate** hardens concurrent configuration updates and credential recovery, keeps dashboard progress accurate during polling, and improves editor save protection, preview recovery, keyboard access, and reduced motion. See [release notes](docs/release-notes/v1.0.45.md) and the [architecture and UX review](docs/audits/2026-09-12-architecture-uiux.md).
+**v1.0.45** hardens concurrent configuration updates and credential recovery, keeps dashboard progress accurate during polling, and improves editor save protection, preview recovery, keyboard access, and reduced motion. See [release notes](docs/release-notes/v1.0.45.md) and the [architecture and UX review](docs/audits/2026-09-12-architecture-uiux.md).
 
 `v1.0.40` includes the product, performance, security, architecture, and reliability improvements delivered from `v1.0.20` through `v1.0.40`:
 
