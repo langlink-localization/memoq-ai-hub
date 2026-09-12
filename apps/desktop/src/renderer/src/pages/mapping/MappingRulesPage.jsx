@@ -27,7 +27,8 @@ import {
   Tag,
   Typography
 } from 'antd';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { requestEditorDeparture } from '../../editorNavigation.mjs';
 import { useI18n } from '../../i18n';
 import { TABLE_COLUMN_WIDTHS, TABLE_SCROLL_X } from '../../tableLayout.mjs';
 import {
@@ -52,13 +53,17 @@ export default function MappingRulesPage({
   rules = [],
   profiles = [],
   defaultProfileId = '',
-  onRefresh
+  onRefresh,
+  onDirtyChange,
+  onBusyChange
 }) {
   const { t } = useI18n();
   const { message, modal } = App.useApp();
   const [editorForm] = Form.useForm();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingRule, setEditingRule] = useState(null);
+  const [editorDirty, setEditorDirty] = useState(false);
+  const savingRef = useRef(false);
   const [saving, setSaving] = useState(false);
   const [pendingRuleId, setPendingRuleId] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -66,6 +71,20 @@ export default function MappingRulesPage({
   const [testInput, setTestInput] = useState(() => createMappingTestInput());
   const [testResult, setTestResult] = useState(null);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    onDirtyChange?.(editorOpen && editorDirty);
+    onBusyChange?.(saving);
+    return () => { onDirtyChange?.(false); onBusyChange?.(false); };
+  }, [editorDirty, editorOpen, onBusyChange, onDirtyChange, saving]);
+
+  function closeRuleEditor() {
+    requestEditorDeparture({
+      dirty: editorDirty, busy: savingRef.current,
+      name: editingRule?.ruleName || t('mapping.newRuleName'), modal, t,
+      proceed: () => { setEditorDirty(false); setEditorOpen(false); }
+    });
+  }
 
   const sortedRules = useMemo(() => sortMappingRules(rules), [rules]);
   const profileById = useMemo(() => new Map(profiles.map((profile) => [profile.id, profile])), [profiles]);
@@ -92,6 +111,7 @@ export default function MappingRulesPage({
       defaultName: t('mapping.newRuleName')
     });
     if (copy) draft.ruleName = t('mapping.copiedRuleName', { name: rule?.ruleName || t('mapping.newRuleName') });
+    setEditorDirty(false);
     setEditingRule(draft);
     editorForm.resetFields();
     editorForm.setFieldsValue(draft);
@@ -100,6 +120,8 @@ export default function MappingRulesPage({
   }
 
   async function persistRule(payload) {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     setError('');
     try {
@@ -107,6 +129,7 @@ export default function MappingRulesPage({
       await onRefresh?.();
       setEditorOpen(false);
       setEditingRule(null);
+      setEditorDirty(false);
       message.success(t('mapping.ruleSaved'));
     } catch (saveError) {
       const text = String(saveError?.message || t('mapping.saveFailed'));
@@ -114,6 +137,7 @@ export default function MappingRulesPage({
       message.error(text);
       throw saveError;
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -342,11 +366,18 @@ export default function MappingRulesPage({
         title={editingRule?.id ? t('mapping.editRule') : t('mapping.addRule')}
         open={editorOpen}
         width={RULE_EDITOR_WIDTH}
-        onClose={() => !saving && setEditorOpen(false)}
+        onClose={closeRuleEditor}
+        closable={!saving}
+        maskClosable={false}
+        keyboard={!saving}
         destroyOnHidden
-        extra={<Button type="primary" htmlType="submit" form="mapping-rule-editor" loading={saving}>{t('common.save')}</Button>}
+        footer={<Space className="mapping-editor-footer">
+          <Text type="secondary">{editorDirty ? t('navigation.unsavedTitle') : ''}</Text>
+          <Button onClick={closeRuleEditor} disabled={saving}>{t('common.cancel')}</Button>
+          <Button type="primary" htmlType="submit" form="mapping-rule-editor" loading={saving}>{t('common.save')}</Button>
+        </Space>}
       >
-        <Form id="mapping-rule-editor" form={editorForm} layout="vertical" disabled={saving} onFinish={() => void submitRule()}>
+        <Form id="mapping-rule-editor" form={editorForm} onValuesChange={() => setEditorDirty(true)} layout="vertical" disabled={saving} onFinish={() => void submitRule()}>
           <Row gutter={[16, 0]}>
             <Col xs={24} md={12}>
               <Form.Item name="ruleName" label={t('mapping.ruleName')} rules={[{ required: true, whitespace: true, message: t('mapping.ruleNameRequired') }]}>

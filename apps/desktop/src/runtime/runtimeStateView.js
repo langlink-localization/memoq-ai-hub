@@ -13,7 +13,7 @@ const { buildHistoryInsights, buildIntegrationConfig } = require('./runtimeHisto
 
 // Dashboard checklist and notice assembly are pure projections of the loaded
 // state; getState composes them into the renderer-facing app-state payload.
-function buildChecklist(state, history, integration, providers) {
+function buildChecklist(state, historyOverview, integration, providers) {
   const enabledProviderCount = providers.filter((item) => item.enabled).length;
   const assetCount = Array.isArray(state.assets) ? state.assets.length : 0;
   return [
@@ -21,7 +21,7 @@ function buildChecklist(state, history, integration, providers) {
     { key: 'provider-hub', title: '2. Connect AI service', subtitle: enabledProviderCount ? `${enabledProviderCount} service(s)` : 'No AI service yet', actionLabel: 'Connect', completed: enabledProviderCount > 0, count: enabledProviderCount },
     { key: 'asset-hub', title: '3. Add optional assets', subtitle: assetCount ? `${assetCount} asset(s)` : 'Optional — no assets uploaded', actionLabel: 'Add assets', completed: assetCount > 0, optional: true, count: assetCount },
     { key: 'context-builder', title: '4. Create profile', subtitle: state.profiles.length ? `${state.profiles.length} profile(s)` : 'No profile yet', actionLabel: 'Create', completed: state.profiles.length > 0, count: state.profiles.length },
-    { key: 'history', title: '5. Review a run', subtitle: history.length ? `${history.length} record(s)` : 'No translation records yet', actionLabel: 'Review', completed: history.length > 0, count: history.length }
+    { key: 'history', title: '5. Review a run', subtitle: historyOverview.count ? `${historyOverview.count} record(s)` : 'No translation records yet', actionLabel: 'Review', completed: historyOverview.count > 0, count: historyOverview.count }
   ];
 }
 
@@ -64,6 +64,7 @@ function buildNotices(state, providers, history, integration, updateStatus, prev
 function createRuntimeStateView({
   loadState,
   loadHistoryEntries,
+  getHistoryOverview,
   buildHistoryListItem,
   enrichProviders,
   syncPreviewBridgeStatusFromClient,
@@ -80,6 +81,7 @@ function createRuntimeStateView({
     const includeHistoryExplorer = filters.includeHistoryExplorer !== false;
     const includeProviderHistoryMetrics = filters.includeProviderHistoryMetrics !== false;
     const historyEntries = (includeHistoryExplorer || includeProviderHistoryMetrics) ? loadHistoryEntries() : [];
+    const historyOverview = getHistoryOverview();
     const integration = getIntegrationStatus(paths, buildIntegrationConfig(state));
     const history = includeHistoryExplorer ? filterHistoryEntries(historyEntries, filters) : [];
     const providers = enrichProviders(state, includeProviderHistoryMetrics ? historyEntries : []);
@@ -90,7 +92,7 @@ function createRuntimeStateView({
       contractVersion: CONTRACT_VERSION,
       gatewayBaseUrl: `http://${DEFAULT_HOST}:${DEFAULT_PORT}`,
       dashboard: {
-        checklist: buildChecklist(state, history, integration, providers),
+        checklist: buildChecklist(state, historyOverview, integration, providers),
         runtimeStatus: {
           memoqInstallPath: integration.selectedInstallDir || integration.installations[0]?.rootDir || 'Not detected',
           pluginStatus: integration.status,
@@ -98,7 +100,7 @@ function createRuntimeStateView({
           previewStatus
         },
         updateCenter: updateStatus,
-        notices: buildNotices(state, providers, history, integration, updateStatus, previewStatus)
+        notices: buildNotices(state, providers, historyOverview.latest ? [historyOverview.latest] : [], integration, updateStatus, previewStatus)
       },
       integration,
       previewBridge: previewStatus,

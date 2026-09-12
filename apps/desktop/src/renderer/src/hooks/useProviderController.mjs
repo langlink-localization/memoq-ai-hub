@@ -32,7 +32,7 @@ const CONNECTION_SENSITIVE_PROVIDER_FIELDS = new Set(['apiKey', 'baseUrl', 'requ
 // flows, provider search and insight focus. Selection state (providerId) and
 // the derived current-provider presentation live here too; the app shell keeps
 // navigation and the cross-domain save-and-continue flow.
-export function useProviderController({ api, t, message, modal, notifyError, refresh, requestNavigation, requestPageNavigation, state }) {
+export function useProviderController({ api, t, message, modal, notifyError, refresh, beginPendingOperation, requestNavigation, requestPageNavigation, state }) {
   const [providerId, setProviderId] = useState('');
   const [savingProvider, setSavingProvider] = useState(false);
   const [testingProvider, setTestingProvider] = useState(false);
@@ -136,7 +136,8 @@ export function useProviderController({ api, t, message, modal, notifyError, ref
 
   async function saveCurrentProvider() {
     if (!currentProvider || currentProviderConnectionMeta.color !== 'green') return false;
-    setSavingProvider(true);
+    const endPending = beginPendingOperation('provider-save', setSavingProvider);
+    if (!endPending) return false;
     try {
       const draftProviderId = isDraftProvider(currentProvider) ? currentProvider.id : '';
       const providerPayload = isDraftProvider(currentProvider)
@@ -167,13 +168,14 @@ export function useProviderController({ api, t, message, modal, notifyError, ref
       notifyError(saveError);
       return false;
     } finally {
-      setSavingProvider(false);
+      endPending();
     }
   }
 
   async function testProvider() {
     if (!currentProvider) return;
-    setTestingProvider(true);
+    const endPending = beginPendingOperation('provider-test', setTestingProvider);
+    if (!endPending) return;
     setProviderTestStatesById((current) => ({
       ...current,
       [currentProvider.id]: {
@@ -215,13 +217,14 @@ export function useProviderController({ api, t, message, modal, notifyError, ref
       }));
       notifyError(providerError);
     } finally {
-      setTestingProvider(false);
+      endPending();
     }
   }
 
   async function discoverProviderModels() {
     if (!currentProvider) return;
-    setDiscoveringProviderModels(true);
+    const endPending = beginPendingOperation('provider-discover', setDiscoveringProviderModels);
+    if (!endPending) return;
     try {
       const result = await api.discoverProviderModels(currentProvider);
       if (!result?.ok) {
@@ -237,7 +240,7 @@ export function useProviderController({ api, t, message, modal, notifyError, ref
     } catch (discoveryError) {
       notifyError(discoveryError, t('providers.modelDiscoveryFailed'));
     } finally {
-      setDiscoveringProviderModels(false);
+      endPending();
     }
   }
 
@@ -255,7 +258,7 @@ export function useProviderController({ api, t, message, modal, notifyError, ref
   }
 
   function updateCurrentProviderDraft(updater, options = {}) {
-    if (!currentProvider) return;
+    if (!currentProvider || savingProvider) return;
     setProviderDraftsById((current) => updateDraftEntry(
       current,
       currentProvider,

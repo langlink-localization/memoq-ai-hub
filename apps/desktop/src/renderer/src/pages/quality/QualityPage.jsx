@@ -72,6 +72,7 @@ function matchesRule(rule, sample) {
 
 export default function QualityPage({ api = window.memoqDesktop, profiles = [], providers = [], promptPresets: initialPromptPresets = [], compact = false }) {
   const { t } = useI18n();
+  const { token } = theme.useToken();
   const { message, modal, notification } = AntdApp.useApp();
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
@@ -288,7 +289,7 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
     ruleForm.resetFields();
   }
 
-  if (loading) return <Skeleton active paragraph={{ rows: compact ? 6 : 10 }} />;
+  if (loading) return <Skeleton active={token.motion !== false} paragraph={{ rows: compact ? 6 : 10 }} />;
 
   const content = (
     <Space direction="vertical" size="large" className={compact ? 'quality-float-content' : 'quality-page'}>

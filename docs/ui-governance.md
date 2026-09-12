@@ -72,3 +72,12 @@ Navigation, onboarding, documentation, and empty-state actions must use this ord
 - Responsive checks cover representative 1024px, 1280px, 1440px, and 1920px layouts plus the 768px drawer boundary, with no page-level horizontal overflow.
 - Renderer behavior is tested through component interaction where feasible; source-string assertions alone are not sufficient for new behavior.
 - `pnpm run lint`, `pnpm run test:desktop`, `pnpm run test:repo`, and a renderer compile/package-relevant check must pass before completion.
+
+## Request and editor lifecycle
+
+- Asynchronous view reads use `requestLifecycle.mjs` and `useRequestLifecycle.mjs` to invalidate obsolete publications on replacement or unmount. A stale request cannot update data, errors, or loading state owned by a newer request.
+- Polling uses one request slot per active interval. Hidden windows skip ticks, disposal removes the interval, and a rejected request releases the slot for retry.
+- Provider, profile, and project-rule writes block conflicting navigation while pending. Project rules offer explicit discard/stay confirmation before leaving a dirty draft, and their save action remains in the drawer footer.
+- Asset-preview failures offer retry in the drawer; saving its structure locks dismissal until persistence completes.
+- Page error boundaries preserve the shell and provide retry; root failures still use the application-wide recovery surface.
+- The main landmark and skip link provide keyboard access to content. Reduced motion is propagated through the root Ant Design theme and applied to explicit skeleton animations and custom transitions.

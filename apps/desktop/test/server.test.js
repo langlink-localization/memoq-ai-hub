@@ -64,7 +64,7 @@ function createRuntimeStub(overrides = {}) {
 test('gateway health returns the same desktop version as the desktop version payload', async () => {
   const runtime = createRuntimeStub();
 
-  const { app } = createGatewayServer(runtime, { guard: false });
+  const { app } = createGatewayServer(runtime, { guard: false, logger: { info() {}, error() {} } });
   const { server, baseUrl } = await listen(app);
 
   try {
@@ -92,7 +92,7 @@ test('gateway aggregate submit success passes through runtime status and body', 
       };
     }
   });
-  const { app } = createGatewayServer(runtime, { guard: false });
+  const { app } = createGatewayServer(runtime, { guard: false, logger: { info() {}, error() {} } });
   const { server, baseUrl } = await listen(app);
 
   try {
@@ -133,7 +133,7 @@ test('gateway aggregate result success passes through runtime status and body', 
       };
     }
   });
-  const { app } = createGatewayServer(runtime, { guard: false });
+  const { app } = createGatewayServer(runtime, { guard: false, logger: { info() {}, error() {} } });
   const { server, baseUrl } = await listen(app);
 
   try {
@@ -167,7 +167,7 @@ test('gateway translate success still passes through runtime status and body', a
       };
     }
   });
-  const { app } = createGatewayServer(runtime, { guard: false });
+  const { app } = createGatewayServer(runtime, { guard: false, logger: { info() {}, error() {} } });
   const { server, baseUrl } = await listen(app);
 
   try {
@@ -203,7 +203,7 @@ test('gateway translate wraps runtime exceptions in a stable JSON error body', a
       throw error;
     }
   });
-  const { app } = createGatewayServer(runtime, { guard: false });
+  const { app } = createGatewayServer(runtime, { guard: false, logger: { info() {}, error() {} } });
   const { server, baseUrl } = await listen(app);
 
   try {
@@ -238,7 +238,7 @@ test('gateway storeTranslations uses the translation failure contract for thrown
       throw new Error('writeback exploded');
     }
   });
-  const { app } = createGatewayServer(runtime, { guard: false });
+  const { app } = createGatewayServer(runtime, { guard: false, logger: { info() {}, error() {} } });
   const { server, baseUrl } = await listen(app);
 
   try {
@@ -276,7 +276,7 @@ test('gateway integration install keeps its existing integration error contract'
       throw error;
     }
   });
-  const { app } = createGatewayServer(runtime, { guard: false });
+  const { app } = createGatewayServer(runtime, { guard: false, logger: { info() {}, error() {} } });
   const { server, baseUrl } = await listen(app);
 
   try {
@@ -308,7 +308,7 @@ test('gateway normalizes malformed JSON without invoking the runtime', async () 
       return { statusCode: 200, body: { success: true } };
     }
   });
-  const { app } = createGatewayServer(runtime, { guard: false });
+  const { app } = createGatewayServer(runtime, { guard: false, logger: { info() {}, error() {} } });
   const { server, baseUrl } = await listen(app);
   try {
     const response = await fetch(`${baseUrl}${ROUTES.mtTranslate}`, {
@@ -335,7 +335,7 @@ test('gateway normalizes oversized JSON without invoking the runtime', async () 
       return { statusCode: 200, body: { success: true } };
     }
   });
-  const { app } = createGatewayServer(runtime, { guard: false });
+  const { app } = createGatewayServer(runtime, { guard: false, logger: { info() {}, error() {} } });
   const { server, baseUrl } = await listen(app);
   try {
     const response = await fetch(`${baseUrl}${ROUTES.mtTranslate}`, {
@@ -362,7 +362,7 @@ test('gateway rejects invalid mt payloads with a typed 400 before reaching the r
       return { statusCode: 200, body: { success: true } };
     }
   });
-  const { app } = createGatewayServer(runtime, { guard: false });
+  const { app } = createGatewayServer(runtime, { guard: false, logger: { info() {}, error() {} } });
   const { server, baseUrl } = await listen(app);
   try {
     const response = await fetch(`${baseUrl}${ROUTES.mtTranslate}`, {
@@ -389,7 +389,7 @@ test('gateway rejects non-object bodies on routes without dedicated validators',
       return { statusCode: 200, body: { success: true } };
     }
   });
-  const { app } = createGatewayServer(runtime, { guard: false });
+  const { app } = createGatewayServer(runtime, { guard: false, logger: { info() {}, error() {} } });
   const { server, baseUrl } = await listen(app);
   try {
     const response = await fetch(`${baseUrl}${ROUTES.qaCheckDocument}`, {
@@ -413,7 +413,7 @@ test('gateway passes valid store-translations payloads through to the runtime', 
       return { statusCode: 200, body: { success: true, storedCount: payload.translations.length } };
     }
   });
-  const { app } = createGatewayServer(runtime, { guard: false });
+  const { app } = createGatewayServer(runtime, { guard: false, logger: { info() {}, error() {} } });
   const { server, baseUrl } = await listen(app);
   try {
     const response = await fetch(`${baseUrl}${ROUTES.mtStoreTranslations}`, {

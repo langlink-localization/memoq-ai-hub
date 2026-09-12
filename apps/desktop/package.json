@@ -1,7 +1,7 @@
 {
   "name": "memoq-ai-hub-app",
   "private": true,
-  "version": "1.0.44",
+  "version": "1.0.45",
   "packageManager": "pnpm@10.6.2",
   "engines": {
     "node": ">=22.12.0"
@@ -47,6 +47,7 @@
     "@vitejs/plugin-react": "6.0.5",
     "concurrently": "^9.2.1",
     "electron": "43.2.0",
+    "react-test-renderer": "18.3.1",
     "vite": "8.2.0"
   }
 }

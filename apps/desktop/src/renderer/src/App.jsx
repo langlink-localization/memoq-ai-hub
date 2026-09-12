@@ -20,7 +20,8 @@ import {
   Row,
   Skeleton,
   Spin,
-  Typography
+  Typography,
+  theme
 } from 'antd';
 import {
   createDraftEntry,
@@ -108,9 +109,12 @@ import { useAssetPreviewController } from './hooks/useAssetPreviewController.mjs
 import { useDashboardActions } from './hooks/useDashboardActions.mjs';
 import { useHistoryFilters } from './hooks/useHistoryFilters.mjs';
 import { useLogsController } from './hooks/useLogsController.mjs';
+import { requestEditorDeparture } from './editorNavigation.mjs';
+import PageErrorBoundary from './components/PageErrorBoundary.jsx';
 import AssetPreviewDrawer from './components/AssetPreviewDrawer.jsx';
 import NavigationConfirmModal from './components/NavigationConfirmModal.jsx';
 import { AppHeader, AppNavigation } from './components/AppShellChrome.jsx';
+import { useRequestLifecycle } from './hooks/useRequestLifecycle.mjs';
 import { useProfileController } from './hooks/useProfileController.mjs';
 import { useProviderController } from './hooks/useProviderController.mjs';
 
@@ -143,7 +147,10 @@ function PageHeaderBlock({ title, description }) {
 
 
 export default function App() {
+  const { token } = theme.useToken();
   const api = useDesktopApi();
+  const refreshLifecycle = useRequestLifecycle();
+  const dashboardLifecycle = useRequestLifecycle();
   const { t, locale, setLocale } = useI18n();
   const { message, modal } = AntdApp.useApp();
   const initialShellStateRef = useRef(null);
@@ -163,6 +170,8 @@ export default function App() {
   const [navCollapsed, setNavCollapsed] = useState(() => initialShellStateRef.current.navCollapsed);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(() => Number(globalThis.innerWidth || 1366));
+  const [mappingEditorSaving, setMappingEditorSaving] = useState(false);
+  const [mappingEditorDirty, setMappingEditorDirty] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState(null);
   const [navigationResolving, setNavigationResolving] = useState(false);
   const pendingOperationsRef = useRef(null);
@@ -216,7 +225,7 @@ export default function App() {
     saveCurrentProvider,
     testProvider,
     discoverProviderModels
-  } = useProviderController({ api, t, message, modal, notifyError, refresh, requestNavigation, requestPageNavigation, state });
+  } = useProviderController({ api, t, message, modal, notifyError, refresh, beginPendingOperation, requestNavigation, requestPageNavigation, state });
   const historyFiltersController = useHistoryFilters({
     api,
     refresh,
@@ -257,7 +266,7 @@ export default function App() {
   const profileDraftsRef = useRef(profileDraftsById);
   providerDraftsRef.current = providerDraftsById;
   profileDraftsRef.current = profileDraftsById;
-  const hasUnsavedDrafts = Object.values(providerDraftsById).some((entry) => entry?.isNew || entry?.dirtyFields?.length)
+  const hasUnsavedDrafts = savingProvider || savingProfile || mappingEditorDirty || mappingEditorSaving || Object.values(providerDraftsById).some((entry) => entry?.isNew || entry?.dirtyFields?.length)
     || Object.values(profileDraftsById).some((entry) => entry?.isNew || entry?.dirtyFields?.length);
   const shellNavigationMode = getShellNavigationMode(viewportWidth);
 
@@ -305,11 +314,13 @@ export default function App() {
     message.error(text);
   }
 
-  async function refresh(filters = {}, options = {}) {
+  async function refresh(filters = historyFilters, options = {}) {
     const endPending = options.trackPending
       ? beginPendingOperation('app-refresh', setRefreshing)
       : () => {};
     if (!endPending) return false;
+    const request = refreshLifecycle.begin();
+    const dashboardRequest = dashboardLifecycle.begin();
 
     try {
       setError('');
@@ -329,7 +340,8 @@ export default function App() {
         includeProviderHistoryMetrics
       };
       const remoteData = normalizeAppStatePayload(await api.getAppState(requestFilters));
-      setDashboardStatusSnapshot(remoteData);
+      if (!request.isCurrent()) return false;
+      if (dashboardRequest.isCurrent()) setDashboardStatusSnapshot(remoteData);
       const providerRebase = rebaseDraftEntries(providerDraftsRef.current, remoteData?.providerHub?.providers || [], buildProviderFingerprint);
       const profileRebase = rebaseDraftEntries(profileDraftsRef.current, remoteData?.contextBuilder?.profiles || [], buildProfileFingerprint);
 
@@ -379,6 +391,7 @@ export default function App() {
       }
       return true;
     } catch (loadError) {
+      if (!request.isCurrent()) return false;
       setState((current) => current || normalizeAppStatePayload());
       notifyError(loadError);
       return false;
@@ -401,7 +414,7 @@ export default function App() {
   const assets = state?.contextBuilder?.assets || [];
 
   const assetPreview = useAssetPreviewController({ api, t, message, notifyError, refresh, assets });
-  const dashboard = useDashboardActions({ api, t, message, modal, notifyError, refresh, historyFilters, setState, startupStatus: state?.startup?.status });
+  const dashboard = useDashboardActions({ api, t, message, modal, notifyError, refresh, historyFilters, setState, startupStatus: state?.startup?.status, dashboardLifecycle });
 
   useAppDataLifecycle({
     activePage,
@@ -499,11 +512,20 @@ export default function App() {
   }
 
   function requestNavigation(kind, value) {
+    if (['provider-save', 'profile-save', 'navigation-save'].some((key) => pendingOperationsRef.current.isPending(key))) return;
     const isSameDestination = (kind === 'page' && value === activePage)
       || (kind === 'provider' && value === currentProvider?.id)
       || (kind === 'profile' && value === currentProfile?.id);
     if (isSameDestination) return;
 
+    if (activePage === 'mapping' && (mappingEditorDirty || mappingEditorSaving) && kind === 'page') {
+      requestEditorDeparture({
+        dirty: mappingEditorDirty, busy: mappingEditorSaving,
+        name: t('nav.mapping'), modal, t,
+        proceed: () => { setMappingEditorDirty(false); commitNavigation({ kind, value }); }
+      });
+      return;
+    }
     const dirtyKind = resolveDirtyNavigationKind({
       activePage,
       navigationKind: kind,
@@ -555,11 +577,12 @@ export default function App() {
   }
 
   function stayOnDirtyEditor() {
+    if (navigationResolving) return;
     setPendingNavigation(null);
   }
 
   function discardAndContinueNavigation() {
-    if (!pendingNavigation) return;
+    if (!pendingNavigation || navigationResolving) return;
     const navigation = pendingNavigation;
     if (navigation.dirtyKind === 'provider') {
       discardCurrentProviderChangesNow();
@@ -573,7 +596,8 @@ export default function App() {
   async function saveAndContinueNavigation() {
     if (!pendingNavigation) return;
     const navigation = pendingNavigation;
-    setNavigationResolving(true);
+    const endPending = beginPendingOperation('navigation-save', setNavigationResolving);
+    if (!endPending) return;
     try {
       const saved = navigation.dirtyKind === 'provider'
         ? await saveCurrentProvider()
@@ -582,7 +606,7 @@ export default function App() {
       setPendingNavigation(null);
       commitNavigation(navigation);
     } finally {
-      setNavigationResolving(false);
+      endPending();
     }
   }
 
@@ -701,6 +725,7 @@ export default function App() {
 
   return (
     <Layout className="app-shell">
+      <a className="app-skip-link" href="#main-content">{t('navigation.skipToContent')}</a>
       <AppNavigation
         shellNavigationMode={shellNavigationMode}
         navCollapsed={navCollapsed}
@@ -718,11 +743,11 @@ export default function App() {
           locale={locale}
           setLocale={setLocale}
           refreshing={refreshing}
-          onRefresh={() => refresh({}, { trackPending: true })}
+          onRefresh={() => refresh(historyFilters, { trackPending: true })}
           startupStatus={state?.startup?.status}
           initialState={state}
         />
-        <Content className="content-wrap">
+        <Content className="content-wrap" id="main-content" role="main" tabIndex={-1}>
           <PageHeaderBlock
             title={navPageItems.find((item) => item.key === activePage)?.title || t('nav.dashboard')}
             description={pageDescriptions[activePage] || pageDescriptions.dashboard}
@@ -738,7 +763,8 @@ export default function App() {
             />
           )}
 
-          <Suspense fallback={<Skeleton active paragraph={{ rows: 10 }} className="app-page-loading" />}>
+          <PageErrorBoundary key={activePage} t={t}>
+          <Suspense fallback={<Skeleton active={token.motion !== false} paragraph={{ rows: 10 }} className="app-page-loading" />}>
           {activePage === 'dashboard' && (
             <DashboardPage
               api={api}
@@ -806,6 +832,8 @@ export default function App() {
           {activePage === 'mapping' && (
             <MappingRulesPage
               api={api}
+              onDirtyChange={setMappingEditorDirty}
+              onBusyChange={setMappingEditorSaving}
               rules={state?.memoqMetadataMapping?.rules || []}
               profiles={state?.contextBuilder?.profiles || []}
               defaultProfileId={defaultProfileId}
@@ -911,6 +939,7 @@ export default function App() {
             <QualityPage api={api} profiles={profileItems} providers={providerItems} promptPresets={state?.promptPresets || []} />
           )}
           </Suspense>
+          </PageErrorBoundary>
         </Content>
       </Layout>
 

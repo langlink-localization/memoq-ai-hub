@@ -124,6 +124,7 @@ export function AppHeader({
         </Space>
         <Space wrap className="app-header-controls">
           <Select
+            aria-label={t('app.language')}
             size="small"
             className="app-language-select"
             value={locale}

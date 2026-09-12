@@ -904,6 +904,7 @@ body,
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .app-shell *,
   .quality-page *,
   .quality-float-card *,
   .assistant-window * {
@@ -913,3 +914,20 @@ body,
     animation-iteration-count: 1;
   }
 }
+
+/* Keyboard entry to the page without traversing every navigation item. */
+.app-skip-link {
+  position: fixed;
+  inset-block-start: 8px;
+  inset-inline-start: 8px;
+  z-index: 1100;
+  padding: 8px 16px;
+  background: var(--memoq-color-bg-container);
+  color: var(--memoq-color-primary);
+  border: 1px solid var(--memoq-color-primary);
+  border-radius: var(--memoq-border-radius);
+  transform: translateY(-150%);
+}
+
+.app-skip-link:focus-visible { transform: translateY(0); }
+.mapping-editor-footer { display: flex; justify-content: flex-end; flex-wrap: wrap; }

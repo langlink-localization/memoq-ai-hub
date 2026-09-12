@@ -14,9 +14,17 @@ export function useLatestCallback(callback) {
 export function usePollingRefresh(refresh, delayMs) {
   const runRefresh = useLatestCallback(refresh);
   useEffect(() => {
-    void runRefresh();
-    const timer = globalThis.setInterval(() => void runRefresh(true), delayMs);
-    return () => globalThis.clearInterval(timer);
+    let first = true;
+    return createVisibleInterval({
+      enabled: true,
+      immediate: true,
+      delayMs,
+      callback: () => {
+        const silent = !first;
+        first = false;
+        return runRefresh(silent);
+      }
+    });
   }, [delayMs, runRefresh]);
 }
 
@@ -24,6 +32,7 @@ export function createVisibleInterval({
   enabled,
   delayMs,
   callback,
+  immediate = false,
   windowRef = globalThis,
   documentRef = globalThis.document
 }) {
@@ -31,11 +40,28 @@ export function createVisibleInterval({
     return () => {};
   }
 
-  const timer = windowRef.setInterval(() => {
-    if (documentRef?.hidden) return;
-    callback();
-  }, delayMs);
-  return () => windowRef.clearInterval?.(timer);
+  let running = false;
+  let disposed = false;
+  function tick() {
+    if (disposed || documentRef?.hidden || running) return;
+    running = true;
+    // Keep synchronous callbacks synchronous, and hold the slot until an
+    // asynchronous refresh settles. A rejected refresh must not stop polling.
+    try {
+      const result = callback();
+      if (result && typeof result.then === 'function') {
+        void Promise.resolve(result).catch(() => {}).finally(() => { running = false; });
+      } else running = false;
+    } catch {
+      running = false;
+    }
+  }
+  if (immediate) tick();
+  const timer = windowRef.setInterval(tick, delayMs);
+  return () => {
+    disposed = true;
+    windowRef.clearInterval?.(timer);
+  };
 }
 
 function useVisibleInterval(enabled, delayMs, callback) {

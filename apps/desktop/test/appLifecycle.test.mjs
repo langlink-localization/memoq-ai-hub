@@ -98,3 +98,39 @@ test('history detail loader fails closed when the bridge is unavailable', () => 
     { record: null, loading: false, error: 'history.detailLoadFailed' }
   ]);
 });
+
+test('visible polling never overlaps a slow request and resumes after rejection', async () => {
+  let tick, reject;
+  let calls = 0;
+  const cleanup = createVisibleInterval({ enabled: true, delayMs: 10,
+    callback: () => { calls += 1; return new Promise((_, fail) => { reject = fail; }); },
+    documentRef: { hidden: false }, windowRef: { setInterval: (callback) => { tick = callback; }, clearInterval() {} }
+  });
+  tick(); tick(); tick();
+  assert.equal(calls, 1);
+  reject(new Error('temporary'));
+  await new Promise((resolve) => setImmediate(resolve));
+  tick();
+  assert.equal(calls, 2);
+  cleanup(); tick();
+  assert.equal(calls, 2);
+  reject(new Error('disposed'));
+  await new Promise((resolve) => setImmediate(resolve));
+});
+
+test('immediate polling holds the same request slot as later ticks', async () => {
+  let tick, resolve;
+  let calls = 0;
+  const cleanup = createVisibleInterval({ enabled: true, immediate: true, delayMs: 10,
+    callback: () => { calls += 1; return new Promise((done) => { resolve = done; }); },
+    documentRef: { hidden: false }, windowRef: { setInterval: (callback) => { tick = callback; }, clearInterval() {} }
+  });
+  assert.equal(calls, 1);
+  tick();
+  assert.equal(calls, 1);
+  resolve();
+  await new Promise((done) => setImmediate(done));
+  tick();
+  assert.equal(calls, 2);
+  cleanup(); resolve();
+});

@@ -1,5 +1,7 @@
 const en = {
   app: {
+    pageErrorTitle: 'This page could not be displayed',
+    pageErrorDescription: 'Try again or open another page from the navigation. Your saved configuration is unchanged.',
     title: 'memoQ AI Hub',
     refresh: 'Refresh',
     openAssistant: 'Open assistant window',
@@ -37,6 +39,7 @@ const en = {
     logs: 'Logs'
   },
   navigation: {
+    skipToContent: 'Skip to main content',
     primary: 'Primary navigation',
     unsavedTitle: 'Unsaved changes',
     unsavedDescription: 'Save or discard the changes to “{{name}}” before leaving.',

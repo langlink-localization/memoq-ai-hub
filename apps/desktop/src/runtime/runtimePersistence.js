@@ -688,6 +688,19 @@ function createRuntimePersistence(db, { nowIso, normalizeState }) {
     loadConfigState,
     saveConfigState,
     migrateLegacyState,
+    getHistoryOverview() {
+      // Dashboard polling needs only cardinality and the latest outcome, never
+      // the prompt/segment JSON for every translation in the history table.
+      const count = getTableCount(db, 'translation_history');
+      const latest = db.get(`
+        SELECT request_id, status FROM translation_history
+        ORDER BY submitted_at DESC, completed_at DESC, id DESC LIMIT 1
+      `);
+      return {
+        count,
+        latest: latest ? { requestId: String(latest.request_id || ''), status: String(latest.status || '') } : null
+      };
+    },
     listHistory() {
       return listHistoryEntries(db);
     },

@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { runLatestRequest } from '../requestLifecycle.mjs';
+import { useRequestLifecycle } from './useRequestLifecycle.mjs';
 
 // Owns the asset preview drawer state: open/close, preview loading, the manual
 // TB mapping draft, and the apply/save TB-structure actions. The drawer JSX
-// lives in components/AssetPreviewModal.jsx and consumes the returned
+// lives in components/AssetPreviewDrawer.jsx and consumes the returned
 // controller object.
 export function useAssetPreviewController({ api, t, message, notifyError, refresh, assets }) {
+  const previewLifecycle = useRequestLifecycle();
+  const savingRef = useRef(false);
   const [assetPreviewOpen, setAssetPreviewOpen] = useState(false);
   const [assetPreviewLoading, setAssetPreviewLoading] = useState(false);
   const [assetPreviewRecord, setAssetPreviewRecord] = useState(null);
@@ -18,6 +22,9 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
   const [assetPreviewSaving, setAssetPreviewSaving] = useState(false);
 
   function closeAssetPreview() {
+    if (savingRef.current) return;
+    previewLifecycle.invalidate();
+    setAssetPreviewLoading(false);
     setAssetPreviewOpen(false);
     setAssetPreviewData(null);
     setAssetPreviewRecord(null);
@@ -25,7 +32,7 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
 
   async function openAssetPreview(assetId, options = {}) {
     const normalizedAssetId = String(assetId || '').trim();
-    if (!normalizedAssetId) {
+    if (!normalizedAssetId || savingRef.current) {
       return;
     }
 
@@ -40,28 +47,30 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
       targetLanguage: ''
     });
 
+    previewLifecycle.invalidate();
+    setAssetPreviewLoading(false);
     if (typeof api?.getAssetPreview !== 'function') {
       setAssetPreviewData({ unsupported: true });
       return;
     }
 
     setAssetPreviewLoading(true);
-    try {
-      const preview = await api.getAssetPreview(normalizedAssetId);
-      setAssetPreviewRecord((current) => current || assets.find((asset) => asset.id === normalizedAssetId) || fallbackAsset);
-      setAssetPreviewData(preview || {});
-      setAssetPreviewManualDraft({
-        srcColumn: String(preview?.manualMapping?.srcColumn || ''),
-        tgtColumn: String(preview?.manualMapping?.tgtColumn || ''),
-        sourceLanguage: String(preview?.languagePair?.source || ''),
-        targetLanguage: String(preview?.languagePair?.target || '')
-      });
-    } catch (previewError) {
-      notifyError(previewError);
-      setAssetPreviewData({ error: String(previewError?.message || '') });
-    } finally {
-      setAssetPreviewLoading(false);
-    }
+    return runLatestRequest(previewLifecycle, {
+      load: () => api.getAssetPreview(normalizedAssetId),
+      resolve: (preview) => {
+        setAssetPreviewData(preview || {});
+        setAssetPreviewManualDraft({
+          srcColumn: String(preview?.manualMapping?.srcColumn || ''),
+          tgtColumn: String(preview?.manualMapping?.tgtColumn || ''),
+          sourceLanguage: String(preview?.languagePair?.source || ''),
+          targetLanguage: String(preview?.languagePair?.target || '')
+        });
+      },
+      reject: (previewError) => {
+        setAssetPreviewData({ error: String(previewError?.message || t('feedback.actionFailed')) });
+      },
+      settle: () => setAssetPreviewLoading(false)
+    });
   }
 
   async function saveAssetPreviewTbConfig() {
@@ -69,6 +78,8 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
       return;
     }
 
+    if (savingRef.current || assetPreviewLoading) return;
+    savingRef.current = true;
     setAssetPreviewSaving(true);
     try {
       await api.saveAssetTbConfig(assetPreviewRecord.id, {
@@ -83,10 +94,12 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
       });
       message.success(t('feedback.actionSucceeded'));
       await refresh();
+      savingRef.current = false;
       await openAssetPreview(assetPreviewRecord.id, { fallbackAsset: assetPreviewRecord });
     } catch (saveError) {
       notifyError(saveError);
     } finally {
+      savingRef.current = false;
       setAssetPreviewSaving(false);
     }
   }
@@ -96,6 +109,8 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
       return;
     }
 
+    if (savingRef.current || assetPreviewLoading) return;
+    savingRef.current = true;
     setAssetPreviewSaving(true);
     try {
       await api.applyAssetTbStructure(assetPreviewRecord.id, {
@@ -108,10 +123,12 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
       });
       message.success(t('feedback.actionSucceeded'));
       await refresh();
+      savingRef.current = false;
       await openAssetPreview(assetPreviewRecord.id, { fallbackAsset: assetPreviewRecord });
     } catch (saveError) {
       notifyError(saveError);
     } finally {
+      savingRef.current = false;
       setAssetPreviewSaving(false);
     }
   }
@@ -123,6 +140,7 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
     assetPreviewData,
     assetPreviewManualDraft,
     assetPreviewSaving,
+    retryAssetPreview: () => openAssetPreview(assetPreviewRecord?.id, { fallbackAsset: assetPreviewRecord }),
     setAssetPreviewManualDraft,
     closeAssetPreview,
     openAssetPreview,

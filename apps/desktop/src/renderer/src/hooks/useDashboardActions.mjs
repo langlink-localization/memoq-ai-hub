@@ -10,7 +10,7 @@ import {
 // handshake test, update checking (including the automatic first check after
 // startup), download/open/launch update flows, and the lightweight dashboard
 // status polling refresh.
-export function useDashboardActions({ api, t, message, modal, notifyError, refresh, historyFilters, setState, startupStatus }) {
+export function useDashboardActions({ api, t, message, modal, notifyError, refresh, historyFilters, setState, startupStatus, dashboardLifecycle }) {
   const [installing, setInstalling] = useState(false);
   const [handshaking, setHandshaking] = useState(false);
   const [checkingUpdates, setCheckingUpdates] = useState(false);
@@ -22,14 +22,15 @@ export function useDashboardActions({ api, t, message, modal, notifyError, refre
   async function refreshDashboardStatus() {
     if (!api?.getAppState) return;
 
+    const request = dashboardLifecycle.begin();
     try {
       const remoteData = normalizeAppStatePayload(await api.getAppState({
         includeHistoryExplorer: false,
         includeProviderHistoryMetrics: false
       }));
-      setDashboardStatusSnapshot(remoteData);
+      if (request.isCurrent()) setDashboardStatusSnapshot(remoteData);
     } catch (loadError) {
-      notifyError(loadError);
+      if (request.isCurrent()) notifyError(loadError);
     }
   }
 

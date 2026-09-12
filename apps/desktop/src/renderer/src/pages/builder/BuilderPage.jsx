@@ -432,7 +432,7 @@ function BuilderEditor({
           </Space>
         )}
       >
-        <Form layout="vertical" component="div" className="builder-profile-form">
+        <Form layout="vertical" component="div" disabled={saving} className="builder-profile-form">
           <Row gutter={[16, 16]}>
             <Col xs={24} md={12}>
               <Form.Item label={t('context.name')}>

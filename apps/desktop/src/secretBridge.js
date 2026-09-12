@@ -18,6 +18,7 @@ function createWorkerSecretStore(options = {}) {
   const pendingRequests = new Map();
   let requestSequence = 0;
   let readyPromise = null;
+  let cacheGeneration = 0;
 
   function handleMessage(message) {
     if (!message || message.type !== 'main-response') {
@@ -71,11 +72,17 @@ function createWorkerSecretStore(options = {}) {
       return decryptedCache.get(key);
     }
 
+    const generation = cacheGeneration;
     const value = useMainProcess
       ? String((await requestMain('secrets.get', { id: key }))?.value || '')
       : String((await localStore.get(key)) || '');
 
-    decryptedCache.set(key, value);
+    // An empty response can mean temporarily unavailable OS decryption, even
+    // while listIds still reports the saved credential. Let the next read retry.
+    if (value && generation === cacheGeneration) {
+      decryptedCache.set(key, value);
+      idCache.add(key);
+    }
     return value;
   }
 
@@ -88,22 +95,26 @@ function createWorkerSecretStore(options = {}) {
 
   async function set(id, secret) {
     const key = String(id || '');
+    cacheGeneration += 1;
     if (useMainProcess) {
       await requestMain('secrets.set', { id: key, secret: String(secret || '') });
     } else {
       await localStore.set(key, secret);
     }
+    cacheGeneration += 1;
     decryptedCache.set(key, String(secret || ''));
     idCache.add(key);
   }
 
   async function deleteSecret(id) {
     const key = String(id || '');
+    cacheGeneration += 1;
     if (useMainProcess) {
       await requestMain('secrets.delete', { id: key });
     } else {
       await localStore.delete(key);
     }
+    cacheGeneration += 1;
     decryptedCache.delete(key);
     idCache.delete(key);
   }

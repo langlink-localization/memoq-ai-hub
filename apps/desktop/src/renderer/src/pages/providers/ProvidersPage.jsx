@@ -258,7 +258,7 @@ function ProviderHeader({
             <Title level={3} className="provider-title">{currentProvider.name}</Title>
             <Space wrap size={[8, 8]}>
               <Text strong>{t('providers.enabled')}</Text>
-              <Switch checked={currentProvider.enabled} onChange={(checked) => onPatchProvider?.('enabled', checked)} />
+              <Switch disabled={savingProvider} checked={currentProvider.enabled} onChange={(checked) => onPatchProvider?.('enabled', checked)} />
             </Space>
           </div>
           <Space wrap size={[8, 8]}>
@@ -596,7 +596,7 @@ export function ProvidersPage(props) {
             <ProviderHealthPanel connectionSnapshot={currentProviderConnectionSnapshot} />
 
             <Card className="page-card" title={t('providers.configuration')}>
-              <Form layout="vertical" component="div" className="provider-configuration-form">
+              <Form layout="vertical" component="div" disabled={savingProvider} className="provider-configuration-form">
                 <Form.Item label={t('providers.name')}>
                   <Input value={currentProvider.name || ''} onChange={(event) => onPatchProvider?.('name', event.target.value)} />
                 </Form.Item>

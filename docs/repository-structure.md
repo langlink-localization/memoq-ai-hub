@@ -95,3 +95,11 @@ If a new build step creates another transient directory, add it to `.gitignore` 
 - Legacy root folders such as `desktop/`, `plugin/`, `preview-helper/`, `shared-contracts/`, `scripts/`, `build/`, and `test/` must not be reintroduced.
 - Path-sensitive entrypoints in workflows, PowerShell scripts, release metadata, and desktop runtime path resolvers must point at the monorepo zones above.
 - Do not commit generated outputs unless the repository explicitly treats them as release inputs and the owning script/doc is updated in the same change.
+
+## Asynchronous state ownership
+
+Provider network/secret operations must re-read configuration after awaiting external work before committing a target-provider update. Connection-test status is conditional on the provider still existing, retaining its tested configuration, and owning the latest test token. Translation/QA concurrency remains independent; there is no global worker mutation queue.
+
+`runtimePersistence.getHistoryOverview()` owns the small dashboard history projection (count and latest outcome). `runtimeStateView` uses it independently of history-explorer filters, so lightweight polling does not reset setup progress or parse full diagnostic JSON.
+
+Renderer read ownership lives in `requestLifecycle.mjs` and `hooks/useRequestLifecycle.mjs`. The app-state request and dashboard publication have separate owners because dashboard polling must not replace unrelated editor state. `editorNavigation.mjs` owns discard/stay policy for the project-rule drawer and page navigation; controller pending registries reject duplicate operations.

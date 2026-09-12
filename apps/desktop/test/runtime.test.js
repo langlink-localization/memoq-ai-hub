@@ -166,6 +166,7 @@ function createMockDatabaseModule(options = {}) {
         return [];
       }
       if (text.includes('SELECT entry_json') && text.includes('FROM translation_history')) {
+        store.historyListReads = (store.historyListReads || 0) + 1;
         return sortHistoryRows().map((row) => ({ entry_json: row.entry_json }));
       }
       if (text.includes('SELECT id') && text.includes('FROM translation_history')) {
@@ -193,6 +194,10 @@ function createMockDatabaseModule(options = {}) {
       if (text.includes('SELECT entry_json') && text.includes('FROM translation_history') && text.includes('WHERE id = $id')) {
         const row = store.historyRows.get(params.$id);
         return row ? { entry_json: row.entry_json } : null;
+      }
+      if (text.includes('SELECT request_id, status FROM translation_history')) {
+        const row = sortHistoryRows()[0];
+        return row ? { request_id: row.request_id, status: row.status } : null;
       }
       if (text.includes('SELECT COUNT(*) AS row_count FROM translation_history')) {
         return { row_count: store.historyRows.size };
@@ -6342,6 +6347,30 @@ test('Preview Assistant translates and polishes the active immutable segment thr
     assert.equal(polished.providerId, provider.id);
     assert.equal(polished.revision.previewRevision, 7);
   } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+
+test('dashboard polling preserves global history completion without loading history payloads', async () => {
+  const tempRoot = createTempAppRoot();
+  const capture = {};
+  const runtime = await createRuntime({ appDataRoot: tempRoot, __databaseCapture: capture,
+    __databaseState: { historyRows: [{ id: 'done', request_id: 'REQ-DONE', status: 'success', submitted_at: '2026-09-12T00:00:00Z', entry_json: { id: 'done', requestId: 'REQ-DONE', status: 'success' } }] }
+  });
+  try {
+    const reads = capture.store.historyListReads || 0;
+    const state = runtime.getAppState({ includeHistoryExplorer: false, includeProviderHistoryMetrics: false });
+    assert.equal(capture.store.historyListReads || 0, reads);
+    assert.deepEqual(state.historyExplorer.items, []);
+    const step = state.dashboard.checklist.find((item) => item.key === 'history');
+    assert.equal(step.completed, true);
+    assert.equal(step.count, 1);
+    assert.ok(state.dashboard.notices.includes('Latest translation succeeded: REQ-DONE'));
+    const filtered = runtime.getAppState({ query: 'no-match' });
+    assert.equal(filtered.dashboard.checklist.find((item) => item.key === 'history').count, 1);
+  } finally {
+    runtime.dispose();
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });

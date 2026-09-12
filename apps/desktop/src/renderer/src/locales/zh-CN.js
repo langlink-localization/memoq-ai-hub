@@ -1,5 +1,7 @@
 const zhCN = {
   app: {
+    pageErrorTitle: '此页面暂时无法显示',
+    pageErrorDescription: '请重试，或通过导航打开其他页面。已保存的配置不受影响。',
     title: 'memoQ AI Hub',
     refresh: '刷新',
     openAssistant: '打开悬浮助手',
@@ -37,6 +39,7 @@ const zhCN = {
     logs: '日志'
   },
   navigation: {
+    skipToContent: '跳到主要内容',
     primary: '主导航',
     unsavedTitle: '有未保存的更改',
     unsavedDescription: '离开前，请保存或丢弃“{{name}}”的更改。',

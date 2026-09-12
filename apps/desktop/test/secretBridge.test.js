@@ -105,3 +105,33 @@ test('worker secret bridge local mode fails closed without reversible persistenc
   await store.delete('provider-local');
   assert.equal(store.has('provider-local'), false);
 });
+
+test('worker retries empty secret responses and restores readiness after recovery', async () => {
+  const { store, sent, respondFromMain } = createIpcHarness();
+  const ready = store.ready();
+  respondFromMain((message) => message.channel === 'secrets.listIds', { ids: [] });
+  await ready;
+  const first = store.get('provider-recovered');
+  respondFromMain((message) => message.channel === 'secrets.get', { value: '' });
+  assert.equal(await first, '');
+  const second = store.get('provider-recovered');
+  respondFromMain((message) => message.channel === 'secrets.get', { value: 'test-recovered' });
+  assert.equal(await second, 'test-recovered');
+  assert.equal(store.has('provider-recovered'), true);
+  assert.equal(await store.get('provider-recovered'), 'test-recovered');
+  assert.equal(sent.filter((message) => message.channel === 'secrets.get').length, 2);
+});
+
+test('a delayed secret read cannot repopulate cache after deletion', async () => {
+  const { store, respondFromMain } = createIpcHarness();
+  const read = store.get('removed');
+  const deletion = store.delete('removed');
+  respondFromMain((message) => message.channel === 'secrets.delete', { ok: true });
+  await deletion;
+  respondFromMain((message) => message.channel === 'secrets.get', { value: 'old-test-value' });
+  await read;
+  assert.equal(store.has('removed'), false);
+  const nextRead = store.get('removed');
+  respondFromMain((message) => message.channel === 'secrets.get', { value: '' });
+  assert.equal(await nextRead, '');
+});

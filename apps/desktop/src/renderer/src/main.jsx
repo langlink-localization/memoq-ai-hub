@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { useReducedMotion } from './hooks/useReducedMotion.mjs';
 import ReactDOM from 'react-dom/client';
 import { App as AntdApp, Button, ConfigProvider, Result, theme, Typography } from 'antd';
 import enUS from 'antd/locale/en_US';
@@ -107,11 +108,13 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 function LocalizedAntdRoot() {
+  const reducedMotion = useReducedMotion();
+  const accessibleTheme = useMemo(() => ({ ...appTheme, token: { ...appTheme.token, motion: !reducedMotion } }), [reducedMotion]);
   const { locale } = useI18n();
   const windowMode = new URLSearchParams(globalThis.location?.search || '').get('window');
   const compactAssistantWindow = windowMode === 'assistant-float' || windowMode === 'quality-float';
   return (
-    <ConfigProvider theme={appTheme} locale={locale === 'zh-CN' ? zhCN : enUS}>
+    <ConfigProvider theme={accessibleTheme} locale={locale === 'zh-CN' ? zhCN : enUS}>
       <AntdApp>
         <RenderErrorBoundary>
           {compactAssistantWindow ? <AssistantWindow /> : <App />}

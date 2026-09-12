@@ -25,6 +25,7 @@ export default function NavigationConfirmModal({
       onCancel={onStay}
       closable={!navigationResolving}
       maskClosable={!navigationResolving}
+      keyboard={!navigationResolving}
       footer={[
         <Button key="stay" onClick={onStay} disabled={navigationResolving}>
           {t('navigation.stay')}

@@ -157,3 +157,23 @@ test('runtime persistence keeps working on top of a migrated database', async ()
     fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
   }
 });
+
+test('history overview uses metadata only and follows the latest retained record', async () => {
+  const dbPath = createTempDbPath();
+  const db = await createDatabase({ dbPath });
+  try {
+    applySchemaMigrations(db);
+    const persistence = createRuntimePersistence(db, { nowIso: () => '2026-09-12T00:00:00Z', normalizeState: (state) => state });
+    assert.deepEqual(persistence.getHistoryOverview(), { count: 0, latest: null });
+    persistence.appendHistoryEntry({ id: 'older', requestId: 'OLD', status: 'success', submittedAt: '2026-09-11T00:00:00Z' });
+    persistence.appendHistoryEntry({ id: 'newer', requestId: 'NEW', status: 'failed', submittedAt: '2026-09-12T00:00:00Z' });
+    // The overview must not parse potentially large diagnostic JSON at all.
+    db.run("UPDATE translation_history SET entry_json = 'not-json'");
+    assert.deepEqual(persistence.getHistoryOverview(), { count: 2, latest: { requestId: 'NEW', status: 'failed' } });
+    persistence.deleteHistoryEntries(['newer']);
+    assert.deepEqual(persistence.getHistoryOverview(), { count: 1, latest: { requestId: 'OLD', status: 'success' } });
+  } finally {
+    db.close();
+    fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
+  }
+});

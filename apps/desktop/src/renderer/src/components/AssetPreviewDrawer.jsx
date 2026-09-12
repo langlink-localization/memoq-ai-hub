@@ -37,6 +37,7 @@ export default function AssetPreviewDrawer({ controller }) {
     assetPreviewData,
     assetPreviewManualDraft,
     assetPreviewSaving,
+    retryAssetPreview,
     setAssetPreviewManualDraft,
     closeAssetPreview,
     saveAssetPreviewTbConfig,
@@ -49,6 +50,9 @@ export default function AssetPreviewDrawer({ controller }) {
       placement="right"
       open={assetPreviewOpen}
       onClose={closeAssetPreview}
+      closable={!assetPreviewSaving}
+      maskClosable={!assetPreviewSaving}
+      keyboard={!assetPreviewSaving}
       width={WIDE_SIDE_DRAWER_WIDTH}
       destroyOnClose
     >
@@ -82,11 +86,12 @@ export default function AssetPreviewDrawer({ controller }) {
           </Descriptions>
         ) : null}
         {assetPreviewLoading ? (
-          <Text type="secondary">{t('app.loading')}</Text>
+          <Text type="secondary" role="status" aria-live="polite">{t('app.loading')}</Text>
         ) : assetPreviewData?.unsupported ? (
           <Alert type="info" showIcon message={t('context.assetPreviewUnavailable')} />
         ) : assetPreviewData?.error ? (
-          <Alert type="error" showIcon message={assetPreviewData.error} />
+          <Alert type="error" showIcon message={assetPreviewData.error}
+            action={<Button onClick={retryAssetPreview}>{t('common.retry')}</Button>} />
         ) : assetPreviewData?.smartParsingAvailable === false && assetPreviewData?.smartParsingRecommended ? (
           <Alert
             type="info"

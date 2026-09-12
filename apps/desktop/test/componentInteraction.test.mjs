@@ -85,3 +85,47 @@ test('selectable profile row exposes listbox semantics and responds to keyboard 
   });
   assert.equal(list.props.role, 'listbox');
 });
+
+import { act, create } from 'react-test-renderer';
+
+test('page error boundary keeps surrounding navigation mounted and recovers on retry', async () => {
+  const { default: PageErrorBoundary } = await loadRendererComponent('/src/components/PageErrorBoundary.jsx');
+  // Project boundary logic runs in React. Adapt only AntD presentation to the
+  // DOM-free test renderer; separately render the real fallback through SSR.
+  let fallback;
+  class HeadlessBoundary extends PageErrorBoundary {
+    render() {
+      const view = super.render();
+      if (!this.state.error) return view;
+      fallback = view;
+      return createElement('button', { onClick: view.props.extra.props.onClick }, view.props.title);
+    }
+  }
+  let shouldFail = true;
+  function Page() {
+    if (shouldFail) throw new Error('expected test failure');
+    return createElement('p', null, 'Recovered page');
+  }
+  let renderer;
+  const previousError = console.error;
+  const reportedErrors = [];
+  console.error = (...args) => reportedErrors.push(args);
+  try {
+    act(() => {
+      renderer = create(createElement('div', null,
+        createElement('nav', null, 'Navigation remains'),
+        createElement(HeadlessBoundary, { t: (key) => key }, createElement(Page))));
+    });
+    assert.equal(renderer.root.findByType('nav').children[0], 'Navigation remains');
+    assert.equal(renderer.root.findByType(HeadlessBoundary).instance.state.error.message, 'expected test failure');
+    assert.match(renderToString(fallback), /app.pageErrorTitle/);
+    assert.match(renderToString(fallback), /common.retry/);
+    shouldFail = false;
+    act(() => renderer.root.findByType('button').props.onClick());
+    assert.equal(renderer.root.findByType('p').children[0], 'Recovered page');
+    assert.equal(reportedErrors.length, 1);
+  } finally {
+    if (renderer) act(() => renderer.unmount());
+    console.error = previousError;
+  }
+});

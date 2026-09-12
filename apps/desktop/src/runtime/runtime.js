@@ -177,6 +177,7 @@ async function createRuntime(options = {}) {
   const stateView = createRuntimeStateView({
     loadState,
     loadHistoryEntries,
+    getHistoryOverview: () => persistence.getHistoryOverview(),
     buildHistoryListItem,
     enrichProviders,
     syncPreviewBridgeStatusFromClient,

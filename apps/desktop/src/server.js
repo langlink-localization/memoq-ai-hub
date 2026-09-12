@@ -7,9 +7,7 @@ const { createLogger } = require('./shared/logging');
 const { createGatewayGuard } = require('./gatewayGuard');
 const { validateGatewayPayload } = require('./gatewayRequestValidation');
 
-const gatewayLogger = createLogger({ source: 'gateway', logsDir: createAppPaths().logsDir });
-
-function createRuntimeRoute(runtimeMethod, defaultCode, routeKey = '') {
+function createRuntimeRoute(gatewayLogger, runtimeMethod, defaultCode, routeKey = '') {
   return async (req, res) => {
     const startedAtMs = Date.now();
     try {
@@ -48,6 +46,10 @@ function createRuntimeRoute(runtimeMethod, defaultCode, routeKey = '') {
 }
 
 function createGatewayServer(runtime, options = {}) {
+  const gatewayLogger = options.logger || createLogger({
+    source: 'gateway',
+    logsDir: runtime.paths?.logsDir || createAppPaths().logsDir
+  });
   const app = express();
   app.use((req, res, next) => {
     const startedAtMs = Date.now();
@@ -113,16 +115,16 @@ function createGatewayServer(runtime, options = {}) {
     res.json(runtime.getIntegrationStatus());
   });
 
-  app.post(ROUTES.integrationInstall, createRuntimeRoute((payload) => runtime.installIntegration(payload), 'INTEGRATION_FAILED', 'integrationInstall'));
-  app.post(ROUTES.mtTranslate, createRuntimeRoute((payload) => runtime.translate(payload), 'TRANSLATION_FAILED', 'mtTranslate'));
-  app.post(ROUTES.mtTranslateAggregate, createRuntimeRoute((payload) => runtime.submitAggregateTranslation(payload), 'TRANSLATION_FAILED', 'mtTranslateAggregate'));
-  app.post(ROUTES.mtTranslateAggregateResult, createRuntimeRoute((payload) => runtime.waitAggregateTranslation(payload), 'TRANSLATION_FAILED', 'mtTranslateAggregateResult'));
-  app.post(ROUTES.mtStoreTranslations, createRuntimeRoute((payload) => runtime.storeTranslations(payload), 'TRANSLATION_FAILED', 'mtStoreTranslations'));
+  app.post(ROUTES.integrationInstall, createRuntimeRoute(gatewayLogger, (payload) => runtime.installIntegration(payload), 'INTEGRATION_FAILED', 'integrationInstall'));
+  app.post(ROUTES.mtTranslate, createRuntimeRoute(gatewayLogger, (payload) => runtime.translate(payload), 'TRANSLATION_FAILED', 'mtTranslate'));
+  app.post(ROUTES.mtTranslateAggregate, createRuntimeRoute(gatewayLogger, (payload) => runtime.submitAggregateTranslation(payload), 'TRANSLATION_FAILED', 'mtTranslateAggregate'));
+  app.post(ROUTES.mtTranslateAggregateResult, createRuntimeRoute(gatewayLogger, (payload) => runtime.waitAggregateTranslation(payload), 'TRANSLATION_FAILED', 'mtTranslateAggregateResult'));
+  app.post(ROUTES.mtStoreTranslations, createRuntimeRoute(gatewayLogger, (payload) => runtime.storeTranslations(payload), 'TRANSLATION_FAILED', 'mtStoreTranslations'));
   app.get(ROUTES.qaStatus, (_req, res) => res.json(runtime.getQaStatus()));
-  app.post(ROUTES.qaCheckSegment, createRuntimeRoute((payload) => runtime.checkQaSegment(payload), 'QA_CHECK_FAILED', 'qaCheckSegment'));
-  app.post(ROUTES.qaCheckDocument, createRuntimeRoute((payload) => runtime.checkQaDocument(payload), 'QA_CHECK_FAILED', 'qaCheckDocument'));
-  app.post(ROUTES.qaCancel, createRuntimeRoute((payload) => runtime.cancelQa(payload), 'QA_CANCEL_FAILED', 'qaCancel'));
-  app.post(ROUTES.qaFeedback, createRuntimeRoute((payload) => runtime.saveQaFeedback(payload), 'QA_FEEDBACK_FAILED', 'qaFeedback'));
+  app.post(ROUTES.qaCheckSegment, createRuntimeRoute(gatewayLogger, (payload) => runtime.checkQaSegment(payload), 'QA_CHECK_FAILED', 'qaCheckSegment'));
+  app.post(ROUTES.qaCheckDocument, createRuntimeRoute(gatewayLogger, (payload) => runtime.checkQaDocument(payload), 'QA_CHECK_FAILED', 'qaCheckDocument'));
+  app.post(ROUTES.qaCancel, createRuntimeRoute(gatewayLogger, (payload) => runtime.cancelQa(payload), 'QA_CANCEL_FAILED', 'qaCancel'));
+  app.post(ROUTES.qaFeedback, createRuntimeRoute(gatewayLogger, (payload) => runtime.saveQaFeedback(payload), 'QA_FEEDBACK_FAILED', 'qaFeedback'));
   app.get(ROUTES.qaResults, (req, res) => res.json(runtime.getQaResults(req.params.documentId)));
 
   return { app };
