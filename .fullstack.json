@@ -1,0 +1,15 @@
+{
+  "repository": "memoq-ai-hub",
+  "profile": "desktop",
+  "adoption": "declared-legacy",
+  "exceptions": [
+    "EX-memoq-ai-hub",
+    "EX-memoq-ui-generation"
+  ],
+  "legacy_dependencies": {},
+  "schema_version": 1,
+  "standard_version": "1.0.0",
+  "standard_repository": "langlink-tech/plunet-governance",
+  "standard_path": "governance/fullstack-v1/standard.json",
+  "meaning": "Inventory declaration only; no product migration or runtime acceptance claimed."
+}
