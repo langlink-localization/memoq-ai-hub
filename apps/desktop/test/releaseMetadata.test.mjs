@@ -51,13 +51,15 @@ test('release metadata rejects tags that do not match the desktop package versio
 test('stable update manifest points portable downloads at the matching release tag', () => {
   const portableSha256 = 'a'.repeat(64);
   const portableCompactSha256 = 'b'.repeat(64);
+  const installerSha256 = 'c'.repeat(64);
   const manifest = buildStableUpdateManifest({
     version: '1.0.12',
     repository: 'langlink-localization/memoq-ai-hub',
     publishedAt: '2026-03-31T00:00:00.000Z',
     assetSha256: {
       portable: portableSha256,
-      portableCompact: portableCompactSha256
+      portableCompact: portableCompactSha256,
+      installer: installerSha256
     }
   });
 
@@ -69,6 +71,11 @@ test('stable update manifest points portable downloads at the matching release t
   );
   assert.equal(manifest.assets.portable.sha256, portableSha256);
   assert.equal(manifest.assets.portableCompact.sha256, portableCompactSha256);
+  assert.equal(
+    manifest.assets.installer.url,
+    'https://github.com/langlink-localization/memoq-ai-hub/releases/download/v1.0.12/memoq-ai-hub-setup.exe'
+  );
+  assert.equal(manifest.assets.installer.sha256, installerSha256);
 });
 
 test('release metadata rejects commits that are not reachable from the release base ref', async () => {

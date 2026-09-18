@@ -35,7 +35,8 @@ const MAIN_LOCAL_METHODS = {
   openPath: { channel: 'desktop:open-path' },
   showItemInFolder: { channel: 'desktop:show-item-in-folder' },
   openExternalUrl: { channel: 'desktop:open-external-url' },
-  launchDownloadedInstallerUpdate: { channel: 'desktop:launch-downloaded-installer-update' }
+  launchDownloadedInstallerUpdate: { channel: 'desktop:launch-downloaded-installer-update' },
+  applyPortableUpdate: { channel: 'desktop:apply-portable-update' }
 };
 
 /** @type {Record<string, WorkerProxiedMethodSpec>} */

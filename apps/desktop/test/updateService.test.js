@@ -9,7 +9,8 @@ const {
   compareVersions,
   createUpdateService,
   normalizeManifest,
-  PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE,
+  PORTABLE_APP_EXECUTABLE_NAME,
+  PORTABLE_STAGING_DIRECTORY_NAME,
   UPDATE_CHECK_FAILED_CODE,
   UPDATE_CHECK_TIMEOUT_CODE,
   UPDATE_CHECK_TIMEOUT_MESSAGE,
@@ -262,42 +263,231 @@ test('update service resolves installed packaging when Update.exe is present', (
   }
 });
 
-test('update service exposes portable download page and disables in-app portable update flow', async () => {
+test('update service downloads, prepares, and stages an in-app portable update', async () => {
   const tempRoot = createTempRoot();
   try {
     const paths = createAppPaths({ appDataRoot: tempRoot });
     const manifestUrl = 'https://example.com/latest.json';
-    const releaseNotesUrl = 'https://example.com/release';
     const portableUrl = 'https://example.com/memoq-ai-hub-win32-x64.zip';
+    const portableBytes = Buffer.from('portable zip payload');
+    const appDir = path.join(tempRoot, 'apps', 'memoQ AI Hub-win32-x64');
+    fs.mkdirSync(path.join(appDir, 'resources'), { recursive: true });
+    fs.writeFileSync(path.join(appDir, 'resources', 'app.asar'), 'asar');
+    const execPath = path.join(appDir, PORTABLE_APP_EXECUTABLE_NAME);
+    fs.writeFileSync(execPath, 'exe');
+    const extractArchiveCalls = [];
     const service = createUpdateService({
       paths,
       currentVersion: '1.0.0',
       manifestUrl,
       packagingMode: 'portable',
+      execPath,
+      extractArchive: async (sourcePath, targetDir) => {
+        extractArchiveCalls.push({ sourcePath, targetDir });
+        fs.mkdirSync(targetDir, { recursive: true });
+        fs.writeFileSync(path.join(targetDir, PORTABLE_APP_EXECUTABLE_NAME), 'exe');
+        fs.mkdirSync(path.join(targetDir, 'resources'), { recursive: true });
+      },
       fetch: createMockFetch(new Map([
         [manifestUrl, {
           json: {
             version: '1.0.1',
             tag: 'v1.0.1',
             publishedAt: '2026-03-26T00:00:00.000Z',
-            releaseNotesUrl,
+            releaseNotesUrl: 'https://example.com/release',
             assets: {
               portable: {
                 name: 'memoq-ai-hub-win32-x64.zip',
-                url: portableUrl
+                url: portableUrl,
+                sha256: sha256(portableBytes)
               }
             }
           }
-        }]
+        }],
+        [portableUrl, { buffer: portableBytes }]
       ]))
     });
 
     const available = await service.checkForUpdates({ manual: true });
     assert.equal(available.updateStatus, 'available');
-    assert.equal(available.latestVersion, '1.0.1');
-    assert.equal(available.portableDownloadUrl, releaseNotesUrl);
-    await assert.rejects(() => service.downloadPortableUpdate(), new RegExp(PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-    await assert.rejects(() => service.preparePortableUpdate(path.join(tempRoot, 'memoq-ai-hub-win32-x64.zip')), new RegExp(PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.equal(available.portableApplySupport.supported, true);
+    assert.equal(available.portableApplySupport.appDirectory, appDir);
+
+    const downloaded = await service.downloadPortableUpdate();
+    assert.equal(downloaded.updateStatus, 'available');
+    assert.equal(path.basename(downloaded.downloadedArtifactPath), 'memoq-ai-hub-win32-x64.zip');
+    assert.equal(fs.existsSync(downloaded.downloadedArtifactPath), true);
+
+    const prepared = await service.preparePortableUpdate(downloaded.downloadedArtifactPath, '');
+    assert.equal(prepared.updateStatus, 'prepared');
+    assert.equal(
+      prepared.preparedDirectory,
+      path.join(path.dirname(appDir), PORTABLE_STAGING_DIRECTORY_NAME)
+    );
+    assert.equal(fs.existsSync(path.join(prepared.preparedDirectory, PORTABLE_APP_EXECUTABLE_NAME)), true);
+    assert.equal(extractArchiveCalls.length, 1);
+
+    const restarting = service.markPortableUpdateRestarting();
+    assert.equal(restarting.updateStatus, 'restarting');
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('update service rejects preparing a portable update from a swapped archive', async () => {
+  const tempRoot = createTempRoot();
+  try {
+    const paths = createAppPaths({ appDataRoot: tempRoot });
+    const manifestUrl = 'https://example.com/latest.json';
+    const portableUrl = 'https://example.com/memoq-ai-hub-win32-x64.zip';
+    const goodBytes = Buffer.from('expected archive');
+    const service = createUpdateService({
+      paths,
+      currentVersion: '1.0.0',
+      manifestUrl,
+      packagingMode: 'portable',
+      extractArchive: async () => {
+        throw new Error('extraction must not run for a tampered archive');
+      },
+      fetch: createMockFetch(new Map([
+        [manifestUrl, {
+          json: {
+            version: '1.0.1',
+            assets: {
+              portable: {
+                name: 'memoq-ai-hub-win32-x64.zip',
+                url: portableUrl,
+                sha256: sha256(goodBytes)
+              }
+            }
+          }
+        }],
+        [portableUrl, { buffer: goodBytes }]
+      ]))
+    });
+
+    await service.checkForUpdates({ manual: true });
+
+    // Bytes swapped after a successful download must fail the prepare-time
+    // re-verification instead of being extracted.
+    const downloaded = await service.downloadPortableUpdate();
+    fs.writeFileSync(downloaded.downloadedArtifactPath, 'tampered archive');
+    await assert.rejects(
+      () => service.preparePortableUpdate(downloaded.downloadedArtifactPath, ''),
+      /does not match the manifest SHA-256/
+    );
+    assert.equal(service.getStatus().updateStatus, 'error');
+    assert.equal(service.getStatus().lastErrorCode, UPDATE_INTEGRITY_FAILED_CODE);
+    assert.equal(fs.existsSync(downloaded.downloadedArtifactPath), false);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('update service renormalizes a persisted restarting state back to prepared', () => {
+  const tempRoot = createTempRoot();
+  try {
+    const paths = createAppPaths({ appDataRoot: tempRoot });
+    const manifestUrl = 'https://example.com/latest.json';
+    fs.writeFileSync(paths.updateStatePath, JSON.stringify({
+      currentVersion: '1.0.0',
+      packagingMode: 'portable',
+      manifestUrl,
+      updateStatus: 'restarting',
+      latestVersion: '1.0.1',
+      preparedDirectory: path.join(tempRoot, 'staging'),
+      availableAssets: {
+        portable: {
+          name: 'memoq-ai-hub-win32-x64.zip',
+          url: 'https://example.com/memoq-ai-hub-win32-x64.zip'
+        }
+      }
+    }), 'utf8');
+
+    const status = createUpdateService({
+      paths,
+      currentVersion: '1.0.0',
+      manifestUrl,
+      packagingMode: 'portable',
+      fetch: createMockFetch()
+    }).getStatus();
+
+    assert.equal(status.updateStatus, 'prepared');
+    assert.equal(status.preparedDirectory, path.join(tempRoot, 'staging'));
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('update service streams installer downloads with incremental progress', async () => {
+  const tempRoot = createTempRoot();
+  try {
+    const paths = createAppPaths({ appDataRoot: tempRoot });
+    const manifestUrl = 'https://example.com/latest.json';
+    const installerUrl = 'https://example.com/memoq-ai-hub-setup.exe';
+    const firstChunk = Buffer.alloc(1024 * 1024 + 11, 7);
+    const secondChunk = Buffer.alloc(512 * 1024, 9);
+    const installerBytes = Buffer.concat([firstChunk, secondChunk]);
+    const installerSha256 = sha256(installerBytes);
+    const midwayProgress = [];
+    let service;
+    service = createUpdateService({
+      paths,
+      currentVersion: '1.0.0',
+      manifestUrl,
+      packagingMode: 'installed',
+      fetch: async (url) => {
+        if (url === manifestUrl) {
+          return {
+            ok: true,
+            status: 200,
+            url,
+            async json() {
+              return {
+                version: '1.0.2',
+                assets: {
+                  installer: {
+                    name: 'memoq-ai-hub-setup.exe',
+                    url: installerUrl,
+                    sha256: installerSha256
+                  }
+                }
+              };
+            }
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          url,
+          headers: new Map([['content-length', String(installerBytes.length)]]),
+          body: (async function* generateBody() {
+            yield firstChunk;
+            midwayProgress.push(service.getStatus().downloadProgress);
+            yield secondChunk;
+          })()
+        };
+      }
+    });
+
+    await service.checkForUpdates({ manual: true });
+    const downloaded = await service.downloadInstallerUpdate();
+
+    assert.equal(path.basename(downloaded.downloadedArtifactPath), 'memoq-ai-hub-setup.exe');
+    assert.equal(fs.existsSync(downloaded.downloadedArtifactPath), true);
+    assert.equal(fs.existsSync(`${path.join(paths.updateDownloadsDir, 'memoq-ai-hub-setup.exe')}.part`), false);
+    assert.deepEqual(downloaded.downloadProgress, {
+      receivedBytes: installerBytes.length,
+      totalBytes: installerBytes.length
+    });
+    assert.deepEqual(
+      midwayProgress.find((progress) => progress.receivedBytes === firstChunk.length),
+      { receivedBytes: firstChunk.length, totalBytes: installerBytes.length }
+    );
+
+    const verified = await service.verifyDownloadedInstallerUpdate(downloaded.downloadedArtifactPath);
+    assert.equal(verified.ok, true);
+    assert.equal(verified.sha256, installerSha256);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

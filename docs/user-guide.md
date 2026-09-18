@@ -227,6 +227,27 @@ In memoQ MT settings, point these features to **memoQ AI Hub**:
 - In **Translation Records**, common filters remain visible. Open **More filters** for project, subject, status, issue, and date filters.
 - Record summaries remain visible; attempts, metadata, prompts, context, and segments are grouped under **Technical details, prompts, and segments**.
 
+## Updating memoQ AI Hub
+
+The dashboard checks for updates automatically at startup, and you can run **Check for updates** at any time. From v1.0.46 both packaging modes finish the update inside the app — no web download and no manual unzip-and-overwrite.
+
+### Installed builds (setup.exe)
+
+1. When an update is available, click **Download installer update**.
+2. After the download finishes, click **Restart and install update** and confirm. The app closes and the verified installer runs.
+3. Windows may show a SmartScreen prompt because the installer is unsigned. Choose **More info → Run anyway** after confirming the source.
+4. Reopen memoQ AI Hub when the installer finishes.
+
+### Portable builds (ZIP)
+
+1. When an update is available, click **Download update**. The app downloads the ZIP, verifies its SHA-256 digest against the release manifest, and prepares it automatically.
+2. Click **Restart and install update** and confirm. The app closes, replaces its own folder with the verified update, and restarts on the new version. Wait for translations in progress to finish first — the app blocks the restart while AI requests are active.
+3. Your data (profiles, providers, history, secrets) is stored outside the app folder and is never touched by the update.
+
+If the app folder is in a read-only location (for example Program Files without write permission, or a network share), in-app updating is unavailable and the dashboard offers the download page instead; extract the new version manually in that case. Files downloaded inside the app do not carry the Windows "blocked" mark, so no **Unblock** step is needed.
+
+After any app update, open the dashboard and check the integration notice — if the memoQ plugin changed, run **Install / Reinstall** once and restart memoQ.
+
 ## FAQ
 
 **The dashboard says disconnected. What should I check?**

@@ -581,6 +581,9 @@ async function createRuntime(options = {}) {
     async preparePortableUpdate(downloadedFile, targetDir) {
       return updateService.preparePortableUpdate(downloadedFile, targetDir);
     },
+    markPortableUpdateRestarting() {
+      return updateService.markPortableUpdateRestarting();
+    },
     saveProfile: profileService.saveProfile,
     savePromptPreset(preset = {}) {
       return promptPresetStore.save(preset);

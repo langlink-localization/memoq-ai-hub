@@ -30,6 +30,8 @@ The repository contains runtime code for more advanced capabilities, but not eve
 
 ## Current Release Highlights
 
+**v1.0.46** delivers one-click in-app updates for both packaging modes: installed builds download the manifest-verified Squirrel installer, and portable builds download, verify, stage, and swap their own folder during a restart orchestrated by a detached apply helper. See [release notes](docs/release-notes/v1.0.46.md) and the [update integrity contract](specs/portable-self-update-v1.0.46/spec.md).
+
 **v1.0.45** hardens concurrent configuration updates and credential recovery, keeps dashboard progress accurate during polling, and improves editor save protection, preview recovery, keyboard access, and reduced motion. See [release notes](docs/release-notes/v1.0.45.md) and the [architecture and UX review](docs/audits/2026-09-12-architecture-uiux.md).
 
 `v1.0.40` includes the product, performance, security, architecture, and reliability improvements delivered from `v1.0.20` through `v1.0.40`:

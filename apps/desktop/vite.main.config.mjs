@@ -96,6 +96,7 @@ export default defineConfig({
         unavailableSecretStore: path.resolve(__dirname, 'src/unavailableSecretStore.js'),
         'shared/timeFormatting': path.resolve(__dirname, 'src/shared/timeFormatting.js'),
         'update/updateService': path.resolve(__dirname, 'src/update/updateService.js'),
+        'update/portableUpdateApplier': path.resolve(__dirname, 'src/update/portableUpdateApplier.js'),
         workerLaunch: path.resolve(__dirname, 'src/workerLaunch.js'),
         workerRequestPolicy: path.resolve(__dirname, 'src/workerRequestPolicy.js'),
         workerSupervisor: path.resolve(__dirname, 'src/workerSupervisor.js')

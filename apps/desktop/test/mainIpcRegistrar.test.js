@@ -37,6 +37,7 @@ function createDeps(overrides = {}) {
       requireWorkerReady: overrides.requireWorkerReady || (() => {}),
       invokeWorker: overrides.invokeWorker || (async () => ({})),
       createQualityWindow: overrides.createQualityWindow || (() => {}),
+      applyPortableUpdate: overrides.applyPortableUpdate,
       requestQuit: overrides.requestQuit || (() => logCalls.push(['quit']))
     },
     logCalls
@@ -177,4 +178,67 @@ test('import dialogs forward the selected file to the worker and cancel to null'
 
   const canceled = await ipcMain.handlers.get(MAIN_LOCAL_METHODS.pickDirectory.channel)(null);
   assert.equal(canceled, null);
+});
+
+test('portable apply validates worker state, schedules the helper, marks restarting, and quits', async () => {
+  const ipcMain = createStubIpcMain();
+  const workerInvocations = [];
+  const applyCalls = [];
+  const logCalls = [];
+  const { deps } = createDeps({
+    ipcMain,
+    invokeWorker: async (worker) => {
+      workerInvocations.push(worker);
+      if (worker === 'getUpdateStatus') {
+        return {
+          packagingMode: 'portable',
+          updateStatus: 'prepared',
+          preparedDirectory: 'C:/Apps/staging'
+        };
+      }
+      return { ok: true };
+    },
+    applyPortableUpdate: (config) => {
+      applyCalls.push(config);
+      return { ok: true, scriptPath: 'C:/Data/updates/apply-portable-update.ps1', backupPath: 'C:/Apps/.memoq-ai-hub-backup-x' };
+    },
+    requestQuit: () => logCalls.push(['quit'])
+  });
+  createRendererIpcRegistrar(deps)();
+
+  const result = await ipcMain.handlers.get(MAIN_LOCAL_METHODS.applyPortableUpdate.channel)();
+  assert.equal(result.ok, true);
+  assert.equal(result.preparedDirectory, 'C:/Apps/staging');
+  assert.equal(applyCalls.length, 1);
+  assert.equal(applyCalls[0].preparedDirectory, 'C:/Apps/staging');
+  assert.equal(applyCalls[0].waitPid, process.pid);
+  assert.deepEqual(workerInvocations, ['getUpdateStatus', 'markPortableUpdateRestarting']);
+  assert.deepEqual(logCalls, [['quit']]);
+});
+
+test('portable apply refuses non-portable or unprepared update state', async () => {
+  const ipcMain = createStubIpcMain();
+  const applyCalls = [];
+  const { deps } = createDeps({
+    ipcMain,
+    invokeWorker: async () => ({ packagingMode: 'installed', updateStatus: 'prepared', preparedDirectory: 'C:/staging' }),
+    applyPortableUpdate: (config) => {
+      applyCalls.push(config);
+      return { ok: true, scriptPath: 'x', backupPath: 'y' };
+    }
+  });
+  createRendererIpcRegistrar(deps)();
+
+  await assert.rejects(
+    () => ipcMain.handlers.get(MAIN_LOCAL_METHODS.applyPortableUpdate.channel)(),
+    /only available in portable mode/
+  );
+
+  const unprepared = createDeps({
+    ipcMain: { handle: () => {} },
+    invokeWorker: async () => ({ packagingMode: 'portable', updateStatus: 'available', preparedDirectory: '' })
+  });
+  const registerUnprepared = createRendererIpcRegistrar(unprepared.deps);
+  registerUnprepared();
+  assert.equal(applyCalls.length, 0);
 });

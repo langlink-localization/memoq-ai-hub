@@ -8,6 +8,8 @@ export const DEFAULT_RELEASE_REPOSITORY = 'langlink-localization/memoq-ai-hub';
 export const STABLE_UPDATE_MANIFEST_NAME = 'memoq-ai-hub-updates-stable.json';
 export const PORTABLE_WINDOWS_ARTIFACT_NAME = 'memoq-ai-hub-win32-x64.zip';
 export const COMPACT_PORTABLE_WINDOWS_ARTIFACT_NAME = 'memoq-ai-hub-win32-x64.7z';
+export const INSTALLER_WINDOWS_ARTIFACT_NAME = 'memoq-ai-hub-setup.exe';
+export const INSTALLER_WINDOWS_ARTIFACT_RELATIVE_PATH = path.join('make', 'squirrel.windows', 'x64', 'memoq-ai-hub-setup.exe');
 const SHA256_HEX_PATTERN = /^[0-9a-f]{64}$/;
 
 function getRepoRoot() {
@@ -112,6 +114,7 @@ export function buildStableUpdateManifest({
   const downloadBaseUrl = `${releaseBaseUrl}/download/${tag}`;
   const portableSha256 = normalizeSha256(assetSha256.portable, 'Portable ZIP SHA-256');
   const portableCompactSha256 = normalizeSha256(assetSha256.portableCompact, 'Compact 7z SHA-256');
+  const installerSha256 = normalizeSha256(assetSha256.installer, 'Windows installer SHA-256');
 
   return {
     version: normalizedVersion,
@@ -130,6 +133,11 @@ export function buildStableUpdateManifest({
         name: COMPACT_PORTABLE_WINDOWS_ARTIFACT_NAME,
         url: `${downloadBaseUrl}/${COMPACT_PORTABLE_WINDOWS_ARTIFACT_NAME}`,
         sha256: portableCompactSha256
+      },
+      installer: {
+        name: INSTALLER_WINDOWS_ARTIFACT_NAME,
+        url: `${downloadBaseUrl}/${INSTALLER_WINDOWS_ARTIFACT_NAME}`,
+        sha256: installerSha256
       }
     }
   };
@@ -149,7 +157,9 @@ export function writeStableUpdateManifest(outputPath, options = {}) {
       portable: options.assetSha256?.portable
         || calculateFileSha256(path.join(outputDir, PORTABLE_WINDOWS_ARTIFACT_NAME)),
       portableCompact: options.assetSha256?.portableCompact
-        || calculateFileSha256(path.join(outputDir, COMPACT_PORTABLE_WINDOWS_ARTIFACT_NAME))
+        || calculateFileSha256(path.join(outputDir, COMPACT_PORTABLE_WINDOWS_ARTIFACT_NAME)),
+      installer: options.assetSha256?.installer
+        || calculateFileSha256(path.join(outputDir, INSTALLER_WINDOWS_ARTIFACT_RELATIVE_PATH))
     }
   });
 

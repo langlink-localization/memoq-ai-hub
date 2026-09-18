@@ -288,6 +288,9 @@ const requestHandlers = {
   preparePortableUpdate(payload) {
     return requireRuntime().preparePortableUpdate(payload?.downloadedFile, payload?.targetDir);
   },
+  markPortableUpdateRestarting() {
+    return requireRuntime().markPortableUpdateRestarting();
+  },
   testHandshake() {
     return requireRuntime().testHandshake();
   },

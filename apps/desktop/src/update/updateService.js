@@ -22,7 +22,10 @@ const UPDATE_INTEGRITY_FAILED_CODE = 'UPDATE_INTEGRITY_FAILED';
 const UPDATE_CHECK_FAILED_MESSAGE = 'Unable to check for updates. Please try again later.';
 const UPDATE_CHECK_TIMEOUT_MESSAGE = 'Update check timed out. Please try again later.';
 const UPDATE_INTEGRITY_FAILED_MESSAGE = 'Update package integrity verification failed.';
-const PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE = 'Portable builds use a browser download page instead of downloading updates inside the app.';
+const PORTABLE_APP_EXECUTABLE_NAME = 'memoQ AI Hub.exe';
+const PORTABLE_STAGING_DIRECTORY_NAME = '.memoq-ai-hub-update-staging';
+const PORTABLE_BACKUP_NAME_PREFIX = '.memoq-ai-hub-backup-';
+const DOWNLOAD_PROGRESS_EMIT_BYTES = 1024 * 1024;
 const SHA256_HEX_PATTERN = /^[0-9a-f]{64}$/;
 
 function ensureDir(dirPath) {
@@ -72,6 +75,8 @@ function createDefaultUpdateState({ currentVersion, packagingMode, manifestUrl }
     portableDownloadUrl: '',
     downloadedArtifactPath: '',
     preparedDirectory: '',
+    downloadProgress: { receivedBytes: 0, totalBytes: 0 },
+    portableApplySupport: { supported: false, reason: '' },
     lastCheckedAt: '',
     lastError: '',
     lastErrorCode: '',
@@ -85,6 +90,11 @@ function createDefaultUpdateState({ currentVersion, packagingMode, manifestUrl }
   };
 }
 
+function normalizePersistedByteCount(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
+}
+
 function normalizePersistedUpdateState(defaultState, persistedState = {}) {
   const nextState = {
     ...defaultState,
@@ -96,6 +106,23 @@ function normalizePersistedUpdateState(defaultState, persistedState = {}) {
     portable: normalizePersistedAsset(nextState.availableAssets?.portable),
     installer: normalizePersistedAsset(nextState.availableAssets?.installer)
   };
+  nextState.downloadProgress = {
+    receivedBytes: normalizePersistedByteCount(persistedState?.downloadProgress?.receivedBytes),
+    totalBytes: normalizePersistedByteCount(persistedState?.downloadProgress?.totalBytes)
+  };
+  nextState.portableApplySupport = defaultState.packagingMode === 'portable'
+    ? {
+        supported: persistedState?.portableApplySupport?.supported === true,
+        reason: String(persistedState?.portableApplySupport?.reason || '').slice(0, 200)
+      }
+    : { supported: false, reason: '' };
+
+  // A persisted "restarting" state means the portable apply helper took over a
+  // previous session. If the same app version is running again the apply did
+  // not complete; fall back to "prepared" so the user can retry.
+  if (String(nextState.updateStatus || '').trim().toLowerCase() === 'restarting') {
+    nextState.updateStatus = 'prepared';
+  }
 
   const persistedCurrentVersion = String(persistedState?.currentVersion || '').trim();
   const persistedManifestUrl = String(persistedState?.manifestUrl || '').trim();
@@ -184,14 +211,35 @@ function calculateBufferSha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
-function verifyBufferSha256(buffer, expectedSha256) {
+function verifyHexSha256(actualSha256, expectedSha256, message) {
   const expected = normalizeAssetSha256(expectedSha256, { allowEmpty: false });
-  const actual = calculateBufferSha256(buffer);
+  const actual = normalizeAssetSha256(actualSha256, { allowEmpty: false });
   const matches = crypto.timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(expected, 'hex'));
   if (!matches) {
-    throw createUpdateIntegrityError('Downloaded update package does not match the manifest SHA-256.');
+    throw createUpdateIntegrityError(message || 'Downloaded update package does not match the manifest SHA-256.');
   }
   return actual;
+}
+
+function verifyBufferSha256(buffer, expectedSha256) {
+  return verifyHexSha256(calculateBufferSha256(buffer), expectedSha256);
+}
+
+/**
+ * Streams a file through SHA-256 so large installers never load fully into
+ * memory; falls back to a buffered read for injectable test file systems.
+ */
+async function calculateFileSha256(fsImpl, filePath) {
+  if (typeof fsImpl.createReadStream !== 'function') {
+    return calculateBufferSha256(fsImpl.readFileSync(filePath));
+  }
+  return await new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fsImpl.createReadStream(filePath);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', reject);
+  });
 }
 
 function normalizeAsset(asset = {}) {
@@ -299,6 +347,72 @@ async function expandArchiveWithPowerShell(sourcePath, targetDir) {
   ]);
 }
 
+/**
+ * Resolves whether the packaged portable app can stage and swap its own
+ * folder. The parent of the app directory must be writable (rename + move
+ * target) and the app directory must look like a packaged build.
+ */
+function resolvePortableApplySupport({ fsImpl = fs, execPath = process.execPath } = {}) {
+  const normalizedExecPath = String(execPath || '').trim();
+  if (!normalizedExecPath) {
+    return { supported: false, reason: 'App executable path is unavailable.', appDirectory: '' };
+  }
+
+  const appDirectory = path.dirname(normalizedExecPath);
+  if (!fsImpl.existsSync(path.join(appDirectory, 'resources', 'app.asar'))) {
+    return { supported: false, reason: 'The running executable is not a packaged portable build.', appDirectory };
+  }
+
+  const parentDirectory = path.dirname(appDirectory);
+  const markerPath = path.join(parentDirectory, `.memoq-ai-hub-write-probe-${process.pid}`);
+  try {
+    fsImpl.writeFileSync(markerPath, 'probe');
+    fsImpl.rmSync(markerPath, { force: true });
+  } catch {
+    return { supported: false, reason: 'The app folder location is not writable. Use the download page to update manually.', appDirectory };
+  }
+
+  return { supported: true, reason: '', appDirectory };
+}
+
+/**
+ * Prefers a staging directory beside the app (same volume => instant rename
+ * during apply); falls back to the managed prepared-updates directory when
+ * that location is not writable.
+ */
+function resolvePortableStagingDirectory({ applySupport, preparedUpdatesDir, fsImpl = fs }) {
+  if (applySupport?.supported && applySupport.appDirectory) {
+    const siblingStaging = path.join(path.dirname(applySupport.appDirectory), PORTABLE_STAGING_DIRECTORY_NAME);
+    try {
+      if (fsImpl.existsSync(siblingStaging)) {
+        fsImpl.rmSync(siblingStaging, { recursive: true, force: true });
+      }
+      return siblingStaging;
+    } catch {
+      // Fall through to the managed prepared directory.
+    }
+  }
+  return path.join(preparedUpdatesDir, PORTABLE_STAGING_DIRECTORY_NAME);
+}
+
+/**
+ * Published portable archives contain the app files at the archive root, but
+ * stay defensive: if extraction produced a single folder and no root payload,
+ * treat that folder as the app root.
+ */
+function normalizePreparedAppRoot(fsImpl, destinationDir) {
+  if (fsImpl.existsSync(path.join(destinationDir, PORTABLE_APP_EXECUTABLE_NAME))) {
+    return destinationDir;
+  }
+  const entries = fsImpl.readdirSync(destinationDir);
+  const directories = entries.filter((entry) => fsImpl.statSync(path.join(destinationDir, entry)).isDirectory());
+  if (directories.length === 1
+    && fsImpl.existsSync(path.join(destinationDir, directories[0], PORTABLE_APP_EXECUTABLE_NAME))) {
+    return path.join(destinationDir, directories[0]);
+  }
+  return '';
+}
+
 function getDefaultManifestUrl(repository = DEFAULT_RELEASE_REPOSITORY) {
   return `https://github.com/${repository}/releases/latest/download/${STABLE_UPDATE_MANIFEST_NAME}`;
 }
@@ -317,10 +431,12 @@ function createUpdateService(options = {}) {
     { label: 'Update manifest URL' }
   );
   const currentVersion = String(options.currentVersion || '').trim();
+  // Captured because checkForUpdates(options) shadows the creation options.
+  const creationExecPath = options.execPath;
   const packagingMode = resolvePackagingMode({
     packagingMode: options.packagingMode,
     fsImpl,
-    execPath: options.execPath
+    execPath: creationExecPath
   });
   const extractArchive = options.extractArchive || expandArchiveWithPowerShell;
   const appPaths = options.paths || {};
@@ -458,22 +574,25 @@ function createUpdateService(options = {}) {
     return asset;
   }
 
-  function markIntegrityFailure(error, artifactPath = '') {
+  function markIntegrityFailure(error, artifactPaths = []) {
     const normalizedError = error?.code === UPDATE_INTEGRITY_FAILED_CODE
       ? error
       : createUpdateIntegrityError(error?.message || error);
-    const normalizedArtifactPath = String(artifactPath || '').trim();
-    const resolvedArtifactPath = normalizedArtifactPath ? path.resolve(normalizedArtifactPath) : '';
-    const artifactIsManaged = resolvedArtifactPath
-      && path.dirname(resolvedArtifactPath) === path.resolve(updateDownloadsDir);
-    if (artifactIsManaged && fsImpl.existsSync(resolvedArtifactPath)) {
-      try {
-        fsImpl.rmSync(resolvedArtifactPath, { force: true });
-      } catch (removeError) {
-        logger.warn('update-integrity-cleanup-failed', 'Unable to remove an untrusted update package.', {
-          artifactPath: resolvedArtifactPath,
-          errorMessage: String(removeError?.message || removeError)
-        });
+    const pathsToClean = Array.isArray(artifactPaths) ? artifactPaths : [artifactPaths];
+    for (const artifactPath of pathsToClean) {
+      const normalizedArtifactPath = String(artifactPath || '').trim();
+      const resolvedArtifactPath = normalizedArtifactPath ? path.resolve(normalizedArtifactPath) : '';
+      const artifactIsManaged = resolvedArtifactPath
+        && path.dirname(resolvedArtifactPath) === path.resolve(updateDownloadsDir);
+      if (artifactIsManaged && fsImpl.existsSync(resolvedArtifactPath)) {
+        try {
+          fsImpl.rmSync(resolvedArtifactPath, { force: true });
+        } catch (removeError) {
+          logger.warn('update-integrity-cleanup-failed', 'Unable to remove an untrusted update package.', {
+            artifactPath: resolvedArtifactPath,
+            errorMessage: String(removeError?.message || removeError)
+          });
+        }
       }
     }
     setState({
@@ -495,6 +614,7 @@ function createUpdateService(options = {}) {
   async function downloadAsset(kind) {
     const asset = getRequestedAsset(kind);
     const destinationPath = path.join(updateDownloadsDir, asset.name);
+    const partialPath = `${destinationPath}.part`;
     let expectedSha256;
 
     try {
@@ -505,6 +625,7 @@ function createUpdateService(options = {}) {
 
     setState({
       updateStatus: 'downloading',
+      downloadProgress: { receivedBytes: 0, totalBytes: 0 },
       lastError: '',
       lastErrorCode: ''
     });
@@ -517,25 +638,85 @@ function createUpdateService(options = {}) {
       normalizeExternalHttpsUrl(response.url, { label: 'Final update download URL' });
     }
 
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const declaredTotalBytes = normalizePersistedByteCount(
+      typeof response.headers?.get === 'function' ? response.headers.get('content-length') : ''
+    );
+    const hash = crypto.createHash('sha256');
+    const writeStream = fsImpl.createWriteStream(partialPath);
+    let receivedBytes = 0;
+    let lastEmittedBytes = 0;
+
+    const finishWrite = () => new Promise((resolve, reject) => {
+      writeStream.end((writeError) => {
+        if (writeError) {
+          reject(writeError);
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    const removePartial = () => {
+      try {
+        if (fsImpl.existsSync(partialPath)) {
+          fsImpl.rmSync(partialPath, { force: true });
+        }
+      } catch {
+        // Best-effort cleanup; a stale .part file is overwritten on retry.
+      }
+    };
+
     try {
-      verifyBufferSha256(buffer, expectedSha256);
+      const body = response.body;
+      if (body && typeof body[Symbol.asyncIterator] === 'function') {
+        for await (const chunk of body) {
+          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          hash.update(buffer);
+          if (!writeStream.write(buffer)) {
+            await new Promise((resolve) => writeStream.once('drain', resolve));
+          }
+          receivedBytes += buffer.length;
+          if (receivedBytes - lastEmittedBytes >= DOWNLOAD_PROGRESS_EMIT_BYTES) {
+            lastEmittedBytes = receivedBytes;
+            setState({ downloadProgress: { receivedBytes, totalBytes: declaredTotalBytes } });
+          }
+        }
+      } else {
+        const buffer = Buffer.from(await response.arrayBuffer());
+        hash.update(buffer);
+        writeStream.write(buffer);
+        receivedBytes = buffer.length;
+      }
+      await finishWrite();
     } catch (error) {
-      throw markIntegrityFailure(error, destinationPath);
+      removePartial();
+      throw error;
     }
-    fsImpl.writeFileSync(destinationPath, buffer);
+
+    try {
+      verifyHexSha256(hash.digest('hex'), expectedSha256);
+    } catch (error) {
+      removePartial();
+      throw markIntegrityFailure(error, [destinationPath, partialPath]);
+    }
+
+    try {
+      if (fsImpl.existsSync(destinationPath)) {
+        fsImpl.rmSync(destinationPath, { force: true });
+      }
+      fsImpl.renameSync(partialPath, destinationPath);
+    } catch (error) {
+      removePartial();
+      throw error;
+    }
 
     return setState({
       updateStatus: 'available',
       downloadedArtifactPath: destinationPath,
+      downloadProgress: { receivedBytes, totalBytes: receivedBytes },
       lastError: '',
       lastErrorCode: ''
     });
-  }
-
-  function buildPreparedDirectory(version) {
-    const safeVersion = String(version || 'prepared').replace(/[^0-9A-Za-z._-]+/g, '-');
-    return path.join(preparedUpdatesDir, `memoq-ai-hub-v${safeVersion}`);
   }
 
   function isSquirrelFirstRun() {
@@ -577,6 +758,10 @@ function createUpdateService(options = {}) {
         const hasUpdate = compareVersions(manifest.version, currentVersion) > 0;
         const portableDownloadUrl = hasUpdate ? (manifest.releaseNotesUrl || manifest.assets?.portable?.url || '') : '';
         const nextStatus = hasUpdate ? 'available' : 'up-to-date';
+        let portableApplySupport = state.portableApplySupport;
+        if (packagingMode === 'portable') {
+          portableApplySupport = resolvePortableApplySupport({ fsImpl, execPath: creationExecPath });
+        }
         logger.info('update-check-complete', 'Update check completed.', {
           elapsedMs: Date.now() - startedAtMs,
           updateStatus: nextStatus,
@@ -592,11 +777,12 @@ function createUpdateService(options = {}) {
           releaseNotes: manifest.releaseNotes,
           releaseNotesUrl: manifest.releaseNotesUrl,
           portableDownloadUrl,
+          portableApplySupport,
           lastCheckedAt: nowIso(),
           lastError: '',
           lastErrorCode: '',
-          downloadedArtifactPath: hasUpdate && packagingMode !== 'portable' ? state.downloadedArtifactPath : '',
-          preparedDirectory: hasUpdate && packagingMode !== 'portable' ? state.preparedDirectory : '',
+          downloadedArtifactPath: hasUpdate ? state.downloadedArtifactPath : '',
+          preparedDirectory: hasUpdate ? state.preparedDirectory : '',
           availableAssets: hasUpdate ? manifest.assets : defaultState.availableAssets
         });
       } catch (error) {
@@ -620,7 +806,7 @@ function createUpdateService(options = {}) {
       if (packagingMode !== 'portable') {
         throw new Error('Portable update download is only available in portable mode.');
       }
-      throw new Error(PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE);
+      return downloadAsset('portable');
     },
     async downloadInstallerUpdate() {
       if (packagingMode !== 'installed') {
@@ -653,20 +839,21 @@ function createUpdateService(options = {}) {
           throw createUpdateIntegrityError(`Downloaded installer not found: ${expectedPath}`);
         }
 
-        const actualSha256 = verifyBufferSha256(fsImpl.readFileSync(expectedPath), expectedSha256);
+        const actualSha256 = verifyHexSha256(
+          await calculateFileSha256(fsImpl, expectedPath),
+          expectedSha256,
+          'Downloaded update package does not match the manifest SHA-256.'
+        );
         return {
           ok: true,
           installerPath: expectedPath,
           sha256: actualSha256
         };
       } catch (error) {
-        throw markIntegrityFailure(error, persistedPath);
+        throw markIntegrityFailure(error, [persistedPath]);
       }
     },
     async preparePortableUpdate(downloadedFile, targetDir) {
-      if (packagingMode === 'portable') {
-        throw new Error(PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE);
-      }
       const sourcePath = String(downloadedFile || state.downloadedArtifactPath || '').trim();
       if (!sourcePath) {
         throw new Error('A downloaded portable archive is required before preparing an update.');
@@ -675,24 +862,69 @@ function createUpdateService(options = {}) {
         throw new Error(`Downloaded update archive not found: ${sourcePath}`);
       }
 
-      const destinationDir = String(targetDir || buildPreparedDirectory(state.latestVersion || nowIso())).trim();
-      if (!destinationDir) {
+      // Fail closed: re-verify the persisted archive against the manifest
+      // digest before extraction so a swapped file cannot be expanded.
+      const portableAsset = state.availableAssets?.portable;
+      try {
+        const expectedSha256 = getRequiredAssetSha256(portableAsset);
+        const expectedPath = path.resolve(updateDownloadsDir, portableAsset.name);
+        if (path.resolve(sourcePath) !== expectedPath) {
+          throw createUpdateIntegrityError('Prepared archive path does not match the current update asset.');
+        }
+        verifyHexSha256(
+          await calculateFileSha256(fsImpl, sourcePath),
+          expectedSha256,
+          'Downloaded update package does not match the manifest SHA-256.'
+        );
+      } catch (error) {
+        throw markIntegrityFailure(error, [sourcePath]);
+      }
+
+      const stagingDir = String(targetDir || '').trim()
+        || resolvePortableStagingDirectory({
+          applySupport: packagingMode === 'portable'
+            ? resolvePortableApplySupport({ fsImpl, execPath: creationExecPath })
+            : { supported: false, appDirectory: '' },
+          preparedUpdatesDir,
+          fsImpl
+        });
+      if (!stagingDir) {
         throw new Error('A target directory is required to prepare the portable update.');
       }
 
-      if (fsImpl.existsSync(destinationDir)) {
-        fsImpl.rmSync(destinationDir, { recursive: true, force: true });
+      if (fsImpl.existsSync(stagingDir)) {
+        fsImpl.rmSync(stagingDir, { recursive: true, force: true });
       }
-      ensureDir(destinationDir);
+      ensureDir(stagingDir);
 
-      await extractArchive(sourcePath, destinationDir);
+      await extractArchive(sourcePath, stagingDir);
+
+      const preparedAppRoot = normalizePreparedAppRoot(fsImpl, stagingDir);
+      if (!preparedAppRoot) {
+        try {
+          fsImpl.rmSync(stagingDir, { recursive: true, force: true });
+        } catch {
+          // Best-effort cleanup of an unusable staging directory.
+        }
+        throw createUpdateIntegrityError(`Prepared update does not contain ${PORTABLE_APP_EXECUTABLE_NAME}.`);
+      }
 
       return setState({
         updateStatus: 'prepared',
-        preparedDirectory: destinationDir,
+        preparedDirectory: preparedAppRoot,
         downloadedArtifactPath: sourcePath,
-        lastError: ''
+        lastError: '',
+        lastErrorCode: ''
       });
+    },
+    markPortableUpdateRestarting() {
+      if (packagingMode !== 'portable') {
+        throw new Error('Portable update restart marking is only available in portable mode.');
+      }
+      if (String(state.updateStatus || '').trim().toLowerCase() !== 'prepared') {
+        throw new Error('A prepared portable update is required before restarting to update.');
+      }
+      return setState({ updateStatus: 'restarting' });
     }
   };
 }
@@ -708,10 +940,13 @@ module.exports = {
   UPDATE_CHECK_FAILED_MESSAGE,
   UPDATE_CHECK_TIMEOUT_MESSAGE,
   UPDATE_INTEGRITY_FAILED_MESSAGE,
+  PORTABLE_APP_EXECUTABLE_NAME,
+  PORTABLE_STAGING_DIRECTORY_NAME,
+  PORTABLE_BACKUP_NAME_PREFIX,
   compareVersions,
   createUpdateService,
   getDefaultManifestUrl,
   normalizeManifest,
-  PORTABLE_IN_APP_UPDATE_DISABLED_MESSAGE,
-  resolvePackagingMode
+  resolvePackagingMode,
+  resolvePortableApplySupport
 };

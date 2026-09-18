@@ -25,9 +25,23 @@ export function getUpdateStatusLabel(status, t) {
   if (normalized === 'available') return t('dashboard.updateStatusAvailable');
   if (normalized === 'downloading') return t('dashboard.updateStatusDownloading');
   if (normalized === 'prepared') return t('dashboard.updateStatusPrepared');
+  if (normalized === 'restarting') return t('dashboard.updateStatusRestarting');
   if (normalized === 'up-to-date') return t('dashboard.updateStatusUpToDate');
   if (normalized === 'error') return t('dashboard.updateStatusError');
   return t('dashboard.updateStatusIdle');
+}
+
+export function formatDownloadProgress(progress) {
+  const receivedBytes = Number(progress?.receivedBytes);
+  const totalBytes = Number(progress?.totalBytes);
+  const receivedLabel = Number.isFinite(receivedBytes) && receivedBytes >= 0 ? `${(receivedBytes / (1024 * 1024)).toFixed(1)} MB` : '';
+  if (!receivedLabel) {
+    return '';
+  }
+  if (Number.isFinite(totalBytes) && totalBytes > 0) {
+    return `${receivedLabel} / ${(totalBytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  return receivedLabel;
 }
 
 function compareDisplayVersions(leftVersion, rightVersion) {
@@ -48,7 +62,7 @@ function compareDisplayVersions(leftVersion, rightVersion) {
 export function getSafeUpdateStatus(updateCenter = {}) {
   const status = String(updateCenter.updateStatus || '').trim().toLowerCase();
   if (
-    ['available', 'downloading', 'prepared'].includes(status)
+    ['available', 'downloading', 'prepared', 'restarting'].includes(status)
     && compareDisplayVersions(updateCenter.latestVersion, updateCenter.currentVersion) <= 0
   ) {
     return 'up-to-date';

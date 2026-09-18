@@ -200,6 +200,58 @@ export function useDashboardActions({ api, t, message, modal, notifyError, refre
     );
   }
 
+  async function downloadPortableUpdateNow(dashboardUpdateCenter = {}) {
+    if (typeof api?.downloadPortableUpdate !== 'function') {
+      return;
+    }
+    const downloadResult = await runUpdateAction(
+      () => api.downloadPortableUpdate(dashboardUpdateCenter.latestVersion || '')
+    );
+    if (!downloadResult?.downloadedArtifactPath || typeof api?.preparePortableUpdate !== 'function') {
+      return;
+    }
+    await runUpdateAction(
+      () => api.preparePortableUpdate(downloadResult.downloadedArtifactPath, ''),
+      t('dashboard.updatePreparedSuccess')
+    );
+  }
+
+  async function preparePortableUpdateNow(dashboardUpdateCenter = {}) {
+    if (typeof api?.preparePortableUpdate !== 'function') {
+      return;
+    }
+    await runUpdateAction(
+      () => api.preparePortableUpdate(dashboardUpdateCenter.downloadedArtifactPath || '', ''),
+      t('dashboard.updatePreparedSuccess')
+    );
+  }
+
+  async function applyPortableUpdateNow() {
+    if (typeof api?.applyPortableUpdate !== 'function') {
+      return;
+    }
+    await runUpdateAction(
+      () => api.applyPortableUpdate(),
+      t('dashboard.portableApplyStarted')
+    );
+  }
+
+  function confirmApplyPortableUpdate(dashboardUpdateCenter = {}, options = {}) {
+    if (!dashboardUpdateCenter.preparedDirectory || updateActionLoading) return;
+    if (options.busy) {
+      message.warning(t('dashboard.updateBusyWarning'));
+      return;
+    }
+    modal.confirm({
+      title: t('dashboard.restartUpdateConfirmTitle'),
+      content: t('dashboard.portableRestartConfirmDescription'),
+      okText: t('dashboard.restartAndInstallUpdate'),
+      cancelText: t('common.cancel'),
+      okButtonProps: { danger: true },
+      onOk: () => applyPortableUpdateNow()
+    });
+  }
+
   async function openPortableDownloadPage(portableDownloadUrl = '') {
     if (!portableDownloadUrl || typeof api?.openExternalUrl !== 'function') {
       return;
@@ -252,6 +304,9 @@ export function useDashboardActions({ api, t, message, modal, notifyError, refre
     checkForUpdates,
     runUpdateAction,
     downloadInstallerUpdate,
+    downloadPortableUpdateNow,
+    preparePortableUpdateNow,
+    confirmApplyPortableUpdate,
     openPortableDownloadPage,
     openUpdateReleaseNotes,
     confirmLaunchDownloadedInstallerUpdate

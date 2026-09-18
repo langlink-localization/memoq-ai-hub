@@ -560,7 +560,7 @@ test('background worker runtime harness exposes translation cache bypass and cle
   assert.equal(clearResult.clearedCount, 0);
 });
 
-test('background worker runtime harness exposes portable update metadata without in-app portable download flow', async (t) => {
+test('background worker runtime harness exposes portable update metadata with digest-gated in-app downloads', async (t) => {
   const tempRoot = createTempAppRoot();
   const manifestUrl = 'https://example.com/latest.json';
   const releaseNotesUrl = 'https://example.com/release';
@@ -601,8 +601,11 @@ test('background worker runtime harness exposes portable update metadata without
   assert.equal(runtime.getUpdateStatus().latestVersion, newerDesktopPackageVersion);
   assert.equal(available.updateStatus, 'available');
   assert.equal(available.portableDownloadUrl, releaseNotesUrl);
-  await assert.rejects(() => runtime.downloadPortableUpdate(), /browser download page/i);
-  await assert.rejects(() => runtime.preparePortableUpdate(path.join(tempRoot, 'memoq-ai-hub-win32-x64.zip')), /browser download page/i);
+  // In-app portable downloads are digest-gated: this manifest carries no
+  // SHA-256, so the download must fail closed instead of fetching bytes.
+  assert.equal(available.portableApplySupport.supported, false);
+  await assert.rejects(() => runtime.downloadPortableUpdate(), /SHA-256 is required for application-managed downloads/);
+  await assert.rejects(() => runtime.preparePortableUpdate(path.join(tempRoot, 'memoq-ai-hub-win32-x64.zip')), /Downloaded update archive not found/);
 });
 
 test('background worker entrypoint stays parseable for packaging builds', () => {

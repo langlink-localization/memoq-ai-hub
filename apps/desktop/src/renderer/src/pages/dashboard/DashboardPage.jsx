@@ -7,6 +7,7 @@ import { buildDashboardChecklist } from '../../uiBehavior.mjs';
 import {
   buildInstallDraft,
   buildInstallOptions,
+  formatDownloadProgress,
   getPackagingModeLabel,
   getPresetInstallDir,
   getRuntimeConnectionLabel,
@@ -28,7 +29,9 @@ export default function DashboardPage({
   chooseInstallDirectory,
   confirmInstallIntegration,
   confirmLaunchDownloadedInstallerUpdate,
+  confirmApplyPortableUpdate,
   downloadInstallerUpdate,
+  downloadPortableUpdateNow,
   handleChecklistAction,
   handshaking,
   initialState,
@@ -37,6 +40,7 @@ export default function DashboardPage({
   installing,
   openPortableDownloadPage,
   openUpdateReleaseNotes,
+  preparePortableUpdateNow,
   runUpdateAction,
   setInstallDraft,
   setInstallDraftDirty,
@@ -88,6 +92,12 @@ export default function DashboardPage({
     || (effectiveUpdateStatus === 'checking' ? t('dashboard.updateCheckingLatestVersion') : '');
   const updateErrorDisplay = getUpdateErrorDisplay(updateCenter, t);
   const packagingModeLabel = getPackagingModeLabel(updateCenter.packagingMode, t);
+  const portableInAppSupported = updateCenter.packagingMode === 'portable'
+    && updateCenter.portableApplySupport?.supported === true;
+  const downloadProgressDisplay = effectiveUpdateStatus === 'downloading'
+    ? formatDownloadProgress(updateCenter.downloadProgress)
+    : '';
+  const updateBusy = Number(state?.quality?.activeRequestCount || 0) > 0;
 
   useEffect(() => {
     if (!installDraftDirty) {
@@ -251,11 +261,14 @@ export default function DashboardPage({
                     {updateCenter.packagingMode === 'portable' ? (
                       <Descriptions.Item label={t('dashboard.updateDownloadPage')}><HoverText value={portableDownloadPage} /></Descriptions.Item>
                     ) : (
-                      <>
-                        <Descriptions.Item label={t('dashboard.updatePreparedDirectory')}><HoverText value={updateCenter.preparedDirectory} /></Descriptions.Item>
-                        <Descriptions.Item label={t('dashboard.updateDownloadedArtifact')}><HoverText value={updateCenter.downloadedArtifactPath} /></Descriptions.Item>
-                      </>
+                      <Descriptions.Item label={t('dashboard.updatePreparedDirectory')}><HoverText value={updateCenter.preparedDirectory} /></Descriptions.Item>
                     )}
+                    {updateCenter.downloadedArtifactPath ? (
+                      <Descriptions.Item label={t('dashboard.updateDownloadedArtifact')}><HoverText value={updateCenter.downloadedArtifactPath} /></Descriptions.Item>
+                    ) : null}
+                    {downloadProgressDisplay ? (
+                      <Descriptions.Item label={t('dashboard.downloadProgress')}><HoverText value={downloadProgressDisplay} /></Descriptions.Item>
+                    ) : null}
                     <Descriptions.Item label={t('dashboard.updateLastError')}><HoverText value={updateErrorDisplay} /></Descriptions.Item>
                   </Descriptions>
                   <Alert
@@ -263,16 +276,38 @@ export default function DashboardPage({
                     showIcon
                     message={t(updateCenter.packagingMode === 'installed'
                       ? 'dashboard.updateInstalledHint'
-                      : 'dashboard.updatePortableHint')}
+                      : portableInAppSupported
+                        ? 'dashboard.updatePortableInAppHint'
+                        : 'dashboard.updatePortableHint')}
                     description={t('dashboard.updatePluginHint')}
                   />
                   <Space wrap>
                     <Button icon={<ReloadOutlined />} loading={checkingUpdates} onClick={() => void checkForUpdates(true)}>
                       {t('dashboard.checkForUpdates')}
                     </Button>
-                    {updateCenter.packagingMode === 'portable' && hasAvailableUpdate ? (
+                    {updateCenter.packagingMode === 'portable' && hasAvailableUpdate && portableInAppSupported && safeUpdateStatus === 'available' ? (
+                      <Button type="primary" loading={updateActionLoading} onClick={() => void downloadPortableUpdateNow(updateCenter)}>
+                        {t('dashboard.downloadUpdate')}
+                      </Button>
+                    ) : null}
+                    {updateCenter.packagingMode === 'portable' && hasAvailableUpdate && !portableInAppSupported ? (
                       <Button type="primary" loading={updateActionLoading} onClick={() => void openPortableDownloadPage(portableDownloadPage)}>
                         {t('dashboard.openPortableDownloadPage')}
+                      </Button>
+                    ) : null}
+                    {updateCenter.packagingMode === 'portable' && hasAvailableUpdate && portableInAppSupported ? (
+                      <Button loading={updateActionLoading} onClick={() => void openPortableDownloadPage(portableDownloadPage)}>
+                        {t('dashboard.openPortableDownloadPage')}
+                      </Button>
+                    ) : null}
+                    {updateCenter.packagingMode === 'portable' && safeUpdateStatus === 'prepared' && portableInAppSupported ? (
+                      <Button danger loading={updateActionLoading} onClick={() => confirmApplyPortableUpdate(updateCenter, { busy: updateBusy })}>
+                        {t('dashboard.restartAndInstallUpdate')}
+                      </Button>
+                    ) : null}
+                    {updateCenter.packagingMode === 'portable' && safeUpdateStatus === 'available' && updateCenter.downloadedArtifactPath && portableInAppSupported ? (
+                      <Button loading={updateActionLoading} onClick={() => void preparePortableUpdateNow(updateCenter)}>
+                        {t('dashboard.prepareUpdateRetry')}
                       </Button>
                     ) : null}
                     {updateCenter.packagingMode === 'installed' && hasAvailableUpdate ? (
@@ -286,6 +321,11 @@ export default function DashboardPage({
                       </Button>
                     ) : null}
                     {updateCenter.packagingMode === 'installed' && updateCenter.downloadedArtifactPath ? (
+                      <Button loading={updateActionLoading} onClick={() => void runUpdateAction(() => api.showItemInFolder(updateCenter.downloadedArtifactPath))}>
+                        {t('dashboard.revealDownloadedUpdate')}
+                      </Button>
+                    ) : null}
+                    {updateCenter.packagingMode === 'portable' && updateCenter.downloadedArtifactPath ? (
                       <Button loading={updateActionLoading} onClick={() => void runUpdateAction(() => api.showItemInFolder(updateCenter.downloadedArtifactPath))}>
                         {t('dashboard.revealDownloadedUpdate')}
                       </Button>

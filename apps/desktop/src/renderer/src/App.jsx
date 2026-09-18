@@ -779,10 +779,13 @@ export default function App() {
               chooseInstallDirectory={dashboard.chooseInstallDirectory}
               confirmInstallIntegration={dashboard.confirmInstallIntegration}
               confirmLaunchDownloadedInstallerUpdate={dashboard.confirmLaunchDownloadedInstallerUpdate}
+              confirmApplyPortableUpdate={dashboard.confirmApplyPortableUpdate}
               downloadInstallerUpdate={dashboard.downloadInstallerUpdate}
+              downloadPortableUpdateNow={dashboard.downloadPortableUpdateNow}
               handleChecklistAction={handleChecklistAction}
               openPortableDownloadPage={dashboard.openPortableDownloadPage}
               openUpdateReleaseNotes={dashboard.openUpdateReleaseNotes}
+              preparePortableUpdateNow={dashboard.preparePortableUpdateNow}
               runUpdateAction={dashboard.runUpdateAction}
               setInstallDraft={dashboard.setInstallDraft}
               setInstallDraftDirty={dashboard.setInstallDraftDirty}

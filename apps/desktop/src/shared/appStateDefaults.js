@@ -36,6 +36,8 @@ function createUpdateCenterPlaceholder(currentVersion = '') {
     publishedAt: '',
     downloadedArtifactPath: '',
     preparedDirectory: '',
+    downloadProgress: { receivedBytes: 0, totalBytes: 0 },
+    portableApplySupport: { supported: false, reason: '' },
     lastCheckedAt: '',
     lastError: '',
     lastErrorCode: '',

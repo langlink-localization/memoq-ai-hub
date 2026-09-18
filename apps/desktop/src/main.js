@@ -16,6 +16,7 @@ const { getSupportedPlaceholders } = require('./shared/promptTemplate');
 const { readDesktopPackageMetadata } = require('./shared/desktopMetadata');
 const { createPreviewStatusPlaceholder, createUpdateCenterPlaceholder } = require('./shared/appStateDefaults');
 const { createRendererIpcRegistrar } = require('./mainIpcRegistrar');
+const { createPortableUpdateApplier } = require('./update/portableUpdateApplier');
 const { buildWorkerForkOptions } = require('./workerLaunch');
 const { createWorkerSupervisor } = require('./workerSupervisor');
 const { getWorkerRequestTimeoutMs } = require('./workerRequestPolicy');
@@ -91,6 +92,11 @@ function createTray() {
 }
 
 const mainSecretService = createMainSecretService({ paths: appPaths, logger });
+
+const portableUpdateApplier = createPortableUpdateApplier({
+  updatesDir: appPaths.updatesDir,
+  logger
+});
 
 const workerSupervisor = createWorkerSupervisor({
   workerPath: path.join(__dirname, 'backgroundWorker.js'),
@@ -495,6 +501,7 @@ const registerIpcHandlers = createRendererIpcRegistrar({
   requireWorkerReady,
   invokeWorker,
   createQualityWindow,
+  applyPortableUpdate: (config) => portableUpdateApplier.apply(config),
   requestQuit: () => {
     setImmediate(() => {
       app.quit();
@@ -519,6 +526,13 @@ if (!app.requestSingleInstanceLock()) {
     createWindow();
     createTray();
     workerSupervisor.start();
+    setImmediate(() => {
+      try {
+        portableUpdateApplier.cleanupStaleArtifacts({ targetAppDir: path.dirname(process.execPath) });
+      } catch (cleanupError) {
+        logger.warn('portable-update-cleanup-failed', 'Startup portable update cleanup failed.', { error: cleanupError });
+      }
+    });
   });
 
   app.on('window-all-closed', () => {

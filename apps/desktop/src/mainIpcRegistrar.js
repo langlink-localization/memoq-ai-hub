@@ -4,6 +4,7 @@
 // Electron APIs or process state. Electron dependencies arrive via deps so the
 // registrar stays loadable and testable outside Electron.
 
+const path = require('path');
 const { MAIN_LOCAL_METHODS, WORKER_PROXIED_METHODS } = require('./rendererIpcSurface');
 const { normalizeExternalHttpsUrl } = require('./shared/externalNavigation');
 const { DEFAULT_LOG_POLICY, getLogState, pruneLogs } = require('./shared/logging');
@@ -22,7 +23,8 @@ function createRendererIpcRegistrar(deps) {
     requireWorkerReady,
     invokeWorker,
     createQualityWindow,
-    requestQuit
+    requestQuit,
+    applyPortableUpdate: applyPortableUpdateImpl
   } = deps;
 
   function registerWorkerProxiedHandlers() {
@@ -183,6 +185,43 @@ function createRendererIpcRegistrar(deps) {
 
       requestQuit();
       return { ok: true, launched: true, installerPath: verifiedInstallerPath };
+    });
+
+    ipcMain.handle(MAIN_LOCAL_METHODS.applyPortableUpdate.channel, async () => {
+      if (typeof applyPortableUpdateImpl !== 'function') {
+        throw new Error('Portable update apply is not available in this process.');
+      }
+
+      const status = await invokeWorker('getUpdateStatus');
+      if (status?.packagingMode !== 'portable') {
+        throw new Error('Portable update apply is only available in portable mode.');
+      }
+      const updateStatus = String(status?.updateStatus || '').trim().toLowerCase();
+      if (updateStatus !== 'prepared') {
+        throw new Error('A prepared portable update is required before restarting to update.');
+      }
+      const preparedDirectory = String(status?.preparedDirectory || '').trim();
+      if (!preparedDirectory) {
+        throw new Error('The prepared portable update directory is missing.');
+      }
+
+      const applyResult = applyPortableUpdateImpl({
+        preparedDirectory,
+        targetAppDir: path.dirname(String(process.execPath || '')),
+        waitPid: process.pid
+      });
+      if (applyResult?.ok !== true) {
+        throw new Error('Scheduling the portable update apply helper failed.');
+      }
+
+      await invokeWorker('markPortableUpdateRestarting');
+      requestQuit();
+      return {
+        ok: true,
+        preparedDirectory,
+        scriptPath: applyResult.scriptPath,
+        backupPath: applyResult.backupPath
+      };
     });
   }
 

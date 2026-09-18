@@ -13,7 +13,9 @@ import {
   writeStableUpdateManifest,
   STABLE_UPDATE_MANIFEST_NAME,
   PORTABLE_WINDOWS_ARTIFACT_NAME,
-  COMPACT_PORTABLE_WINDOWS_ARTIFACT_NAME
+  COMPACT_PORTABLE_WINDOWS_ARTIFACT_NAME,
+  INSTALLER_WINDOWS_ARTIFACT_NAME,
+  INSTALLER_WINDOWS_ARTIFACT_RELATIVE_PATH
 } from '../../tooling/scripts/release-metadata.mjs';
 
 const currentDesktopVersion = getDesktopPackageVersion();
@@ -21,6 +23,7 @@ const currentDesktopTag = `v${currentDesktopVersion}`;
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const portableSha256 = 'a'.repeat(64);
 const portableCompactSha256 = 'b'.repeat(64);
+const installerSha256 = 'c'.repeat(64);
 
 test('release metadata reads desktop package version as the release source of truth', () => {
   assert.match(currentDesktopVersion, /^\d+\.\d+\.\d+$/);
@@ -56,7 +59,8 @@ test('release metadata builds the public stable update manifest', () => {
     publishedAt: '2026-03-26T00:00:00.000Z',
     assetSha256: {
       portable: portableSha256,
-      portableCompact: portableCompactSha256
+      portableCompact: portableCompactSha256,
+      installer: installerSha256
     }
   });
 
@@ -78,6 +82,11 @@ test('release metadata builds the public stable update manifest', () => {
         name: COMPACT_PORTABLE_WINDOWS_ARTIFACT_NAME,
         url: 'https://github.com/langlink-localization/memoq-ai-hub/releases/download/v1.0.7/memoq-ai-hub-win32-x64.7z',
         sha256: portableCompactSha256
+      },
+      installer: {
+        name: INSTALLER_WINDOWS_ARTIFACT_NAME,
+        url: 'https://github.com/langlink-localization/memoq-ai-hub/releases/download/v1.0.7/memoq-ai-hub-setup.exe',
+        sha256: installerSha256
       }
     }
   });
@@ -87,10 +96,13 @@ test('release metadata hashes the packaged artifacts when writing the stable man
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'memoq-release-digests-'));
   const zipBytes = Buffer.from('portable zip');
   const compactBytes = Buffer.from('portable compact');
+  const installerBytes = Buffer.from('squirrel installer');
 
   try {
     fs.writeFileSync(path.join(tempRoot, PORTABLE_WINDOWS_ARTIFACT_NAME), zipBytes);
     fs.writeFileSync(path.join(tempRoot, COMPACT_PORTABLE_WINDOWS_ARTIFACT_NAME), compactBytes);
+    fs.mkdirSync(path.join(tempRoot, path.dirname(INSTALLER_WINDOWS_ARTIFACT_RELATIVE_PATH)), { recursive: true });
+    fs.writeFileSync(path.join(tempRoot, INSTALLER_WINDOWS_ARTIFACT_RELATIVE_PATH), installerBytes);
     const outputPath = path.join(tempRoot, STABLE_UPDATE_MANIFEST_NAME);
 
     const { manifest } = writeStableUpdateManifest(outputPath, {
@@ -100,6 +112,7 @@ test('release metadata hashes the packaged artifacts when writing the stable man
 
     assert.equal(manifest.assets.portable.sha256, createHash('sha256').update(zipBytes).digest('hex'));
     assert.equal(manifest.assets.portableCompact.sha256, createHash('sha256').update(compactBytes).digest('hex'));
+    assert.equal(manifest.assets.installer.sha256, createHash('sha256').update(installerBytes).digest('hex'));
     assert.deepEqual(JSON.parse(fs.readFileSync(outputPath, 'utf8')), manifest);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -129,11 +142,13 @@ test('release metadata rejects malformed digests and missing packaged artifacts'
   }
 });
 
-test('release workflow uploads every portable artifact advertised by the manifest', () => {
+test('release workflow uploads every artifact advertised by the manifest', () => {
   const workflow = fs.readFileSync(path.join(repoRoot, '.github', 'workflows', 'release.yml'), 'utf8');
 
   assert.match(workflow, /\$compactPath = "apps\/desktop\/out\/memoq-ai-hub-win32-x64\.7z"/);
+  assert.match(workflow, /\$installerPath = "apps\/desktop\/out\/make\/squirrel\.windows\/x64\/memoq-ai-hub-setup\.exe"/);
   assert.match(workflow, /Test-Path \$compactPath/);
-  assert.match(workflow, /gh release upload \$tag \$zipPath \$compactPath \$manifestPath --clobber/);
-  assert.match(workflow, /gh release create \$tag \$zipPath \$compactPath \$manifestPath --title/);
+  assert.match(workflow, /Test-Path \$installerPath/);
+  assert.match(workflow, /gh release upload \$tag \$zipPath \$compactPath \$installerPath \$manifestPath --clobber/);
+  assert.match(workflow, /gh release create \$tag \$zipPath \$compactPath \$installerPath \$manifestPath --title/);
 });

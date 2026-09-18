@@ -34,10 +34,10 @@ test('the surface covers the bridge methods the renderer expects', () => {
   for (const expected of [
     'getAppState', 'saveProfile', 'saveProvider', 'deleteProviderModel', 'importAsset',
     'getAssetPreview', 'exportHistory', 'checkQaDocument', 'runPreviewAssistant',
-    'checkForUpdates', 'openPath', 'copyText', 'testHandshake'
+    'checkForUpdates', 'applyPortableUpdate', 'openPath', 'copyText', 'testHandshake'
   ]) {
     assert.equal(methodNames.has(expected), true, `expected renderer bridge method ${expected}`);
   }
 
-  assert.equal(methodNames.size, 60, 'the renderer bridge exposes exactly 60 methods');
+  assert.equal(methodNames.size, 61, 'the renderer bridge exposes exactly 61 methods');
 });

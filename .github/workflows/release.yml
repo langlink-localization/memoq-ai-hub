@@ -70,8 +70,10 @@ jobs:
           $tag = "${{ steps.release_meta.outputs.tag }}"
           # Release zips are produced under apps/desktop/out/**/*.zip; the ZIP remains the compatibility contract.
           # The 7z is the compact portable alternative advertised by the manifest.
+          # The setup.exe is the Squirrel installer consumed by installed-build in-app updates.
           $zipPath = "apps/desktop/out/memoq-ai-hub-win32-x64.zip"
           $compactPath = "apps/desktop/out/memoq-ai-hub-win32-x64.7z"
+          $installerPath = "apps/desktop/out/make/squirrel.windows/x64/memoq-ai-hub-setup.exe"
           $manifestPath = "apps/desktop/out/memoq-ai-hub-updates-stable.json"
           $notesPath = "docs/release-notes/$tag.md"
 
@@ -81,6 +83,10 @@ jobs:
 
           if (-not (Test-Path $compactPath)) {
             throw "Compact release archive not found at $compactPath"
+          }
+
+          if (-not (Test-Path $installerPath)) {
+            throw "Windows installer not found at $installerPath"
           }
 
           if (-not (Test-Path $manifestPath)) {
@@ -95,7 +101,7 @@ jobs:
 
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag $zipPath $compactPath $manifestPath --clobber
+            gh release upload $tag $zipPath $compactPath $installerPath $manifestPath --clobber
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to upload release assets for $tag"
             }
@@ -105,7 +111,7 @@ jobs:
               throw "Failed to update release notes for $tag"
             }
           } else {
-            gh release create $tag $zipPath $compactPath $manifestPath --title $releaseTitle --notes-file $notesPath
+            gh release create $tag $zipPath $compactPath $installerPath $manifestPath --title $releaseTitle --notes-file $notesPath
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to create release $tag"
             }

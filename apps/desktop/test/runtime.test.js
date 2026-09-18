@@ -2417,7 +2417,7 @@ test('runtime translate completion preserves profile edits saved during an in-fl
   }
 });
 
-test('runtime exposes update status and portable download-page flow through app state', async () => {
+test('runtime exposes update status and digest-gated in-app portable downloads through app state', async () => {
   const tempRoot = createTempAppRoot();
   const manifestUrl = 'https://example.com/latest.json';
   const portableUrl = 'https://example.com/memoq-ai-hub-win32-x64.zip';
@@ -2462,8 +2462,11 @@ test('runtime exposes update status and portable download-page flow through app 
     assert.equal(available.latestVersion, newerDesktopPackageVersion);
     assert.equal(available.portableDownloadUrl, 'https://example.com/release');
     assert.equal(finalState.updateCenter.updateStatus, 'available');
-    await assert.rejects(() => runtime.downloadPortableUpdate(), /browser download page/i);
-    await assert.rejects(() => runtime.preparePortableUpdate(path.join(tempRoot, 'memoq-ai-hub-win32-x64.zip')), /browser download page/i);
+    // In-app portable downloads are digest-gated: this manifest carries no
+    // SHA-256, so the download must fail closed instead of fetching bytes.
+    assert.equal(available.portableApplySupport.supported, false);
+    await assert.rejects(() => runtime.downloadPortableUpdate(), /SHA-256 is required for application-managed downloads/);
+    await assert.rejects(() => runtime.preparePortableUpdate(path.join(tempRoot, 'memoq-ai-hub-win32-x64.zip')), /Downloaded update archive not found/);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
