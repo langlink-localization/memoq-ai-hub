@@ -19,6 +19,8 @@ apps/desktop/helper/
 .worktrees/
 artifacts/
 .memoq-sdk/
+.pnpm-store/
+.zcode/
 native/plugin/**/artifacts/
 
 # .NET plugin build output
