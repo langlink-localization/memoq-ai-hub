@@ -2147,7 +2147,9 @@ test('runtime can bypass translation cache once for the next profile translation
     assert.equal(providerCalls, 1);
     assert.deepEqual(runtime.getAppState().contextBuilder.translationCacheBypassProfileIds, []);
 
-    const historyAfterBypass = runtime.getAppState().historyExplorer.items[0];
+    const historyAfterBypass = runtime.getAppState().historyExplorer.items
+      .find((item) => item.requestId === 'REQ-BYPASS-1');
+    assert.ok(historyAfterBypass);
     assert.equal(historyAfterBypass.attempts.at(-1).cacheKind, 'bypassed');
 
     const cached = await runtime.translate({
@@ -2165,7 +2167,11 @@ test('runtime can bypass translation cache once for the next profile translation
     assert.equal(cached.statusCode, 200);
     assert.equal(cached.body.translations[0].text, 'Restart service -> FR fresh 1');
     assert.equal(providerCalls, 1);
-    assert.equal(runtime.getAppState().historyExplorer.items[0].attempts[0].cacheKind, 'exact');
+    // Requests can share a millisecond timestamp; select the request under test.
+    const cachedHistory = runtime.getAppState().historyExplorer.items
+      .find((item) => item.requestId === 'REQ-BYPASS-2');
+    assert.ok(cachedHistory);
+    assert.equal(cachedHistory.attempts[0].cacheKind, 'exact');
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

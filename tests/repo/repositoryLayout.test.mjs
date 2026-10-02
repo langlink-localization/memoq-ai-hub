@@ -144,6 +144,7 @@ test('dependency and CI governance is reproducible', () => {
     'fast-uri',
     'fast-xml-builder',
     'ip-address',
+    'undici',
     'lodash',
     'nanoid',
     'path-to-regexp',
@@ -197,7 +198,7 @@ test('dependency and CI governance is reproducible', () => {
       vite: desktopPackage.devDependencies?.vite,
     },
     {
-      electron: '43.2.0',
+      electron: '44.4.5',
       forgeCli: '7.11.2',
       forgeSquirrel: '7.11.2',
       forgeVite: '7.11.2',
@@ -215,10 +216,12 @@ test('dependency and CI governance is reproducible', () => {
     /^  extract-zip: npm:@electron-internal\/extract-zip@1\.0\.5$/m
   );
   // Patched floors for audited advisories must not regress.
+  assert.match(workspaceSettings, /^  ip-address: 10\.7\.2$/m);
+  assert.match(workspaceSettings, /^  undici: \^7\.29\.1$/m);
   assert.match(workspaceSettings, /^  browserslist: \^4\.28\.7$/m);
   assert.match(workspaceSettings, /^  qs: \^6\.16\.0$/m);
   assert.match(workspaceSettings, /^  '@xmldom\/xmldom': \^0\.8\.15$/m);
-  assert.match(workspaceSettings, /^  fast-uri: \^3\.1\.6$/m);
+  assert.match(workspaceSettings, /^  fast-uri: \^3\.1\.8$/m);
   assert.match(lockfile, /^lockfileVersion: '9\.0'$/m);
   assert.match(lockfile, /^  apps\/desktop:$/m);
   for (const vulnerablePackage of [
@@ -226,6 +229,12 @@ test('dependency and CI governance is reproducible', () => {
     '@tootallnate/once@2.0.0',
     'body-parser@1.20.4',
     'electron@30.5.1',
+    'electron@43.2.0',
+    'ip-address@10.5.0',
+    'undici@7.29.0',
+    'fast-uri@3.1.6',
+    'brace-expansion@1.1.18',
+    'brace-expansion@2.1.4',
     'esbuild@0.27.4',
     'extract-zip@2.0.1',
     'xlsx@0.18.5',
