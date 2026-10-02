@@ -86,14 +86,16 @@ function resolveClientDevConfigTarget(options = {}) {
     );
   }
 
+  const targetPath = path.win32.isAbsolute(programDataDir) && !path.posix.isAbsolute(programDataDir)
+    ? path.win32 : path;
   const configuredRootDir = String(INTEGRATION.clientDevConfigRootDir || '').trim();
   const targetRoot = configuredRootDir
-    ? (path.isAbsolute(configuredRootDir)
+    ? (targetPath.isAbsolute(configuredRootDir)
       ? configuredRootDir
-      : path.join(programDataDir, configuredRootDir))
-    : path.join(programDataDir, INTEGRATION.clientDevConfigVendorDir || 'MemoQ');
+      : targetPath.join(programDataDir, configuredRootDir))
+    : targetPath.join(programDataDir, INTEGRATION.clientDevConfigVendorDir || 'MemoQ');
 
-  return path.join(targetRoot, INTEGRATION.clientDevConfigName);
+  return targetPath.join(targetRoot, INTEGRATION.clientDevConfigName);
 }
 
 function resolveIntegrationAssets(paths) {
@@ -161,9 +163,9 @@ function buildElevatedInstallScript(steps) {
       continue;
     }
 
-    lines.push(`New-Item -ItemType Directory -Force -Path '${String(path.dirname(step.target)).replace(/'/g, "''")}' | Out-Null`);
+    lines.push(`New-Item -ItemType Directory -Force -Path '${String(path.win32.dirname(step.target)).replace(/'/g, "''")}' | Out-Null`);
     lines.push(`Copy-Item -LiteralPath '${String(step.source).replace(/'/g, "''")}' -Destination '${String(step.target).replace(/'/g, "''")}' -Force`);
-    if (path.basename(step.target) === INTEGRATION.pluginDllName) {
+    if (path.win32.basename(step.target) === INTEGRATION.pluginDllName) {
       lines.push(`Unblock-File -LiteralPath '${String(step.target).replace(/'/g, "''")}' -ErrorAction SilentlyContinue`);
     }
   }

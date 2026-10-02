@@ -77,7 +77,7 @@ test('main process registers log diagnostics IPC handlers', () => {
   assert.match(source, /MAIN_LOCAL_METHODS\.recordRendererLog\.channel/);
 });
 
-test('main process consumes the Electron 43 console-message details event', () => {
+test('main process consumes the Electron current console-message details event', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../src/main.js'), 'utf8');
   assert.match(source, /webContents\.on\('console-message', \(details\) =>/);
   assert.match(source, /details\.level === 'warning' \|\| details\.level === 'error'/);

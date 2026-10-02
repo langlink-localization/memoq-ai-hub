@@ -53,9 +53,10 @@ function buildApplyScript({
   waitPid = 0,
   waitForExitTimeoutSeconds = WAIT_FOR_EXIT_TIMEOUT_SECONDS
 } = {}) {
-  const targetBaseName = path.basename(String(targetAppDir || 'app'));
-  const preparedExe = path.join(String(preparedDirectory || ''), appExecutableName);
-  const targetExe = path.join(String(targetAppDir || ''), appExecutableName);
+  // This function emits a Windows script, regardless of the build host.
+  const targetBaseName = path.win32.basename(String(targetAppDir || 'app'));
+  const preparedExe = path.win32.join(String(preparedDirectory || ''), appExecutableName);
+  const targetExe = path.win32.join(String(targetAppDir || ''), appExecutableName);
   const lines = [];
 
   lines.push('$ErrorActionPreference = \'Stop\'');
