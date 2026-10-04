@@ -7,7 +7,7 @@ This repository follows a standard monorepo topology. Runtime code, shared contr
 - `apps/`: deployable application packages.
 - `apps/desktop/`: Electron desktop application, local HTTP gateway, renderer UI, and desktop tests.
 - `apps/desktop/tsconfig.json`: strict `checkJs` scope for the progressively typed desktop modules (`pnpm run typecheck`; see `docs/initiatives/jsdoc-typecheck-foundation.yaml`).
-- `apps/desktop/src/types/runtimeDomain.d.ts`: shared runtime domain types for state, profile, provider, asset, and persistence boundaries.
+- `apps/desktop/src/types/runtimeDomain.d.ts`: shared runtime domain types for state, profile, provider, asset, persistence, preview-helper parts, and memoQ integration install options.
 - `apps/desktop/src/runtime/runtime.js`: desktop runtime composition root and public API facade; product execution and resource state operations belong in sibling services and stores.
 - `apps/desktop/src/runtime/runtimePreviewBridge.js`: preview-bridge owner for status patches, memoQ part ingestion, and helper-status projection onto the shared preview state.
 - `apps/desktop/src/runtime/runtimeTranslationCacheBypass.js`: one-shot translation-cache bypass membership, including removal when a profile is deleted.

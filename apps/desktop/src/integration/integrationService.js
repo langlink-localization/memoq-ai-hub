@@ -3,6 +3,8 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { INTEGRATION, ERROR_CODES } = require('../shared/desktopContract');
 
+/** @typedef {import('../types/runtimeDomain').IntegrationInstallOptions} IntegrationInstallOptions */
+
 class IntegrationError extends Error {
   /** @type {string} */
   code = '';
@@ -60,7 +62,7 @@ function buildDefaultMemoQInstallOptions(preferredVersion) {
 }
 
 /**
- * @param {any} options
+ * @param {IntegrationInstallOptions=} options
  */
 function buildMemoQRootCandidates(options = {}) {
   const preferredVersion = normalizeVersion(options.memoqVersion);
@@ -92,7 +94,7 @@ function buildMemoQRootCandidates(options = {}) {
 }
 
 /**
- * @param {any} options
+ * @param {IntegrationInstallOptions=} options
  */
 function findMemoQDesktopInstallations(options = {}) {
   const rootCandidates = buildMemoQRootCandidates(options);
@@ -106,7 +108,7 @@ function findMemoQDesktopInstallations(options = {}) {
 }
 
 /**
- * @param {any} options
+ * @param {IntegrationInstallOptions=} options
  */
 function resolveClientDevConfigTarget(options = {}) {
   const programDataDir = String(options.programDataDir || process.env.ProgramData || 'C:\\ProgramData').trim();
@@ -293,8 +295,8 @@ function runElevatedInstall(steps) {
 }
 
 /**
- * @param {any} paths
- * @param {any} integrationConfig
+ * @param {Record<string, any>} paths
+ * @param {IntegrationInstallOptions=} integrationConfig
  */
 function getIntegrationStatus(paths, integrationConfig = {}) {
   const requestedMemoQVersion = normalizeVersion(integrationConfig.memoqVersion);
@@ -354,8 +356,8 @@ function getIntegrationStatus(paths, integrationConfig = {}) {
 }
 
 /**
- * @param {any} paths
- * @param {any} integrationConfig
+ * @param {Record<string, any>} paths
+ * @param {IntegrationInstallOptions=} integrationConfig
  */
 function installIntegration(paths, integrationConfig = {}) {
   const status = getIntegrationStatus(paths, integrationConfig);

@@ -10,18 +10,17 @@ spec_link: none
 github_links:
   project: none
   issues: []
-current_stage: runtime-domain-types-landed
+current_stage: preview-and-integration-boundaries-typed
 last_verified_commit: >
-  v1.0.47 candidate. tsc 0 errors after src/types/runtimeDomain.d.ts named
-  RuntimeState, RuntimeProfile, RuntimeProvider, RuntimeAsset, and
-  RuntimePersistence. Service factories and ensureProfile/ensureProvider now
-  use those types. sql.js resolves through src/types/sql.js.d.ts. Provider
-  prompt builder and registry keep their deep typedefs.
+  v1.0.48 candidate. Preview-helper part, segment, and document-cache shapes
+  and memoQ integration install options live in runtimeDomain.d.ts.
+  previewContextClient and integrationService use them. database.js and
+  updateService do not interpret runtime state, profiles, or preview parts.
 next_action: >
-  Replace remaining boundary any inside updateService, database.js,
-  integrationService, and previewContextClient with the domain types where
-  those modules read state, profiles, or preview parts. Do not shrink the
-  include list. Keep deep typedefs in providerPromptBuilder and providerRegistry.
+  Type the update manifest, asset, and persisted update-state shapes in
+  updateService, and the sql.js handle in database.js, without shrinking the
+  checkJs include list. Keep deep typedefs in providerPromptBuilder and
+  providerRegistry.
 allowed_interruptions:
   - emergency production fix
   - security or data correctness issue

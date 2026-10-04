@@ -30,6 +30,8 @@ The repository contains runtime code for more advanced capabilities, but not eve
 
 ## Current Release Highlights
 
+**v1.0.48** types the preview-helper part and segment boundary and the memoQ integration install options with the shared runtime domain types. Matching behavior, the plugin contract, and the database schema are unchanged. See [release notes](docs/release-notes/v1.0.48.md).
+
 **v1.0.47** keeps the desktop runtime boundary explicit: product behavior that used to live in the composition root now has its own owner, and strict type checking covers the runtime, database, integration, preview helper, and update service. Behavior, the memoQ plugin contract, and the database schema are unchanged. See [release notes](docs/release-notes/v1.0.47.md).
 
 **v1.0.46** delivers one-click in-app updates for both packaging modes: installed builds download the manifest-verified Squirrel installer, and portable builds download, verify, stage, and swap their own folder during a restart orchestrated by a detached apply helper. See [release notes](docs/release-notes/v1.0.46.md) and the [update integrity contract](specs/portable-self-update-v1.0.46/spec.md).

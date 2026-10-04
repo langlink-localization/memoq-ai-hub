@@ -565,8 +565,8 @@ function ensureAsset(asset = {}) {
 }
 
 /**
- * @param {Record<string, any>=} preferences
- * @returns {Record<string, any>}
+ * @param {import('../types/runtimeDomain').IntegrationInstallOptions=} preferences
+ * @returns {import('../types/runtimeDomain').IntegrationInstallOptions}
  */
 function ensureIntegrationPreferences(preferences = {}) {
   return {

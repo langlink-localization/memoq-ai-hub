@@ -3,6 +3,18 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { ensureDir } = require('../shared/paths');
 
+/** @typedef {import('../types/runtimeDomain').PreviewPartInput} PreviewPartInput */
+/** @typedef {import('../types/runtimeDomain').PreviewSegmentInput} PreviewSegmentInput */
+/** @typedef {import('../types/runtimeDomain').PreviewPartSnapshot} PreviewPartSnapshot */
+/** @typedef {import('../types/runtimeDomain').PreviewSegment} PreviewSegment */
+/** @typedef {import('../types/runtimeDomain').PreviewDocumentCache} PreviewDocumentCache */
+/** @typedef {import('../types/runtimeDomain').PreviewMatchOptions} PreviewMatchOptions */
+/** @typedef {import('../types/runtimeDomain').PreviewContextQuery} PreviewContextQuery */
+/** @typedef {import('../types/runtimeDomain').PreviewFeatureRequest} PreviewFeatureRequest */
+/** @typedef {import('../types/runtimeDomain').DirectionalSegmentContext} DirectionalSegmentContext */
+/** @typedef {import('../types/runtimeDomain').DirectionalPartContext} DirectionalPartContext */
+/** @typedef {import('../types/runtimeDomain').PreviewClientOptions} PreviewClientOptions */
+
 /**
  * @param {any} filePath
  * @param {any} fallback
@@ -95,7 +107,8 @@ function normalizeFocusedRange(range = null) {
 }
 
 /**
- * @param {any} segments
+ * @param {PreviewSegmentInput[]} segments
+ * @returns {PreviewSegment[]}
  */
 function cloneSegments(segments = []) {
   return Array.isArray(segments)
@@ -111,7 +124,8 @@ function cloneSegments(segments = []) {
 }
 
 /**
- * @param {any} parts
+ * @param {PreviewPartInput[]} parts
+ * @returns {PreviewPartSnapshot[]}
  */
 function cloneParts(parts = []) {
   return Array.isArray(parts)
@@ -184,7 +198,7 @@ function sliceTextByFocusedRange(text, range) {
 }
 
 /**
- * @param {any} part
+ * @param {PreviewPartSnapshot | null | undefined} part
  */
 function hasPartFocusedRange(part) {
   return Boolean(part?.sourceFocusedRange || part?.targetFocusedRange);
@@ -200,15 +214,15 @@ function deepFreeze(value) {
 }
 
 /**
- * @param {any} part
+ * @param {PreviewPartSnapshot | null | undefined} part
  */
 function getPartTextVariants(part) {
   return [part?.sourceText];
 }
 
 /**
- * @param {any} part
- * @param {any} sourceText
+ * @param {PreviewPartSnapshot | null | undefined} part
+ * @param {unknown} sourceText
  */
 function partMatchesSourceText(part, sourceText) {
   if (!hasComparableText(sourceText)) {
@@ -219,12 +233,12 @@ function partMatchesSourceText(part, sourceText) {
 }
 
 /**
- * @param {any} part
- * @param {any} sourceText
+ * @param {PreviewPartSnapshot | null | undefined} part
+ * @param {unknown} sourceText
  */
 function partMatchesSubstringRange(part, sourceText) {
   const normalizedSourceText = normalizeComparableText(sourceText);
-  if (!normalizedSourceText) {
+  if (!part || !normalizedSourceText) {
     return false;
   }
 
@@ -239,8 +253,8 @@ function partMatchesSubstringRange(part, sourceText) {
 }
 
 /**
- * @param {any} document
- * @param {any} request
+ * @param {PreviewDocumentCache | null | undefined} document
+ * @param {PreviewFeatureRequest=} request
  */
 function buildPreviewAvailableFeatures(document, request = {}) {
   const features = [];
@@ -265,10 +279,10 @@ function buildPreviewAvailableFeatures(document, request = {}) {
 }
 
 /**
- * @param {any} part
- * @param {any} orderIndex
- * @param {any} previewMatchMode
- * @param {any} reason
+ * @param {PreviewPartSnapshot | null | undefined} part
+ * @param {number} orderIndex
+ * @param {string} previewMatchMode
+ * @param {string} reason
  */
 function createPartMatch(part, orderIndex, previewMatchMode, reason) {
   if (!part) {
@@ -284,9 +298,9 @@ function createPartMatch(part, orderIndex, previewMatchMode, reason) {
 }
 
 /**
- * @param {any} parts
- * @param {any} activePreviewPartIds
- * @param {any} sourceText
+ * @param {PreviewPartSnapshot[]} parts
+ * @param {string[]} activePreviewPartIds
+ * @param {unknown} sourceText
  */
 function findActivePreviewPartMatch(parts, activePreviewPartIds, sourceText) {
   const activeIds = Array.isArray(activePreviewPartIds) ? activePreviewPartIds : [];
@@ -315,16 +329,16 @@ function findActivePreviewPartMatch(parts, activePreviewPartIds, sourceText) {
 
   const firstActiveCandidate = activeCandidates[0];
   if (!hasComparableText(sourceText)) {
-    return createPartMatch(firstActiveCandidate?.part, firstActiveCandidate?.orderIndex, 'activePreviewPartIds', '');
+    return createPartMatch(firstActiveCandidate?.part, firstActiveCandidate?.orderIndex ?? -1, 'activePreviewPartIds', '');
   }
 
   return null;
 }
 
 /**
- * @param {any} parts
- * @param {any} sourceText
- * @param {any} options
+ * @param {PreviewPartSnapshot[]} parts
+ * @param {unknown} sourceText
+ * @param {PreviewMatchOptions=} options
  */
 function findFocusedRangeMatch(parts, sourceText, options = {}) {
   const candidateParts = Array.isArray(options.parts) && options.parts.length ? options.parts : parts;
@@ -373,9 +387,9 @@ function findFocusedRangeMatch(parts, sourceText, options = {}) {
 }
 
 /**
- * @param {any} parts
- * @param {any} sourceText
- * @param {any} options
+ * @param {PreviewPartSnapshot[]} parts
+ * @param {unknown} sourceText
+ * @param {PreviewMatchOptions=} options
  */
 function findSubstringRangeMatch(parts, sourceText, options = {}) {
   if (!hasComparableText(sourceText)) {
@@ -396,8 +410,8 @@ function findSubstringRangeMatch(parts, sourceText, options = {}) {
 }
 
 /**
- * @param {any} parts
- * @param {any} sourceText
+ * @param {PreviewPartSnapshot[]} parts
+ * @param {unknown} sourceText
  */
 function findExactTextMatch(parts, sourceText) {
   const normalizedSourceText = normalizeComparableText(sourceText);
@@ -416,8 +430,8 @@ function findExactTextMatch(parts, sourceText) {
 }
 
 /**
- * @param {any} document
- * @param {any} segmentIndex
+ * @param {PreviewDocumentCache | null | undefined} document
+ * @param {unknown} segmentIndex
  */
 function findLegacySegmentMatch(document, segmentIndex) {
   const normalizedSegmentIndex = parseSegmentIndex(segmentIndex);
@@ -442,7 +456,8 @@ function findLegacySegmentMatch(document, segmentIndex) {
     orderIndex >= 0 ? parts[orderIndex] : {
       previewPartId: String(matchedSegment.previewPartId || ''),
       sourceText: String(matchedSegment.sourceText || ''),
-      targetText: String(matchedSegment.targetText || '')
+      targetText: String(matchedSegment.targetText || ''),
+      order: resolvedOrderIndex
     },
     resolvedOrderIndex,
     'legacySegmentIndex',
@@ -521,7 +536,8 @@ function joinPartTexts(partList, includeSource, includeTarget, reverse = false) 
 }
 
 /**
- * @param {any} parts
+ * @param {PreviewPartSnapshot[]} parts
+ * @returns {PreviewPartSnapshot[]}
  */
 function getOrderedParts(parts = []) {
   return (Array.isArray(parts) ? parts : [])
@@ -538,15 +554,15 @@ function getOrderedParts(parts = []) {
 }
 
 /**
- * @param {any} orderedParts
- * @param {any} previewPartId
+ * @param {PreviewPartSnapshot[]} orderedParts
+ * @param {string} previewPartId
  */
 function resolveOrderedPartPosition(orderedParts, previewPartId) {
   return (Array.isArray(orderedParts) ? orderedParts : []).findIndex((part) => part.previewPartId === previewPartId);
 }
 
 /**
- * @param {any} dependencies
+ * @param {DirectionalSegmentContext} dependencies
  */
 function collectDirectionalContext({
   segments,
@@ -595,7 +611,7 @@ function collectDirectionalContext({
 }
 
 /**
- * @param {any} dependencies
+ * @param {DirectionalPartContext} dependencies
  */
 function collectDirectionalPartContext({
   parts,
@@ -681,8 +697,8 @@ function findDocumentCacheCandidates(documentsDir, documentId, sourceLanguage, t
 }
 
 /**
- * @param {any} document
- * @param {any} dependencies2
+ * @param {PreviewDocumentCache} document
+ * @param {{ sourceText?: unknown, segmentIndex?: unknown }} request
  */
 function resolvePartMatch(document, { sourceText, segmentIndex }) {
   const parts = Array.isArray(document.parts) ? document.parts : [];
@@ -691,9 +707,9 @@ function resolvePartMatch(document, { sourceText, segmentIndex }) {
   }
 
   const activePreviewPartIds = Array.isArray(document.activePreviewPartIds) ? document.activePreviewPartIds : [];
-  const activeParts = activePreviewPartIds
+  const activeParts = /** @type {PreviewPartSnapshot[]} */ (activePreviewPartIds
     .map((/** @type {any} */ previewPartId) => parts.find((/** @type {any} */ part) => part.previewPartId === previewPartId))
-    .filter(Boolean);
+    .filter(Boolean));
 
   return findFocusedRangeMatch(parts, sourceText, { parts: activeParts, previewMatchMode: 'activeFocusedRange' })
     || findSubstringRangeMatch(parts, sourceText, { parts: activeParts, previewMatchMode: 'activePartSubstring' })
@@ -705,7 +721,7 @@ function resolvePartMatch(document, { sourceText, segmentIndex }) {
 }
 
 /**
- * @param {any} options
+ * @param {PreviewClientOptions=} options
  */
 function createPreviewContextClient(options = {}) {
   const appDataRoot = String(options.appDataRoot || '').trim();
@@ -804,9 +820,10 @@ function createPreviewContextClient(options = {}) {
   }
 
   /**
-   * @param {any} documentId
-   * @param {any} sourceLanguage
-   * @param {any} targetLanguage
+   * @param {unknown} documentId
+   * @param {unknown} sourceLanguage
+   * @param {unknown} targetLanguage
+   * @returns {PreviewDocumentCache | null}
    */
   function readDocument(documentId, sourceLanguage, targetLanguage) {
     const candidates = findDocumentCacheCandidates(documentsDir, documentId, sourceLanguage, targetLanguage);
@@ -846,7 +863,7 @@ function createPreviewContextClient(options = {}) {
   }
 
   /**
-   * @param {any} dependencies
+   * @param {PreviewContextQuery} query
    */
   function getContext({
     documentId,

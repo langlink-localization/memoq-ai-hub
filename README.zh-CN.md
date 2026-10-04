@@ -30,6 +30,8 @@
 
 ## 当前版本亮点
 
+**v1.0.48** 用共享 domain 类型描述预览 helper 的 part/segment，以及 memoQ 集成安装选项。匹配行为、插件合约和数据库 schema 不变。详见[版本说明](docs/release-notes/v1.0.48.md)。
+
 **v1.0.47** 把 desktop runtime 组合根里的产品行为拆到独立 owner，并把 runtime、数据库、集成、预览 helper 和更新服务纳入 strict 类型检查。memoQ 插件合约和数据库 schema 不变。详见[版本说明](docs/release-notes/v1.0.47.md)。
 
 **v1.0.45**完善了并发配置保存和凭据恢复，修复了概览轮询中的进度状态，并优化了编辑保存保护、资产预览恢复、键盘操作和减少动态效果。详见[版本说明](docs/release-notes/v1.0.45.md)和[架构与 UI/UX 审查记录](docs/audits/2026-09-12-architecture-uiux.md)。

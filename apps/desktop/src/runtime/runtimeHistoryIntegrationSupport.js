@@ -282,8 +282,8 @@ function buildHistoryInsights(historyEntries = []) {
 
 /**
  * @param {Record<string, any>} state
- * @param {Record<string, any>=} overrides
- * @returns {Record<string, any>}
+ * @param {import('../types/runtimeDomain').IntegrationInstallOptions=} overrides
+ * @returns {import('../types/runtimeDomain').IntegrationInstallOptions}
  */
 function buildIntegrationConfig(state, overrides = {}) {
   const preferences = ensureIntegrationPreferences({

@@ -208,6 +208,139 @@ export interface QaServiceDependencies {
   previewSettleMaxWaits?: number;
 }
 
+export interface PreviewFocusedRange {
+  startIndex?: number;
+  length?: number;
+  endIndex?: number;
+  start?: number;
+  end?: number;
+  [key: string]: any;
+}
+
+// Flat preview-helper cache shape. previewContextClient clones raw helper
+// JSON into this before matching, neighbor context, and feature projection.
+export interface PreviewPartInput {
+  previewPartId?: string;
+  id?: string;
+  sourceText?: string;
+  source?: string;
+  targetText?: string;
+  target?: string;
+  order?: number;
+  sourceFocusedRange?: any;
+  targetFocusedRange?: any;
+  SourceFocusedRange?: any;
+  TargetFocusedRange?: any;
+  [key: string]: any;
+}
+
+export interface PreviewSegmentInput {
+  index?: number;
+  previewPartId?: string;
+  sourceText?: string;
+  source?: string;
+  targetText?: string;
+  target?: string;
+  sourceFocusedRange?: any;
+  targetFocusedRange?: any;
+  SourceFocusedRange?: any;
+  TargetFocusedRange?: any;
+  [key: string]: any;
+}
+
+export interface PreviewPartSnapshot {
+  previewPartId: string;
+  sourceText: string;
+  targetText: string;
+  order: number;
+  sourceFocusedRange?: PreviewFocusedRange | null;
+  targetFocusedRange?: PreviewFocusedRange | null;
+  [key: string]: any;
+}
+
+export interface PreviewSegment {
+  index: number;
+  previewPartId: string;
+  sourceText: string;
+  targetText: string;
+  sourceFocusedRange?: PreviewFocusedRange | null;
+  targetFocusedRange?: PreviewFocusedRange | null;
+  [key: string]: any;
+}
+
+export interface PreviewDocumentCache {
+  parts: PreviewPartSnapshot[];
+  segments: PreviewSegment[];
+  activePreviewPartIds: string[];
+  currentRange?: PreviewFocusedRange | null;
+  [key: string]: any;
+}
+
+export interface PreviewMatchOptions {
+  parts?: PreviewPartSnapshot[];
+  previewMatchMode?: string;
+}
+
+export interface PreviewContextQuery {
+  documentId?: string;
+  sourceLanguage?: string;
+  targetLanguage?: string;
+  segmentIndex?: number;
+  segmentRange?: any;
+  includeTargetText?: boolean;
+  includeAboveContext?: boolean;
+  includeBelowContext?: boolean;
+  includeFullText?: boolean;
+  includeSummary?: boolean;
+  sourceText?: string;
+  aboveOptions?: { maxSegments?: number; maxChars?: number; includeSource?: boolean; includeTarget?: boolean };
+  belowOptions?: { maxSegments?: number; maxChars?: number; includeSource?: boolean; includeTarget?: boolean };
+}
+
+export interface PreviewFeatureRequest {
+  includeFullText?: boolean;
+  includeSummary?: boolean;
+  includeTargetText?: boolean;
+  includeAboveContext?: boolean;
+  includeBelowContext?: boolean;
+  [key: string]: any;
+}
+
+export interface DirectionalSegmentContext {
+  segments: PreviewSegment[];
+  anchorIndex: number;
+  direction: number;
+  maxSegments: number;
+  maxChars: number;
+  includeSource: boolean;
+  includeTarget: boolean;
+}
+
+export interface DirectionalPartContext {
+  parts: PreviewPartSnapshot[];
+  anchorPosition: number;
+  direction: number;
+  maxSegments: number;
+  maxChars: number;
+  includeSource: boolean;
+  includeTarget: boolean;
+}
+
+export interface PreviewClientOptions {
+  appDataRoot?: string;
+  logsDir?: string;
+  helperExecutablePath?: string;
+  repoRoot?: string;
+}
+
+export interface IntegrationInstallOptions {
+  memoqVersion?: string;
+  customInstallDir?: string;
+  selectedInstallDir?: string;
+  programDataDir?: string;
+  [key: string]: any;
+}
+
 export interface AggregationServiceDependencies {
   settings?: Record<string, any>;
   runtimeLogger?: { info: (event: string, message: string, details?: any) => unknown };
