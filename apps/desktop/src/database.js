@@ -2,27 +2,30 @@ const fs = require('fs');
 const path = require('path');
 const initSqlJs = require('sql.js');
 
+/** @typedef {Awaited<ReturnType<typeof import('sql.js')>>} SqlJsStatic */
+/** @typedef {import('./types/desktopDatabase').DesktopDatabase} DesktopDatabase */
+
 const DEFAULT_PERSIST_DEBOUNCE_MS = 500;
 const DEFAULT_PERSIST_MAX_DIRTY_MS = 3000;
 
 /**
- * @param {any} dbPath
+ * @param {string} dbPath
  */
 function databaseBackupPath(dbPath) {
   return `${dbPath}.bak`;
 }
 
 /**
- * @param {any} dbPath
- * @param {any} suffix
+ * @param {string} dbPath
+ * @param {string=} suffix
  */
 function databaseTemporaryPath(dbPath, suffix = 'tmp') {
   return `${dbPath}.${suffix}`;
 }
 
 /**
- * @param {any} filePath
- * @param {any} bytes
+ * @param {string} filePath
+ * @param {Buffer | Uint8Array} bytes
  */
 function syncWriteFile(filePath, bytes) {
   const handle = fs.openSync(filePath, 'w');
@@ -35,17 +38,17 @@ function syncWriteFile(filePath, bytes) {
 }
 
 /**
- * @param {any} sourcePath
- * @param {any} targetPath
+ * @param {string} sourcePath
+ * @param {string} targetPath
  */
 function replaceFile(sourcePath, targetPath) {
   fs.renameSync(sourcePath, targetPath);
 }
 
 /**
- * @param {any} SQL
- * @param {any} bytes
- * @param {any} sourcePath
+ * @param {SqlJsStatic} SQL
+ * @param {Buffer | Uint8Array} bytes
+ * @param {string} sourcePath
  */
 function openValidatedDatabase(SQL, bytes, sourcePath) {
   let candidate;
@@ -67,9 +70,9 @@ function openValidatedDatabase(SQL, bytes, sourcePath) {
 }
 
 /**
- * @param {any} SQL
- * @param {any} dbPath
- * @param {any} backupPath
+ * @param {SqlJsStatic} SQL
+ * @param {string} dbPath
+ * @param {string} backupPath
  */
 function restoreDatabaseFromBackup(SQL, dbPath, backupPath) {
   const backupBytes = fs.readFileSync(backupPath);
@@ -88,8 +91,8 @@ function restoreDatabaseFromBackup(SQL, dbPath, backupPath) {
 }
 
 /**
- * @param {any} SQL
- * @param {any} dbPath
+ * @param {SqlJsStatic} SQL
+ * @param {string} dbPath
  */
 function openDatabaseWithRecovery(SQL, dbPath) {
   if (!fs.existsSync(dbPath)) {
@@ -114,9 +117,9 @@ function openDatabaseWithRecovery(SQL, dbPath) {
 }
 
 /**
- * @param {any} SQL
- * @param {any} dbPath
- * @param {any} bytes
+ * @param {SqlJsStatic} SQL
+ * @param {string} dbPath
+ * @param {Buffer | Uint8Array} bytes
  */
 function atomicWriteDatabase(SQL, dbPath, bytes) {
   const tempPath = databaseTemporaryPath(dbPath);
@@ -169,8 +172,9 @@ function resolveSqlWasmPath() {
 }
 
 /**
- * @param {any} paths
- * @param {any} options
+ * @param {{ dbPath: string }} paths
+ * @param {{ persistDebounceMs?: number, persistMaxDirtyMs?: number }=} options
+ * @returns {Promise<DesktopDatabase>}
  */
 async function createDatabase(paths, options = {}) {
   const SQL = await initSqlJs({
@@ -292,7 +296,7 @@ async function createDatabase(paths, options = {}) {
   }
 
   /**
-   * @param {any} sql
+   * @param {string} sql
    */
   function exec(sql) {
     assertOpen();
@@ -301,8 +305,8 @@ async function createDatabase(paths, options = {}) {
   }
 
   /**
-   * @param {any} sql
-   * @param {any} params
+   * @param {string} sql
+   * @param {Record<string, unknown>=} params
    */
   function run(sql, params = {}) {
     assertOpen();
@@ -314,8 +318,9 @@ async function createDatabase(paths, options = {}) {
   }
 
   /**
-   * @param {any} sql
-   * @param {any} params
+   * @param {string} sql
+   * @param {Record<string, unknown>=} params
+   * @returns {Array<Record<string, any>>}
    */
   function all(sql, params = {}) {
     assertOpen();
@@ -330,8 +335,9 @@ async function createDatabase(paths, options = {}) {
   }
 
   /**
-   * @param {any} sql
-   * @param {any} params
+   * @param {string} sql
+   * @param {Record<string, unknown>=} params
+   * @returns {Record<string, any> | null}
    */
   function get(sql, params = {}) {
     return all(sql, params)[0] || null;

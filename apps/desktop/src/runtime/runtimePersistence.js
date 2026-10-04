@@ -575,7 +575,7 @@ function buildQaHistoryItem(row, result) {
 }
 
 /**
- * @param {any} db
+ * @param {import('../types/desktopDatabase').DesktopDatabase} db
  * @param {{ nowIso: () => string, normalizeState: (state: Record<string, any>) => Record<string, any> }} deps
  * @returns {import('../types/runtimeDomain').RuntimePersistence}
  */

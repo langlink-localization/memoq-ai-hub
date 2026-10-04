@@ -10,17 +10,17 @@ spec_link: none
 github_links:
   project: none
   issues: []
-current_stage: preview-and-integration-boundaries-typed
+current_stage: update-state-and-sql-handle-typed
 last_verified_commit: >
-  v1.0.48 candidate. Preview-helper part, segment, and document-cache shapes
-  and memoQ integration install options live in runtimeDomain.d.ts.
-  previewContextClient and integrationService use them. database.js and
-  updateService do not interpret runtime state, profiles, or preview parts.
+  v1.0.49 candidate. Update manifest, asset, and persisted update state live
+  in src/types/updateState.d.ts. sql.js and the desktop database wrapper live
+  in src/types/sql.js.d.ts and src/types/desktopDatabase.d.ts. Persistence
+  takes the wrapper type. Provider prompt builder and registry keep their
+  deep typedefs.
 next_action: >
-  Type the update manifest, asset, and persisted update-state shapes in
-  updateService, and the sql.js handle in database.js, without shrinking the
-  checkJs include list. Keep deep typedefs in providerPromptBuilder and
-  providerRegistry.
+  Type createUpdateService options and the injected filesystem, fetch, and
+  archive-extract doubles in updateService. Do not shrink the checkJs include
+  list. Keep deep typedefs in providerPromptBuilder and providerRegistry.
 allowed_interruptions:
   - emergency production fix
   - security or data correctness issue

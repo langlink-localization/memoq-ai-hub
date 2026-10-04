@@ -30,6 +30,8 @@
 
 ## 当前版本亮点
 
+**v1.0.49** 为更新清单、下载资源和持久化更新状态，以及 sql.js 数据库句柄补上类型。更新和存储行为不变；便携版准备更新时如果清单资源缺失，会按完整性失败关闭。详见[版本说明](docs/release-notes/v1.0.49.md)。
+
 **v1.0.48** 用共享 domain 类型描述预览 helper 的 part/segment，以及 memoQ 集成安装选项。匹配行为、插件合约和数据库 schema 不变。详见[版本说明](docs/release-notes/v1.0.48.md)。
 
 **v1.0.47** 把 desktop runtime 组合根里的产品行为拆到独立 owner，并把 runtime、数据库、集成、预览 helper 和更新服务纳入 strict 类型检查。memoQ 插件合约和数据库 schema 不变。详见[版本说明](docs/release-notes/v1.0.47.md)。

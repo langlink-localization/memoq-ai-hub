@@ -30,6 +30,8 @@ The repository contains runtime code for more advanced capabilities, but not eve
 
 ## Current Release Highlights
 
+**v1.0.49** types the update manifest, downloadable asset, persisted update state, and the sql.js database handle. Update and storage behavior stay the same aside from a fail-closed portable prepare when the manifest asset is missing. See [release notes](docs/release-notes/v1.0.49.md).
+
 **v1.0.48** types the preview-helper part and segment boundary and the memoQ integration install options with the shared runtime domain types. Matching behavior, the plugin contract, and the database schema are unchanged. See [release notes](docs/release-notes/v1.0.48.md).
 
 **v1.0.47** keeps the desktop runtime boundary explicit: product behavior that used to live in the composition root now has its own owner, and strict type checking covers the runtime, database, integration, preview helper, and update service. Behavior, the memoQ plugin contract, and the database schema are unchanged. See [release notes](docs/release-notes/v1.0.47.md).

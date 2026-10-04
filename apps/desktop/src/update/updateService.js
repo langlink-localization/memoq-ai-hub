@@ -8,6 +8,13 @@ const {
   normalizeUpdateArtifactName
 } = require('../shared/externalNavigation');
 
+/** @typedef {import('../types/updateState').UpdateAsset} UpdateAsset */
+/** @typedef {import('../types/updateState').UpdateAssetInput} UpdateAssetInput */
+/** @typedef {import('../types/updateState').UpdateManifest} UpdateManifest */
+/** @typedef {import('../types/updateState').UpdateManifestInput} UpdateManifestInput */
+/** @typedef {import('../types/updateState').PersistedUpdateState} PersistedUpdateState */
+/** @typedef {import('../types/updateState').DefaultUpdateStateInput} DefaultUpdateStateInput */
+
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_RELEASE_REPOSITORY = 'langlink-localization/memoq-ai-hub';
@@ -73,7 +80,8 @@ function compareVersions(leftVersion, rightVersion) {
 }
 
 /**
- * @param {any} dependencies
+ * @param {DefaultUpdateStateInput} dependencies
+ * @returns {PersistedUpdateState}
  */
 function createDefaultUpdateState({ currentVersion, packagingMode, manifestUrl }) {
   return {
@@ -112,8 +120,9 @@ function normalizePersistedByteCount(value) {
 }
 
 /**
- * @param {any} defaultState
- * @param {any} persistedState
+ * @param {PersistedUpdateState} defaultState
+ * @param {Partial<PersistedUpdateState>=} persistedState
+ * @returns {PersistedUpdateState}
  */
 function normalizePersistedUpdateState(defaultState, persistedState = {}) {
   const nextState = {
@@ -288,7 +297,8 @@ async function calculateFileSha256(/** @type {any} */ fsImpl, /** @type {any} */
 }
 
 /**
- * @param {any} asset
+ * @param {UpdateAssetInput | null=} asset
+ * @returns {UpdateAsset | null}
  */
 function normalizeAsset(asset = {}) {
   if (!asset || typeof asset !== 'object') {
@@ -326,7 +336,8 @@ function normalizePersistedExternalUrl(value, label) {
 }
 
 /**
- * @param {any} asset
+ * @param {UpdateAssetInput | null | undefined} asset
+ * @returns {UpdateAsset | null}
  */
 function normalizePersistedAsset(asset) {
   try {
@@ -337,7 +348,8 @@ function normalizePersistedAsset(asset) {
 }
 
 /**
- * @param {any} manifest
+ * @param {UpdateManifestInput=} manifest
+ * @returns {UpdateManifest}
  */
 function normalizeManifest(manifest = {}) {
   const version = String(manifest.version || manifest.latestVersion || '').trim().replace(/^v/i, '');
@@ -538,7 +550,7 @@ function createUpdateService(options = {}) {
   }
 
   /**
-   * @param {any} nextState
+   * @param {PersistedUpdateState} nextState
    */
   function writePersistedState(nextState) {
     ensureDir(path.dirname(persistedStatePath));
@@ -553,7 +565,7 @@ function createUpdateService(options = {}) {
   }
 
   /**
-   * @param {any} nextState
+   * @param {PersistedUpdateState} nextState
    */
   function persistState(nextState) {
     state = {
@@ -584,7 +596,7 @@ function createUpdateService(options = {}) {
   /**
    * @param {any} patch
    */
-  function setState(/** @type {any} */ patch = {}) {
+  function setState(/** @type {Partial<PersistedUpdateState>} */ patch = {}) {
     return persistState({
       ...state,
       ...patch
@@ -960,6 +972,9 @@ function createUpdateService(options = {}) {
       // Fail closed: re-verify the persisted archive against the manifest
       // digest before extraction so a swapped file cannot be expanded.
       const portableAsset = state.availableAssets?.portable;
+      if (!portableAsset) {
+        throw createUpdateIntegrityError('Prepared archive is missing its manifest asset.');
+      }
       try {
         const expectedSha256 = getRequiredAssetSha256(portableAsset);
         const expectedPath = path.resolve(updateDownloadsDir, portableAsset.name);
