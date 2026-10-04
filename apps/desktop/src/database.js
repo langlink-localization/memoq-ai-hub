@@ -5,14 +5,25 @@ const initSqlJs = require('sql.js');
 const DEFAULT_PERSIST_DEBOUNCE_MS = 500;
 const DEFAULT_PERSIST_MAX_DIRTY_MS = 3000;
 
+/**
+ * @param {any} dbPath
+ */
 function databaseBackupPath(dbPath) {
   return `${dbPath}.bak`;
 }
 
+/**
+ * @param {any} dbPath
+ * @param {any} suffix
+ */
 function databaseTemporaryPath(dbPath, suffix = 'tmp') {
   return `${dbPath}.${suffix}`;
 }
 
+/**
+ * @param {any} filePath
+ * @param {any} bytes
+ */
 function syncWriteFile(filePath, bytes) {
   const handle = fs.openSync(filePath, 'w');
   try {
@@ -23,10 +34,19 @@ function syncWriteFile(filePath, bytes) {
   }
 }
 
+/**
+ * @param {any} sourcePath
+ * @param {any} targetPath
+ */
 function replaceFile(sourcePath, targetPath) {
   fs.renameSync(sourcePath, targetPath);
 }
 
+/**
+ * @param {any} SQL
+ * @param {any} bytes
+ * @param {any} sourcePath
+ */
 function openValidatedDatabase(SQL, bytes, sourcePath) {
   let candidate;
   try {
@@ -39,13 +59,18 @@ function openValidatedDatabase(SQL, bytes, sourcePath) {
     return candidate;
   } catch (error) {
     candidate?.close?.();
-    const wrapped = new Error(`Could not open a valid desktop database at ${sourcePath}.`);
-    wrapped.code = 'DATABASE_CORRUPT';
-    wrapped.cause = error;
-    throw wrapped;
+    throw Object.assign(new Error(`Could not open a valid desktop database at ${sourcePath}.`), {
+      code: 'DATABASE_CORRUPT',
+      cause: error
+    });
   }
 }
 
+/**
+ * @param {any} SQL
+ * @param {any} dbPath
+ * @param {any} backupPath
+ */
 function restoreDatabaseFromBackup(SQL, dbPath, backupPath) {
   const backupBytes = fs.readFileSync(backupPath);
   const verified = openValidatedDatabase(SQL, backupBytes, backupPath);
@@ -62,6 +87,10 @@ function restoreDatabaseFromBackup(SQL, dbPath, backupPath) {
   return openValidatedDatabase(SQL, fs.readFileSync(dbPath), dbPath);
 }
 
+/**
+ * @param {any} SQL
+ * @param {any} dbPath
+ */
 function openDatabaseWithRecovery(SQL, dbPath) {
   if (!fs.existsSync(dbPath)) {
     return new SQL.Database();
@@ -76,14 +105,19 @@ function openDatabaseWithRecovery(SQL, dbPath) {
     try {
       return restoreDatabaseFromBackup(SQL, dbPath, backupPath);
     } catch (backupError) {
-      const error = new Error('The desktop database and its recovery backup are both invalid.');
-      error.code = 'DATABASE_RECOVERY_FAILED';
-      error.cause = backupError;
-      throw error;
+      throw Object.assign(new Error('The desktop database and its recovery backup are both invalid.'), {
+        code: 'DATABASE_RECOVERY_FAILED',
+        cause: backupError
+      });
     }
   }
 }
 
+/**
+ * @param {any} SQL
+ * @param {any} dbPath
+ * @param {any} bytes
+ */
 function atomicWriteDatabase(SQL, dbPath, bytes) {
   const tempPath = databaseTemporaryPath(dbPath);
   const backupPath = databaseBackupPath(dbPath);
@@ -111,6 +145,10 @@ function atomicWriteDatabase(SQL, dbPath, bytes) {
   }
 }
 
+/**
+ * @param {any} baseDir
+ * @param {any} resourcesPath
+ */
 function buildSqlWasmCandidates(baseDir = __dirname, resourcesPath = process.resourcesPath || '') {
   return [
     path.join(baseDir, '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
@@ -130,6 +168,10 @@ function resolveSqlWasmPath() {
   return found;
 }
 
+/**
+ * @param {any} paths
+ * @param {any} options
+ */
 async function createDatabase(paths, options = {}) {
   const SQL = await initSqlJs({
     locateFile() {
@@ -152,7 +194,9 @@ async function createDatabase(paths, options = {}) {
 
   let persistScheduled = false;
   let persistFirstDirtyAtMs = 0;
+  /** @type {ReturnType<typeof setTimeout> | null} */
   let persistDebounceTimer = null;
+  /** @type {ReturnType<typeof setTimeout> | null} */
   let persistMaxTimer = null;
 
   function assertOpen() {
@@ -247,12 +291,19 @@ async function createDatabase(paths, options = {}) {
     }
   }
 
+  /**
+   * @param {any} sql
+   */
   function exec(sql) {
     assertOpen();
     db.exec(sql);
     persistIfNeeded();
   }
 
+  /**
+   * @param {any} sql
+   * @param {any} params
+   */
   function run(sql, params = {}) {
     assertOpen();
     const stmt = db.prepare(sql);
@@ -262,6 +313,10 @@ async function createDatabase(paths, options = {}) {
     return db.getRowsModified();
   }
 
+  /**
+   * @param {any} sql
+   * @param {any} params
+   */
   function all(sql, params = {}) {
     assertOpen();
     const stmt = db.prepare(sql);
@@ -274,10 +329,17 @@ async function createDatabase(paths, options = {}) {
     return rows;
   }
 
+  /**
+   * @param {any} sql
+   * @param {any} params
+   */
   function get(sql, params = {}) {
     return all(sql, params)[0] || null;
   }
 
+  /**
+   * @param {any} callback
+   */
   function transaction(callback) {
     assertOpen();
     if (transactionDepth > 0) {

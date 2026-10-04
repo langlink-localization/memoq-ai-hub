@@ -4,6 +4,9 @@ const path = require('path');
 const { validateAssetImport } = require('../asset/assetContext');
 const { buildProfileReferenceMessage } = require('./runtimeTranslationSupport');
 
+/**
+ * @param {import('../types/runtimeDomain').AssetServiceDependencies} dependencies
+ */
 function createRuntimeAssetService({
   loadState,
   saveState,
@@ -12,7 +15,7 @@ function createRuntimeAssetService({
   createId,
   nowIso
 }) {
-  function importAssetFromPath(assetType, sourcePath) {
+  function importAssetFromPath(/** @type {any} */ assetType, /** @type {any} */ sourcePath) {
     const state = loadState();
     const normalizedAsset = validateAssetImport(assetType, sourcePath);
     const buffer = fs.readFileSync(sourcePath);
@@ -35,19 +38,19 @@ function createRuntimeAssetService({
     return asset;
   }
 
-  function deleteAsset(assetId) {
+  function deleteAsset(/** @type {any} */ assetId) {
     const state = loadState();
-    const asset = state.assets.find((item) => item.id === assetId);
+    const asset = state.assets.find((/** @type {any} */ item) => item.id === assetId);
     if (!asset) throw new Error(`Asset ${assetId} not found`);
 
     const referencedBy = state.profiles
-      .filter((profile) => (profile.assetBindings || []).some((binding) => binding.assetId === assetId))
-      .map((profile) => profile.name);
+      .filter((/** @type {any} */ profile) => (profile.assetBindings || []).some((/** @type {any} */ binding) => binding.assetId === assetId))
+      .map((/** @type {any} */ profile) => profile.name);
     if (referencedBy.length) {
       throw new Error(buildProfileReferenceMessage(referencedBy, `Asset "${asset.name}"`));
     }
 
-    state.assets = state.assets.filter((item) => item.id !== assetId);
+    state.assets = state.assets.filter((/** @type {any} */ item) => item.id !== assetId);
     parsedAssetCache.delete(`${asset.id}:${asset.sha256 || ''}`);
     if (asset.storedPath && fs.existsSync(asset.storedPath)) {
       fs.rmSync(asset.storedPath, { force: true });

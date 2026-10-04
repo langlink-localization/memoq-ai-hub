@@ -28,12 +28,18 @@ const PORTABLE_BACKUP_NAME_PREFIX = '.memoq-ai-hub-backup-';
 const DOWNLOAD_PROGRESS_EMIT_BYTES = 1024 * 1024;
 const SHA256_HEX_PATTERN = /^[0-9a-f]{64}$/;
 
+/**
+ * @param {any} dirPath
+ */
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
   }
 }
 
+/**
+ * @param {any} version
+ */
 function parseVersionSegments(version) {
   return String(version || '')
     .trim()
@@ -43,6 +49,10 @@ function parseVersionSegments(version) {
     .map((segment) => (Number.isFinite(segment) ? segment : 0));
 }
 
+/**
+ * @param {any} leftVersion
+ * @param {any} rightVersion
+ */
 function compareVersions(leftVersion, rightVersion) {
   const left = parseVersionSegments(leftVersion);
   const right = parseVersionSegments(rightVersion);
@@ -62,6 +72,9 @@ function compareVersions(leftVersion, rightVersion) {
   return 0;
 }
 
+/**
+ * @param {any} dependencies
+ */
 function createDefaultUpdateState({ currentVersion, packagingMode, manifestUrl }) {
   return {
     currentVersion: String(currentVersion || '').trim(),
@@ -90,11 +103,18 @@ function createDefaultUpdateState({ currentVersion, packagingMode, manifestUrl }
   };
 }
 
+/**
+ * @param {any} value
+ */
 function normalizePersistedByteCount(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
 }
 
+/**
+ * @param {any} defaultState
+ * @param {any} persistedState
+ */
 function normalizePersistedUpdateState(defaultState, persistedState = {}) {
   const nextState = {
     ...defaultState,
@@ -161,14 +181,20 @@ function createNoopLogger() {
   };
 }
 
+/**
+ * @param {any} timeoutMs
+ */
 function createUpdateCheckTimeoutError(timeoutMs) {
-  const error = new Error(UPDATE_CHECK_TIMEOUT_MESSAGE);
-  error.code = UPDATE_CHECK_TIMEOUT_CODE;
-  error.statusCode = 408;
-  error.timeoutMs = timeoutMs;
-  return error;
+  return Object.assign(new Error(UPDATE_CHECK_TIMEOUT_MESSAGE), {
+    code: UPDATE_CHECK_TIMEOUT_CODE,
+    statusCode: 408,
+    timeoutMs
+  });
 }
 
+/**
+ * @param {any} error
+ */
 function normalizeUpdateCheckError(error) {
   const code = String(error?.code || '').trim();
   if (
@@ -190,12 +216,19 @@ function normalizeUpdateCheckError(error) {
   };
 }
 
+/**
+ * @param {any} message
+ */
 function createUpdateIntegrityError(message) {
-  const error = new Error(String(message || UPDATE_INTEGRITY_FAILED_MESSAGE));
-  error.code = UPDATE_INTEGRITY_FAILED_CODE;
-  return error;
+  return Object.assign(new Error(String(message || UPDATE_INTEGRITY_FAILED_MESSAGE)), {
+    code: UPDATE_INTEGRITY_FAILED_CODE
+  });
 }
 
+/**
+ * @param {any} value
+ * @param {any} dependencies2
+ */
 function normalizeAssetSha256(value, { allowEmpty = true } = {}) {
   const normalized = String(value || '').trim().toLowerCase();
   if (!normalized && allowEmpty) {
@@ -207,10 +240,18 @@ function normalizeAssetSha256(value, { allowEmpty = true } = {}) {
   return normalized;
 }
 
+/**
+ * @param {any} buffer
+ */
 function calculateBufferSha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
+/**
+ * @param {any} actualSha256
+ * @param {any} expectedSha256
+ * @param {any} [message]
+ */
 function verifyHexSha256(actualSha256, expectedSha256, message) {
   const expected = normalizeAssetSha256(expectedSha256, { allowEmpty: false });
   const actual = normalizeAssetSha256(actualSha256, { allowEmpty: false });
@@ -221,6 +262,10 @@ function verifyHexSha256(actualSha256, expectedSha256, message) {
   return actual;
 }
 
+/**
+ * @param {any} buffer
+ * @param {any} expectedSha256
+ */
 function verifyBufferSha256(buffer, expectedSha256) {
   return verifyHexSha256(calculateBufferSha256(buffer), expectedSha256);
 }
@@ -229,19 +274,22 @@ function verifyBufferSha256(buffer, expectedSha256) {
  * Streams a file through SHA-256 so large installers never load fully into
  * memory; falls back to a buffered read for injectable test file systems.
  */
-async function calculateFileSha256(fsImpl, filePath) {
+async function calculateFileSha256(/** @type {any} */ fsImpl, /** @type {any} */ filePath) {
   if (typeof fsImpl.createReadStream !== 'function') {
     return calculateBufferSha256(fsImpl.readFileSync(filePath));
   }
   return await new Promise((resolve, reject) => {
     const hash = crypto.createHash('sha256');
     const stream = fsImpl.createReadStream(filePath);
-    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('data', (/** @type {any} */ chunk) => hash.update(chunk));
     stream.on('end', () => resolve(hash.digest('hex')));
     stream.on('error', reject);
   });
 }
 
+/**
+ * @param {any} asset
+ */
 function normalizeAsset(asset = {}) {
   if (!asset || typeof asset !== 'object') {
     return null;
@@ -265,6 +313,10 @@ function normalizeAsset(asset = {}) {
   };
 }
 
+/**
+ * @param {any} value
+ * @param {any} label
+ */
 function normalizePersistedExternalUrl(value, label) {
   try {
     return normalizeExternalHttpsUrl(value, { label, allowEmpty: true });
@@ -273,6 +325,9 @@ function normalizePersistedExternalUrl(value, label) {
   }
 }
 
+/**
+ * @param {any} asset
+ */
 function normalizePersistedAsset(asset) {
   try {
     return normalizeAsset(asset);
@@ -281,6 +336,9 @@ function normalizePersistedAsset(asset) {
   }
 }
 
+/**
+ * @param {any} manifest
+ */
 function normalizeManifest(manifest = {}) {
   const version = String(manifest.version || manifest.latestVersion || '').trim().replace(/^v/i, '');
   if (!version) {
@@ -304,6 +362,9 @@ function normalizeManifest(manifest = {}) {
   };
 }
 
+/**
+ * @param {any} dependencies
+ */
 function resolvePackagingMode({
   packagingMode,
   fsImpl = fs,
@@ -333,6 +394,10 @@ function resolvePackagingMode({
   return 'portable';
 }
 
+/**
+ * @param {any} sourcePath
+ * @param {any} targetDir
+ */
 async function expandArchiveWithPowerShell(sourcePath, targetDir) {
   const powershellPath = process.platform === 'win32'
     ? 'powershell.exe'
@@ -379,6 +444,7 @@ function resolvePortableApplySupport({ fsImpl = fs, execPath = process.execPath 
  * Prefers a staging directory beside the app (same volume => instant rename
  * during apply); falls back to the managed prepared-updates directory when
  * that location is not writable.
+ * @param {any} dependencies
  */
 function resolvePortableStagingDirectory({ applySupport, preparedUpdatesDir, fsImpl = fs }) {
   if (applySupport?.supported && applySupport.appDirectory) {
@@ -400,12 +466,12 @@ function resolvePortableStagingDirectory({ applySupport, preparedUpdatesDir, fsI
  * stay defensive: if extraction produced a single folder and no root payload,
  * treat that folder as the app root.
  */
-function normalizePreparedAppRoot(fsImpl, destinationDir) {
+function normalizePreparedAppRoot(/** @type {any} */ fsImpl, /** @type {any} */ destinationDir) {
   if (fsImpl.existsSync(path.join(destinationDir, PORTABLE_APP_EXECUTABLE_NAME))) {
     return destinationDir;
   }
   const entries = fsImpl.readdirSync(destinationDir);
-  const directories = entries.filter((entry) => fsImpl.statSync(path.join(destinationDir, entry)).isDirectory());
+  const directories = entries.filter((/** @type {any} */ entry) => fsImpl.statSync(path.join(destinationDir, entry)).isDirectory());
   if (directories.length === 1
     && fsImpl.existsSync(path.join(destinationDir, directories[0], PORTABLE_APP_EXECUTABLE_NAME))) {
     return path.join(destinationDir, directories[0]);
@@ -413,10 +479,16 @@ function normalizePreparedAppRoot(fsImpl, destinationDir) {
   return '';
 }
 
+/**
+ * @param {any} repository
+ */
 function getDefaultManifestUrl(repository = DEFAULT_RELEASE_REPOSITORY) {
   return `https://github.com/${repository}/releases/latest/download/${STABLE_UPDATE_MANIFEST_NAME}`;
 }
 
+/**
+ * @param {any} options
+ */
 function createUpdateService(options = {}) {
   const fsImpl = options.fs || fs;
   const fetchImpl = options.fetch || globalThis.fetch;
@@ -465,6 +537,9 @@ function createUpdateService(options = {}) {
     }
   }
 
+  /**
+   * @param {any} nextState
+   */
   function writePersistedState(nextState) {
     ensureDir(path.dirname(persistedStatePath));
     fsImpl.writeFileSync(persistedStatePath, JSON.stringify(nextState, null, 2), 'utf8');
@@ -477,6 +552,9 @@ function createUpdateService(options = {}) {
     writePersistedState(state);
   }
 
+  /**
+   * @param {any} nextState
+   */
   function persistState(nextState) {
     state = {
       ...nextState,
@@ -503,7 +581,10 @@ function createUpdateService(options = {}) {
     };
   }
 
-  function setState(patch = {}) {
+  /**
+   * @param {any} patch
+   */
+  function setState(/** @type {any} */ patch = {}) {
     return persistState({
       ...state,
       ...patch
@@ -518,6 +599,7 @@ function createUpdateService(options = {}) {
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
     const timeoutError = createUpdateCheckTimeoutError(manifestTimeoutMs);
     let timeoutId;
+    /** @type {{ cache: string, headers: Record<string, string>, signal?: AbortSignal }} */
     const requestOptions = {
       cache: 'no-store',
       headers: {
@@ -564,6 +646,9 @@ function createUpdateService(options = {}) {
     return normalizeManifest(await response.json());
   }
 
+  /**
+   * @param {any} kind
+   */
   function getRequestedAsset(kind) {
     const asset = kind === 'installer'
       ? state.availableAssets?.installer
@@ -574,6 +659,10 @@ function createUpdateService(options = {}) {
     return asset;
   }
 
+  /**
+   * @param {any} error
+   * @param {any} artifactPaths
+   */
   function markIntegrityFailure(error, artifactPaths = []) {
     const normalizedError = error?.code === UPDATE_INTEGRITY_FAILED_CODE
       ? error
@@ -587,7 +676,7 @@ function createUpdateService(options = {}) {
       if (artifactIsManaged && fsImpl.existsSync(resolvedArtifactPath)) {
         try {
           fsImpl.rmSync(resolvedArtifactPath, { force: true });
-        } catch (removeError) {
+        } catch (/** @type {any} */ removeError) {
           logger.warn('update-integrity-cleanup-failed', 'Unable to remove an untrusted update package.', {
             artifactPath: resolvedArtifactPath,
             errorMessage: String(removeError?.message || removeError)
@@ -604,6 +693,9 @@ function createUpdateService(options = {}) {
     return normalizedError;
   }
 
+  /**
+   * @param {any} asset
+   */
   function getRequiredAssetSha256(asset) {
     if (!asset?.sha256) {
       throw createUpdateIntegrityError('Update asset SHA-256 is required for application-managed downloads.');
@@ -611,6 +703,9 @@ function createUpdateService(options = {}) {
     return normalizeAssetSha256(asset.sha256, { allowEmpty: false });
   }
 
+  /**
+   * @param {any} kind
+   */
   async function downloadAsset(kind) {
     const asset = getRequestedAsset(kind);
     const destinationPath = path.join(updateDownloadsDir, asset.name);
@@ -646,8 +741,8 @@ function createUpdateService(options = {}) {
     let receivedBytes = 0;
     let lastEmittedBytes = 0;
 
-    const finishWrite = () => new Promise((resolve, reject) => {
-      writeStream.end((writeError) => {
+    const finishWrite = () => new Promise((/** @type {(value?: void) => void} */ resolve, /** @type {(reason?: any) => void} */ reject) => {
+      writeStream.end((/** @type {any} */ writeError) => {
         if (writeError) {
           reject(writeError);
         } else {
@@ -721,12 +816,12 @@ function createUpdateService(options = {}) {
 
   function isSquirrelFirstRun() {
     return Array.isArray(options.argv || process.argv)
-      && (options.argv || process.argv).some((value) => String(value || '').trim().toLowerCase() === '--squirrel-firstrun');
+      && (options.argv || process.argv).some((/** @type {any} */ value) => String(value || '').trim().toLowerCase() === '--squirrel-firstrun');
   }
 
   return {
     getStatus,
-    async checkForUpdates(options = {}) {
+    async checkForUpdates(/** @type {any} */ options = {}) {
       if (packagingMode === 'installed' && isSquirrelFirstRun()) {
         return setState({
           updateStatus: DEFAULT_UPDATE_STATUS,
@@ -814,7 +909,7 @@ function createUpdateService(options = {}) {
       }
       return downloadAsset('installer');
     },
-    async verifyDownloadedInstallerUpdate(installerPath) {
+    async verifyDownloadedInstallerUpdate(/** @type {any} */ installerPath) {
       if (packagingMode !== 'installed') {
         throw new Error('Installer update verification is only available in installed mode.');
       }
@@ -853,7 +948,7 @@ function createUpdateService(options = {}) {
         throw markIntegrityFailure(error, [persistedPath]);
       }
     },
-    async preparePortableUpdate(downloadedFile, targetDir) {
+    async preparePortableUpdate(/** @type {any} */ downloadedFile, /** @type {any} */ targetDir) {
       const sourcePath = String(downloadedFile || state.downloadedArtifactPath || '').trim();
       if (!sourcePath) {
         throw new Error('A downloaded portable archive is required before preparing an update.');

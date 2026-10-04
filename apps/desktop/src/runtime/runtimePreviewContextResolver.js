@@ -13,6 +13,9 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * @param {import('../types/runtimeDomain').PreviewResolverDependencies} dependencies
+ */
 function createRuntimePreviewContextResolver({
   providerRegistry,
   secretStore,
@@ -82,6 +85,9 @@ function createRuntimePreviewContextResolver({
     }
   }
 
+  /**
+   * @param {import('../types/runtimeDomain').PreviewSummaryRequest} request
+   */
   async function generateDocumentSummary({
     route,
     secret,
@@ -381,6 +387,9 @@ function createRuntimePreviewContextResolver({
     };
   }
 
+  /**
+   * @param {import('../types/runtimeDomain').ResolvePreviewContextsRequest} request
+   */
   async function resolvePreviewContexts({
     state,
     routes,
@@ -444,14 +453,14 @@ function createRuntimePreviewContextResolver({
       const initialDocumentUpdatedAt = String(initialRawDocument?.updatedAt || '');
       const initialActivePreviewPartIds = Array.isArray(initialRawDocument?.activePreviewPartIds) ? initialRawDocument.activePreviewPartIds : [];
       const initialActiveParts = Array.isArray(initialRawDocument?.parts)
-        ? initialRawDocument.parts.filter((part) => initialActivePreviewPartIds.includes(part.previewPartId))
+        ? initialRawDocument.parts.filter((/** @type {any} */ part) => initialActivePreviewPartIds.includes(part.previewPartId))
         : [];
 
       warmup.coldStart = warmup.helperStateAtStart !== 'connected' || !initialRawDocument;
       warmup.documentCacheSeen = Boolean(initialRawDocument);
       warmup.documentCacheUpdatedAt = initialDocumentUpdatedAt;
       warmup.activePreviewPartSeen = initialActiveParts.length > 0;
-      warmup.focusedRangeSeen = initialActiveParts.some((part) => part?.sourceFocusedRange || part?.targetFocusedRange);
+      warmup.focusedRangeSeen = initialActiveParts.some((/** @type {any} */ part) => part?.sourceFocusedRange || part?.targetFocusedRange);
 
       const warmupStartedAt = Date.now();
       const deadline = Date.now() + previewContextWaitMs;
@@ -468,11 +477,11 @@ function createRuntimePreviewContextResolver({
           : null;
         const activePreviewPartIds = Array.isArray(rawDocument?.activePreviewPartIds) ? rawDocument.activePreviewPartIds : [];
         const activeParts = Array.isArray(rawDocument?.parts)
-          ? rawDocument.parts.filter((part) => activePreviewPartIds.includes(part.previewPartId))
+          ? rawDocument.parts.filter((/** @type {any} */ part) => activePreviewPartIds.includes(part.previewPartId))
           : [];
         const hasDocumentCache = Boolean(rawDocument);
         const hasActivePart = activeParts.length > 0;
-        const hasActiveFocusedRange = activeParts.some((part) => part?.sourceFocusedRange || part?.targetFocusedRange);
+        const hasActiveFocusedRange = activeParts.some((/** @type {any} */ part) => part?.sourceFocusedRange || part?.targetFocusedRange);
         const documentUpdatedAt = String(rawDocument?.updatedAt || '');
         const hasFreshDocumentCache = hasDocumentCache && (
           !warmup.coldStart
@@ -632,7 +641,7 @@ function createRuntimePreviewContextResolver({
     }
 
     if (previewPolicy.includeSummary === true && sharedLookup.available && sharedLookup.fullText) {
-      const summarizationRoute = routes.find((candidate) => secretStore.has(candidate.provider.secretRef));
+      const summarizationRoute = routes.find((/** @type {any} */ candidate) => secretStore.has(candidate.provider.secretRef));
       if (summarizationRoute) {
         const secret = await secretStore.get(summarizationRoute.provider.secretRef);
         const summaryCacheKey = createDocumentSummaryCacheKey({

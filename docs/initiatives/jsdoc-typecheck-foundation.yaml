@@ -10,32 +10,18 @@ spec_link: none
 github_links:
   project: none
   issues: []
-current_stage: runtime-mismatches-cleared-provider-deep-typed
+current_stage: runtime-domain-types-landed
 last_verified_commit: >
-  tsc 0 errors over the gated scope (shared/qa/bilingual/asset/provider x6 +
-  runtime x18 including runtimeTranslationService); all non-TS7006/TS7031
-  mismatches in the runtime layer fixed (runtimeState, runtimeHistory,
-  runtimeHistoryBuilder, runtimeHistoryIntegrationSupport,
-  runtimeHistoryPresentation, runtimePersistence, runtimePromptSupport,
-  runtimeProviderExecution, runtimeTranslationSupport, runtimeTranslationService,
-  translationConfidence, runtimeAssetTbService fully typed and gated);
-  providerPromptBuilder/providerRegistry moved from parameter-any to deep
-  typedefs (profile/segment/preview/TB shapes, structured request payloads,
-  registry request/result objects); QA snapshot typed via QaSnapshot typedef in
-  qaContracts.
+  v1.0.47 candidate. tsc 0 errors after src/types/runtimeDomain.d.ts named
+  RuntimeState, RuntimeProfile, RuntimeProvider, RuntimeAsset, and
+  RuntimePersistence. Service factories and ensureProfile/ensureProvider now
+  use those types. sql.js resolves through src/types/sql.js.d.ts. Provider
+  prompt builder and registry keep their deep typedefs.
 next_action: >
-  Remaining runtime modules carry only implicit-any parameters (TS7006/TS7031,
-  no mismatch errors) and are not yet in tsconfig include: runtime.js 41,
-  runtimePreviewContextResolver 26, runtimeProviderService 24,
-  runtimeAggregationService 20, runtimeProfileService 17, runtimeQaService 33,
-  runtimeAssetService 14. Transitive modules pulled by runtime.js remain
-  unsurveyed: src/preview/previewContextClient, src/update/updateService,
-  src/database.js, src/integration/integrationService. Use the established
-  batch-annotation workflow (function-list scan, JSDoc insertion script,
-  iterative tsc). Watch for the async-dangling insertion pitfall: match
-  "async function NAME(" not "function NAME(". Keep deep typedefs for provider
-  shapes in providerPromptBuilder/providerRegistry rather than reintroducing
-  parameter-any annotations.
+  Replace remaining boundary any inside updateService, database.js,
+  integrationService, and previewContextClient with the domain types where
+  those modules read state, profiles, or preview parts. Do not shrink the
+  include list. Keep deep typedefs in providerPromptBuilder and providerRegistry.
 allowed_interruptions:
   - emergency production fix
   - security or data correctness issue
@@ -50,6 +36,8 @@ resume_prompt: >
   desktop sources through JSDoc annotations, tsc --noEmit (typescript 7.0.2),
   the pnpm run typecheck script, and a CI step. The typed scope today is all of
   apps/desktop/src/shared, src/qa, src/bilingual, src/asset, the provider
-  modules (deep typedefs for prompt builder and registry), 18 runtime modules,
-  plus gatewayRequestValidation.js and rendererIpcSurface.js. Continue with
-  next_action without weakening strict mode or shrinking the typed surface.
+  modules (deep typedefs for prompt builder and registry), the runtime
+  composition root and its services, database.js, integrationService,
+  previewContextClient, updateService, gatewayRequestValidation.js, and
+  rendererIpcSurface.js. Continue with next_action without weakening strict
+  mode or shrinking the typed surface.

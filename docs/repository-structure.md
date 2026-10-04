@@ -7,7 +7,13 @@ This repository follows a standard monorepo topology. Runtime code, shared contr
 - `apps/`: deployable application packages.
 - `apps/desktop/`: Electron desktop application, local HTTP gateway, renderer UI, and desktop tests.
 - `apps/desktop/tsconfig.json`: strict `checkJs` scope for the progressively typed desktop modules (`pnpm run typecheck`; see `docs/initiatives/jsdoc-typecheck-foundation.yaml`).
+- `apps/desktop/src/types/runtimeDomain.d.ts`: shared runtime domain types for state, profile, provider, asset, and persistence boundaries.
 - `apps/desktop/src/runtime/runtime.js`: desktop runtime composition root and public API facade; product execution and resource state operations belong in sibling services and stores.
+- `apps/desktop/src/runtime/runtimePreviewBridge.js`: preview-bridge owner for status patches, memoQ part ingestion, and helper-status projection onto the shared preview state.
+- `apps/desktop/src/runtime/runtimeTranslationCacheBypass.js`: one-shot translation-cache bypass membership, including removal when a profile is deleted.
+- `apps/desktop/src/runtime/runtimeTranslationWriteback.js`: gateway store-translations owner for contract checks and adaptive cache writes.
+- `apps/desktop/src/runtime/runtimeHistoryExport.js`: history spreadsheet export owner. List projection stays in `runtimeHistoryPresentation.js`.
+- `apps/desktop/src/runtime/runtimeBilingualInspection.js`: bilingual import QA owner for file parsing, document QA, and report writing.
 - `apps/desktop/src/runtime/runtimeAggregationService.js`: aggregate request queue owner for grouping, deadlines, congestion state, rescue settlement, and job lifecycle.
 - `apps/desktop/src/runtime/runtimeProviderExecution.js`: provider execution boundary for concurrency slots, rate limiting, retries, and per-route throughput history.
 - `apps/desktop/src/runtime/runtimeTranslationService.js`: translation product orchestration for route selection, batch splitting, cache use, preview/assets, adaptive fallback, history, and response assembly.
@@ -19,7 +25,7 @@ This repository follows a standard monorepo topology. Runtime code, shared contr
 - `apps/desktop/src/runtime/runtimeAssetTbService.js`: terminology-asset TB structure owner for preview assembly, detected-structure adoption, and manual TB mapping configuration.
 - `apps/desktop/src/runtime/runtimePersistence.js`: desktop persistence owner for schema DDL, versioned `user_version` migrations, history/cache/QA storage, and legacy-state import.
 - `apps/desktop/src/runtime/runtimeHistoryPresentation.js`: history read-model owner for list loading, the IPC-safe list-item projection with issue flags, and per-entry lookups.
-- `apps/desktop/src/runtime/runtimeStateView.js`: renderer-facing app-state read model owner for dashboard checklist/notices, runtime status, context-builder, provider hub, and history explorer projections.
+- `apps/desktop/src/runtime/runtimeStateView.js`: renderer-facing app-state read model owner for dashboard checklist/notices, runtime status, context-builder, provider hub metrics, and history explorer projections.
 - `apps/desktop/src/rendererIpcSurface.js`: single-source table of renderer-facing IPC methods mapping bridge method names to desktop channels, worker channels, and worker payload normalization.
 - `apps/desktop/src/mainIpcRegistrar.js`: renderer IPC registrar for main-local handlers (dialogs, shell, windows, logging, startup-aware state) plus table-driven registration of worker-proxied channels.
 - `apps/desktop/src/gatewayRequestValidation.js`: gateway POST payload shape validation for object bodies and per-route required fields before runtime dispatch.
@@ -100,7 +106,9 @@ If a new build step creates another transient directory, add it to `.gitignore` 
 
 Provider network/secret operations must re-read configuration after awaiting external work before committing a target-provider update. Connection-test status is conditional on the provider still existing, retaining its tested configuration, and owning the latest test token. Translation/QA concurrency remains independent; there is no global worker mutation queue.
 
-`runtimePersistence.getHistoryOverview()` owns the small dashboard history projection (count and latest outcome). `runtimeStateView` uses it independently of history-explorer filters, so lightweight polling does not reset setup progress or parse full diagnostic JSON.
+`runtimePersistence.getHistoryOverview()` owns the small dashboard history projection (count and latest outcome). `runtimeStateView` uses it independently of history-explorer filters, so lightweight polling does not reset setup progress or parse full diagnostic JSON. Provider-hub secret flags and 24-hour metrics are projected there too.
+
+`runtimePreviewBridge` mutates the shared preview state created by the composition root. `runtimeTranslationCacheBypass` owns one-shot bypass membership. `runtimeTranslationWriteback` owns store-translations cache writes. `runtimeHistoryExport` owns spreadsheet export. `runtimeBilingualInspection` owns bilingual import QA. The facade keeps request logging, the local handshake, and integration-preference commit.
 
 Renderer read ownership lives in `requestLifecycle.mjs` and `hooks/useRequestLifecycle.mjs`. The app-state request and dashboard publication have separate owners because dashboard polling must not replace unrelated editor state. `editorNavigation.mjs` owns discard/stay policy for the project-rule drawer and page navigation; controller pending registries reject duplicate operations.
 

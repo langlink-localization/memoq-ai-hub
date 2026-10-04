@@ -1,0 +1,35 @@
+id: runtime-composition-root-thinning
+title: Thin the desktop runtime composition root
+status: active
+owner: repository maintainers
+repos:
+  - path: ../..
+    role: source-of-truth
+source_plan: docs/repository-structure.md
+spec_link: none
+github_links:
+  project: pending
+  issues: []
+current_stage: extracted-and-verified-locally
+last_verified_commit: none
+next_action: >
+  The sibling owners are in the working tree. Commit only when asked. Leave the
+  local handshake, translation and aggregate request logging, and
+  integration-preference commit on the runtime facade. The strict checkJs gate
+  now includes the composition root and the modules it pulls in. The follow-up
+  is jsdoc-typecheck-foundation: replace boundary-level any with real typedefs.
+allowed_interruptions:
+  - emergency production fix
+  - security or data correctness issue
+drift_guard:
+  ui_contract: docs/ui-governance.md
+  toolchain_contract: AGENTS.md, package.json, and apps/desktop/tsconfig.json
+  validation_command: pnpm run typecheck && pnpm run lint && pnpm --dir apps/desktop exec node --test test/runtimePreviewBridge.test.js test/runtimeTranslationCacheBypass.test.js test/runtimeTranslationWriteback.test.js test/runtimeHistoryExport.test.js test/runtimeBilingualInspection.test.js test/forgePackaging.test.js test/runtime.test.js
+  source_of_truth: repository working tree until a commit is requested
+intentional_divergences: []
+resume_prompt: >
+  Use active-initiative-governance. Read this ledger and docs/repository-structure.md.
+  runtime.js stays the composition root and public facade. Product behavior named in
+  next_action belongs in the sibling owners. Continue from next_action unless the
+  drift_guard no longer matches. Leave request logging, the local handshake, and
+  integration-preference commit on the facade.

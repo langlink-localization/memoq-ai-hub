@@ -1,54 +1,30 @@
 const { createRuntimeProviderStatus } = require('./runtimeProviderStatus');
 const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
-const {
-  ASSET_PURPOSES,
-  getAssetImportRules,
-  normalizeAssetPurpose
-} = require('../asset/assetContext');
 const { createAppPaths } = require('../shared/paths');
 const { createLogger } = require('../shared/logging');
 const { createDatabase } = require('../database');
 const { createProviderRegistry } = require('../provider/providerRegistry');
-const { summarizeRuleConditions } = require('../shared/memoqMetadata');
 const { createPreviewContextClient } = require('../preview/previewContextClient');
-const {
-  buildPreviewStatusSnapshot,
-  normalizePreviewPart,
-  normalizeSourceDocument
-} = require('../preview/previewContext');
-const { getSupportedPlaceholders } = require('../shared/promptTemplate');
-const {
-  getFirstReleaseVisiblePlaceholders
-} = require('../shared/profilePolicy');
 const {
   buildRuntimeIdentity
 } = require('../shared/desktopMetadata');
-const { PRODUCT_NAME, CONTRACT_VERSION, DEFAULT_HOST, DEFAULT_PORT, ROUTES, ERROR_CODES, PREVIEW } = require('../shared/desktopContract');
+const { PRODUCT_NAME, CONTRACT_VERSION, DEFAULT_HOST, DEFAULT_PORT, ROUTES } = require('../shared/desktopContract');
 const { getIntegrationStatus, installIntegration } = require('../integration/integrationService');
 const {
-  looksLikePreviewStartupTimeout
-} = require('./runtimePreviewPolicy');
-const {
-  parseTimeMs,
   parseLocalFilterDate,
   formatLocalTimestamp,
-  filterHistoryEntries,
-  hasHistoryFallback,
-  SLOW_HISTORY_LATENCY_MS
+  filterHistoryEntries
 } = require('./runtimeHistory');
 const {
-  buildHistoryInsights,
-  buildHistoryMetricsByProvider,
   buildHistorySummary,
   buildIntegrationConfig
 } = require('./runtimeHistoryIntegrationSupport');
-const {
-  createPreviewState,
-  mergePreviewParts
-} = require('./runtimePreviewStateSupport');
-const { createAdaptiveTranslationCacheKey } = require('./runtimeTranslationSupport');
+const { createPreviewState } = require('./runtimePreviewStateSupport');
+const { createRuntimePreviewBridge } = require('./runtimePreviewBridge');
+const { createRuntimeTranslationCacheBypass } = require('./runtimeTranslationCacheBypass');
+const { createRuntimeTranslationWriteback } = require('./runtimeTranslationWriteback');
+const { createRuntimeHistoryExport } = require('./runtimeHistoryExport');
+const { createRuntimeBilingualInspection } = require('./runtimeBilingualInspection');
 const {
   applySchemaMigrations,
   createRuntimePersistence
@@ -87,24 +63,19 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+/**
+ * @param {any} prefix
+ */
 function createId(prefix) {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
 }
 
 const DEFAULT_PREVIEW_CONTEXT_WAIT_MS = 1000;
 const DEFAULT_PREVIEW_CONTEXT_POLL_MS = 50;
-const INTERACTIVE_ONLY_PREVIEW_PLACEHOLDERS = new Set([
-  'target-text',
-  'above-text',
-  'below-text',
-  'above-source-text',
-  'above-target-text',
-  'below-source-text',
-  'below-target-text'
-]);
-const DEFAULT_ASSET_PREVIEW_MAX_ROWS = 50;
-const DEFAULT_ASSET_PREVIEW_MAX_CHARACTERS = 2000;
 
+/**
+ * @param {any} ms
+ */
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -140,8 +111,13 @@ async function createRuntime(options = {}) {
     helperExecutablePath: options.helperExecutablePath
   });
   const previewState = createPreviewState();
+  const previewBridge = createRuntimePreviewBridge({
+    previewState,
+    previewContextClient,
+    runtimeStartedAt: runtimeIdentity.runtimeStartedAt,
+    nowIso
+  });
   const parsedAssetCache = new Map();
-  const bypassTranslationCacheProfileIds = new Set();
   const aggregationSettings = resolveRuntimeAggregationSettings(options);
   const {
     rescueBatchSize: aggregateRescueBatchSize,
@@ -173,28 +149,36 @@ async function createRuntime(options = {}) {
   persistence.migrateLegacyState();
   previewContextClient?.start?.();
 
+  function loadState() {
+    return persistence.loadConfigState();
+  }
+
+  /**
+   * @param {any} state
+   */
+  function saveState(state) {
+    return persistence.saveConfigState(state);
+  }
+
+  const translationCacheBypass = createRuntimeTranslationCacheBypass({ loadState });
   const historyPresentation = createRuntimeHistoryPresentation({ persistence });
   const { loadHistoryEntries, loadHistoryEntry, buildHistoryListItem, buildHistoryIssueFlags } = historyPresentation;
+  const historyExport = createRuntimeHistoryExport({
+    loadHistoryEntries,
+    exportsDir: paths.exportsDir
+  });
   const stateView = createRuntimeStateView({
     loadState,
     loadHistoryEntries,
     getHistoryOverview: () => persistence.getHistoryOverview(),
     buildHistoryListItem,
-    enrichProviders,
-    syncPreviewBridgeStatusFromClient,
+    secretStore,
+    syncPreviewBridgeStatusFromClient: previewBridge.syncPreviewBridgeStatusFromClient,
     updateService,
     isGatewayReady: () => gatewayReady,
-    bypassTranslationCacheProfileIds,
+    bypassTranslationCacheProfileIds: translationCacheBypass.pendingIds,
     paths
   });
-
-  function loadState() {
-    return persistence.loadConfigState();
-  }
-
-  function saveState(state) {
-    return persistence.saveConfigState(state);
-  }
 
   const qaHistoryService = createRuntimeQaHistoryService({
     persistence,
@@ -206,45 +190,12 @@ async function createRuntime(options = {}) {
     nowIso
   });
 
-  function normalizeProfileId(value) {
-    return String(value || '').trim();
-  }
-
-  function armTranslationCacheBypass(profileId) {
-    const normalizedProfileId = normalizeProfileId(profileId);
-    if (!normalizedProfileId) {
-      throw new Error('Profile ID is required to bypass translation cache.');
-    }
-
-    const state = loadState();
-    if (!state.profiles.some((profile) => profile.id === normalizedProfileId)) {
-      throw new Error(`Profile ${normalizedProfileId} not found`);
-    }
-
-    bypassTranslationCacheProfileIds.add(normalizedProfileId);
-    return {
-      ok: true,
-      profileId: normalizedProfileId,
-      bypassPending: true
-    };
-  }
-
-  function consumeTranslationCacheBypass(profileId) {
-    const normalizedProfileId = normalizeProfileId(profileId);
-    if (!normalizedProfileId || !bypassTranslationCacheProfileIds.has(normalizedProfileId)) {
-      return false;
-    }
-
-    bypassTranslationCacheProfileIds.delete(normalizedProfileId);
-    return true;
-  }
-
   const profileService = createRuntimeProfileService({
     loadState,
     saveState,
     createId,
-    onProfileDeleted(profileId) {
-      bypassTranslationCacheProfileIds.delete(normalizeProfileId(profileId));
+    onProfileDeleted(/** @type {any} */ profileId) {
+      translationCacheBypass.clear(profileId);
     }
   });
   const providerStatus = createRuntimeProviderStatus();
@@ -272,19 +223,11 @@ async function createRuntime(options = {}) {
     parsedAssetCache
   });
 
+  /**
+   * @param {any} ready
+   */
   function markGatewayReady(ready) {
     gatewayReady = Boolean(ready);
-  }
-
-  function enrichProviders(state, historyEntries = []) {
-    const metricsByProvider = buildHistoryMetricsByProvider(historyEntries);
-    return state.providers.map((provider) => {
-      const metrics = metricsByProvider.get(provider.id) || {
-        successRate24h: null,
-        avgLatencyMs: null
-      };
-      return { ...provider, hasSecret: secretStore.has(provider.secretRef), successRate24h: metrics.successRate24h, avgLatencyMs: metrics.avgLatencyMs };
-    });
   }
 
   async function testLocalHandshake() {
@@ -301,97 +244,21 @@ async function createRuntime(options = {}) {
     }
   }
 
-  /**
-   * @param {Record<string, any>=} statusPatch
-   */
-  function updatePreviewBridgeStatus(statusPatch = {}) {
-    if (typeof statusPatch !== 'object' || !statusPatch) {
-      return buildPreviewStatusSnapshot(previewState);
-    }
-
-    previewState.status = String(statusPatch.status || previewState.status || 'disconnected').trim() || 'disconnected';
-    previewState.statusMessage = String(statusPatch.statusMessage || previewState.statusMessage || '').trim();
-    previewState.serviceBaseUrl = String(statusPatch.serviceBaseUrl || previewState.serviceBaseUrl || PREVIEW.serviceBaseUrl || '').trim();
-    previewState.sessionId = String(statusPatch.sessionId || previewState.sessionId || '').trim();
-    previewState.callbackAddress = String(statusPatch.callbackAddress || previewState.callbackAddress || '').trim();
-    previewState.connectedAt = String(statusPatch.connectedAt || previewState.connectedAt || '').trim();
-    previewState.lastUpdatedAt = String(statusPatch.lastUpdatedAt || nowIso()).trim();
-    previewState.lastError = String(statusPatch.lastError || '').trim();
-    return buildPreviewStatusSnapshot(previewState);
-  }
-
-  /**
-   * @param {Record<string, any>=} payload
-   */
-  function ingestPreviewContentUpdate(payload = {}) {
-    const previewParts = payload.PreviewParts || payload.previewParts || [];
-    mergePreviewParts(previewState, previewParts);
-    previewState.lastUpdatedAt = nowIso();
-    return buildPreviewStatusSnapshot(previewState);
-  }
-
-  /**
-   * @param {Record<string, any>=} payload
-   */
-  function ingestPreviewHighlight(payload = {}) {
-    const activePreviewParts = payload.ActivePreviewParts || payload.activePreviewParts || [];
-    mergePreviewParts(previewState, activePreviewParts);
-    previewState.activePreviewPartIds = activePreviewParts
-      .map((item) => normalizePreviewPart(item).previewPartId)
-      .filter(Boolean);
-    previewState.activePreviewPartId = previewState.activePreviewPartIds[0] || '';
-    const firstActivePart = previewState.activePreviewPartId ? previewState.previewPartsById.get(previewState.activePreviewPartId) : null;
-    previewState.activeSourceDocument = firstActivePart?.sourceDocument || normalizeSourceDocument();
-    previewState.lastUpdatedAt = nowIso();
-    return buildPreviewStatusSnapshot(previewState);
-  }
-
-  /**
-   * @param {Record<string, any>=} payload
-   */
-  function ingestPreviewPartIds(payload = {}) {
-    const previewPartIds = Array.isArray(payload.PreviewPartIds || payload.previewPartIds)
-      ? (payload.PreviewPartIds || payload.previewPartIds)
-      : [];
-    previewState.previewPartOrder = previewPartIds.map((item) => String(item || '').trim()).filter(Boolean);
-    previewState.lastUpdatedAt = nowIso();
-    return buildPreviewStatusSnapshot(previewState);
-  }
-
-  function syncPreviewBridgeStatusFromClient() {
-    const status = previewContextClient?.getStatus?.() || {};
-    const runtimeStartedMs = parseTimeMs(runtimeIdentity.runtimeStartedAt);
-    const statusUpdatedAtMs = parseTimeMs(status.lastUpdatedAt);
-    const normalizedStatus = String(status.state || status.status || 'disconnected').trim().toLowerCase() || 'disconnected';
-    const staleStatus = !Number.isFinite(statusUpdatedAtMs)
-      || (Number.isFinite(runtimeStartedMs) && Number(statusUpdatedAtMs) < Number(runtimeStartedMs));
-    const timeoutRetryState = looksLikePreviewStartupTimeout(status, normalizedStatus);
-    const shouldTreatAsStarting = status.available !== false
-      && status.connected !== true
-      && (staleStatus || timeoutRetryState);
-
-    return updatePreviewBridgeStatus({
-      status: status.connected ? 'connected' : (shouldTreatAsStarting ? 'starting' : normalizedStatus),
-      statusMessage: status.available === false
-        ? 'Preview helper executable is not available.'
-        : (shouldTreatAsStarting ? 'Waiting for memoQ startup.' : ''),
-      connectedAt: status.lastConnectedAt || '',
-      lastUpdatedAt: status.lastUpdatedAt || nowIso(),
-      lastError: shouldTreatAsStarting ? '' : (status.lastError || '')
-    });
-  }
-
   const previewContextResolver = createRuntimePreviewContextResolver({
     providerRegistry,
     secretStore,
     persistence,
     previewContextClient,
-    syncPreviewBridgeStatusFromClient,
+    syncPreviewBridgeStatusFromClient: previewBridge.syncPreviewBridgeStatusFromClient,
     previewContextWaitMs,
     previewContextPollMs,
     nowIso
   });
 
+  /**
+   * @param {any} assetId
+   * @param {any} options
+   */
   function getAssetPreview(assetId, options = {}) {
     const state = loadState();
     const normalizedAssetId = String(assetId || '').trim();
@@ -406,7 +273,7 @@ async function createRuntime(options = {}) {
     providerStatus,
     aggregateRescueBatchSize,
     aggregateRescueSingleTimeoutMs,
-    consumeTranslationCacheBypass,
+    consumeTranslationCacheBypass: translationCacheBypass.consume,
     createId,
     loadState,
     saveState,
@@ -448,6 +315,16 @@ async function createRuntime(options = {}) {
     buildSegmentMetadataIndex,
     sleep
   });
+  const translationWriteback = createRuntimeTranslationWriteback({
+    persistence,
+    nowIso,
+    createId,
+    runtimeLogger
+  });
+  const bilingualInspection = createRuntimeBilingualInspection({
+    qaService,
+    exportsDir: paths.exportsDir
+  });
 
   return {
     paths,
@@ -484,7 +361,7 @@ async function createRuntime(options = {}) {
             qa: true
           }
         },
-        preview: syncPreviewBridgeStatusFromClient()
+        preview: previewBridge.syncPreviewBridgeStatusFromClient()
       };
     },
     getIntegrationStatus() {
@@ -512,7 +389,7 @@ async function createRuntime(options = {}) {
     saveQaFeedback(payload = {}) {
       return qaService.saveFeedback(payload);
     },
-    getQaResults(documentId) {
+    getQaResults(/** @type {any} */ documentId) {
       return qaService.listResults(documentId);
     },
     getQaHistory(filters = {}) {
@@ -521,30 +398,19 @@ async function createRuntime(options = {}) {
     getQaHistoryEntry(payload = {}) {
       return qaHistoryService.getEntry(payload);
     },
-    deleteQaHistory(requestIds = []) {
+    deleteQaHistory(/** @type {any} */ requestIds = []) {
       return qaHistoryService.remove(requestIds);
     },
-    exportQaHistory(options = {}) {
+    exportQaHistory(/** @type {any} */ options = {}) {
       return qaHistoryService.exportHistory(options);
     },
     /**
      * @param {Record<string, any>=} payload
      */
     async inspectBilingualFile(payload = {}) {
-      const { parseBilingualFile } = require('../bilingual/bilingualFile');
-      const { writeQaReports } = require('../bilingual/qaReport');
-      const imported = parseBilingualFile(payload.filePath);
-      const result = await qaService.checkDocument({
-        trigger: 'import',
-        ...payload,
-        document: imported.document,
-        languages: imported.languages,
-        segments: imported.segments
-      });
-      const reports = writeQaReports(result, paths.exportsDir, `qa-${path.parse(imported.document.name).name}-${Date.now()}`);
-      return { imported, result, reports, containsCustomerText: true };
+      return bilingualInspection.inspectBilingualFile(payload);
     },
-    installIntegration(config) {
+    installIntegration(/** @type {any} */ config) {
       const state = loadState();
       const integrationConfig = buildIntegrationConfig(state, config);
       const result = installIntegration(paths, integrationConfig);
@@ -559,26 +425,26 @@ async function createRuntime(options = {}) {
     getAppState(filters = {}) {
       return stateView.getState(filters);
     },
-    getHistoryEntry(entryId) {
+    getHistoryEntry(/** @type {any} */ entryId) {
       const entry = loadHistoryEntry(entryId);
       return entry ? { ...entry, ...buildHistorySummary(entry), issueFlags: buildHistoryIssueFlags(entry) } : null;
     },
     getUpdateStatus() {
       return updateService.getStatus();
     },
-    async checkForUpdates(options = {}) {
+    async checkForUpdates(/** @type {any} */ options = {}) {
       return updateService.checkForUpdates(options || {});
     },
-    async downloadPortableUpdate(versionOrAssetId) {
+    async downloadPortableUpdate(/** @type {any} */ versionOrAssetId) {
       return updateService.downloadPortableUpdate(versionOrAssetId);
     },
-    async downloadInstallerUpdate(versionOrAssetId) {
+    async downloadInstallerUpdate(/** @type {any} */ versionOrAssetId) {
       return updateService.downloadInstallerUpdate(versionOrAssetId);
     },
-    async verifyDownloadedInstallerUpdate(installerPath) {
+    async verifyDownloadedInstallerUpdate(/** @type {any} */ installerPath) {
       return updateService.verifyDownloadedInstallerUpdate(installerPath);
     },
-    async preparePortableUpdate(downloadedFile, targetDir) {
+    async preparePortableUpdate(/** @type {any} */ downloadedFile, /** @type {any} */ targetDir) {
       return updateService.preparePortableUpdate(downloadedFile, targetDir);
     },
     markPortableUpdateRestarting() {
@@ -588,10 +454,10 @@ async function createRuntime(options = {}) {
     savePromptPreset(preset = {}) {
       return promptPresetStore.save(preset);
     },
-    deletePromptPreset(presetId) {
+    deletePromptPreset(/** @type {any} */ presetId) {
       return promptPresetStore.remove(presetId);
     },
-    restoreBuiltinPromptPreset(presetId) {
+    restoreBuiltinPromptPreset(/** @type {any} */ presetId) {
       return promptPresetStore.restoreBuiltin(presetId);
     },
     setDefaultProfile: profileService.setDefaultProfile,
@@ -602,17 +468,17 @@ async function createRuntime(options = {}) {
     saveMappingRule: profileService.saveMappingRule,
     deleteMappingRule: profileService.deleteMappingRule,
     testMapping: profileService.testMapping,
-    updatePreviewBridgeStatus(statusPatch) {
-      return updatePreviewBridgeStatus(statusPatch || {});
+    updatePreviewBridgeStatus(/** @type {any} */ statusPatch) {
+      return previewBridge.updatePreviewBridgeStatus(statusPatch || {});
     },
-    ingestPreviewContentUpdate(payload) {
-      return ingestPreviewContentUpdate(payload || {});
+    ingestPreviewContentUpdate(/** @type {any} */ payload) {
+      return previewBridge.ingestPreviewContentUpdate(payload || {});
     },
-    ingestPreviewHighlight(payload) {
-      return ingestPreviewHighlight(payload || {});
+    ingestPreviewHighlight(/** @type {any} */ payload) {
+      return previewBridge.ingestPreviewHighlight(payload || {});
     },
-    ingestPreviewPartIds(payload) {
-      return ingestPreviewPartIds(payload || {});
+    ingestPreviewPartIds(/** @type {any} */ payload) {
+      return previewBridge.ingestPreviewPartIds(payload || {});
     },
     saveProvider: providerService.saveProvider,
     testProviderDraft: providerService.testProviderDraft,
@@ -620,13 +486,13 @@ async function createRuntime(options = {}) {
     deleteProvider: providerService.deleteProvider,
     deleteProviderModel: providerService.deleteProviderModel,
     testProviderConnection: providerService.testProviderConnection,
-    async translate(payload) {
+    async translate(/** @type {any} */ payload) {
       const startedAtMs = Date.now();
       const nextPayload = payload && typeof payload === 'object'
         ? { ...payload }
         : {};
-      const explicitProfileId = normalizeProfileId(nextPayload?.profileResolution?.profileId);
-      if (nextPayload.bypassTranslationCache !== true && explicitProfileId && consumeTranslationCacheBypass(explicitProfileId)) {
+      const explicitProfileId = translationCacheBypass.normalizeProfileId(nextPayload?.profileResolution?.profileId);
+      if (nextPayload.bypassTranslationCache !== true && explicitProfileId && translationCacheBypass.consume(explicitProfileId)) {
         nextPayload.bypassTranslationCache = true;
       }
       try {
@@ -650,7 +516,7 @@ async function createRuntime(options = {}) {
         throw error;
       }
     },
-    async submitAggregateTranslation(payload) {
+    async submitAggregateTranslation(/** @type {any} */ payload) {
       const startedAtMs = Date.now();
       const result = await aggregationService.submit(payload);
       runtimeLogger.info('aggregate-submit', 'Aggregate translation submitted.', {
@@ -662,7 +528,7 @@ async function createRuntime(options = {}) {
       });
       return result;
     },
-    async waitAggregateTranslation(payload) {
+    async waitAggregateTranslation(/** @type {any} */ payload) {
       const startedAtMs = Date.now();
       const result = await aggregationService.wait(payload);
       runtimeLogger.info('aggregate-wait', 'Aggregate translation wait completed.', {
@@ -674,134 +540,31 @@ async function createRuntime(options = {}) {
       });
       return result;
     },
-    async storeTranslations(payload) {
-      const requestId = payload.requestId || createId('store');
-      const traceId = payload.traceId || createId('trace');
-
-      if (payload.contractVersion !== undefined && String(payload.contractVersion) !== CONTRACT_VERSION) {
-        return {
-          statusCode: 409,
-          body: {
-            success: false,
-            requestId,
-            traceId,
-            error: {
-              code: ERROR_CODES.contractVersionMismatch,
-              message: `Desktop contract version ${CONTRACT_VERSION} is required.`
-            }
-          }
-        };
-      }
-
-      const sourceLanguage = String(payload.sourceLanguage || '').trim();
-      const targetLanguage = String(payload.targetLanguage || '').trim();
-      const requestType = String(payload.requestType || 'Plaintext').trim() || 'Plaintext';
-      const entries = Array.isArray(payload.translations) ? payload.translations : [];
-
-      if (!sourceLanguage || !targetLanguage) {
-        return {
-          statusCode: 400,
-          body: {
-            success: false,
-            requestId,
-            traceId,
-            error: {
-              code: ERROR_CODES.requestNotEligible,
-              message: 'Translation writeback requires both sourceLanguage and targetLanguage.'
-            }
-          }
-        };
-      }
-
-      let storedCount = 0;
-      for (const entry of entries) {
-        const sourceText = String(entry?.sourceText || '').trim();
-        const targetText = String(entry?.targetText || '').trim();
-        if (!sourceText || !targetText) {
-          continue;
-        }
-
-        const adaptiveCacheKey = createAdaptiveTranslationCacheKey({
-          sourceLanguage,
-          targetLanguage,
-          requestType,
-          sourceText
-        });
-        persistence.writeTranslationCache(adaptiveCacheKey, targetText, nowIso());
-        storedCount += 1;
-      }
-
-      runtimeLogger.info('store-translations-complete', 'Stored translations in cache.', {
-        requestId,
-        traceId,
-        storedCount
-      });
-      return {
-        statusCode: 200,
-        body: {
-          success: true,
-          requestId,
-          traceId,
-          storedCount
-        }
-      };
+    async storeTranslations(/** @type {any} */ payload) {
+      return translationWriteback.storeTranslations(payload);
     },
     /**
      * @param {Record<string, any>=} options
      */
-    exportHistory(options = {}) {
-      const XLSX = require('xlsx');
-      const entriesSource = loadHistoryEntries();
-      const entries = options.scope === 'selected'
-        ? entriesSource.filter((item) => (options.selectedIds || []).includes(item.id))
-        : filterHistoryEntries(entriesSource, options.filters || {});
-      const rows = entries.flatMap((entry) => entry.segments.map((segment) => ({
-        requestId: entry.requestId,
-        projectId: entry.projectId,
-        client: entry.client,
-        domain: entry.domain,
-        subject: entry.subject,
-        documentId: entry.documentId,
-        projectGuid: entry.projectGuid,
-        profile: entry.profileName,
-        provider: entry.providerName,
-        model: entry.model,
-        submittedAt: formatLocalTimestamp(entry.submittedAt),
-        completedAt: formatLocalTimestamp(entry.completedAt),
-        source: segment.sourceText,
-        target: segment.targetText,
-        tmSource: segment.tmSource,
-        tmTarget: segment.tmTarget,
-        status: entry.status
-      })));
-      const format = options.format === 'xlsx' ? 'xlsx' : 'csv';
-      const outputPath = path.join(paths.exportsDir, `history-export-${Date.now()}.${format}`);
-      if (format === 'csv') {
-        const sheet = XLSX.utils.json_to_sheet(rows);
-        fs.writeFileSync(outputPath, XLSX.utils.sheet_to_csv(sheet), 'utf8');
-      } else {
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), 'History');
-        XLSX.writeFile(workbook, outputPath);
-      }
-      return { path: outputPath, count: rows.length };
+    exportHistory(/** @type {any} */ options = {}) {
+      return historyExport.exportHistory(options);
     },
-    deleteHistoryEntries(entryIds = []) {
+    deleteHistoryEntries(/** @type {any} */ entryIds = []) {
       return persistence.deleteHistoryEntries(entryIds);
     },
-    bypassTranslationCacheOnce(profileId) {
-      return armTranslationCacheBypass(profileId);
+    bypassTranslationCacheOnce(/** @type {any} */ profileId) {
+      return translationCacheBypass.arm(profileId);
     },
     clearTranslationCache() {
       return persistence.clearTranslationCache();
     },
-    getAssetPreview(assetId, options = {}) {
+    getAssetPreview(/** @type {any} */ assetId, options = {}) {
       return getAssetPreview(assetId, options);
     },
-    applyAssetTbStructure(assetId, payload = {}) {
+    applyAssetTbStructure(/** @type {any} */ assetId, payload = {}) {
       return assetTbService.applyAssetTbStructure(assetId, payload || {});
     },
-    saveAssetTbConfig(assetId, payload = {}) {
+    saveAssetTbConfig(/** @type {any} */ assetId, payload = {}) {
       return assetTbService.saveAssetTbConfig(assetId, payload || {});
     },
     dispose() {

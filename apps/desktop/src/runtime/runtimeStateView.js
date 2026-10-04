@@ -9,12 +9,18 @@ const { getFirstReleaseVisiblePlaceholders } = require('../shared/profilePolicy'
 const { PRODUCT_NAME, CONTRACT_VERSION, DEFAULT_HOST, DEFAULT_PORT } = require('../shared/desktopContract');
 const { getIntegrationStatus } = require('../integration/integrationService');
 const { filterHistoryEntries } = require('./runtimeHistory');
-const { buildHistoryInsights, buildIntegrationConfig } = require('./runtimeHistoryIntegrationSupport');
+const { buildHistoryInsights, buildHistoryMetricsByProvider, buildIntegrationConfig } = require('./runtimeHistoryIntegrationSupport');
 
 // Dashboard checklist and notice assembly are pure projections of the loaded
 // state; getState composes them into the renderer-facing app-state payload.
+/**
+ * @param {any} state
+ * @param {any} historyOverview
+ * @param {any} integration
+ * @param {any} providers
+ */
 function buildChecklist(state, historyOverview, integration, providers) {
-  const enabledProviderCount = providers.filter((item) => item.enabled).length;
+  const enabledProviderCount = providers.filter((/** @type {any} */ item) => item.enabled).length;
   const assetCount = Array.isArray(state.assets) ? state.assets.length : 0;
   return [
     { key: 'install-plugin', title: '1. Install integration', subtitle: integration.status === 'installed' ? 'Integration ready' : 'Integration not installed', actionLabel: 'Install or repair', completed: integration.status === 'installed', count: integration.status === 'installed' ? 1 : 0 },
@@ -37,8 +43,8 @@ function buildNotices(state, providers, history, integration, updateStatus, prev
   const notices = [];
   if (!integration.installations.length) notices.push('No memoQ installation directory was detected.');
   if (!providers.length) notices.push('No provider has been configured yet.');
-  const unhealthy = providers.filter((provider) => provider.enabled && provider.status === 'failed');
-  if (unhealthy.length) notices.push(`${unhealthy.map((provider) => provider.name).join(', ')} need attention.`);
+  const unhealthy = providers.filter((/** @type {any} */ provider) => provider.enabled && provider.status === 'failed');
+  if (unhealthy.length) notices.push(`${unhealthy.map((/** @type {any} */ provider) => provider.name).join(', ')} need attention.`);
   const latest = history[0];
   if (latest) notices.push(latest.status === 'success' ? `Latest translation succeeded: ${latest.requestId}` : `Latest translation failed: ${latest.requestId}`);
   const previewConnection = String(previewStatus.status || '').trim().toLowerCase();
@@ -60,19 +66,37 @@ function buildNotices(state, providers, history, integration, updateStatus, prev
 
 // Owns the renderer-facing app-state read model: dashboard checklist/notices,
 // runtime status, context-builder projection, prompt presets, mapping rules,
-// provider hub summary, and history explorer presentation.
+// provider hub summary (including secret and 24h metrics), and history explorer.
+/**
+ * @param {import('../types/runtimeDomain').StateViewDependencies} dependencies
+ */
 function createRuntimeStateView({
   loadState,
   loadHistoryEntries,
   getHistoryOverview,
   buildHistoryListItem,
-  enrichProviders,
+  secretStore,
   syncPreviewBridgeStatusFromClient,
   updateService,
   isGatewayReady,
   bypassTranslationCacheProfileIds,
   paths
 }) {
+  /**
+   * @param {any} state
+   * @param {any} historyEntries
+   */
+  function enrichProviders(state, historyEntries = []) {
+    const metricsByProvider = buildHistoryMetricsByProvider(historyEntries);
+    return state.providers.map((/** @type {any} */ provider) => {
+      const metrics = metricsByProvider.get(provider.id) || {
+        successRate24h: null,
+        avgLatencyMs: null
+      };
+      return { ...provider, hasSecret: secretStore.has(provider.secretRef), successRate24h: metrics.successRate24h, avgLatencyMs: metrics.avgLatencyMs };
+    });
+  }
+
   /**
    * @param {any} filters
    */
@@ -122,8 +146,8 @@ function createRuntimeStateView({
       providerHub: {
         providers,
         summary: {
-          enabled: providers.filter((item) => item.enabled).length,
-          healthy: providers.filter((item) => item.enabled && item.status === 'connected').length
+          enabled: providers.filter((/** @type {any} */ item) => item.enabled).length,
+          healthy: providers.filter((/** @type {any} */ item) => item.enabled && item.status === 'connected').length
         }
       },
       historyExplorer: {

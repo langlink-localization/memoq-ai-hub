@@ -3,6 +3,10 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { ensureDir } = require('../shared/paths');
 
+/**
+ * @param {any} filePath
+ * @param {any} fallback
+ */
 function safeReadJson(filePath, fallback = null) {
   try {
     if (!fs.existsSync(filePath)) {
@@ -18,6 +22,9 @@ function safeReadJson(filePath, fallback = null) {
   }
 }
 
+/**
+ * @param {any} value
+ */
 function sanitizeToken(value) {
   return String(value || '')
     .trim()
@@ -25,15 +32,26 @@ function sanitizeToken(value) {
     .toLowerCase();
 }
 
+/**
+ * @param {any} documentId
+ * @param {any} sourceLanguage
+ * @param {any} targetLanguage
+ */
 function createDocumentCacheFileName(documentId, sourceLanguage, targetLanguage) {
   return `${sanitizeToken(documentId)}__${sanitizeToken(sourceLanguage)}__${sanitizeToken(targetLanguage)}.json`;
 }
 
+/**
+ * @param {any} value
+ */
 function parseSegmentIndex(value) {
   const normalized = Number(value);
   return Number.isFinite(normalized) ? normalized : -1;
 }
 
+/**
+ * @param {any} range
+ */
 function normalizeRange(range = null) {
   if (!range || typeof range !== 'object') {
     return null;
@@ -60,6 +78,9 @@ function normalizeRange(range = null) {
   };
 }
 
+/**
+ * @param {any} range
+ */
 function normalizeFocusedRange(range = null) {
   const normalizedRange = normalizeRange(range);
   if (!normalizedRange) {
@@ -73,6 +94,9 @@ function normalizeFocusedRange(range = null) {
   };
 }
 
+/**
+ * @param {any} segments
+ */
 function cloneSegments(segments = []) {
   return Array.isArray(segments)
     ? segments.map((segment) => ({
@@ -86,6 +110,9 @@ function cloneSegments(segments = []) {
     : [];
 }
 
+/**
+ * @param {any} parts
+ */
 function cloneParts(parts = []) {
   return Array.isArray(parts)
     ? parts.map((part, index) => ({
@@ -99,6 +126,9 @@ function cloneParts(parts = []) {
     : [];
 }
 
+/**
+ * @param {any} value
+ */
 function normalizeComparableText(value) {
   return String(value || '')
     .replace(/<[^>]+>/g, ' ')
@@ -107,10 +137,17 @@ function normalizeComparableText(value) {
     .toLowerCase();
 }
 
+/**
+ * @param {any} value
+ */
 function hasComparableText(value) {
   return Boolean(normalizeComparableText(value));
 }
 
+/**
+ * @param {any} left
+ * @param {any} right
+ */
 function areTextsCompatible(left, right) {
   const normalizedLeft = normalizeComparableText(left);
   const normalizedRight = normalizeComparableText(right);
@@ -123,6 +160,10 @@ function areTextsCompatible(left, right) {
     || normalizedRight.includes(normalizedLeft);
 }
 
+/**
+ * @param {any} text
+ * @param {any} range
+ */
 function sliceTextByFocusedRange(text, range) {
   const normalizedRange = normalizeFocusedRange(range);
   const normalizedText = String(text || '');
@@ -142,20 +183,33 @@ function sliceTextByFocusedRange(text, range) {
   return normalizedText.slice(start, start + normalizedRange.length);
 }
 
+/**
+ * @param {any} part
+ */
 function hasPartFocusedRange(part) {
   return Boolean(part?.sourceFocusedRange || part?.targetFocusedRange);
 }
 
+/**
+ * @param {any} value
+ */
 function deepFreeze(value) {
   if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
   Object.values(value).forEach(deepFreeze);
   return Object.freeze(value);
 }
 
+/**
+ * @param {any} part
+ */
 function getPartTextVariants(part) {
   return [part?.sourceText];
 }
 
+/**
+ * @param {any} part
+ * @param {any} sourceText
+ */
 function partMatchesSourceText(part, sourceText) {
   if (!hasComparableText(sourceText)) {
     return true;
@@ -164,6 +218,10 @@ function partMatchesSourceText(part, sourceText) {
   return getPartTextVariants(part).some((text) => areTextsCompatible(text, sourceText));
 }
 
+/**
+ * @param {any} part
+ * @param {any} sourceText
+ */
 function partMatchesSubstringRange(part, sourceText) {
   const normalizedSourceText = normalizeComparableText(sourceText);
   if (!normalizedSourceText) {
@@ -180,6 +238,10 @@ function partMatchesSubstringRange(part, sourceText) {
   ));
 }
 
+/**
+ * @param {any} document
+ * @param {any} request
+ */
 function buildPreviewAvailableFeatures(document, request = {}) {
   const features = [];
 
@@ -202,6 +264,12 @@ function buildPreviewAvailableFeatures(document, request = {}) {
   return features;
 }
 
+/**
+ * @param {any} part
+ * @param {any} orderIndex
+ * @param {any} previewMatchMode
+ * @param {any} reason
+ */
 function createPartMatch(part, orderIndex, previewMatchMode, reason) {
   if (!part) {
     return null;
@@ -215,6 +283,11 @@ function createPartMatch(part, orderIndex, previewMatchMode, reason) {
   };
 }
 
+/**
+ * @param {any} parts
+ * @param {any} activePreviewPartIds
+ * @param {any} sourceText
+ */
 function findActivePreviewPartMatch(parts, activePreviewPartIds, sourceText) {
   const activeIds = Array.isArray(activePreviewPartIds) ? activePreviewPartIds : [];
   if (!activeIds.length || !parts.length) {
@@ -223,7 +296,7 @@ function findActivePreviewPartMatch(parts, activePreviewPartIds, sourceText) {
 
   const activeCandidates = activeIds
     .map((previewPartId) => {
-      const orderIndex = parts.findIndex((part) => part.previewPartId === previewPartId);
+      const orderIndex = parts.findIndex((/** @type {any} */ part) => part.previewPartId === previewPartId);
       if (orderIndex < 0) {
         return null;
       }
@@ -240,24 +313,30 @@ function findActivePreviewPartMatch(parts, activePreviewPartIds, sourceText) {
     return null;
   }
 
+  const firstActiveCandidate = activeCandidates[0];
   if (!hasComparableText(sourceText)) {
-    return createPartMatch(activeCandidates[0].part, activeCandidates[0].orderIndex, 'activePreviewPartIds', '');
+    return createPartMatch(firstActiveCandidate?.part, firstActiveCandidate?.orderIndex, 'activePreviewPartIds', '');
   }
 
   return null;
 }
 
+/**
+ * @param {any} parts
+ * @param {any} sourceText
+ * @param {any} options
+ */
 function findFocusedRangeMatch(parts, sourceText, options = {}) {
   const candidateParts = Array.isArray(options.parts) && options.parts.length ? options.parts : parts;
   const previewMatchMode = String(options.previewMatchMode || 'focusedRange');
   const focusedCandidates = candidateParts
-    .map((part, orderIndex) => ({
+    .map((/** @type {any} */ part, /** @type {any} */ orderIndex) => ({
       part,
       orderIndex,
       sourceFocusedRange: normalizeFocusedRange(part.sourceFocusedRange),
       targetFocusedRange: normalizeFocusedRange(part.targetFocusedRange)
     }))
-    .filter((candidate) => candidate.sourceFocusedRange || candidate.targetFocusedRange);
+    .filter((/** @type {any} */ candidate) => candidate.sourceFocusedRange || candidate.targetFocusedRange);
 
   if (!focusedCandidates.length) {
     return null;
@@ -268,7 +347,7 @@ function findFocusedRangeMatch(parts, sourceText, options = {}) {
   }
 
   const normalizedSourceText = normalizeComparableText(sourceText);
-  const compatibleCandidate = focusedCandidates.find((candidate) => {
+  const compatibleCandidate = focusedCandidates.find((/** @type {any} */ candidate) => {
     const focusedSourceText = normalizeComparableText(sliceTextByFocusedRange(candidate.part.sourceText, candidate.sourceFocusedRange));
     const wholeSourceText = normalizeComparableText(candidate.part.sourceText);
     return (
@@ -293,6 +372,11 @@ function findFocusedRangeMatch(parts, sourceText, options = {}) {
   );
 }
 
+/**
+ * @param {any} parts
+ * @param {any} sourceText
+ * @param {any} options
+ */
 function findSubstringRangeMatch(parts, sourceText, options = {}) {
   if (!hasComparableText(sourceText)) {
     return null;
@@ -311,6 +395,10 @@ function findSubstringRangeMatch(parts, sourceText, options = {}) {
   return null;
 }
 
+/**
+ * @param {any} parts
+ * @param {any} sourceText
+ */
 function findExactTextMatch(parts, sourceText) {
   const normalizedSourceText = normalizeComparableText(sourceText);
   if (!normalizedSourceText) {
@@ -327,6 +415,10 @@ function findExactTextMatch(parts, sourceText) {
   return null;
 }
 
+/**
+ * @param {any} document
+ * @param {any} segmentIndex
+ */
 function findLegacySegmentMatch(document, segmentIndex) {
   const normalizedSegmentIndex = parseSegmentIndex(segmentIndex);
   if (normalizedSegmentIndex < 0) {
@@ -334,9 +426,9 @@ function findLegacySegmentMatch(document, segmentIndex) {
   }
 
   const segments = Array.isArray(document?.segments) ? document.segments : [];
-  const exact = segments.find((segment) => segment.index === normalizedSegmentIndex && segment.previewPartId);
-  const plusOne = exact ? null : segments.find((segment) => segment.index === normalizedSegmentIndex + 1 && segment.previewPartId);
-  const minusOne = exact || plusOne ? null : segments.find((segment) => segment.index === normalizedSegmentIndex - 1 && segment.previewPartId);
+  const exact = segments.find((/** @type {any} */ segment) => segment.index === normalizedSegmentIndex && segment.previewPartId);
+  const plusOne = exact ? null : segments.find((/** @type {any} */ segment) => segment.index === normalizedSegmentIndex + 1 && segment.previewPartId);
+  const minusOne = exact || plusOne ? null : segments.find((/** @type {any} */ segment) => segment.index === normalizedSegmentIndex - 1 && segment.previewPartId);
   const matchedSegment = exact || plusOne || minusOne;
 
   if (!matchedSegment) {
@@ -344,7 +436,7 @@ function findLegacySegmentMatch(document, segmentIndex) {
   }
 
   const parts = Array.isArray(document?.parts) ? document.parts : [];
-  const orderIndex = parts.findIndex((part) => part.previewPartId === matchedSegment.previewPartId);
+  const orderIndex = parts.findIndex((/** @type {any} */ part) => part.previewPartId === matchedSegment.previewPartId);
   const resolvedOrderIndex = orderIndex >= 0 ? orderIndex : matchedSegment.index;
   return createPartMatch(
     orderIndex >= 0 ? parts[orderIndex] : {
@@ -358,19 +450,24 @@ function findLegacySegmentMatch(document, segmentIndex) {
   );
 }
 
+/**
+ * @param {any} segments
+ * @param {any} requestedIndex
+ * @param {any} fallbackRange
+ */
 function findRangeForSegment(segments, requestedIndex, fallbackRange) {
-  const direct = segments.find((segment) => segment.index === requestedIndex);
+  const direct = segments.find((/** @type {any} */ segment) => segment.index === requestedIndex);
   if (direct) {
     return { start: direct.index, end: direct.index, matchedIndex: direct.index };
   }
 
   if (requestedIndex >= 0) {
-    const plusOne = segments.find((segment) => segment.index === requestedIndex + 1);
+    const plusOne = segments.find((/** @type {any} */ segment) => segment.index === requestedIndex + 1);
     if (plusOne) {
       return { start: plusOne.index, end: plusOne.index, matchedIndex: plusOne.index };
     }
 
-    const minusOne = segments.find((segment) => segment.index === requestedIndex - 1);
+    const minusOne = segments.find((/** @type {any} */ segment) => segment.index === requestedIndex - 1);
     if (minusOne) {
       return { start: minusOne.index, end: minusOne.index, matchedIndex: minusOne.index };
     }
@@ -379,6 +476,12 @@ function findRangeForSegment(segments, requestedIndex, fallbackRange) {
   return normalizeRange(fallbackRange);
 }
 
+/**
+ * @param {any} segmentList
+ * @param {any} includeSource
+ * @param {any} includeTarget
+ * @param {any} reverse
+ */
 function joinSegmentTexts(segmentList, includeSource, includeTarget, reverse = false) {
   const ordered = reverse ? [...segmentList].reverse() : segmentList;
   const parts = [];
@@ -395,6 +498,12 @@ function joinSegmentTexts(segmentList, includeSource, includeTarget, reverse = f
   return parts.join('\n');
 }
 
+/**
+ * @param {any} partList
+ * @param {any} includeSource
+ * @param {any} includeTarget
+ * @param {any} reverse
+ */
 function joinPartTexts(partList, includeSource, includeTarget, reverse = false) {
   const ordered = reverse ? [...partList].reverse() : partList;
   const parts = [];
@@ -411,6 +520,9 @@ function joinPartTexts(partList, includeSource, includeTarget, reverse = false) 
   return parts.join('\n');
 }
 
+/**
+ * @param {any} parts
+ */
 function getOrderedParts(parts = []) {
   return (Array.isArray(parts) ? parts : [])
     .map((part, index) => ({
@@ -425,10 +537,17 @@ function getOrderedParts(parts = []) {
     });
 }
 
+/**
+ * @param {any} orderedParts
+ * @param {any} previewPartId
+ */
 function resolveOrderedPartPosition(orderedParts, previewPartId) {
   return (Array.isArray(orderedParts) ? orderedParts : []).findIndex((part) => part.previewPartId === previewPartId);
 }
 
+/**
+ * @param {any} dependencies
+ */
 function collectDirectionalContext({
   segments,
   anchorIndex,
@@ -475,6 +594,9 @@ function collectDirectionalContext({
   return joinSegmentTexts(results, includeSource, includeTarget, direction < 0);
 }
 
+/**
+ * @param {any} dependencies
+ */
 function collectDirectionalPartContext({
   parts,
   anchorPosition,
@@ -521,6 +643,12 @@ function collectDirectionalPartContext({
   return joinPartTexts(results, includeSource, includeTarget, direction < 0);
 }
 
+/**
+ * @param {any} documentsDir
+ * @param {any} documentId
+ * @param {any} sourceLanguage
+ * @param {any} targetLanguage
+ */
 function findDocumentCacheCandidates(documentsDir, documentId, sourceLanguage, targetLanguage) {
   if (!fs.existsSync(documentsDir)) {
     return [];
@@ -552,6 +680,10 @@ function findDocumentCacheCandidates(documentsDir, documentId, sourceLanguage, t
     .map((fileName) => path.join(documentsDir, fileName));
 }
 
+/**
+ * @param {any} document
+ * @param {any} dependencies2
+ */
 function resolvePartMatch(document, { sourceText, segmentIndex }) {
   const parts = Array.isArray(document.parts) ? document.parts : [];
   if (!parts.length) {
@@ -560,7 +692,7 @@ function resolvePartMatch(document, { sourceText, segmentIndex }) {
 
   const activePreviewPartIds = Array.isArray(document.activePreviewPartIds) ? document.activePreviewPartIds : [];
   const activeParts = activePreviewPartIds
-    .map((previewPartId) => parts.find((part) => part.previewPartId === previewPartId))
+    .map((/** @type {any} */ previewPartId) => parts.find((/** @type {any} */ part) => part.previewPartId === previewPartId))
     .filter(Boolean);
 
   return findFocusedRangeMatch(parts, sourceText, { parts: activeParts, previewMatchMode: 'activeFocusedRange' })
@@ -572,12 +704,16 @@ function resolvePartMatch(document, { sourceText, segmentIndex }) {
     || findLegacySegmentMatch(document, segmentIndex);
 }
 
+/**
+ * @param {any} options
+ */
 function createPreviewContextClient(options = {}) {
   const appDataRoot = String(options.appDataRoot || '').trim();
   const helperRoot = path.join(appDataRoot, 'preview-helper');
   const documentsDir = path.join(helperRoot, 'documents');
   const logsDir = String(options.logsDir || '').trim() || path.join(helperRoot, 'logs');
   const statusFilePath = path.join(helperRoot, 'status.json');
+  /** @type {import('node:child_process').ChildProcess | null} */
   let child = null;
 
   function getHelperExecutablePath() {
@@ -663,10 +799,15 @@ function createPreviewContextClient(options = {}) {
       activeSourceLanguage: String(payload.activeSourceLanguage || ''),
       activeTargetLanguage: String(payload.activeTargetLanguage || ''),
       activeDocumentRevision: Number.isFinite(Number(payload.activeDocumentRevision)) ? Number(payload.activeDocumentRevision) : 0,
-      activePreviewPartIds: Array.isArray(payload.activePreviewPartIds) ? payload.activePreviewPartIds.map((item) => String(item || '')) : []
+      activePreviewPartIds: Array.isArray(payload.activePreviewPartIds) ? payload.activePreviewPartIds.map((/** @type {any} */ item) => String(item || '')) : []
     };
   }
 
+  /**
+   * @param {any} documentId
+   * @param {any} sourceLanguage
+   * @param {any} targetLanguage
+   */
   function readDocument(documentId, sourceLanguage, targetLanguage) {
     const candidates = findDocumentCacheCandidates(documentsDir, documentId, sourceLanguage, targetLanguage);
     for (const filePath of candidates) {
@@ -678,7 +819,7 @@ function createPreviewContextClient(options = {}) {
       return deepFreeze({
         ...payload,
         activePreviewPartIds: Array.isArray(payload.activePreviewPartIds)
-          ? payload.activePreviewPartIds.map((item) => String(item || '').trim()).filter(Boolean)
+          ? payload.activePreviewPartIds.map((/** @type {any} */ item) => String(item || '').trim()).filter(Boolean)
           : [],
         currentRange: normalizeRange(payload.currentRange),
         parts: cloneParts(payload.parts || []),
@@ -704,6 +845,9 @@ function createPreviewContextClient(options = {}) {
     return candidates.length ? deepFreeze(safeReadJson(candidates[0].filePath, null)) : null;
   }
 
+  /**
+   * @param {any} dependencies
+   */
   function getContext({
     documentId,
     sourceLanguage,
@@ -756,9 +900,9 @@ function createPreviewContextClient(options = {}) {
     const sourceFocusedRange = normalizeFocusedRange(resolvedPart?.sourceFocusedRange);
     const targetFocusedRange = normalizeFocusedRange(resolvedPart?.targetFocusedRange);
     const activePreviewPartIds = document.activePreviewPartIds || [];
-    const activeParts = document.parts.filter((part) => activePreviewPartIds.includes(part.previewPartId));
+    const activeParts = document.parts.filter((/** @type {any} */ part) => activePreviewPartIds.includes(part.previewPartId));
     const activePart = activeParts[0] || null;
-    const activePartHasRange = activeParts.some((part) => hasPartFocusedRange(part));
+    const activePartHasRange = activeParts.some((/** @type {any} */ part) => hasPartFocusedRange(part));
     const hasFocusedRange = Boolean(sourceFocusedRange || targetFocusedRange || activePartHasRange);
 
     let targetText = '';
@@ -842,9 +986,9 @@ function createPreviewContextClient(options = {}) {
 
     if (includeTargetText && !targetText && !resolvedPart && resolvedRange) {
       const rangeSegments = document.segments
-        .filter((segment) => segment.index >= resolvedRange.start && segment.index <= resolvedRange.end)
-        .sort((left, right) => left.index - right.index);
-      targetText = rangeSegments.map((segment) => segment.targetText).join('');
+        .filter((/** @type {any} */ segment) => segment.index >= resolvedRange.start && segment.index <= resolvedRange.end)
+        .sort((/** @type {any} */ left, /** @type {any} */ right) => left.index - right.index);
+      targetText = rangeSegments.map((/** @type {any} */ segment) => segment.targetText).join('');
       targetTextSource = targetText ? 'legacySegments' : targetTextSource;
     }
 
@@ -962,8 +1106,8 @@ function createPreviewContextClient(options = {}) {
             .map((part) => part.sourceText)
             .join('\n')
           : document.segments
-            .sort((left, right) => left.index - right.index)
-            .map((segment) => segment.sourceText)
+            .sort((/** @type {any} */ left, /** @type {any} */ right) => left.index - right.index)
+            .map((/** @type {any} */ segment) => segment.sourceText)
             .join(''))
         : '',
       targetText,
@@ -976,6 +1120,9 @@ function createPreviewContextClient(options = {}) {
     };
   }
 
+  /**
+   * @param {any} dependencies
+   */
   function recordTranslation({
     documentId,
     sourceLanguage,
@@ -989,16 +1136,16 @@ function createPreviewContextClient(options = {}) {
     }
 
     const targetIndex = parseSegmentIndex(segmentIndex);
-    const segment = document.segments.find((item) => item.index === targetIndex)
-      || document.segments.find((item) => item.index === targetIndex + 1)
-      || document.segments.find((item) => item.index === targetIndex - 1);
+    const segment = document.segments.find((/** @type {any} */ item) => item.index === targetIndex)
+      || document.segments.find((/** @type {any} */ item) => item.index === targetIndex + 1)
+      || document.segments.find((/** @type {any} */ item) => item.index === targetIndex - 1);
 
     if (segment) {
       segment.targetText = String(translatedText || '');
     }
 
     if (segment?.previewPartId) {
-      const part = (document.parts || []).find((item) => item.previewPartId === segment.previewPartId);
+      const part = (document.parts || []).find((/** @type {any} */ item) => item.previewPartId === segment.previewPartId);
       if (part) {
         part.targetText = String(translatedText || '');
       }

@@ -59,19 +59,19 @@ function getPayloadSegmentCount(payload = {}) {
  */
 function getPayloadCharacterCount(payload = {}) {
   return (Array.isArray(payload.segments) ? payload.segments : [])
-    .reduce((total, segment) => total + String(segment?.text || segment?.plainText || '').length, 0);
+    .reduce((/** @type {any} */ total, /** @type {any} */ segment) => total + String(segment?.text || segment?.plainText || '').length, 0);
 }
 
 /**
- * @param {any} options
+ * @param {import('../types/runtimeDomain').AggregationServiceDependencies} options
  */
-function createRuntimeAggregationService(options = {}) {
+function createRuntimeAggregationService(options = /** @type {import('../types/runtimeDomain').AggregationServiceDependencies} */ ({})) {
   const settings = options.settings || resolveRuntimeAggregationSettings(options);
   const runtimeLogger = options.runtimeLogger || { info() {} };
   const performTranslation = options.performTranslation;
   const createId = options.createId;
   const buildSegmentMetadataIndex = options.buildSegmentMetadataIndex;
-  const sleep = options.sleep || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const sleep = options.sleep || ((/** @type {any} */ ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   if (typeof performTranslation !== 'function' || typeof createId !== 'function' || typeof buildSegmentMetadataIndex !== 'function') {
     throw new TypeError('Aggregation translation, id, and metadata dependencies are required.');
   }
@@ -245,8 +245,8 @@ function createRuntimeAggregationService(options = {}) {
       return;
     }
 
-    const totalSegments = group.entries.reduce((total, entry) => total + entry.segmentCount, 0);
-    const totalCharacters = group.entries.reduce((total, entry) => total + entry.characterCount, 0);
+    const totalSegments = group.entries.reduce((/** @type {any} */ total, /** @type {any} */ entry) => total + entry.segmentCount, 0);
+    const totalCharacters = group.entries.reduce((/** @type {any} */ total, /** @type {any} */ entry) => total + entry.characterCount, 0);
     const limits = getAggregateBufferLimits(group.id);
     const thresholdReason = group.entries.length >= limits.maxBufferedRequests
       ? 'request_threshold'
@@ -317,7 +317,7 @@ function createRuntimeAggregationService(options = {}) {
       enabled: true,
       groupId: entries[0]?.groupId || '',
       requestCount: entries.length,
-      originalRequestIds: entries.map((entry) => entry.requestId)
+      originalRequestIds: entries.map((/** @type {any} */ entry) => entry.requestId)
     };
 
     return { aggregatePayload, mappings };
@@ -328,7 +328,7 @@ function createRuntimeAggregationService(options = {}) {
    * @param {any} settleMode
    */
   function maybeCloseAggregateJob(job, settleMode = 'normal') {
-    if (!job || job.closed || job.entries.some((entry) => !entry.settled)) {
+    if (!job || job.closed || job.entries.some((/** @type {any} */ entry) => !entry.settled)) {
       return;
     }
     job.closed = true;
@@ -514,7 +514,7 @@ function createRuntimeAggregationService(options = {}) {
       profileResolution
     });
 
-    const runSingleRescue = async (segment, sequence) => {
+    const runSingleRescue = async (/** @type {any} */ segment, /** @type {any} */ sequence) => {
       const originalIndex = Number.isFinite(Number(segment?.index)) ? Number(segment.index) : sequence;
       const rescuePayload = {
         ...cloneJson(entry.payload),
@@ -685,7 +685,7 @@ function createRuntimeAggregationService(options = {}) {
    */
   function resolveAggregateEntriesFromResponse(entries, aggregateResponse, mappings, flushReason) {
     const body = aggregateResponse?.body || {};
-    const translationsByEntry = new Map(entries.map((entry) => [entry.jobRequestId, []]));
+    const translationsByEntry = new Map(entries.map((/** @type {any} */ entry) => [entry.jobRequestId, []]));
     let successCount = 0;
     let missingCountTotal = 0;
     let fallbackCount = 0;
@@ -733,7 +733,7 @@ function createRuntimeAggregationService(options = {}) {
           flushReason,
           settleMode: 'normal',
           requestCount: entries.length,
-          segmentCount: entries.reduce((total, item) => total + item.segmentCount, 0),
+          segmentCount: entries.reduce((/** @type {any} */ total, /** @type {any} */ item) => total + item.segmentCount, 0),
           queuedMs: Date.now() - entry.enqueuedAtMs
         },
         translations
@@ -778,7 +778,7 @@ function createRuntimeAggregationService(options = {}) {
       entries,
       startedAtMs,
       flushReason,
-      segmentCount: entries.reduce((total, entry) => total + entry.segmentCount, 0),
+      segmentCount: entries.reduce((/** @type {any} */ total, /** @type {any} */ entry) => total + entry.segmentCount, 0),
       /** @type {NodeJS.Timeout | null} */
       softTimer: null,
       /** @type {NodeJS.Timeout | null} */
@@ -855,7 +855,7 @@ function createRuntimeAggregationService(options = {}) {
       }
     } catch (/** @type {any} */ error) {
       const mappedError = mapProviderError(error);
-      const segmentCount = entries.reduce((total, entry) => total + entry.segmentCount, 0);
+      const segmentCount = entries.reduce((/** @type {any} */ total, /** @type {any} */ entry) => total + entry.segmentCount, 0);
       runtimeLogger.info('aggregate-complete', 'Aggregate request failed.', {
         groupId,
         latencyMs: Date.now() - startedAtMs,
@@ -977,7 +977,7 @@ function createRuntimeAggregationService(options = {}) {
           groupId,
           congestionMode: limits.mode,
           bufferedRequests: group.entries.length,
-          bufferedSegments: group.entries.reduce((total, item) => total + item.segmentCount, 0)
+          bufferedSegments: group.entries.reduce((/** @type {any} */ total, /** @type {any} */ item) => total + item.segmentCount, 0)
         }
       }
     };

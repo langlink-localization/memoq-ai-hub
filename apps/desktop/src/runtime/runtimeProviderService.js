@@ -20,8 +20,8 @@ const {
 function selectModel(provider) {
   const models = Array.isArray(provider?.models) ? provider.models : [];
   const defaultModelId = String(provider?.defaultModelId || '').trim();
-  return models.find((model) => model.id === defaultModelId && model.enabled !== false)
-    || models.find((model) => model.enabled)
+  return models.find((/** @type {any} */ model) => model.id === defaultModelId && model.enabled !== false)
+    || models.find((/** @type {any} */ model) => model.enabled)
     || models[0]
     || null;
 }
@@ -39,6 +39,9 @@ function assertSupportedProviderDraft(provider = {}) {
   }
 }
 
+/**
+ * @param {import('../types/runtimeDomain').ProviderServiceDependencies} dependencies
+ */
 function createRuntimeProviderService({
   loadState,
   saveState,
@@ -53,7 +56,7 @@ function createRuntimeProviderService({
    * @param {any} providerDraft
    */
   async function testProviderDraftAgainstState(state, providerDraft = {}) {
-    const currentProvider = state.providers.find((item) => item.id === providerDraft.id);
+    const currentProvider = state.providers.find((/** @type {any} */ item) => item.id === providerDraft.id);
     assertSupportedProviderDraft({ ...currentProvider, ...providerDraft });
     const provider = ensureProvider({
       ...currentProvider,
@@ -94,7 +97,7 @@ function createRuntimeProviderService({
    * @param {any} providerDraft
    */
   async function discoverProviderModelsAgainstState(state, providerDraft = {}) {
-    const currentProvider = state.providers.find((item) => item.id === providerDraft.id);
+    const currentProvider = state.providers.find((/** @type {any} */ item) => item.id === providerDraft.id);
     assertSupportedProviderDraft({ ...currentProvider, ...providerDraft });
     const provider = ensureProvider({
       ...currentProvider,
@@ -120,7 +123,7 @@ function createRuntimeProviderService({
 
     return {
       ok: true,
-      models: (result.models || []).map((model) => ensureProviderModel(model, provider.type))
+      models: (result.models || []).map((/** @type {any} */ model) => ensureProviderModel(model, provider.type))
     };
   }
 
@@ -129,7 +132,7 @@ function createRuntimeProviderService({
    */
   async function saveProvider(provider) {
     const state = loadState();
-    const currentProvider = state.providers.find((item) => item.id === provider.id);
+    const currentProvider = state.providers.find((/** @type {any} */ item) => item.id === provider.id);
     assertSupportedProviderDraft({ ...currentProvider, ...provider });
     const nextProvider = ensureProvider({
       ...currentProvider,
@@ -139,7 +142,7 @@ function createRuntimeProviderService({
     const candidateApiKey = Object.prototype.hasOwnProperty.call(provider || {}, 'apiKey')
       ? String(provider.apiKey || '').trim()
       : '';
-    const modelsToValidate = (nextProvider.models || []).filter((model) => model.enabled !== false);
+    const modelsToValidate = (nextProvider.models || []).filter((/** @type {any} */ model) => model.enabled !== false);
 
     if (candidateApiKey) {
       const validationModels = modelsToValidate.length
@@ -163,7 +166,7 @@ function createRuntimeProviderService({
     providerStatus.invalidate(nextProvider.id);
     delete nextProvider.apiKey;
     const latestState = loadState();
-    const index = latestState.providers.findIndex((item) => item.id === nextProvider.id);
+    const index = latestState.providers.findIndex((/** @type {any} */ item) => item.id === nextProvider.id);
     if (currentProvider && index < 0) throw new Error(`Provider ${nextProvider.id} not found`);
     if (index >= 0) {
       latestState.providers[index] = ensureProvider({
@@ -176,7 +179,7 @@ function createRuntimeProviderService({
     saveState(latestState);
     const metrics = buildHistoryMetrics(loadHistoryEntries(), nextProvider.id);
     return {
-      ...latestState.providers.find((item) => item.id === nextProvider.id),
+      ...latestState.providers.find((/** @type {any} */ item) => item.id === nextProvider.id),
       hasSecret: secretStore.has(nextProvider.secretRef),
       successRate24h: metrics.successRate24h,
       avgLatencyMs: metrics.avgLatencyMs
@@ -202,21 +205,21 @@ function createRuntimeProviderService({
    */
   async function deleteProvider(providerId) {
     const state = loadState();
-    const provider = state.providers.find((item) => item.id === providerId);
+    const provider = state.providers.find((/** @type {any} */ item) => item.id === providerId);
     if (!provider) throw new Error(`Provider ${providerId} not found`);
 
-    const referencedBy = state.profiles.filter((profile) => (
+    const referencedBy = state.profiles.filter((/** @type {any} */ profile) => (
       profile.providerId === providerId
       || profile.interactiveProviderId === providerId
       || profile.pretranslateProviderId === providerId
       || profile.fallbackProviderId === providerId
-    )).map((profile) => profile.name);
+    )).map((/** @type {any} */ profile) => profile.name);
     if (referencedBy.length) {
       throw new Error(buildProfileReferenceMessage(referencedBy, `Provider "${provider.name}"`));
     }
 
     providerStatus.invalidate(providerId);
-    state.providers = state.providers.filter((item) => item.id !== providerId);
+    state.providers = state.providers.filter((/** @type {any} */ item) => item.id !== providerId);
     saveState(state);
     await secretStore.delete(provider.secretRef);
     return { ok: true };
@@ -228,26 +231,26 @@ function createRuntimeProviderService({
    */
   function deleteProviderModel(providerId, modelId) {
     const state = loadState();
-    const provider = state.providers.find((item) => item.id === providerId);
+    const provider = state.providers.find((/** @type {any} */ item) => item.id === providerId);
     if (!provider) throw new Error(`Provider ${providerId} not found`);
 
-    const model = (provider.models || []).find((item) => item.id === modelId);
+    const model = (provider.models || []).find((/** @type {any} */ item) => item.id === modelId);
     if (!model) throw new Error(`Model ${modelId} not found`);
     if ((provider.models || []).length <= 1) {
       throw new Error(`Provider "${provider.name}" must keep at least one model.`);
     }
 
-    const referencedBy = state.profiles.filter((profile) => (
+    const referencedBy = state.profiles.filter((/** @type {any} */ profile) => (
       profile.interactiveModelId === modelId
       || profile.pretranslateModelId === modelId
       || profile.fallbackModelId === modelId
-    )).map((profile) => profile.name);
+    )).map((/** @type {any} */ profile) => profile.name);
     if (referencedBy.length) {
       throw new Error(buildProfileReferenceMessage(referencedBy, `Model "${model.modelName}"`));
     }
 
     providerStatus.invalidate(providerId);
-    provider.models = (provider.models || []).filter((item) => item.id !== modelId);
+    provider.models = (provider.models || []).filter((/** @type {any} */ item) => item.id !== modelId);
     provider.defaultModelId = resolveProviderDefaultModelId(
       provider.models,
       provider.defaultModelId === modelId ? '' : provider.defaultModelId
@@ -261,7 +264,7 @@ function createRuntimeProviderService({
    */
   async function testProviderConnection(providerId) {
     const state = loadState();
-    const provider = state.providers.find((item) => item.id === providerId);
+    const provider = state.providers.find((/** @type {any} */ item) => item.id === providerId);
     if (!provider) throw new Error(`Provider ${providerId} not found`);
     const operation = providerStatus.begin(provider);
     let result;

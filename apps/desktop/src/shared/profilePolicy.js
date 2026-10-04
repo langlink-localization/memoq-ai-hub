@@ -43,13 +43,10 @@ function normalizeAssetBindings(assetBindings = []) {
 }
 
 /**
- * @typedef {{ [key: string]: unknown, assetBindings?: unknown, assetSelections?: Record<string, unknown>, customTmMatchBuckets?: unknown }} ProfilePolicyInput
+ * @param {import('../types/runtimeDomain').RuntimeProfile} profile
+ * @returns {import('../types/runtimeDomain').RuntimeProfile}
  */
-
-/**
- * @param {ProfilePolicyInput=} profile
- */
-function applyFirstReleaseProfilePolicy(profile = {}) {
+function applyFirstReleaseProfilePolicy(profile) {
   return {
     ...profile,
     assetBindings: normalizeAssetBindings(profile.assetBindings),

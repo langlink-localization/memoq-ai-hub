@@ -4,6 +4,16 @@ const { spawnSync } = require('child_process');
 const { INTEGRATION, ERROR_CODES } = require('../shared/desktopContract');
 
 class IntegrationError extends Error {
+  /** @type {string} */
+  code = '';
+  /** @type {number} */
+  statusCode = 500;
+
+  /**
+   * @param {any} message
+   * @param {any} code
+   * @param {any} [statusCode]
+   */
   constructor(message, code, statusCode = 500) {
     super(message);
     this.code = code;
@@ -13,15 +23,24 @@ class IntegrationError extends Error {
 
 const SUPPORTED_MEMOQ_VERSIONS = ['10', '11', '12'];
 
+/**
+ * @param {any} version
+ */
 function normalizeVersion(version) {
   const normalized = String(version || '').trim();
   return SUPPORTED_MEMOQ_VERSIONS.includes(normalized) ? normalized : '11';
 }
 
+/**
+ * @param {any} version
+ */
 function defaultMemoQRootDir(version) {
   return path.join('C:\\Program Files', 'memoQ', `memoQ-${normalizeVersion(version)}`);
 }
 
+/**
+ * @param {any} preferredVersion
+ */
 function buildDefaultMemoQInstallOptions(preferredVersion) {
   return SUPPORTED_MEMOQ_VERSIONS.map((version) => {
     const rootDir = defaultMemoQRootDir(version);
@@ -40,12 +59,19 @@ function buildDefaultMemoQInstallOptions(preferredVersion) {
   });
 }
 
+/**
+ * @param {any} options
+ */
 function buildMemoQRootCandidates(options = {}) {
   const preferredVersion = normalizeVersion(options.memoqVersion);
   const customInstallDir = String(options.customInstallDir || '').trim();
+  /** @type {string[]} */
   const candidates = [];
   const seen = new Set();
 
+  /**
+   * @param {any} rootDir
+   */
   function pushCandidate(rootDir) {
     const value = String(rootDir || '').trim();
     if (!value || seen.has(value)) return;
@@ -65,6 +91,9 @@ function buildMemoQRootCandidates(options = {}) {
   return candidates;
 }
 
+/**
+ * @param {any} options
+ */
 function findMemoQDesktopInstallations(options = {}) {
   const rootCandidates = buildMemoQRootCandidates(options);
   return rootCandidates
@@ -76,6 +105,9 @@ function findMemoQDesktopInstallations(options = {}) {
     }));
 }
 
+/**
+ * @param {any} options
+ */
 function resolveClientDevConfigTarget(options = {}) {
   const programDataDir = String(options.programDataDir || process.env.ProgramData || 'C:\\ProgramData').trim();
   if (!programDataDir) {
@@ -98,6 +130,9 @@ function resolveClientDevConfigTarget(options = {}) {
   return targetPath.join(targetRoot, INTEGRATION.clientDevConfigName);
 }
 
+/**
+ * @param {any} paths
+ */
 function resolveIntegrationAssets(paths) {
   const packagedResourcesRoot = String(process.resourcesPath || '').trim();
   const candidates = {
@@ -125,10 +160,14 @@ function resolveIntegrationAssets(paths) {
   };
 }
 
+/**
+ * @param {any} operation
+ * @param {any} target
+ */
 function applyFsOperationWithAccessErrorMapping(operation, target) {
   try {
     operation();
-  } catch (error) {
+  } catch (/** @type {any} */ error) {
     if (error && (error.code === 'EACCES' || error.code === 'EPERM')) {
       throw new IntegrationError(
         `Writing ${target} requires elevated Windows permissions.`,
@@ -140,6 +179,9 @@ function applyFsOperationWithAccessErrorMapping(operation, target) {
   }
 }
 
+/**
+ * @param {any} filePath
+ */
 function removeMarkOfTheWeb(filePath) {
   if (process.platform !== 'win32' || !filePath) {
     return;
@@ -147,7 +189,7 @@ function removeMarkOfTheWeb(filePath) {
 
   try {
     fs.rmSync(`${filePath}:Zone.Identifier`, { force: true });
-  } catch (error) {
+  } catch (/** @type {any} */ error) {
     if (error && (error.code === 'ENOENT' || error.code === 'EINVAL' || error.code === 'ENOTSUP')) {
       return;
     }
@@ -155,6 +197,9 @@ function removeMarkOfTheWeb(filePath) {
   }
 }
 
+/**
+ * @param {any} steps
+ */
 function buildElevatedInstallScript(steps) {
   const lines = ['$ErrorActionPreference = "Stop"'];
   for (const step of steps) {
@@ -172,6 +217,9 @@ function buildElevatedInstallScript(steps) {
   return lines.join('; ');
 }
 
+/**
+ * @param {any} value
+ */
 function decodeSpawnOutput(value) {
   if (Buffer.isBuffer(value)) {
     return value.toString('utf8').trim();
@@ -179,6 +227,10 @@ function decodeSpawnOutput(value) {
   return String(value || '').trim();
 }
 
+/**
+ * @param {any} value
+ * @param {any} maxLength
+ */
 function truncateDiagnosticOutput(value, maxLength = 400) {
   const normalized = decodeSpawnOutput(value);
   if (!normalized) {
@@ -190,6 +242,9 @@ function truncateDiagnosticOutput(value, maxLength = 400) {
   return `${normalized.slice(0, maxLength)}...`;
 }
 
+/**
+ * @param {any} result
+ */
 function formatElevatedInstallDiagnostics(result = {}) {
   const stdout = truncateDiagnosticOutput(result.stdout);
   const stderr = truncateDiagnosticOutput(result.stderr);
@@ -203,6 +258,9 @@ function formatElevatedInstallDiagnostics(result = {}) {
   return details.length ? ` ${details.join(' | ')}` : '';
 }
 
+/**
+ * @param {any} steps
+ */
 function runElevatedInstall(steps) {
   const powershellExe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   const encodedCommand = Buffer.from(buildElevatedInstallScript(steps), 'utf16le').toString('base64');
@@ -234,6 +292,10 @@ function runElevatedInstall(steps) {
   }
 }
 
+/**
+ * @param {any} paths
+ * @param {any} integrationConfig
+ */
 function getIntegrationStatus(paths, integrationConfig = {}) {
   const requestedMemoQVersion = normalizeVersion(integrationConfig.memoqVersion);
   const customInstallDir = String(integrationConfig.customInstallDir || '').trim();
@@ -291,6 +353,10 @@ function getIntegrationStatus(paths, integrationConfig = {}) {
   };
 }
 
+/**
+ * @param {any} paths
+ * @param {any} integrationConfig
+ */
 function installIntegration(paths, integrationConfig = {}) {
   const status = getIntegrationStatus(paths, integrationConfig);
   const targetRoot = String(integrationConfig.selectedInstallDir || integrationConfig.customInstallDir || '').trim()
@@ -327,22 +393,30 @@ function installIntegration(paths, integrationConfig = {}) {
 
   try {
     steps.forEach((step) => {
+      const target = step.target || '';
+      if (!target) {
+        throw new Error('Integration step is missing a path.');
+      }
       if (step.action === 'remove') {
         applyFsOperationWithAccessErrorMapping(() => {
-          if (fs.existsSync(step.target)) {
-            fs.rmSync(step.target, { force: true });
+          if (fs.existsSync(target)) {
+            fs.rmSync(target, { force: true });
           }
-        }, step.target);
+        }, target);
         return;
       }
 
+      const source = step.source || '';
+      if (!source) {
+        throw new Error('Integration copy step is missing a path.');
+      }
       applyFsOperationWithAccessErrorMapping(() => {
-        fs.mkdirSync(path.dirname(step.target), { recursive: true });
-        fs.copyFileSync(step.source, step.target);
-        if (path.basename(step.target) === INTEGRATION.pluginDllName) {
-          removeMarkOfTheWeb(step.target);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.copyFileSync(source, target);
+        if (path.basename(target) === INTEGRATION.pluginDllName) {
+          removeMarkOfTheWeb(target);
         }
-      }, step.target);
+      }, target);
     });
   } catch (error) {
     if (error instanceof IntegrationError && error.code === ERROR_CODES.installRequiresElevation) {

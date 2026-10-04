@@ -23,9 +23,9 @@ function createQaError(message, code) {
 }
 
 /**
- * @param {any} options
+ * @param {import('../types/runtimeDomain').QaServiceDependencies} options
  */
-function createRuntimeQaService(options = {}) {
+function createRuntimeQaService(options = /** @type {import('../types/runtimeDomain').QaServiceDependencies} */ ({})) {
   const {
     persistence,
     loadState,
@@ -62,12 +62,12 @@ function createRuntimeQaService(options = {}) {
     persistence,
     invokeAi: async ({ snapshot, providerId, model, terminology, tmMatches, naturalLanguageRules, promptTemplate, additionalInstruction, repairInstruction, signal }) => {
       const state = loadState();
-      const provider = state.providers.find((item) => item.id === providerId && item.enabled !== false)
-        || state.providers.find((item) => item.enabled !== false);
+      const provider = state.providers.find((/** @type {any} */ item) => item.id === providerId && item.enabled !== false)
+        || state.providers.find((/** @type {any} */ item) => item.enabled !== false);
       if (!provider) {
         throw createQaError('No enabled AI provider is available for quality checking.', ERROR_CODES.qaProviderUnavailable);
       }
-      const selectedModel = (provider.models || []).find((item) => (item.id === model || item.modelName === model) && item.enabled !== false)
+      const selectedModel = (provider.models || []).find((/** @type {any} */ item) => (item.id === model || item.modelName === model) && item.enabled !== false)
         || selectModel(provider);
       const apiKey = await secretStore.get(provider.secretRef);
       if (!selectedModel || !apiKey || typeof providerRegistry.checkQuality !== 'function') {
@@ -108,7 +108,7 @@ function createRuntimeQaService(options = {}) {
     const activeIds = Array.isArray(document.activePreviewPartIds) ? document.activePreviewPartIds : [];
     const parts = Array.isArray(document.parts) ? document.parts : [];
     const activePart = activeIds.length === 1
-      ? parts.find((part) => String(part.previewPartId || '') === String(activeIds[0]))
+      ? parts.find((/** @type {any} */ part) => String(part.previewPartId || '') === String(activeIds[0]))
       : null;
     if (!activePart) {
       return {
@@ -168,25 +168,25 @@ function createRuntimeQaService(options = {}) {
     const effectivePayload = activePayload ? { ...activePayload, ...payload, segment: { ...(activePayload.segment || {}), ...(payload.segment || {}) } } : payload;
     const state = loadState();
     const profileId = String(effectivePayload.profileId || effectivePayload.configuration?.profileId || '').trim();
-    const profile = state.profiles.find((item) => item.id === profileId)
-      || state.profiles.find((item) => item.id === state.defaultProfileId)
+    const profile = state.profiles.find((/** @type {any} */ item) => item.id === profileId)
+      || state.profiles.find((/** @type {any} */ item) => item.id === state.defaultProfileId)
       || null;
     let assetContext = createEmptyAssetContext();
     let effectiveAssetBindings = Array.isArray(profile?.assetBindings) ? profile.assetBindings : [];
     const assetSelection = effectivePayload.assets && typeof effectivePayload.assets === 'object' ? effectivePayload.assets : {};
     if (assetSelection.mode === 'override') {
       const selectedGlossaryIds = [...new Set((Array.isArray(assetSelection.glossaryAssetIds) ? assetSelection.glossaryAssetIds : [])
-        .map((value) => String(value || '').trim())
+        .map((/** @type {any} */ value) => String(value || '').trim())
         .filter(Boolean))];
       const validGlossaryIds = new Set(state.assets
-        .filter((asset) => normalizeAssetPurpose(asset.type) === ASSET_PURPOSES.glossary)
-        .map((asset) => String(asset.id)));
+        .filter((/** @type {any} */ asset) => normalizeAssetPurpose(asset.type) === ASSET_PURPOSES.glossary)
+        .map((/** @type {any} */ asset) => String(asset.id)));
       const invalidId = selectedGlossaryIds.find((assetId) => !validGlossaryIds.has(assetId));
       if (invalidId) {
         throw createQaError(`Glossary asset "${invalidId}" is not available.`, ERROR_CODES.qaInvalidRequest);
       }
       effectiveAssetBindings = [
-        ...effectiveAssetBindings.filter((binding) => binding?.purpose !== ASSET_PURPOSES.glossary),
+        ...effectiveAssetBindings.filter((/** @type {any} */ binding) => binding?.purpose !== ASSET_PURPOSES.glossary),
         ...selectedGlossaryIds.map((assetId) => ({ assetId, purpose: ASSET_PURPOSES.glossary }))
       ];
     }
@@ -211,15 +211,15 @@ function createRuntimeQaService(options = {}) {
     const customTm = buildSegmentCustomTmContext({ assetContext, segment, payload: languagePayload, profile });
     const rules = [
       ...(Array.isArray(effectivePayload.rules) ? effectivePayload.rules : []),
-      ...(Array.isArray(profile?.qaRules) ? profile.qaRules.filter((rule) => rule.type !== 'natural-language') : [])
+      ...(Array.isArray(profile?.qaRules) ? profile.qaRules.filter((/** @type {any} */ rule) => rule.type !== 'natural-language') : [])
     ];
     const requestedPresetId = String(effectivePayload.prompt?.presetId || '').trim();
-    const promptPreset = state.promptPresets.find((item) => item.id === requestedPresetId && item.scope === 'qa') || null;
+    const promptPreset = state.promptPresets.find((/** @type {any} */ item) => item.id === requestedPresetId && item.scope === 'qa') || null;
     const naturalLanguageRules = [
       ...(Array.isArray(profile?.qaRules)
-        ? profile.qaRules.filter((rule) => rule.type === 'natural-language').map((rule) => ({ id: rule.id, instruction: rule.instruction || rule.value || '' }))
+        ? profile.qaRules.filter((/** @type {any} */ rule) => rule.type === 'natural-language').map((/** @type {any} */ rule) => ({ id: rule.id, instruction: rule.instruction || rule.value || '' }))
         : []),
-      ...(promptPreset?.rules || []).map((rule, index) => ({ id: `${promptPreset.id}-rule-${index + 1}`, instruction: rule.instruction }))
+      ...(promptPreset?.rules || []).map((/** @type {any} */ rule, /** @type {any} */ index) => ({ id: `${promptPreset.id}-rule-${index + 1}`, instruction: rule.instruction }))
     ];
     const additionalInstruction = String(effectivePayload.prompt?.additionalInstruction || '').slice(0, 4000);
     const qaPromptTemplate = promptPreset
@@ -228,8 +228,8 @@ function createRuntimeQaService(options = {}) {
     const promptVersion = crypto.createHash('sha256').update(JSON.stringify({ presetId: promptPreset?.id || '', qaPromptTemplate, naturalLanguageRules, additionalInstruction })).digest('hex');
     const requestedAiProviderId = String(effectivePayload.ai?.providerId || '').trim();
     const requestedAiModel = String(effectivePayload.ai?.model || '').trim();
-    const aiProvider = state.providers.find((item) => item.id === requestedAiProviderId) || null;
-    const aiModel = (aiProvider?.models || []).find((item) => item.id === requestedAiModel || item.modelName === requestedAiModel) || null;
+    const aiProvider = state.providers.find((/** @type {any} */ item) => item.id === requestedAiProviderId) || null;
+    const aiModel = (aiProvider?.models || []).find((/** @type {any} */ item) => item.id === requestedAiModel || item.modelName === requestedAiModel) || null;
     return {
       ...effectivePayload,
       profileId: profile?.id || profileId,
@@ -281,18 +281,18 @@ function createRuntimeQaService(options = {}) {
   function resolveAssistantProfileAndRoute(payload = {}) {
     const state = loadState();
     const requestedProfileId = String(payload.profileId || '').trim();
-    const profile = state.profiles.find((item) => item.id === requestedProfileId)
-      || state.profiles.find((item) => item.id === state.defaultProfileId)
+    const profile = state.profiles.find((/** @type {any} */ item) => item.id === requestedProfileId)
+      || state.profiles.find((/** @type {any} */ item) => item.id === state.defaultProfileId)
       || null;
     if (!profile) {
       throw createQaError('No profile is configured for the Preview Assistant.', ERROR_CODES.providerNotConfigured);
     }
     const providerId = String(payload.providerId || profile.interactiveProviderId || profile.providerId || '').trim();
-    const provider = state.providers.find((item) => item.id === providerId && item.enabled !== false)
-      || state.providers.find((item) => item.enabled !== false);
+    const provider = state.providers.find((/** @type {any} */ item) => item.id === providerId && item.enabled !== false)
+      || state.providers.find((/** @type {any} */ item) => item.enabled !== false);
     const modelId = String(payload.model || profile.interactiveModelId || '').trim();
     const model = provider
-      ? ((provider.models || []).find((item) => (item.id === modelId || item.modelName === modelId) && item.enabled !== false)
+      ? ((provider.models || []).find((/** @type {any} */ item) => (item.id === modelId || item.modelName === modelId) && item.enabled !== false)
         || selectModel(provider))
       : null;
     if (!provider || !model) {
@@ -301,11 +301,11 @@ function createRuntimeQaService(options = {}) {
     let assetBindings = Array.isArray(profile.assetBindings) ? [...profile.assetBindings] : [];
     if (payload.assets?.mode === 'override') {
       const requestedIds = [...new Set((Array.isArray(payload.assets.glossaryAssetIds) ? payload.assets.glossaryAssetIds : [])
-        .map((value) => String(value || '').trim())
+        .map((/** @type {any} */ value) => String(value || '').trim())
         .filter(Boolean))];
       const glossaryIds = new Set(state.assets
-        .filter((asset) => normalizeAssetPurpose(asset.type) === ASSET_PURPOSES.glossary)
-        .map((asset) => String(asset.id)));
+        .filter((/** @type {any} */ asset) => normalizeAssetPurpose(asset.type) === ASSET_PURPOSES.glossary)
+        .map((/** @type {any} */ asset) => String(asset.id)));
       const invalidId = requestedIds.find((assetId) => !glossaryIds.has(assetId));
       if (invalidId) {
         throw createQaError(`Glossary asset "${invalidId}" is not available.`, ERROR_CODES.qaInvalidRequest);
@@ -345,7 +345,7 @@ function createRuntimeQaService(options = {}) {
     const requestId = String(payload.requestId || crypto.randomUUID());
     const { state, profile, route } = resolveAssistantProfileAndRoute(payload);
     const requestedPresetId = String(payload.prompt?.presetId || '').trim();
-    const promptPreset = state.promptPresets.find((item) => item.id === requestedPresetId && item.scope === operation) || null;
+    const promptPreset = state.promptPresets.find((/** @type {any} */ item) => item.id === requestedPresetId && item.scope === operation) || null;
     const additionalInstruction = String(payload.prompt?.additionalInstruction || '').slice(0, 4000);
     const operationProfile = operation === 'translate'
       ? { ...profile, usePreviewTargetText: false }
@@ -411,7 +411,7 @@ function createRuntimeQaService(options = {}) {
         latencyMs: Number(response.body.diagnostics?.latencyMs || 0),
         fromCache: response.body.diagnostics?.fromCache === true,
         terminology: {
-          assetIds: profile.assetBindings.filter((binding) => binding.purpose === ASSET_PURPOSES.glossary).map((binding) => binding.assetId),
+          assetIds: profile.assetBindings.filter((/** @type {any} */ binding) => binding.purpose === ASSET_PURPOSES.glossary).map((/** @type {any} */ binding) => binding.assetId),
           matchCount: Array.isArray(snapshotPayload.terminologyMatches) ? snapshotPayload.terminologyMatches.length : 0
         },
         segment: snapshot.segment
@@ -477,7 +477,7 @@ function createRuntimeQaService(options = {}) {
         lastAutomaticQaRevision = revision;
         pendingAutomaticQaRevision = -1;
         const state = loadState();
-        const profile = state.profiles.find((item) => item.id === state.defaultProfileId) || null;
+        const profile = state.profiles.find((/** @type {any} */ item) => item.id === state.defaultProfileId) || null;
         void qaCoordinator.checkSegment(prepareQaPayload({
           ...activePayload,
           profileId: profile?.id || '',
@@ -572,15 +572,15 @@ function createRuntimeQaService(options = {}) {
   }
 
   return {
-    cancel: (payload) => qaCoordinator.cancel(payload),
+    cancel: (/** @type {any} */ payload) => qaCoordinator.cancel(payload),
     cancelAssistant: cancelPreviewAssistant,
     checkDocument,
     checkSegment,
     dispose,
     getStatus,
-    listResults: (documentId) => qaCoordinator.listResults(documentId),
+    listResults: (/** @type {any} */ documentId) => qaCoordinator.listResults(documentId),
     runAssistant: runPreviewAssistant,
-    saveFeedback: (payload) => qaCoordinator.saveFeedback(payload)
+    saveFeedback: (/** @type {any} */ payload) => qaCoordinator.saveFeedback(payload)
   };
 }
 

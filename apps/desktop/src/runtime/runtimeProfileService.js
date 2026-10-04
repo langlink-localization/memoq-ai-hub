@@ -3,6 +3,9 @@ const { normalizeMemoQMetadata } = require('../shared/memoqMetadataNormalizer');
 const { resolveRuleMatch } = require('./runtimeRuleEngine');
 const { ensureProfile, ensureRule } = require('./runtimeState');
 
+/**
+ * @param {import('../types/runtimeDomain').ProfileServiceDependencies} dependencies
+ */
 function createRuntimeProfileService({
   loadState,
   saveState,
@@ -16,15 +19,15 @@ function createRuntimeProfileService({
    */
   function resolveProfile(state, metadata = {}, explicitProfileId = '') {
     if (explicitProfileId) {
-      return { matchedRule: null, profile: state.profiles.find((item) => item.id === explicitProfileId) || null };
+      return { matchedRule: null, profile: state.profiles.find((/** @type {any} */ item) => item.id === explicitProfileId) || null };
     }
 
     const match = resolveRuleMatch(state.mappingRules || [], metadata);
     if (!match) {
       return {
         matchedRule: null,
-        profile: state.profiles.find((item) => item.id === state.defaultProfileId)
-          || state.profiles.find((item) => item.name.toLowerCase() === 'default')
+        profile: state.profiles.find((/** @type {any} */ item) => item.id === state.defaultProfileId)
+          || state.profiles.find((/** @type {any} */ item) => item.name.toLowerCase() === 'default')
           || state.profiles[0]
           || null
       };
@@ -32,7 +35,7 @@ function createRuntimeProfileService({
 
     return {
       matchedRule: match.rule,
-      profile: state.profiles.find((item) => item.id === match.rule.profileId) || null
+      profile: state.profiles.find((/** @type {any} */ item) => item.id === match.rule.profileId) || null
     };
   }
 
@@ -47,7 +50,7 @@ function createRuntimeProfileService({
     }
 
     const nextProfile = ensureProfile(profile);
-    const index = state.profiles.findIndex((item) => item.id === nextProfile.id);
+    const index = state.profiles.findIndex((/** @type {any} */ item) => item.id === nextProfile.id);
     if (index >= 0) state.profiles[index] = nextProfile;
     else state.profiles.push(nextProfile);
     saveState(state);
@@ -60,7 +63,7 @@ function createRuntimeProfileService({
   function setDefaultProfile(profileId) {
     const state = loadState();
     const normalizedProfileId = String(profileId || '').trim();
-    if (normalizedProfileId && !state.profiles.some((item) => item.id === normalizedProfileId)) {
+    if (normalizedProfileId && !state.profiles.some((/** @type {any} */ item) => item.id === normalizedProfileId)) {
       throw new Error(`Profile ${normalizedProfileId} not found`);
     }
     state.defaultProfileId = normalizedProfileId;
@@ -73,7 +76,7 @@ function createRuntimeProfileService({
    */
   function duplicateProfile(profileId) {
     const state = loadState();
-    const source = state.profiles.find((item) => item.id === profileId);
+    const source = state.profiles.find((/** @type {any} */ item) => item.id === profileId);
     if (!source) throw new Error(`Profile ${profileId} not found`);
     const copy = ensureProfile({ ...source, id: createId('profile'), name: `${source.name} Copy` });
     state.profiles.push(copy);
@@ -86,17 +89,17 @@ function createRuntimeProfileService({
    */
   function deleteProfile(profileId) {
     const state = loadState();
-    const profile = state.profiles.find((item) => item.id === profileId);
+    const profile = state.profiles.find((/** @type {any} */ item) => item.id === profileId);
     if (!profile) throw new Error(`Profile ${profileId} not found`);
 
     const ruleReferences = state.mappingRules
-      .filter((rule) => rule.profileId === profileId)
-      .map((rule) => rule.ruleName);
+      .filter((/** @type {any} */ rule) => rule.profileId === profileId)
+      .map((/** @type {any} */ rule) => rule.ruleName);
     if (ruleReferences.length) {
       throw new Error(`Profile "${profile.name}" is still used by mapping rules: ${ruleReferences.join(', ')}.`);
     }
 
-    state.profiles = state.profiles.filter((item) => item.id !== profileId);
+    state.profiles = state.profiles.filter((/** @type {any} */ item) => item.id !== profileId);
     onProfileDeleted(profileId);
     if (state.defaultProfileId === profileId) {
       state.defaultProfileId = '';
@@ -111,13 +114,13 @@ function createRuntimeProfileService({
   function saveMappingRule(rule) {
     const state = loadState();
     const requestedProfileId = String(rule?.profileId || '').trim();
-    if (!requestedProfileId || !state.profiles.some((profile) => profile.id === requestedProfileId)) {
+    if (!requestedProfileId || !state.profiles.some((/** @type {any} */ profile) => profile.id === requestedProfileId)) {
       throw Object.assign(new Error(`Profile ${requestedProfileId || '(empty)'} not found`), {
         code: 'PROFILE_NOT_FOUND'
       });
     }
     const requestedId = String(rule?.id || '').trim();
-    const index = requestedId ? state.mappingRules.findIndex((item) => item.id === requestedId) : -1;
+    const index = requestedId ? state.mappingRules.findIndex((/** @type {any} */ item) => item.id === requestedId) : -1;
     const nextRule = ensureRule({
       ...rule,
       hitCount: index >= 0 ? state.mappingRules[index].hitCount : 0
@@ -133,7 +136,7 @@ function createRuntimeProfileService({
    */
   function deleteMappingRule(ruleId) {
     const state = loadState();
-    state.mappingRules = state.mappingRules.filter((item) => item.id !== ruleId);
+    state.mappingRules = state.mappingRules.filter((/** @type {any} */ item) => item.id !== ruleId);
     saveState(state);
     return { ok: true };
   }

@@ -249,7 +249,7 @@ function normalizeProfileAssetBindings(profile = {}) {
 
 /**
  * @param {Record<string, any>=} profile
- * @returns {Record<string, any>}
+ * @returns {import('../types/runtimeDomain').RuntimeProfile}
  */
 function ensureProfile(profile = {}) {
   const providerId = String(
@@ -337,7 +337,7 @@ function ensureProfile(profile = {}) {
 /**
  * @param {Record<string, any>=} model
  * @param {string=} providerType
- * @returns {Record<string, any>}
+ * @returns {import('../types/runtimeDomain').RuntimeProviderModel}
  */
 function ensureProviderModel(model = {}, providerType = 'openai') {
   const defaultConcurrency = providerType === 'openai' ? 2 : 1;
@@ -413,7 +413,7 @@ function normalizeProviderStatus(status) {
 
 /**
  * @param {Record<string, any>=} provider
- * @returns {Record<string, any>}
+ * @returns {import('../types/runtimeDomain').RuntimeProvider}
  */
 function ensureProvider(provider = {}) {
   const sanitized = sanitizeProvider(provider);

@@ -223,7 +223,7 @@ function parseJson(value, fallback) {
 /**
  * @param {Record<string, any>} state
  * @param {(state: Record<string, any>) => Record<string, any>} normalizeState
- * @returns {Record<string, any>}
+ * @returns {import('../types/runtimeDomain').RuntimeState}
  */
 function normalizeConfigState(state, normalizeState) {
   const normalized = normalizeState(state);
@@ -577,7 +577,7 @@ function buildQaHistoryItem(row, result) {
 /**
  * @param {any} db
  * @param {{ nowIso: () => string, normalizeState: (state: Record<string, any>) => Record<string, any> }} deps
- * @returns {Record<string, any>}
+ * @returns {import('../types/runtimeDomain').RuntimePersistence}
  */
 function createRuntimePersistence(db, { nowIso, normalizeState }) {
   function pruneQaData(referenceTime = /** @type {any} */ (new Date())) {
