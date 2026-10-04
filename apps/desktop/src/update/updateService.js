@@ -14,6 +14,8 @@ const {
 /** @typedef {import('../types/updateState').UpdateManifestInput} UpdateManifestInput */
 /** @typedef {import('../types/updateState').PersistedUpdateState} PersistedUpdateState */
 /** @typedef {import('../types/updateState').DefaultUpdateStateInput} DefaultUpdateStateInput */
+/** @typedef {import('../types/updateState').UpdateFs} UpdateFs */
+/** @typedef {import('../types/updateState').UpdateServiceOptions} UpdateServiceOptions */
 
 const execFileAsync = promisify(execFile);
 
@@ -283,7 +285,7 @@ function verifyBufferSha256(buffer, expectedSha256) {
  * Streams a file through SHA-256 so large installers never load fully into
  * memory; falls back to a buffered read for injectable test file systems.
  */
-async function calculateFileSha256(/** @type {any} */ fsImpl, /** @type {any} */ filePath) {
+async function calculateFileSha256(/** @type {UpdateFs} */ fsImpl, /** @type {string} */ filePath) {
   if (typeof fsImpl.createReadStream !== 'function') {
     return calculateBufferSha256(fsImpl.readFileSync(filePath));
   }
@@ -375,7 +377,7 @@ function normalizeManifest(manifest = {}) {
 }
 
 /**
- * @param {any} dependencies
+ * @param {{ packagingMode?: string, fsImpl?: UpdateFs, execPath?: string }=} dependencies
  */
 function resolvePackagingMode({
   packagingMode,
@@ -407,8 +409,9 @@ function resolvePackagingMode({
 }
 
 /**
- * @param {any} sourcePath
- * @param {any} targetDir
+ * @param {string} sourcePath
+ * @param {string} targetDir
+ * @returns {Promise<void>}
  */
 async function expandArchiveWithPowerShell(sourcePath, targetDir) {
   const powershellPath = process.platform === 'win32'
@@ -428,6 +431,9 @@ async function expandArchiveWithPowerShell(sourcePath, targetDir) {
  * Resolves whether the packaged portable app can stage and swap its own
  * folder. The parent of the app directory must be writable (rename + move
  * target) and the app directory must look like a packaged build.
+ */
+/**
+ * @param {{ fsImpl?: UpdateFs, execPath?: string }=} dependencies
  */
 function resolvePortableApplySupport({ fsImpl = fs, execPath = process.execPath } = {}) {
   const normalizedExecPath = String(execPath || '').trim();
@@ -478,7 +484,7 @@ function resolvePortableStagingDirectory({ applySupport, preparedUpdatesDir, fsI
  * stay defensive: if extraction produced a single folder and no root payload,
  * treat that folder as the app root.
  */
-function normalizePreparedAppRoot(/** @type {any} */ fsImpl, /** @type {any} */ destinationDir) {
+function normalizePreparedAppRoot(/** @type {UpdateFs} */ fsImpl, /** @type {string} */ destinationDir) {
   if (fsImpl.existsSync(path.join(destinationDir, PORTABLE_APP_EXECUTABLE_NAME))) {
     return destinationDir;
   }
@@ -499,7 +505,7 @@ function getDefaultManifestUrl(repository = DEFAULT_RELEASE_REPOSITORY) {
 }
 
 /**
- * @param {any} options
+ * @param {UpdateServiceOptions=} options
  */
 function createUpdateService(options = {}) {
   const fsImpl = options.fs || fs;
@@ -611,7 +617,7 @@ function createUpdateService(options = {}) {
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
     const timeoutError = createUpdateCheckTimeoutError(manifestTimeoutMs);
     let timeoutId;
-    /** @type {{ cache: string, headers: Record<string, string>, signal?: AbortSignal }} */
+    /** @type {RequestInit} */
     const requestOptions = {
       cache: 'no-store',
       headers: {
@@ -833,7 +839,7 @@ function createUpdateService(options = {}) {
 
   return {
     getStatus,
-    async checkForUpdates(/** @type {any} */ options = {}) {
+    async checkForUpdates(/** @type {{ manual?: boolean }} */ options = {}) {
       if (packagingMode === 'installed' && isSquirrelFirstRun()) {
         return setState({
           updateStatus: DEFAULT_UPDATE_STATUS,

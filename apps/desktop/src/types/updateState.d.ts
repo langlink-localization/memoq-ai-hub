@@ -86,3 +86,40 @@ export interface DefaultUpdateStateInput {
   packagingMode?: string;
   manifestUrl?: string;
 }
+
+export type UpdateFs = typeof import('fs');
+
+export type UpdateFetch = typeof globalThis.fetch;
+
+export interface UpdateLogger {
+  info(event: string, message?: string, details?: any): unknown;
+  warn(event: string, message?: string, details?: any): unknown;
+  error(event: string, message?: string, details?: any): unknown;
+}
+
+export interface UpdatePaths {
+  updatesDir?: string;
+  updateDownloadsDir?: string;
+  preparedUpdatesDir?: string;
+  updateStatePath?: string;
+  [key: string]: any;
+}
+
+export type UpdateArchiveExtract = (sourcePath: string, targetDir: string) => Promise<unknown>;
+
+export interface UpdateServiceOptions {
+  fs?: UpdateFs;
+  fetch?: UpdateFetch;
+  logger?: UpdateLogger;
+  manifestTimeoutMs?: number;
+  nowIso?: () => string;
+  releaseRepository?: string;
+  manifestUrl?: string;
+  currentVersion?: string;
+  execPath?: string;
+  packagingMode?: string;
+  extractArchive?: UpdateArchiveExtract;
+  paths?: UpdatePaths;
+  updateStatePath?: string;
+  argv?: string[];
+}

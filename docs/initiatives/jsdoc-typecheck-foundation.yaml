@@ -1,6 +1,6 @@
 id: jsdoc-typecheck-foundation
 title: memoQ AI Hub progressive JSDoc type checking
-status: in_progress
+status: shipped
 owner: repository maintainers
 repos:
   - path: ../..
@@ -10,17 +10,13 @@ spec_link: none
 github_links:
   project: none
   issues: []
-current_stage: update-state-and-sql-handle-typed
+current_stage: update-service-options-typed
 last_verified_commit: >
-  v1.0.49 candidate. Update manifest, asset, and persisted update state live
-  in src/types/updateState.d.ts. sql.js and the desktop database wrapper live
-  in src/types/sql.js.d.ts and src/types/desktopDatabase.d.ts. Persistence
-  takes the wrapper type. Provider prompt builder and registry keep their
-  deep typedefs.
-next_action: >
-  Type createUpdateService options and the injected filesystem, fetch, and
-  archive-extract doubles in updateService. Do not shrink the checkJs include
-  list. Keep deep typedefs in providerPromptBuilder and providerRegistry.
+  Closeout on main after v1.0.49. createUpdateService options now name the
+  injected filesystem (typeof fs), fetch, logger, paths, and archive extract.
+  The checkJs include list is unchanged. Provider prompt builder and registry
+  keep their deep typedefs.
+next_action: none
 allowed_interruptions:
   - emergency production fix
   - security or data correctness issue
@@ -38,5 +34,5 @@ resume_prompt: >
   modules (deep typedefs for prompt builder and registry), the runtime
   composition root and its services, database.js, integrationService,
   previewContextClient, updateService, gatewayRequestValidation.js, and
-  rendererIpcSurface.js. Continue with next_action without weakening strict
-  mode or shrinking the typed surface.
+  rendererIpcSurface.js. This initiative is closed. Do not shrink the typed
+  surface. Start a new initiative before replacing remaining callback-level any.
