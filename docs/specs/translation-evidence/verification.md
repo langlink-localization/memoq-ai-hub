@@ -1,6 +1,6 @@
 # Verification evidence
 
-Candidate: `codex/translation-evidence`, release target v1.0.53. This document describes local evidence; GitHub CI, merge and publication are recorded separately.
+Shipped: v1.0.53, release commit `44dada39640cb19421709bf9d3b63111feb43a77`. [PR #16](https://github.com/langlink-localization/memoq-ai-hub/pull/16) merged on 2026-10-10 (Asia/Shanghai).
 
 ## Local checks
 
@@ -27,8 +27,17 @@ Used the actual TranslationResults, TranslationEvidence and AssetTestPanel compo
 - Local asset testing: language names displayed; empty source disabled the action; submitting source displayed matched entries and “Not sent to model”.
 - Retranslation: explicit confirmation described model charges, cache bypass, new history and no memoQ replacement; confirmation displayed old/new results and the new terminology check.
 - Literal `<desc_id=1>` remained visible beside highlighted terminology. Form controls have accessible names. Browser error log was empty.
-- Synthetic screenshots retained locally at `/private/tmp/translation-evidence-desktop.png` and `/private/tmp/translation-evidence-narrow.png`; no customer data was used.
+- Synthetic screenshots were captured during acceptance; no customer data was used.
 
 ## Delivery boundaries
 
-Windows CI must build the plugin, prepare resources, package Electron and smoke-test the gateway before merge. The release workflow must produce and publish the setup, ZIP, 7z and manifest; verify published digests against the manifest. Real Windows protocol activation (installed and portable), licensed memoQ regression execution and Wayne's actual translation acceptance remain distinct live-environment checks. No licensed memoQ installation is available on this Mac.
+Windows CI built the plugin, prepared resources, packaged Electron and passed the gateway health smoke. The release workflow published the setup, ZIP, 7z and stable manifest; published digests match the manifest. Real Windows protocol activation (installed and portable), licensed memoQ regression execution and Wayne's actual translation acceptance remain distinct live-environment checks. No licensed memoQ installation is available on this Mac.
+
+## Published delivery evidence
+
+- [Final PR CI](https://github.com/langlink-localization/memoq-ai-hub/actions/runs/37967115863): lint, typecheck, 722 desktop tests (718 passed, 4 packaging-dependent skips), 28 repository tests, Windows plugin build, resources, gateway smoke and package passed. The final renderer regressions include cached and mixed-batch prompt labeling.
+- [Post-merge main CI](https://github.com/langlink-localization/memoq-ai-hub/actions/runs/37967834215): passed for the release commit. Ant Design lint also passed on both PR and main.
+- [Release workflow](https://github.com/langlink-localization/memoq-ai-hub/actions/runs/37968458552): passed. All four packaging-dependent tests ran against the finished bundle and passed with zero skips.
+- [v1.0.53](https://github.com/langlink-localization/memoq-ai-hub/releases/tag/v1.0.53): verified latest, non-draft, non-prerelease; English notes match the repository after Windows newline normalization. All four assets are uploaded, and installer/ZIP/7z digests match the stable manifest. The downloaded manifest's own digest matches GitHub's published digest.
+- Release assets: setup EXE 143,491,584 bytes; portable ZIP 142,902,960 bytes; compact 7z 92,446,812 bytes; stable manifest 1,079 bytes.
+- v1.0.52 remains available for rollback. Preserve local settings and history; update Hub and its bundled plugin together.

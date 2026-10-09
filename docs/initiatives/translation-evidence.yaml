@@ -1,6 +1,6 @@
 id: translation-evidence
 title: Translation evidence and terminology reliability
-status: active
+status: shipped
 owner: repository maintainers
 repos:
   - path: ../..
@@ -10,13 +10,15 @@ spec_link: docs/specs/translation-evidence/spec.md
 github_links:
   project: none
   issues: []
-current_stage: P5
-last_verified_commit: 7311d19
-next_action: Finish independent review and current-candidate checks, then publish PR, merge, and release v1.0.53.
+  pull_request: https://github.com/langlink-localization/memoq-ai-hub/pull/16
+  release: https://github.com/langlink-localization/memoq-ai-hub/releases/tag/v1.0.53
+current_stage: P0-P5 shipped in v1.0.53
+last_verified_commit: 44dada39640cb19421709bf9d3b63111feb43a77
+next_action: Engineering delivery is complete. When a licensed Windows memoQ environment is available, validate protocol activation and the original customer sample; see verification.md for the explicit acceptance boundary.
 drift_guard:
   ui_contract: docs/ui-governance.md
   toolchain_contract: AGENTS.md
   validation_command: pnpm run lint && pnpm run typecheck && pnpm run test:desktop && pnpm run test:repo && pnpm run test:antd
   source_of_truth: GitHub, repository tests, Windows packaging and published release artifacts
 intentional_divergences: []
-resume_prompt: Read this ledger and spec, verify the worktree, continue P0–P5, and report merge, release and live memoQ acceptance separately.
+resume_prompt: Read the verification record and v1.0.53 release before further work. P0-P5 engineering delivery is shipped; do not repeat it or claim the separately listed live memoQ checks have passed.
