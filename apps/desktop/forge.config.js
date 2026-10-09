@@ -86,7 +86,7 @@ function getJavaScriptFiles(rootDir) {
       continue;
     }
 
-    if (entry.isFile() && path.extname(entry.name) === '.js') {
+    if (entry.isFile() && ['.js', '.cjs'].includes(path.extname(entry.name))) {
       results.push(entryPath);
     }
   }
@@ -328,7 +328,8 @@ function copyMissingRuntimeModules(sourceDir, targetDir) {
       continue;
     }
 
-    if (!fs.existsSync(targetPath)) {
+    const compiledCjsPath = targetPath.replace(/\.js$/, '.cjs');
+    if (!fs.existsSync(targetPath) && !fs.existsSync(compiledCjsPath)) {
       fs.copyFileSync(sourcePath, targetPath);
     }
   }
@@ -452,6 +453,7 @@ module.exports = {
   ],
   __testables: {
     collectRuntimePackageNames,
+    copyMissingRuntimeModules,
     findRuntimePackageNames,
     getPackageDependencyNames,
     normalizePackageName,

@@ -137,6 +137,8 @@ test('dependency and CI governance is reproducible', () => {
   assert.match(workspaceSettings, /^onlyBuiltDependencies:\n  - electron\n  - electron-winstaller\n  - esbuild$/m);
   for (const overriddenPackage of [
     'shell-quote',
+    'proxy-addr',
+    'source-map-js',
     'tar',
     '@xmldom/xmldom',
     'brace-expansion@^1',
@@ -169,7 +171,7 @@ test('dependency and CI governance is reproducible', () => {
       `Security override must stay in pnpm-workspace.yaml: ${overriddenPackage}`
     );
   }
-  assert.equal(rootPackage.engines?.node, '>=22.12.0');
+  assert.equal(rootPackage.engines?.node, '>=22.13.0');
   assert.match(rootPackage.scripts?.lint, /^eslint /);
   assert.equal(rootPackage.devDependencies?.eslint, '9.39.5');
   assert.equal(rootPackage.devDependencies?.['@eslint/js'], '9.39.5');
@@ -180,8 +182,8 @@ test('dependency and CI governance is reproducible', () => {
   assert.equal(fs.existsSync(path.join(repoRoot, 'apps', 'desktop', 'tsconfig.json')), true);
   assert.match(eslintConfig, /eslint\.configs\.recommended/);
   assert.match(eslintConfig, /react-hooks\/rules-of-hooks/);
-  assert.equal(desktopPackage.engines?.node, '>=22.12.0');
-  assert.match(packageWindowsScript, /Ensure-NodeVersion \$nodeExecutable \(\[version\]"22\.12\.0"\)/);
+  assert.equal(desktopPackage.engines?.node, '>=22.13.0');
+  assert.match(packageWindowsScript, /Ensure-NodeVersion \$nodeExecutable \(\[version\]"22\.13\.0"\)/);
   assert.equal(desktopPackage.dependencies?.['body-parser'], '1.20.6');
   assert.equal(
     desktopPackage.dependencies?.xlsx,
@@ -199,10 +201,10 @@ test('dependency and CI governance is reproducible', () => {
     },
     {
       electron: '44.4.5',
-      forgeCli: '7.11.2',
-      forgeSquirrel: '7.11.2',
-      forgeVite: '7.11.2',
-      forgeZip: '7.11.2',
+      forgeCli: '8.0.1',
+      forgeSquirrel: '8.0.1',
+      forgeVite: '8.0.1',
+      forgeZip: '8.0.1',
       pluginReact: '6.0.5',
       vite: '8.2.0',
     }
@@ -210,11 +212,16 @@ test('dependency and CI governance is reproducible', () => {
   assert.match(workspaceSettings, /^  body-parser: 1\.20\.6$/m);
   assert.match(workspaceSettings, /^  '@tootallnate\/once': 2\.0\.1$/m);
   assert.match(workspaceSettings, /^  esbuild: 0\.28\.1$/m);
-  assert.match(workspaceSettings, /^  '@electron\/packager': 18\.4\.4$/m);
+  assert.match(workspaceSettings, /^  '@electron\/packager': 20\.3\.0$/m);
   assert.match(
     workspaceSettings,
     /^  extract-zip: npm:@electron-internal\/extract-zip@1\.0\.5$/m
   );
+  // Retired Forge 7 dependencies have no patched release and must stay absent.
+  assert.doesNotMatch(lockfile, /^  (?:braces|sprintf-js|http-cache-semantics)@/m);
+  assert.match(workspaceSettings, /^  shell-quote: \^1\.12\.0$/m);
+  assert.match(workspaceSettings, /^  proxy-addr: \^2\.0\.8$/m);
+  assert.match(workspaceSettings, /^  source-map-js: \^1\.2\.2$/m);
   // Patched floors for audited advisories must not regress.
   assert.match(workspaceSettings, /^  ip-address: 10\.7\.2$/m);
   assert.match(workspaceSettings, /^  undici: \^7\.29\.1$/m);

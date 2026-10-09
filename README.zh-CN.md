@@ -53,7 +53,7 @@
 - 独立服务和 worker 本地模式不再生成可逆凭据文件，运行时基准也已明确按生产 worker 组合测量。
 - Renderer 的刷新、轮询、历史详情和 Shell 生命周期已经收敛到专用 hooks，CI 也从保留 React Hooks 警告升级为拒绝任何 ESLint warning。
 - 桌面 worker 请求设有明确超时，Windows 安全存储不可用时 Provider 凭据保存会失败关闭，CI 同时执行静态分析。
-- Electron 与桌面端依赖已升级到持续安全维护的版本；只有源码构建需要 Node.js 22.12 或更高版本。
+- Electron 与桌面端依赖已升级到持续安全维护的版本；只有源码构建需要 Node.js 22.13 或更高版本。
 - 仓库和发布包不再包含 memoQ SDK 二进制、AddinSigner 或官方 SDK 示例；源码构建只会将两个必要的编译期程序集解析到 Git 忽略的本地缓存。
 - memoQ 插件与本地网关现在会在首次请求前互相校验共享契约版本，网关 POST 请求体会先做轻量形状校验，本地数据库也引入了版本化的 schema 迁移。
 - 渲染层应用壳已拆分为聚焦的页面域 hooks 与组件，渲染层 IPC 面由 preload 与 main 共享的单一表生成，runtime 也补齐了显式依赖的历史呈现与状态视图服务。

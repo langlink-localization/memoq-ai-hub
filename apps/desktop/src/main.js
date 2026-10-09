@@ -334,7 +334,7 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.cjs')
     }
   });
 
@@ -466,7 +466,7 @@ function createQualityWindow() {
     title: `${PRODUCT_NAME} - Assistant`,
     show: false,
     backgroundColor: '#ffffff',
-    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, 'preload.js') }
+    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, 'preload.cjs') }
   });
   lockdownWebContents(qualityWindow.webContents, 'assistant-window');
   qualityWindow.webContents.on('render-process-gone', (_event, details) => {

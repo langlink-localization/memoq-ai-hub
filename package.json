@@ -4,7 +4,7 @@
   "version": "1.0.51",
   "packageManager": "pnpm@10.6.2",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.13.0"
   },
   "license": "MIT",
   "description": "memoQ AI Hub monorepo with Electron desktop app and minimal memoQ plugin.",

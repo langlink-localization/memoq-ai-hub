@@ -108,6 +108,9 @@ export default defineConfig({
       },
       external: ['electron', ...builtinModules, ...builtinModules.map((moduleName) => `node:${moduleName}`)],
       output: {
+        // Workers and runtime modules are loaded by their existing .js paths.
+        // Only the Electron main entry uses Forge 8's .cjs entry contract.
+        entryFileNames: (chunk) => chunk.name === 'main' ? '[name].cjs' : '[name].js',
         preserveModules: true,
         preserveModulesRoot: path.resolve(__dirname, 'src'),
       },

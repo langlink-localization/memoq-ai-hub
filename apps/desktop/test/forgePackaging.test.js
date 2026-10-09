@@ -10,6 +10,10 @@ test('Vite main-process inputs include every statically required local runtime m
   const viteConfig = (await import('../vite.main.config.mjs')).default;
   assert.equal(viteConfig.build.rolldownOptions.preserveEntrySignatures, 'strict');
   assert.equal(viteConfig.build.rolldownOptions.output.preserveModules, true);
+  const entryFileNames = viteConfig.build.rolldownOptions.output.entryFileNames;
+  assert.equal(entryFileNames({ name: 'main' }), '[name].cjs');
+  assert.equal(entryFileNames({ name: 'backgroundWorker' }), '[name].js');
+  assert.equal(entryFileNames({ name: 'runtime/runtime' }), '[name].js');
   const inputPaths = new Set(
     Object.values(viteConfig.build.rolldownOptions.input).map((inputPath) => path.resolve(inputPath))
   );
@@ -47,6 +51,11 @@ test('forge packaging collects transitive runtime dependencies for discovered de
   try {
     fs.mkdirSync(buildDir, { recursive: true });
     fs.writeFileSync(path.join(buildDir, 'backgroundWorker.js'), "require('express');\n", 'utf8');
+
+    fs.writeFileSync(path.join(buildDir, 'main.cjs'), "require('openai');\n", 'utf8');
+    fs.writeFileSync(path.join(buildDir, 'preload.cjs'), "require('electron');\n", 'utf8');
+    const discovered = forgeConfig.__testables.findRuntimePackageNames(tempRoot);
+    assert.deepEqual(discovered, ['electron', 'express', 'openai']);
 
     const packageNames = forgeConfig.__testables.collectRuntimePackageNames(tempRoot);
 
@@ -151,4 +160,25 @@ test('renderer production build injects a strict CSP without touching dev mode',
 
   const groups = viteConfig.build.rolldownOptions.output.codeSplitting.groups;
   assert.equal(groups.length, 1, 'vendor chunk governance must stay unchanged');
+});
+
+
+test('runtime restoration preserves compiled CJS entries and restores missing JS modules', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'memoq-runtime-restore-'));
+  const source = path.join(root, 'src');
+  const target = path.join(root, 'build');
+  try {
+    fs.mkdirSync(source);
+    fs.mkdirSync(target);
+    for (const name of ['main', 'preload', 'backgroundWorker']) {
+      fs.writeFileSync(path.join(source, `${name}.js`), 'module.exports = {};');
+    }
+    fs.writeFileSync(path.join(target, 'main.cjs'), 'compiled-main');
+    fs.writeFileSync(path.join(target, 'preload.cjs'), 'compiled-preload');
+    forgeConfig.__testables.copyMissingRuntimeModules(source, target);
+    assert.deepEqual(fs.readdirSync(target).sort(), ['backgroundWorker.js', 'main.cjs', 'preload.cjs']);
+    assert.equal(fs.readFileSync(path.join(target, 'main.cjs'), 'utf8'), 'compiled-main');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

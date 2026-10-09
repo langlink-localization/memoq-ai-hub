@@ -173,7 +173,7 @@ Ensure-Dotnet | Out-Null
 Ensure-Command "node" "Install Node.js 22.x and ensure it is available in PATH." | Out-Null
 Initialize-PnpmCommand
 $nodeExecutable = Resolve-NodeExecutable
-Ensure-NodeVersion $nodeExecutable ([version]"22.12.0")
+Ensure-NodeVersion $nodeExecutable ([version]"22.13.0")
 
 $desktopVersion = Get-DesktopVersion
 

@@ -55,7 +55,7 @@ The repository contains runtime code for more advanced capabilities, but not eve
 - Local database commits now use validated atomic replacement with a last-known-good recovery backup; malformed and oversized gateway requests also return stable JSON errors.
 - Standalone and worker-local runtimes can no longer create reversible credential files, and the runtime benchmark now measures the production worker composition explicitly.
 - Renderer refresh, polling, history-detail, and shell lifecycle behavior now lives behind focused hooks, and CI rejects every ESLint warning instead of carrying React Hooks debt.
-- Electron and desktop dependencies have been moved to security-maintained versions, with Node.js 22.12 or newer required only for source builds.
+- Electron and desktop dependencies have been moved to security-maintained versions, with Node.js 22.13 or newer required only for source builds.
 - The repository and release packages no longer include memoQ SDK binaries, AddinSigner, or official SDK samples. Source builds resolve the two required compile-time assemblies into an ignored local cache.
 - The memoQ plugin and desktop gateway now verify the shared contract version against each other before the first request, gateway POST payloads are shape-validated up front, and the local database gained versioned schema migrations.
 - The renderer app shell was decomposed into focused page-domain hooks and components, the renderer IPC surface is generated from a single table shared by preload and main, and the runtime gained explicit history-presentation and state-view services.
