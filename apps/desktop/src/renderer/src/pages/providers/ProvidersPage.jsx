@@ -17,11 +17,12 @@ import {
   Select,
   Space,
   Switch,
-  Table,
   Tag,
   Tooltip,
   Typography
 } from 'antd';
+import { EmptyState } from '@langlink-tech/antd-kit/feedback';
+import { DataTable } from '@langlink-tech/antd-kit/table';
 import { useState } from 'react';
 import {
   buildCollapsiblePanelEntries,
@@ -175,7 +176,7 @@ function ProviderCatalog({
               ))}
             </div>
             {!filteredProviders.length && (
-              <Empty
+              <EmptyState
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
                 description={providerSearch ? t('providers.noSearchResults') : t('providers.noProviders')}
               />
@@ -307,7 +308,7 @@ function ProviderModelTable({
         </Space>
       </div>
 
-      <Table
+      <DataTable
         rowKey="id"
         pagination={false}
         scroll={{ x: TABLE_SCROLL_X }}
@@ -722,11 +723,14 @@ export function ProvidersPage(props) {
           </Space>
         ) : (
           <Card className="page-card">
-            <Empty description={t('providers.createProviderFirst')}>
-              <Dropdown menu={addProviderMenu} trigger={['click']}>
-                <Button type="primary" icon={<PlusOutlined />}>{t('common.add')}</Button>
-              </Dropdown>
-            </Empty>
+            <EmptyState
+              description={t('providers.createProviderFirst')}
+              action={(
+                <Dropdown menu={addProviderMenu} trigger={['click']}>
+                  <Button type="primary" icon={<PlusOutlined />}>{t('common.add')}</Button>
+                </Dropdown>
+              )}
+            />
           </Card>
         )}
       </Col>

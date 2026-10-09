@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
-import { Alert, Button, Card, Col, Collapse, Descriptions, Empty, Input, List, Radio, Row, Select, Space, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Col, Collapse, Descriptions, Input, List, Radio, Row, Select, Space, Tag, Typography } from 'antd';
+import { EmptyState } from '@langlink-tech/antd-kit/feedback';
 import { DeploymentUnitOutlined, ReloadOutlined } from '@ant-design/icons';
 import HoverText from '../../components/HoverText.jsx';
 import { formatLocalTimestamp } from '../../timeFormatting.mjs';
@@ -344,7 +345,7 @@ export default function DashboardPage({
                 {visibleDashboardNotices.length ? (
                   <List size="small" dataSource={visibleDashboardNotices} renderItem={(item) => <List.Item>{item}</List.Item>} />
                 ) : (
-                  <Empty description={t('dashboard.noNotices')} />
+                  <EmptyState description={t('dashboard.noNotices')} />
                 )}
               </Card>
             </Space>

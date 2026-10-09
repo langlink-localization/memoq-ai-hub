@@ -9,10 +9,11 @@ import {
   List,
   Space,
   Spin,
-  Table,
   Tag,
   Typography
 } from 'antd';
+import { EmptyState } from '@langlink-tech/antd-kit/feedback';
+import { DataTable } from '@langlink-tech/antd-kit/table';
 import HoverText from '../../components/HoverText.jsx';
 import { TABLE_COLUMN_WIDTHS, TABLE_SCROLL_X } from '../../tableLayout.mjs';
 import { formatLocalTimestamp } from '../../timeFormatting.mjs';
@@ -103,7 +104,7 @@ export default function HistoryDetailDrawer({
               children: (
                 <Space orientation="vertical" size={16} className="app-block-space">
                   <Card size="small" title={t('history.attemptTimeline')}>
-                    <Table
+                    <DataTable
                       size="small"
                       pagination={false}
                       scroll={{ x: TABLE_SCROLL_X }}
@@ -272,7 +273,7 @@ export default function HistoryDetailDrawer({
           />
         </Space>
       ) : (
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('history.noSelection')} />
+        <EmptyState image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('history.noSelection')} />
       )}
     </Drawer>
   );

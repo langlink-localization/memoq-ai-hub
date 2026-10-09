@@ -3,7 +3,6 @@ import {
   Button,
   Card,
   Dropdown,
-  Empty,
   Input,
   List,
   Segmented,
@@ -11,6 +10,7 @@ import {
   Tag,
   Typography
 } from 'antd';
+import { EmptyState } from '@langlink-tech/antd-kit/feedback';
 import { useMemo, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { ASSET_CATEGORIES, buildAssetUsageMap } from './assetPresentation.mjs';
@@ -84,13 +84,16 @@ export default function AssetsPage({
               </Text>
 
               {visibleAssets.length === 0 ? (
-                <Empty description={t('context.noAssets')}>
-                  <Dropdown menu={addAssetMenu} trigger={['click']}>
-                    <Button type="primary" icon={<PlusOutlined />} loading={Boolean(importingAssetType)}>
-                      {t('common.add')}
-                    </Button>
-                  </Dropdown>
-                </Empty>
+                <EmptyState
+                  description={t('context.noAssets')}
+                  action={(
+                    <Dropdown menu={addAssetMenu} trigger={['click']}>
+                      <Button type="primary" icon={<PlusOutlined />} loading={Boolean(importingAssetType)}>
+                        {t('common.add')}
+                      </Button>
+                    </Dropdown>
+                  )}
+                />
               ) : (
                 <List
                   size="small"

@@ -9,6 +9,7 @@ import {
   Tooltip,
   Typography
 } from 'antd';
+import { EmptyState } from '@langlink-tech/antd-kit/feedback';
 import { activateOnKeyboard } from '../uiBehavior.mjs';
 
 const { Text } = Typography;
@@ -68,7 +69,7 @@ export function CollapsibleItemList({
   listClassName = ''
 }) {
   if (!entries.length) {
-    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText} />;
+    return <EmptyState image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText} />;
   }
 
   return (

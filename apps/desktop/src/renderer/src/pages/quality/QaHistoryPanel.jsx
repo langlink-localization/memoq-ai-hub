@@ -15,16 +15,17 @@ import {
   Descriptions,
   Drawer,
   Dropdown,
-  Empty,
   Row,
   Select,
   Space,
   Statistic,
   Switch,
-  Table,
   Tag,
   Typography
 } from 'antd';
+import { EmptyState } from '@langlink-tech/antd-kit/feedback';
+import { useDestructiveConfirm } from '@langlink-tech/antd-kit/overlay';
+import { DataTable } from '@langlink-tech/antd-kit/table';
 import { useI18n } from '../../i18n';
 import QualityExecutionSummary from './QualityExecutionSummary.jsx';
 import QaFindingReview from './QaFindingReview.jsx';
@@ -57,7 +58,8 @@ function triggerLabel(trigger, t) {
 
 export default function QaHistoryPanel({ api, profiles = [], onProfileSaved, refreshKey = 0 }) {
   const { t } = useI18n();
-  const { message, modal } = AntdApp.useApp();
+  const { message } = AntdApp.useApp();
+  const confirmDestructive = useDestructiveConfirm();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -138,11 +140,10 @@ export default function QaHistoryPanel({ api, profiles = [], onProfileSaved, ref
 
   function confirmDelete() {
     if (!selectedIds.length) return;
-    modal.confirm({
+    confirmDestructive({
       title: t('quality.history.deleteTitle'),
       content: t('quality.history.deleteDescription', { count: selectedIds.length }),
-      okText: t('common.delete'),
-      okButtonProps: { danger: true },
+      actionLabel: t('common.delete'),
       async onOk() {
         const response = await api.deleteQaHistory(selectedIds);
         message.success(t('quality.history.deleteSuccess', { count: response?.deletedCount || selectedIds.length }));
@@ -228,14 +229,14 @@ export default function QaHistoryPanel({ api, profiles = [], onProfileSaved, ref
         <Col xs={24} sm={8}><Card size="small"><Statistic title={t('quality.history.aiParticipation')} value={statistics.aiRate} suffix="%" /></Card></Col>
       </Row>
 
-      <Table
+      <DataTable
         rowKey="requestId"
         loading={loading}
         dataSource={visibleItems}
         columns={columns}
         rowSelection={{ selectedRowKeys: selectedIds, onChange: setSelectedIds }}
         pagination={{ pageSize: 25, showSizeChanger: true }}
-        locale={{ emptyText: <Empty description={t('quality.history.empty')} /> }}
+        emptyState={{ description: t('quality.history.empty') }}
         scroll={{ x: 1180 }}
       />
 
@@ -265,7 +266,7 @@ export default function QaHistoryPanel({ api, profiles = [], onProfileSaved, ref
               onSaveFeedback={(payload) => api.saveQaFeedback(payload)}
               onDisableRule={disableFindingRule}
               canDisableRule={canDisableFindingRule}
-            /> : <Empty description={t('quality.checkCompleteNoFindings')} />}
+            /> : <EmptyState description={t('quality.checkCompleteNoFindings')} />}
           </Space>
         ) : null}
       </Drawer>

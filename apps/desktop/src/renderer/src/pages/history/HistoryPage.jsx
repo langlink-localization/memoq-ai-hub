@@ -1,4 +1,6 @@
-import { Alert, Button, Card, Col, Collapse, DatePicker, Empty, Form, Input, Row, Select, Space, Statistic, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Col, Collapse, DatePicker, Empty, Form, Input, Row, Select, Space, Statistic, Tag, Typography } from 'antd';
+import { EmptyState } from '@langlink-tech/antd-kit/feedback';
+import { DataTable } from '@langlink-tech/antd-kit/table';
 import dayjs from 'dayjs';
 import HoverText from '../../components/HoverText.jsx';
 import { TABLE_COLUMN_WIDTHS, TABLE_SCROLL_X } from '../../tableLayout.mjs';
@@ -134,7 +136,7 @@ export default function HistoryPage({
                         </Row>
                       </Space>
                     ) : (
-                      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('history.insights.empty')} />
+                      <EmptyState image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('history.insights.empty')} />
                     )}
                   </div>
                   <Form layout="vertical" component={false}>
@@ -263,22 +265,21 @@ export default function HistoryPage({
                     <Button disabled={historyRefreshing} onClick={refreshHistory}>{t('app.refresh')}</Button>
                   </Space>
                 </Space>
-                <Table
+                <DataTable
                   rowKey="id"
                   loading={historyRefreshing}
                   scroll={{ x: TABLE_SCROLL_X }}
                   rowSelection={{ selectedRowKeys: selectedHistoryIds, onChange: setSelectedHistoryIds }}
                   dataSource={visibleHistoryItems}
-                  locale={{
-                    emptyText: (
-                      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('history.insights.empty')}>
-                        <Button
-                          loading={historyRefreshing}
-                          onClick={activeHistoryFilterTags.length ? resetHistoryFilters : refreshHistory}
-                        >
-                          {activeHistoryFilterTags.length ? t('history.resetFilters') : t('app.refresh')}
-                        </Button>
-                      </Empty>
+                  emptyState={{
+                    description: t('history.insights.empty'),
+                    action: (
+                      <Button
+                        loading={historyRefreshing}
+                        onClick={activeHistoryFilterTags.length ? resetHistoryFilters : refreshHistory}
+                      >
+                        {activeHistoryFilterTags.length ? t('history.resetFilters') : t('app.refresh')}
+                      </Button>
                     )
                   }}
                   onRow={(record) => ({

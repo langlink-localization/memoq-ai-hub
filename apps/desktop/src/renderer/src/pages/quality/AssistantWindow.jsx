@@ -5,7 +5,6 @@ import {
   App as AntdApp,
   Button,
   Card,
-  Empty,
   Input,
   Segmented,
   Select,
@@ -14,6 +13,7 @@ import {
   Tag,
   Typography
 } from 'antd';
+import { EmptyState } from '@langlink-tech/antd-kit/feedback';
 import { useI18n } from '../../i18n';
 import QualityExecutionSummary from './QualityExecutionSummary.jsx';
 import PromptPresetSelector from './PromptPresetSelector.jsx';
@@ -301,7 +301,7 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
             onSaveFeedback={(payload) => api.saveQaFeedback(payload)}
             onDisableRule={disableFindingRule}
             canDisableRule={canDisableFindingRule}
-          /> : qaResult ? null : <Empty description={t('assistant.runQaHint')} />}
+          /> : qaResult ? null : <EmptyState description={t('assistant.runQaHint')} />}
         </>
       )}
     </Space>

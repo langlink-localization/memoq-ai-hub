@@ -16,13 +16,14 @@ import {
   Col,
   Layout,
   Menu,
-  Result,
   Row,
   Skeleton,
   Spin,
   Typography,
   theme
 } from 'antd';
+import { PageResult } from '@langlink-tech/antd-kit/feedback';
+import { useDestructiveConfirm } from '@langlink-tech/antd-kit/overlay';
 import {
   createDraftEntry,
   discardDraftEntry,
@@ -153,6 +154,7 @@ export default function App() {
   const dashboardLifecycle = useRequestLifecycle();
   const { t, locale, setLocale } = useI18n();
   const { message, modal } = AntdApp.useApp();
+  const confirmDestructive = useDestructiveConfirm();
   const initialShellStateRef = useRef(null);
   if (!initialShellStateRef.current) {
     initialShellStateRef.current = readShellState(globalThis.localStorage);
@@ -636,12 +638,11 @@ export default function App() {
     const normalizedEntryIds = Array.from(new Set((entryIds || []).filter(Boolean)));
     if (!normalizedEntryIds.length || deletingHistory) return;
 
-    modal.confirm({
+    confirmDestructive({
       title,
       content,
-      okText: t('common.delete'),
+      actionLabel: t('common.delete'),
       cancelText: t('common.cancel'),
-      okButtonProps: { danger: true },
       onOk: () => deleteHistoryEntries(normalizedEntryIds)
     });
   }
@@ -681,12 +682,11 @@ export default function App() {
   function confirmDeleteAsset(assetId) {
     const asset = state?.contextBuilder?.assets?.find((item) => item.id === assetId);
     if (!asset) return;
-    modal.confirm({
+    confirmDestructive({
       title: t('context.deleteAsset'),
       content: t('context.confirmDeleteAsset', { name: asset.name }),
-      okText: t('common.delete'),
+      actionLabel: t('common.delete'),
       cancelText: t('common.cancel'),
-      okButtonProps: { danger: true },
       onOk: async () => {
         try {
           await api.deleteAsset(assetId);
@@ -702,7 +702,7 @@ export default function App() {
   if (!state) {
     if (error) {
       return (
-        <Result
+        <PageResult
           status="error"
           title={t('app.startupErrorTitle')}
           subTitle={error}
