@@ -27,4 +27,4 @@ Run lint/typecheck, focused desktop tests, repo tests, AntD gate, production bui
 Automatically importing memoQ TB without a supported integration; blind text replacement; claiming full translation quality from terminology checks; cross-repo changes; automatic editor overwrite.
 
 ## Tracking
-GitHub PR: pending creation after implementation and required local gates.
+GitHub PR: https://github.com/langlink-localization/memoq-ai-hub/pull/16
