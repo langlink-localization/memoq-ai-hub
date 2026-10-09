@@ -83,12 +83,23 @@ Then restart memoQ.
 If you do not need terminology or custom TM support yet, you can skip this step.
 
 1. Open **Assets**.
-2. Click **+ New** and choose the asset type.
-3. Choose a local file. TBX, TMX, and common spreadsheet formats are supported.
-4. After upload, click **Preview** to inspect the parsed result.
-5. If the parser confidence is low, manually assign the source column, target column, and language pair, then save the mapping.
+2. Click **Import terminology** or **Import translation memory**. The file picker shows supported formats for that type.
+3. The preview opens automatically after import. CSV, TSV, TXT, and XLSX terminology tables show each column with sample values. Use **First row is a header** to choose header or headerless mode. Unchecking it keeps the first row as terminology and immediately includes it in the column samples.
+4. Under **Confirm terminology language columns**, search for language names and select the language of each term column. Leave notes and other columns unset. Select at least two distinct languages and click **Save column settings**. Reopen **Preview** to edit the mapping at any time, without configuring an AI provider.
+5. Bind the asset to a translation profile. Upload a multilingual table once and reuse it across its language pairs in either direction. Matching follows the memoQ task languages; empty cells are skipped without pairing terms across rows.
+
+For example, a table with `English`, `简体中文`, and `日本語` supports English–Chinese, English–Japanese, and Chinese–Japanese translation in both directions. Select the correct script or region for regional terminology. XLSX worksheets must share headers and column order; export differing sheets separately. Multilingual tables can expand to at most 50,000 language-pair entries. Larger tables produce an explicit split-file error instead of silently losing later language pairs.
 
 For uploaded custom TM assets, memoQ AI Hub calculates an `AI Hub TM score` locally and sends the best matches to the provider separately from memoQ's own best fuzzy TM hint. TMX files exported from memoQ can also use neighbor context to produce `101%` matches when the source text and surrounding segment evidence match.
+
+### Find, rename, and manage bindings
+
+- Search assets by filename, language, or translation profile name; filter by attached or unattached status.
+- Open **Bindings / Rename** to change the display name without changing the original filename, content, or saved language columns.
+- Select profiles to attach the asset, or deselect to detach. Existing assets of the same type are listed as replacements before saving. Name and binding changes are saved together.
+- If the terminology or Custom TM feature is disabled, explicitly check the enable option. Attaching alone preserves the feature switch.
+- Save or discard unsaved translation-profile edits before changing bindings. If another action changes a binding, reopen asset settings and review the latest state before saving.
+- Detach an asset before deleting it. Deletion removes the imported copy inside the app; the original source file is retained.
 
 ## Step 4: Build a Translation Profile in Builder
 

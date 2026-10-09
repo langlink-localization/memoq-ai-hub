@@ -939,3 +939,8 @@ body,
 
 .app-skip-link:focus-visible { transform: translateY(0); }
 .mapping-editor-footer { display: flex; justify-content: flex-end; flex-wrap: wrap; }
+
+.asset-column-samples {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

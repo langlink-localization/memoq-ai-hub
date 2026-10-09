@@ -1,224 +1,95 @@
-import {
-  Alert,
-  Button,
-  Card,
-  Descriptions,
-  Drawer,
-  Empty,
-  Input,
-  Select,
-  Space,
-  Tag,
-  Typography
-} from 'antd';
 import { EmptyState } from '@langlink-tech/antd-kit/feedback';
 import { DataTable } from '@langlink-tech/antd-kit/table';
-import {
-  buildAssetPreviewRows,
-  canApplyTbStructurePreview,
-  formatAssetPreviewMapping,
-  getAssetPreviewConfidenceLabel,
-  hasTbStructurePreview
-} from '../pages/assets/assetPresentation.mjs';
+import { Alert, Button, Card, Checkbox, Collapse, Descriptions, Drawer, Empty, Form, Select, Space, Typography } from 'antd';
+import { buildAssetPreviewRows, formatAssetPreviewMapping } from '../pages/assets/assetPresentation.mjs';
+import { buildAssetLanguageOptions, getAssetColumnDetails, isValidLanguageColumnDraft } from '../pages/assets/assetLanguages.mjs';
 import { useI18n } from '../i18n';
 import { TABLE_SCROLL_X } from '../tableLayout.mjs';
 
 const { Text } = Typography;
 const WIDE_SIDE_DRAWER_WIDTH = 'min(920px, calc(100vw - 32px))';
 
-// Read-only asset preview drawer driven by useAssetPreviewController: asset
-// metadata, parse warnings, manual TB mapping form, detected-structure apply,
-// and the preview rows themselves.
 export default function AssetPreviewDrawer({ controller }) {
-  const { t } = useI18n();
-  const {
-    assetPreviewOpen,
-    assetPreviewLoading,
-    assetPreviewRecord,
-    assetPreviewData,
-    assetPreviewManualDraft,
-    assetPreviewSaving,
-    retryAssetPreview,
-    setAssetPreviewManualDraft,
-    closeAssetPreview,
-    saveAssetPreviewTbConfig,
-    applyDetectedAssetPreviewTbStructure
-  } = controller;
+  const { t, locale } = useI18n();
+  const { assetPreviewOpen, assetPreviewLoading, assetPreviewRecord, assetPreviewData: data,
+    assetPreviewManualDraft: draft, assetPreviewSaving, retryAssetPreview, setAssetPreviewManualDraft,
+    closeAssetPreview, saveAssetPreviewTbConfig } = controller;
+  const columns = getAssetColumnDetails(data || {}, draft.hasHeader !== false);
+  const mappings = draft.languageColumns || [];
+  const languageOptions = buildAssetLanguageOptions(locale, mappings.map((column) => column.language));
+  const editable = assetPreviewRecord?.type === 'glossary' && columns.length > 0;
+  const warnings = [...new Set([...(data?.mappingWarnings || []), ...(data?.tbStructureWarnings || [])])];
+  const ready = !assetPreviewLoading && !data?.error && !data?.unsupported;
+  const duplicateLanguages = new Set(mappings.map((column) => column.language)).size !== mappings.length;
 
   return (
-    <Drawer
-      title={t('context.assetPreviewTitle')}
-      placement="right"
-      open={assetPreviewOpen}
-      onClose={closeAssetPreview}
-      closable={!assetPreviewSaving}
-      mask={{ closable: !assetPreviewSaving }}
-      keyboard={!assetPreviewSaving}
-      size={WIDE_SIDE_DRAWER_WIDTH}
-      destroyOnHidden
-    >
+    <Drawer title={assetPreviewRecord?.name || t('context.assetPreviewTitle')} placement="right"
+      open={assetPreviewOpen} onClose={closeAssetPreview} closable={!assetPreviewSaving}
+      mask={{ closable: !assetPreviewSaving }} keyboard={!assetPreviewSaving}
+      size={WIDE_SIDE_DRAWER_WIDTH} destroyOnHidden>
       <Space orientation="vertical" size={16} className="app-block-space">
-        {assetPreviewRecord ? (
-          <Descriptions bordered column={1} size="small">
-            <Descriptions.Item label={t('context.name')}>{assetPreviewRecord.name || '-'}</Descriptions.Item>
-            <Descriptions.Item label={t('context.assetTypeLabel')}>{t(`context.assetType.${assetPreviewRecord.type}`)}</Descriptions.Item>
-            <Descriptions.Item label={t('context.assetPreviewRowCount')}>{assetPreviewData?.rowCount ?? '-'}</Descriptions.Item>
-            <Descriptions.Item label={t('context.assetPreviewParsingMode')}>
-              {assetPreviewData?.parsingMode ? t(`context.assetPreviewMode.${assetPreviewData.parsingMode}`) : '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label={t('context.assetPreviewSmartAvailability')}>
-              {typeof assetPreviewData?.smartParsingAvailable === 'boolean'
-                ? (assetPreviewData.smartParsingAvailable ? t('common.enabled') : t('common.disabled'))
-                : '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label={t('context.assetPreviewConfidenceLabel')}>
-              {assetPreviewData?.mappingConfidence ? getAssetPreviewConfidenceLabel(t, assetPreviewData.mappingConfidence) : '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label={t('context.assetPreviewLanguagePair')}>
-              {assetPreviewData?.languagePair?.source || assetPreviewData?.languagePair?.target
-                ? `${assetPreviewData?.languagePair?.source || '-'} -> ${assetPreviewData?.languagePair?.target || '-'}`
-                : '-'}
-            </Descriptions.Item>
-            {hasTbStructurePreview(assetPreviewData) ? (
-              <Descriptions.Item label={t('context.assetPreviewTbStructureMode')}>
-                {t(`context.assetPreviewTbStructureModeValue.${assetPreviewData.tbStructuringMode || 'ai_structured'}`)}
-              </Descriptions.Item>
-            ) : null}
-          </Descriptions>
-        ) : null}
-        {assetPreviewLoading ? (
-          <Text type="secondary" role="status" aria-live="polite">{t('app.loading')}</Text>
-        ) : assetPreviewData?.unsupported ? (
-          <Alert type="info" showIcon title={t('context.assetPreviewUnavailable')} />
-        ) : assetPreviewData?.error ? (
-          <Alert type="error" showIcon title={assetPreviewData.error}
-            action={<Button onClick={retryAssetPreview}>{t('common.retry')}</Button>} />
-        ) : assetPreviewData?.smartParsingAvailable === false && assetPreviewData?.smartParsingRecommended ? (
-          <Alert
-            type="info"
-            showIcon
-            title={t('context.assetPreviewSmartUpgradeTitle')}
-            description={t('context.assetPreviewSmartUpgradeDescription')}
-          />
-        ) : null}
-        {Array.isArray(assetPreviewData?.mappingWarnings) && assetPreviewData.mappingWarnings.length ? (
-          <Alert
-            type="warning"
-            showIcon
-            title={t('context.assetPreviewWarnings')}
-            description={assetPreviewData.mappingWarnings.join(' ')}
-          />
-        ) : null}
-        {Array.isArray(assetPreviewData?.tbStructureWarnings) && assetPreviewData.tbStructureWarnings.length ? (
-          <Alert
-            type="warning"
-            showIcon
-            title={t('context.assetPreviewTbStructureWarnings')}
-            description={assetPreviewData.tbStructureWarnings.join(' ')}
-          />
-        ) : null}
-        {assetPreviewData?.manualMappingRequired ? (
-          <Card size="small" title={t('context.assetPreviewManualMappingTitle')}>
-            <Space orientation="vertical" size={12} className="app-block-space">
-              <Text type="secondary">{t('context.assetPreviewManualMappingDescription')}</Text>
-              <Select
-                value={assetPreviewManualDraft.srcColumn || undefined}
-                placeholder={t('context.assetPreviewManualSource')}
-                options={(assetPreviewData?.availableColumns || []).map((columnName) => ({ value: columnName, label: columnName }))}
-                onChange={(value) => setAssetPreviewManualDraft((current) => ({ ...current, srcColumn: value || '' }))}
-              />
-              <Select
-                value={assetPreviewManualDraft.tgtColumn || undefined}
-                placeholder={t('context.assetPreviewManualTarget')}
-                options={(assetPreviewData?.availableColumns || []).map((columnName) => ({ value: columnName, label: columnName }))}
-                onChange={(value) => setAssetPreviewManualDraft((current) => ({ ...current, tgtColumn: value || '' }))}
-              />
-              <Input
-                value={assetPreviewManualDraft.sourceLanguage}
-                placeholder={t('context.assetPreviewManualSourceLanguage')}
-                onChange={(event) => setAssetPreviewManualDraft((current) => ({ ...current, sourceLanguage: event.target.value }))}
-              />
-              <Input
-                value={assetPreviewManualDraft.targetLanguage}
-                placeholder={t('context.assetPreviewManualTargetLanguage')}
-                onChange={(event) => setAssetPreviewManualDraft((current) => ({ ...current, targetLanguage: event.target.value }))}
-              />
-              <Button
-                type="primary"
-                loading={assetPreviewSaving}
-                onClick={() => void saveAssetPreviewTbConfig()}
-                disabled={!assetPreviewManualDraft.srcColumn || !assetPreviewManualDraft.tgtColumn || !assetPreviewManualDraft.sourceLanguage || !assetPreviewManualDraft.targetLanguage}
-              >
-                {t('context.assetPreviewManualSave')}
-              </Button>
+        {assetPreviewLoading ? <Text role="status">{t('app.loading')}</Text> : data?.error ? (
+          <Alert type="error" showIcon title={data.error} action={<Button onClick={retryAssetPreview}>{t('common.retry')}</Button>} />
+        ) : data?.unsupported ? <Alert type="info" showIcon title={t('context.assetPreviewUnavailable')} /> : null}
+        {ready && editable ? (
+          <Card size="small" title={t('context.assetLanguageColumnsTitle')}>
+            <Space orientation="vertical" size={16} className="app-block-space">
+              <Text type="secondary">{t('context.assetLanguageColumnsHint')}</Text>
+              <Checkbox checked={draft.hasHeader !== false} disabled={assetPreviewSaving}
+                onChange={(event) => setAssetPreviewManualDraft((current) => ({ ...current, hasHeader: event.target.checked }))}>
+                {t('context.assetFirstRowHeader')}
+              </Checkbox>
+              <Text type="secondary">{t('context.assetSelectedLanguages', { count: mappings.length })}</Text>
+              <Form layout="vertical" disabled={assetPreviewSaving}>
+                {columns.map((column) => (
+                  <Form.Item key={column.columnIndex} label={`${column.columnIndex + 1}. ${column.columnName || t('context.assetUnnamedColumn')}`}
+                    extra={<Text className="asset-column-samples" type="secondary">{column.samples.filter(Boolean).join(' · ')}</Text>}>
+                    <Select allowClear showSearch={{ optionFilterProp: 'searchLabel' }}
+                      aria-label={`${t('context.assetColumnLanguage')} ${column.columnName || column.columnIndex + 1}`}
+                      placeholder={t('context.assetIgnoreColumn')}
+                      value={mappings.find((mapping) => mapping.columnIndex === column.columnIndex)?.language}
+                      options={languageOptions}
+                      onChange={(language) => setAssetPreviewManualDraft((current) => ({ ...current,
+                        languageColumns: [...(current.languageColumns || []).filter((mapping) => mapping.columnIndex !== column.columnIndex),
+                          ...(language ? [{ columnIndex: column.columnIndex, language }] : [])].sort((a, b) => a.columnIndex - b.columnIndex)
+                      }))} />
+                  </Form.Item>
+                ))}
+              </Form>
+              {duplicateLanguages ? <Alert type="warning" showIcon title={t('context.assetDuplicateLanguage')} /> : null}
+              <Button type="primary" loading={assetPreviewSaving} disabled={!isValidLanguageColumnDraft(mappings)}
+                onClick={() => void saveAssetPreviewTbConfig()}>{t('context.assetPreviewManualSave')}</Button>
+              <Text type="secondary">{t('context.assetSavedPreviewHint')}</Text>
             </Space>
           </Card>
         ) : null}
-        {hasTbStructurePreview(assetPreviewData) ? (
-          <Descriptions bordered column={1} size="small" title={t('context.assetPreviewTbStructureTitle')}>
-            <Descriptions.Item label={t('context.assetPreviewTbStructureSummary')}>
-              {assetPreviewData?.tbStructureSummary || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label={t('context.assetPreviewTbStructureFingerprint')}>
-              {assetPreviewData?.tbStructureFingerprint || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label={t('context.assetPreviewTbStructureApplied')}>
-              {assetPreviewData?.tbStructureApplied === true ? t('common.enabled') : t('common.disabled')}
-            </Descriptions.Item>
-          </Descriptions>
-        ) : null}
-        {canApplyTbStructurePreview(assetPreviewData) ? (
-          <Card size="small" title={t('context.assetPreviewApplyDetectedTitle')}>
+        {ready && warnings.length ? <Alert type="warning" showIcon title={t('context.assetPreviewWarnings')} description={warnings.join(' ')} /> : null}
+        {ready && Array.isArray(data?.rows) && data.rows.length ? (
+          <Card size="small" title={t('context.assetPreviewTitle')} extra={<Text type="secondary">{t('context.assetPreviewRowCount')}: {data.rowCount}</Text>}>
             <Space orientation="vertical" size={12} className="app-block-space">
-              <Text type="secondary">{t('context.assetPreviewApplyDetectedDescription')}</Text>
-              <Button
-                type="primary"
-                loading={assetPreviewSaving}
-                onClick={() => void applyDetectedAssetPreviewTbStructure()}
-              >
-                {t('context.assetPreviewApplyDetectedAction')}
-              </Button>
+              <DataTable size="small" pagination={{ pageSize: 10, hideOnSinglePage: true }} scroll={{ x: TABLE_SCROLL_X }}
+                dataSource={buildAssetPreviewRows(data)}
+                columns={(data.columns || Object.keys(data.rows[0] || {})).map((columnKey) => ({
+                  title: t(`context.assetPreviewColumn.${columnKey}`), dataIndex: columnKey, key: columnKey,
+                  render: (value) => String(value ?? '')
+                }))} />
+              {data.truncated ? <Text type="secondary">{t('context.assetPreviewTruncated')}</Text> : null}
             </Space>
           </Card>
+        ) : ready && data?.text ? <pre className="history-json">{data.text}</pre>
+          : ready ? <EmptyState image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('context.assetPreviewEmpty')} /> : null}
+        {ready && data ? (
+          <Collapse items={[{ key: 'details', label: t('context.assetTechnicalDetails'), children: (
+            <Descriptions bordered column={1} size="small">
+              <Descriptions.Item label={t('context.assetPreviewParsingMode')}>{data.parsingMode || '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('context.assetPreviewTbStructureSummary')}>{data.tbStructureSummary || '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('context.assetPreviewTbStructureFingerprint')}>{data.tbStructureFingerprint || '-'}</Descriptions.Item>
+              {formatAssetPreviewMapping(data.detectedMapping).map((item) => (
+                <Descriptions.Item key={item.key} label={t(`context.assetPreviewField.${item.role}`)}>{item.columnName}</Descriptions.Item>
+              ))}
+            </Descriptions>
+          ) }]} />
         ) : null}
-        {formatAssetPreviewMapping(assetPreviewData?.detectedMapping).length ? (
-          <Descriptions bordered column={1} size="small" title={t('context.assetPreviewDetectedMapping')}>
-            {formatAssetPreviewMapping(assetPreviewData?.detectedMapping).map((item) => (
-              <Descriptions.Item key={item.key} label={t(`context.assetPreviewField.${item.role}`)}>
-                <Space>
-                  <Text>{item.columnName}</Text>
-                  <Tag>{t(`context.assetPreviewConfidence.${item.confidence}`)}</Tag>
-                </Space>
-              </Descriptions.Item>
-            ))}
-            <Descriptions.Item label={t('context.assetPreviewUnmappedColumns')}>
-              {(assetPreviewData?.unmappedColumns || []).map((item) => item.columnName).filter(Boolean).join(', ') || '-'}
-            </Descriptions.Item>
-          </Descriptions>
-        ) : null}
-        {Array.isArray(assetPreviewData?.rows) && assetPreviewData.rows.length ? (
-          <>
-            <DataTable
-              size="small"
-              pagination={false}
-              scroll={{ x: TABLE_SCROLL_X }}
-              dataSource={buildAssetPreviewRows(assetPreviewData)}
-              columns={(assetPreviewData.columns || Object.keys(assetPreviewData.rows[0] || {})).map((columnKey) => ({
-                title: t(`context.assetPreviewColumn.${columnKey}`),
-                dataIndex: columnKey,
-                key: columnKey,
-                render: (value) => String(value ?? '')
-              }))}
-            />
-            {assetPreviewData?.truncated ? <Text type="secondary">{t('context.assetPreviewTruncated')}</Text> : null}
-          </>
-        ) : Array.isArray(assetPreviewData?.rows) ? (
-          <EmptyState image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('context.assetPreviewEmpty')} />
-        ) : assetPreviewData?.text ? (
-          <pre className="history-json">{assetPreviewData.text}</pre>
-        ) : (
-          <EmptyState image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('context.assetPreviewEmpty')} />
-        )}
       </Space>
     </Drawer>
   );

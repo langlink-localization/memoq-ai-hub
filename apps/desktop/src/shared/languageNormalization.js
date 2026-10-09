@@ -13,6 +13,12 @@ function normalizeLanguageInput(value) {
 }
 
 const LANGUAGE_ALIAS_MAP = new Map([
+  ['中文', 'zh'], ['简体中文', 'zh-Hans'], ['繁体中文', 'zh-Hant'],
+  ['英文', 'en'], ['英语', 'en'], ['日语', 'ja'], ['日文', 'ja'], ['韩语', 'ko'],
+  ['法语', 'fr'], ['德语', 'de'], ['西班牙语', 'es'], ['葡萄牙语', 'pt'],
+  ['日本語', 'ja'], ['한국어', 'ko'], ['繁體中文', 'zh-Hant'], ['简体', 'zh-Hans'], ['繁體', 'zh-Hant'],
+  ['jpn', 'ja'], ['kor', 'ko'], ['deu', 'de'], ['ger', 'de'], ['fra', 'fr'], ['fre', 'fr'],
+  ['spa', 'es'], ['por', 'pt'], ['ita', 'it'], ['rus', 'ru'], ['ara', 'ar'],
   ['eng', 'en'],
   ['eng us', 'en-US'],
   ['eng usa', 'en-US'],
@@ -119,7 +125,25 @@ function getLanguageAliasKeys(value) {
   return [...new Set(keys)];
 }
 
+const ASSET_LANGUAGE_CODES = require('./assetLanguages.json');
+const languageNames = ['en', 'zh-CN'].map((locale) => new Intl.DisplayNames([locale], { type: 'language' }));
+
+/** Resolve a known language name or valid tag; never treat an arbitrary header as a language.
+ * @param {unknown} value
+ * @returns {string}
+ */
+function resolveAssetLanguage(value) {
+  const raw = normalizeLanguageInput(value);
+  const candidate = normalizeCanonicalLanguageTag(raw);
+  for (const code of ASSET_LANGUAGE_CODES) {
+    if (languageNames.some((names) => names.of(code)?.toLowerCase() === raw.toLowerCase())) return code;
+  }
+  if (!ASSET_LANGUAGE_CODES.includes(candidate.split('-')[0])) return '';
+  try { return Intl.getCanonicalLocales(candidate)[0] || ''; } catch { return ''; }
+}
+
 module.exports = {
+  resolveAssetLanguage,
   getBaseLanguage,
   getLanguageAliasKeys,
   normalizeCanonicalLanguageTag

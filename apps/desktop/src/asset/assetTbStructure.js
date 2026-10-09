@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { normalizeCanonicalLanguageTag } = require('../shared/languageNormalization');
+const { normalizeCanonicalLanguageTag, resolveAssetLanguage } = require('../shared/languageNormalization');
 
 const TB_STRUCTURE_SAMPLE_ROWS = 8;
 /** @type {Record<string, string[]>} */
@@ -24,7 +24,6 @@ const TB_STRUCTURE_IGNORE_HEADERS = ['entryid', 'id', 'created', 'creator', 'mod
 const TB_STRUCTURE_MATCH_HINTS = ['sourceterm', 'source', 'term', 'subject', 'entrysubject', 'english', 'label'];
 const TB_STRUCTURE_TARGET_HINTS = ['targetterm', 'target', 'translation', 'translated', 'chinese', 'prc', 'zh', 'cn', 'def'];
 const TB_STRUCTURE_NOTE_HINTS = ['note', 'info', 'example', 'definition', 'remark', 'comment'];
-const TB_LANGUAGE_HEADER_TOKENS = ['english', 'chinese', 'japanese', 'korean', 'french', 'german', 'spanish', 'italian', 'portuguese', 'russian', 'arabic'];
 const TB_SIDE_META_SUFFIXES = ['def', 'definition'];
 const TB_SIDE_META_GENERIC_HEADERS = ['terminfo', 'termexample'];
 
@@ -295,10 +294,10 @@ function buildTbStructureSummary(structure = {}) {
 function isExplicitLanguageHeader(columnName = '') {
   const raw = String(columnName || '').trim();
   const normalized = normalizeHeader(raw);
-  if (!raw || !normalized) {
+  if (!raw) {
     return false;
   }
-  if (raw.startsWith('Entry_')) {
+  if (raw.startsWith('Entry_') || TB_STRUCTURE_IGNORE_HEADERS.includes(normalized)) {
     return false;
   }
   if (TB_SIDE_META_GENERIC_HEADERS.includes(normalized)) {
@@ -307,8 +306,7 @@ function isExplicitLanguageHeader(columnName = '') {
   if (TB_SIDE_META_SUFFIXES.some((suffix) => normalized.endsWith(suffix))) {
     return false;
   }
-  return TB_LANGUAGE_HEADER_TOKENS.some((token) => normalized.includes(token))
-    && /[_-]/.test(raw);
+  return Boolean(resolveAssetLanguage(raw));
 }
 
 /**
@@ -365,15 +363,18 @@ function inferExplicitTbStructure(rows = [], asset = {}) {
     normalizedName: normalizeHeader(name),
     profile: summarizeColumnSamples(rows.slice(1), index)
   }));
-  if (!looksLikeTbHeaderRow(columns)) {
-    return null;
-  }
-
   const languageColumns = findExplicitLanguageColumns(columns);
-  if (languageColumns.length < 2) {
+  if (languageColumns.length < 2 || languageColumns.every((/** @type {any} */ column) =>
+    column.profile.samples.length > 0 && column.profile.samples.every((/** @type {any} */ value) => resolveAssetLanguage(value) === resolveAssetLanguage(column.name)))) {
     return null;
   }
 
+  if (new Set(languageColumns.map((column) => resolveAssetLanguage(column.name))).size !== languageColumns.length) {
+    return null;
+  }
+  if (languageColumns.length > 2) {
+    return buildMultilingualTbStructure(rows, asset, languageColumns.map((column) => ({ columnIndex: column.index, language: resolveAssetLanguage(column.name) })), 'header_inferred');
+  }
   const sourceColumn = languageColumns[0];
   const targetColumn = languageColumns[1];
   const sourceMetaColumns = buildSideMetaColumns(columns, languageColumns, sourceColumn);
@@ -395,8 +396,8 @@ function inferExplicitTbStructure(rows = [], asset = {}) {
     targetColumnIndex: targetColumn.index,
     targetColumnName: targetColumn.name,
     languagePair: {
-      source: normalizeIsoLanguageCode(sourceColumn.name),
-      target: normalizeIsoLanguageCode(targetColumn.name)
+      source: resolveAssetLanguage(sourceColumn.name),
+      target: resolveAssetLanguage(targetColumn.name)
     },
     noteColumnIndexes: entryMetaColumns.filter((/** @type {any} */ column) => normalizeHeader(column.name) === 'entrynote').map((/** @type {any} */ column) => column.index),
     noteColumnNames: entryMetaColumns.filter((/** @type {any} */ column) => normalizeHeader(column.name) === 'entrynote').map((/** @type {any} */ column) => column.name),
@@ -427,6 +428,9 @@ function inferExplicitTbStructure(rows = [], asset = {}) {
  * @returns {Record<string, any> | null}
  */
 function buildManualTbStructure(rows = [], asset = {}) {
+  if (Array.isArray(asset.tbLanguageColumns) && asset.tbLanguageColumns.length) {
+    return buildMultilingualTbStructure(rows, asset, asset.tbLanguageColumns, 'manual_mapping');
+  }
   const manualMapping = asset?.tbManualMapping && typeof asset.tbManualMapping === 'object'
     ? asset.tbManualMapping
     : null;
@@ -612,8 +616,8 @@ function isValidTbStructure(structure = {}, asset = {}) {
   return structure
     && typeof structure === 'object'
     && String(structure.derivedFromSha256 || '') === String(asset?.sha256 || '')
-    && Number.isInteger(Number(structure.matchColumnIndex))
-    && Number(structure.matchColumnIndex) >= 0;
+    && ((structure.kind === 'multilingual' && Array.isArray(structure.languageColumns) && structure.languageColumns.length >= 2)
+      || (Number.isInteger(Number(structure.matchColumnIndex)) && Number(structure.matchColumnIndex) >= 0));
 }
 
 /**
@@ -622,6 +626,24 @@ function isValidTbStructure(structure = {}, asset = {}) {
  * @returns {any[]}
  */
 function buildEntriesFromTbStructure(rows = [], structure = {}) {
+  if (structure.kind === 'multilingual') {
+    const columns = structure.languageColumns || [];
+    const entries = [];
+    for (let source = 0; source < columns.length; source += 1) {
+      for (let target = source + 1; target < columns.length; target += 1) {
+        entries.push(...buildEntriesFromTbStructure(rows, {
+          ...structure, kind: 'bilingual',
+          matchColumnIndex: columns[source].columnIndex,
+          targetColumnIndex: columns[target].columnIndex,
+          sourceMetaColumns: columns[source].metaColumns,
+          targetMetaColumns: columns[target].metaColumns,
+          languagePair: { source: columns[source].language, target: columns[target].language }
+        }).filter((entry) => entry.sourceTerm && entry.targetTerm));
+        if (entries.length > 50000) throw new Error('Terminology table exceeds 50,000 language-pair entries. Split it into smaller files.');
+      }
+    }
+    return entries;
+  }
   if (!Array.isArray(rows) || rows.length < 2 || !isValidTbStructure(structure, { sha256: structure.derivedFromSha256 })) {
     return [];
   }
@@ -689,7 +711,56 @@ function buildEntriesFromTbStructure(rows = [], structure = {}) {
     .filter(Boolean);
 }
 
+/**
+ * @param {any[]} rows
+ * @param {Record<string, any>} asset
+ * @param {any[]} mappings
+ * @param {string=} sourceOfTruth
+ * @returns {Record<string, any>}
+ */
+function buildMultilingualTbStructure(rows, asset, mappings, sourceOfTruth = 'manual_mapping') {
+  const header = rows[0] || [];
+  const indexes = new Set();
+  const languages = new Set();
+  if (mappings.length < 2) throw new Error('Select at least two language columns.');
+  const columns = header.map((/** @type {any} */ name, /** @type {number} */ index) => ({ index, name: String(name), normalizedName: normalizeHeader(name) }));
+  const languageColumns = mappings.map((mapping) => {
+    const columnIndex = mapping.columnIndex;
+    const language = resolveAssetLanguage(mapping.language);
+    if (!Number.isInteger(columnIndex) || columnIndex < 0 || columnIndex >= header.length || indexes.has(columnIndex)) {
+      throw new Error('Choose distinct columns from this file.');
+    }
+    if (!language || languages.has(language)) throw new Error('Choose a different valid language for each column.');
+    indexes.add(columnIndex); languages.add(language);
+    return { columnIndex, columnName: String(header[columnIndex] || ''), language };
+  });
+  const mainColumns = languageColumns.map((column) => columns[column.columnIndex]);
+  const structure = {
+    version: 3, kind: 'multilingual', derivedFromSha256: String(asset.sha256 || ''),
+    languageColumns: languageColumns.map((column) => ({ ...column, metaColumns: buildSideMetaColumns(columns, mainColumns, columns[column.columnIndex]) })),
+    languagePair: { source: '', target: '' },
+    entryMetaColumns: buildEntryMetaColumns(columns, indexes),
+    noteColumnIndexes: columns.filter((/** @type {any} */ column) => !indexes.has(column.index) && SMART_ROLE_ALIASES.note.includes(column.normalizedName)).map((/** @type {any} */ column) => column.index),
+    sourceOfTruth, confidence: { level: 'high', score: 1 },
+    summary: languageColumns.map((column) => `${column.columnName}: ${column.language}`).join(' ; ')
+  };
+  return { ...structure, fingerprint: hashObject(structure) };
+}
+
+/** Give headerless tables positional columns without consuming the first record.
+ * @param {any[]} rows
+ * @param {boolean=} hasHeader
+ * @returns {any[]}
+ */
+function prepareTbTableRows(rows, hasHeader = true) {
+  if (hasHeader || !rows.length) return rows;
+  const width = rows.reduce((max, row) => Math.max(max, Array.isArray(row) ? row.length : 0), 0);
+  return [Array.from({ length: width }, () => ''), ...rows];
+}
+
 module.exports = {
+  prepareTbTableRows,
+  buildMultilingualTbStructure,
   buildDetectedMapping,
   buildEntriesFromTbStructure,
   buildManualTbStructure,

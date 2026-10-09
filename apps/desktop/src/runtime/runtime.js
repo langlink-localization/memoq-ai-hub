@@ -465,6 +465,7 @@ async function createRuntime(options = {}) {
     deleteProfile: profileService.deleteProfile,
     importAssetFromPath: assetService.importAssetFromPath,
     deleteAsset: assetService.deleteAsset,
+    saveAssetDetails: assetService.saveAssetDetails,
     saveMappingRule: profileService.saveMappingRule,
     deleteMappingRule: profileService.deleteMappingRule,
     testMapping: profileService.testMapping,

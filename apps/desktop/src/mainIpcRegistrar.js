@@ -5,6 +5,7 @@
 // registrar stays loadable and testable outside Electron.
 
 const path = require('path');
+const { getAssetImportRules, normalizeAssetPurpose } = require('./asset/assetRules');
 const { MAIN_LOCAL_METHODS, WORKER_PROXIED_METHODS } = require('./rendererIpcSurface');
 const { normalizeExternalHttpsUrl } = require('./shared/externalNavigation');
 const { DEFAULT_LOG_POLICY, getLogState, pruneLogs } = require('./shared/logging');
@@ -93,7 +94,8 @@ function createRendererIpcRegistrar(deps) {
     ipcMain.handle(MAIN_LOCAL_METHODS.importAsset.channel, async (_event, assetType) => {
       const result = await dialog.showOpenDialog(getMainWindow(), {
         title: 'Select an asset file to import',
-        properties: ['openFile']
+        properties: ['openFile'],
+        filters: [{ name: 'Supported asset files', extensions: (getAssetImportRules()[normalizeAssetPurpose(assetType)]?.extensions || []).map((extension) => extension.slice(1)) }]
       });
 
       if (result.canceled || !result.filePaths.length) {

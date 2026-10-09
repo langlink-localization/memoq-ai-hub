@@ -216,6 +216,9 @@ const requestHandlers = {
   saveAssetTbConfig(payload) {
     return requireRuntime().saveAssetTbConfig(payload?.assetId, payload || {});
   },
+  saveAssetDetails(payload) {
+    return requireRuntime().saveAssetDetails(payload || {});
+  },
   deleteAsset(payload) {
     return requireRuntime().deleteAsset(payload);
   },

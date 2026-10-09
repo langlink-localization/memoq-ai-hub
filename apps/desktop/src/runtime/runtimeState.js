@@ -556,6 +556,8 @@ function ensureAsset(asset = {}) {
     createdAt: String(normalized.createdAt || '').trim(),
     tbStructure,
     tbManualMapping,
+    tbHasHeader: normalized.tbHasHeader !== false,
+    tbLanguageColumns: Array.isArray(normalized.tbLanguageColumns) ? normalized.tbLanguageColumns.map((column) => ({ columnIndex: column.columnIndex, language: String(column.language || '') })) : [],
     tbLanguagePair,
     tbStructureConfidence: normalized.tbStructureConfidence && typeof normalized.tbStructureConfidence === 'object'
       ? normalized.tbStructureConfidence

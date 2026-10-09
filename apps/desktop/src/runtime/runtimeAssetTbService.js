@@ -1,4 +1,6 @@
 const { buildAssetPreview } = require('../asset/assetContext');
+const { buildMultilingualTbStructure, buildEntriesFromTbStructure, prepareTbTableRows } = require('../asset/assetTbStructure');
+const { __internals: { collectRawTableRowsFromAsset } } = require('../asset/assetGlossaryParser');
 const { ensureAsset } = require('./runtimeState');
 const { hasSmartTbParsingCapability } = require('./runtimeTranslationService');
 
@@ -171,6 +173,22 @@ function createRuntimeAssetTbService({ loadState, saveState, parsedAssetCache })
       throw new Error(`Asset "${assetId || 'unknown'}" was not found.`);
     }
 
+    if (Array.isArray(payload.languageColumns)) {
+      if (asset.type !== 'glossary' || !/\.(csv|tsv|txt|xlsx)$/i.test(asset.fileName || asset.name)) {
+        throw new Error('Language columns can only be configured for glossary tables.');
+      }
+      if (payload.hasHeader !== undefined && typeof payload.hasHeader !== 'boolean') throw new Error('Header setting must be true or false.');
+      const hasHeader = payload.hasHeader !== false;
+      const rows = prepareTbTableRows(collectRawTableRowsFromAsset({ ...asset, tbHasHeader: hasHeader }), hasHeader);
+      const structure = buildMultilingualTbStructure(rows, asset, payload.languageColumns);
+      buildEntriesFromTbStructure(rows, structure);
+      return updateAssetTbState(state, asset.id, {
+        tbHasHeader: hasHeader,
+        tbLanguageColumns: structure.languageColumns.map((/** @type {any} */ column) => ({ columnIndex: column.columnIndex, language: column.language })),
+        tbManualMapping: null, tbLanguagePair: { source: '', target: '' }, tbStructure: structure,
+        tbStructureConfidence: structure.confidence, tbStructureSource: 'manual_mapping'
+      });
+    }
     const manualMapping = normalizeManualMapping(payload?.manualMapping);
     const languagePair = normalizeLanguagePair(payload?.languagePair);
     if (!manualMapping.srcColumn || !manualMapping.tgtColumn) {
@@ -181,6 +199,8 @@ function createRuntimeAssetTbService({ loadState, saveState, parsedAssetCache })
     }
 
     return updateAssetTbState(state, asset.id, {
+      tbHasHeader: true,
+      tbLanguageColumns: [],
       tbManualMapping: manualMapping,
       tbLanguagePair: languagePair,
       tbStructure: null,

@@ -45,7 +45,8 @@ function parseAsset(asset, options = {}, helpers = {}) {
  */
 function getParsedAsset(asset, cache, options = {}, helpers = {}) {
   const parsingModeKey = options.smartParsingAvailable === true ? 'smart' : 'fallback';
-  const cacheKey = `${asset.id}:${asset.sha256 || ''}:${parsingModeKey}`;
+  const configKey = JSON.stringify([asset.tbHasHeader, asset.tbLanguageColumns, asset.tbManualMapping, asset.tbLanguagePair, asset.tbStructure?.fingerprint]);
+  const cacheKey = `${asset.id}:${asset.sha256 || ''}:${parsingModeKey}:${configKey}`;
   if (cache?.has(cacheKey)) {
     return cache.get(cacheKey);
   }

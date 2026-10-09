@@ -543,6 +543,26 @@ function dedupeMatches(hits = []) {
   return selected;
 }
 
+/** Prevent base-language index aliases from mixing explicit scripts or regions.
+ * @param {unknown} entryLanguage
+ * @param {unknown} requestLanguage
+ * @returns {boolean}
+ */
+function terminologyLanguageMatches(entryLanguage, requestLanguage) {
+  const entry = normalizeCanonicalLanguageTag(entryLanguage);
+  const request = normalizeCanonicalLanguageTag(requestLanguage);
+  if (!entry || !request || entry === '*' || request === '*') return true;
+  if (getBaseLanguage(entry) !== getBaseLanguage(request)) return false;
+  try {
+    const left = new Intl.Locale(entry);
+    const right = new Intl.Locale(request);
+    if (left.region && right.region && left.region !== right.region) return false;
+    if ((left.script || left.region) && (right.script || right.region)
+      && left.maximize().script !== right.maximize().script) return false;
+  } catch { return entry === request; }
+  return true;
+}
+
 /**
  * @param {{ matcher?: Record<string, any>, text?: unknown, srcLang?: unknown, tgtLang?: unknown, metadata?: Record<string, unknown> }} options
  * @returns {any[]}
@@ -566,7 +586,7 @@ function matchTbEntries({ matcher, text, srcLang, tgtLang, metadata = {} }) {
     ...(surfaces.default.text ? matchAutomaton(bucket.reverseAutomaton, surfaces.default) : []),
     ...(surfaces.normalized.text ? matchAutomaton(bucket.reverseNormalizedAutomaton, surfaces.normalized) : [])
   ]));
-  const hits = [...forwardHits, ...reverseHits];
+  const hits = [...forwardHits, ...reverseHits].filter((hit) => terminologyLanguageMatches(hit.entry.srcLang, srcLang) && terminologyLanguageMatches(hit.entry.tgtLang, tgtLang));
 
   hits.sort((left, right) => {
     const byStart = left.normalizedStart - right.normalizedStart;

@@ -218,6 +218,11 @@ const WORKER_PROXIED_METHODS = {
     worker: 'saveAssetTbConfig',
     workerPayload: (payload) => payload || {}
   },
+  saveAssetDetails: {
+    channel: 'desktop:save-asset-details',
+    worker: 'saveAssetDetails',
+    workerPayload: (payload) => payload || {}
+  },
   deleteAsset: {
     channel: 'desktop:delete-asset',
     worker: 'deleteAsset'

@@ -59,7 +59,23 @@ function buildAssetPreview(asset, parsed, options = {}, helpers = /** @type {Ass
   }
 
   const entries = Array.isArray(parsed.entries) ? parsed.entries : [];
-  const rows = entries.slice(0, maxRows);
+  let rows = entries.slice(0, maxRows);
+  if (assetType === ASSET_PURPOSES.glossary && parsed.parseInfo?.tbStructure?.kind === 'multilingual') {
+    /** @type {Map<string, any[]>} */
+    const pairs = new Map();
+    for (const entry of entries) {
+      const key = `${entry.srcLang}:${entry.tgtLang}`;
+      if (!pairs.has(key)) pairs.set(key, []);
+      const samples = pairs.get(key);
+      if (samples && samples.length < maxRows) samples.push(entry);
+    }
+    rows = [];
+    for (let index = 0; index < maxRows && rows.length < maxRows; index += 1) {
+      for (const samples of pairs.values()) {
+        if (samples[index] && rows.length < maxRows) rows.push(samples[index]);
+      }
+    }
+  }
 
   if (assetType === ASSET_PURPOSES.glossary) {
     return {

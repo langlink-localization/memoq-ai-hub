@@ -157,6 +157,7 @@ test('renderer logs route to the matching logger level', async () => {
 
 test('import dialogs forward the selected file to the worker and cancel to null', async () => {
   const ipcMain = createStubIpcMain();
+  const dialogOptions = [];
   const dialogResults = [
     { canceled: false, filePaths: ['C:/assets/terms.xlsx'] },
     { canceled: true, filePaths: [] }
@@ -164,7 +165,7 @@ test('import dialogs forward the selected file to the worker and cancel to null'
   const workerInvocations = [];
   const { deps } = createDeps({
     ipcMain,
-    dialog: { showOpenDialog: async () => dialogResults.shift() },
+    dialog: { showOpenDialog: async (_window, options) => { dialogOptions.push(options); return dialogResults.shift(); } },
     invokeWorker: (worker, payload) => {
       workerInvocations.push([worker, payload]);
       return { ok: true };
@@ -175,6 +176,7 @@ test('import dialogs forward the selected file to the worker and cancel to null'
   const imported = await ipcMain.handlers.get(MAIN_LOCAL_METHODS.importAsset.channel)(null, 'glossary');
   assert.deepEqual(workerInvocations.at(-1), ['importAsset', { assetType: 'glossary', sourcePath: 'C:/assets/terms.xlsx' }]);
   assert.deepEqual(imported, { ok: true });
+  assert.deepEqual(dialogOptions[0].filters[0].extensions, ['csv', 'tsv', 'txt', 'xlsx', 'tbx']);
 
   const canceled = await ipcMain.handlers.get(MAIN_LOCAL_METHODS.pickDirectory.channel)(null);
   assert.equal(canceled, null);

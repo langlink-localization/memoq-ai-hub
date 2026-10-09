@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { requestEditorDeparture } from '../editorNavigation.mjs';
 import { runLatestRequest } from '../requestLifecycle.mjs';
 import { useRequestLifecycle } from './useRequestLifecycle.mjs';
 
@@ -6,7 +7,7 @@ import { useRequestLifecycle } from './useRequestLifecycle.mjs';
 // TB mapping draft, and the apply/save TB-structure actions. The drawer JSX
 // lives in components/AssetPreviewDrawer.jsx and consumes the returned
 // controller object.
-export function useAssetPreviewController({ api, t, message, notifyError, refresh, assets }) {
+export function useAssetPreviewController({ api, t, message, notifyError, refresh, assets, modal }) {
   const previewLifecycle = useRequestLifecycle();
   const savingRef = useRef(false);
   const [assetPreviewOpen, setAssetPreviewOpen] = useState(false);
@@ -21,13 +22,20 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
   });
   const [assetPreviewSaving, setAssetPreviewSaving] = useState(false);
 
-  function closeAssetPreview() {
+  function dismissAssetPreview() {
     if (savingRef.current) return;
     previewLifecycle.invalidate();
     setAssetPreviewLoading(false);
     setAssetPreviewOpen(false);
     setAssetPreviewData(null);
     setAssetPreviewRecord(null);
+  }
+
+  function closeAssetPreview() {
+    const dirty = Array.isArray(assetPreviewManualDraft.languageColumns)
+      && (assetPreviewManualDraft.hasHeader !== (assetPreviewData?.hasHeader !== false)
+        || JSON.stringify(assetPreviewManualDraft.languageColumns) !== JSON.stringify((assetPreviewData?.languageColumns || []).map(({ columnIndex, language }) => ({ columnIndex, language }))));
+    requestEditorDeparture({ dirty, busy: savingRef.current, name: assetPreviewRecord?.name || '', modal, t, proceed: dismissAssetPreview });
   }
 
   async function openAssetPreview(assetId, options = {}) {
@@ -60,6 +68,7 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
       resolve: (preview) => {
         setAssetPreviewData(preview || {});
         setAssetPreviewManualDraft({
+          ...(Array.isArray(preview?.availableColumnDetails) ? { hasHeader: preview.hasHeader !== false, languageColumns: (preview?.languageColumns || []).map(({ columnIndex, language }) => ({ columnIndex, language })) } : {}),
           srcColumn: String(preview?.manualMapping?.srcColumn || ''),
           tgtColumn: String(preview?.manualMapping?.tgtColumn || ''),
           sourceLanguage: String(preview?.languagePair?.source || ''),
@@ -83,6 +92,7 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
     setAssetPreviewSaving(true);
     try {
       await api.saveAssetTbConfig(assetPreviewRecord.id, {
+        ...(Array.isArray(assetPreviewManualDraft.languageColumns) ? { hasHeader: assetPreviewManualDraft.hasHeader !== false, languageColumns: assetPreviewManualDraft.languageColumns } : {}),
         manualMapping: {
           srcColumn: assetPreviewManualDraft.srcColumn,
           tgtColumn: assetPreviewManualDraft.tgtColumn

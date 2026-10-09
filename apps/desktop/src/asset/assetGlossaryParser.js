@@ -16,6 +16,7 @@ const {
   normalizeCustomTmEntry
 } = require('./assetTmMatcher');
 const {
+  prepareTbTableRows,
   buildDetectedMapping,
   buildEntriesFromTbStructure,
   buildManualTbStructure,
@@ -197,6 +198,32 @@ function createRenderedTb(entries) {
   return lines.length ? `Required terminology:\n${lines.join('\n')}` : '';
 }
 
+/** CSV/TSV records, including escaped quotes and embedded newlines.
+ * @param {unknown} text
+ * @param {string} delimiter
+ * @returns {string[][]}
+ */
+function readDelimitedRecords(text, delimiter) {
+  const input = String(text || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const rows = [];
+  let row = [], cell = '', quoted = false;
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    if (char === '"') {
+      if (quoted && input[index + 1] === '"') { cell += '"'; index += 1; }
+      else if (quoted || !cell) quoted = !quoted;
+      else cell += char;
+    } else if (!quoted && (char === delimiter || char === '\n')) {
+      row.push(normalizeWhitespace(cell)); cell = '';
+      if (char === '\n') { if (row.some(Boolean)) rows.push(row); row = []; }
+    } else cell += char;
+  }
+  if (quoted) throw new Error('The table has an unclosed quoted cell. Check the exported CSV or TSV file.');
+  row.push(normalizeWhitespace(cell));
+  if (row.some(Boolean)) rows.push(row);
+  return rows;
+}
+
 /**
  * @param {unknown} text
  * @param {string=} extension
@@ -205,17 +232,11 @@ function createRenderedTb(entries) {
 function collectRawTableRowsFromText(text, extension = '') {
   const normalized = normalizeWhitespace(text);
   if (!normalized) return [];
-  if (extension === '.tsv' || normalized.includes('\t')) {
-    return normalized
-      .split('\n')
-      .map((line) => splitDelimitedLine(line, '\t'))
-      .filter((cells) => cells.some(Boolean));
+  if (extension === '.tsv' || (extension !== '.csv' && normalized.includes('\t'))) {
+    return readDelimitedRecords(text, '\t');
   }
   if (extension === '.csv' || normalized.includes(',')) {
-    return normalized
-      .split('\n')
-      .map((line) => splitDelimitedLine(line, ','))
-      .filter((cells) => cells.some(Boolean));
+    return readDelimitedRecords(text, ',');
   }
   return normalized
     .split('\n')
@@ -236,7 +257,12 @@ function collectRawTableRowsFromAsset(asset) {
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
       const values = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, blankrows: false });
-      rows.push(...values.map((cells) => Array.isArray(cells) ? cells.map((cell) => normalizeWhitespace(cell)) : []));
+      const sheetRows = values.map((cells) => Array.isArray(cells) ? cells.map((cell) => normalizeWhitespace(cell)) : []).filter((cells) => cells.some(Boolean));
+      if (!sheetRows.length) continue;
+      if (asset.tbHasHeader !== false && rows.length && JSON.stringify(rows[0]) !== JSON.stringify(sheetRows[0])) {
+        throw new Error('Worksheets use different columns. Import each worksheet as a separate file.');
+      }
+      rows.push(...(asset.tbHasHeader !== false && rows.length ? sheetRows.slice(1) : sheetRows));
     }
     return rows.filter((cells) => cells.some(Boolean));
   }
@@ -261,7 +287,7 @@ function finalizeParsedTable({ entries = [], rows = [], assignments = {}, warnin
     .filter((column) => !assignedIndexes.has(column.columnIndex));
 
   return {
-    entries: entries.filter(Boolean).slice(0, MAX_GLOSSARY_ROWS).map((/** @type {any} */ entry, /** @type {any} */ index) => mapEntryRow(entry, index)),
+    entries: entries.filter(Boolean).slice(0, tbStructure?.kind === 'multilingual' ? 50000 : MAX_GLOSSARY_ROWS).map((/** @type {any} */ entry, /** @type {any} */ index) => mapEntryRow(entry, index)),
     parseInfo: {
       parsingMode,
       smartParsingAvailable,
@@ -844,7 +870,8 @@ function parseGlossaryAsset(asset, options = {}) {
   const extension = path.extname(String(asset?.fileName || asset?.name || '')).trim().toLowerCase();
   /** @type {any} */ let parsed;
   const tableLike = ['.csv', '.tsv', '.txt', '.xlsx'].includes(extension);
-  const rawRows = tableLike ? collectRawTableRowsFromAsset(asset) : [];
+  const fileRows = tableLike ? collectRawTableRowsFromAsset(asset) : [];
+  const rawRows = prepareTbTableRows(fileRows, asset.tbHasHeader !== false);
   const manualStructure = tableLike ? buildManualTbStructure(rawRows, asset) : null;
   const explicitStructure = !manualStructure && tableLike ? inferExplicitTbStructure(rawRows, asset) : null;
   const persistedStructure = isValidTbStructure(asset?.tbStructure, asset) ? asset.tbStructure : null;
@@ -889,27 +916,25 @@ function parseGlossaryAsset(asset, options = {}) {
     || ((parsed?.parseInfo?.parsingMode === 'fallback' || parsed?.parseInfo?.usedFallbackMapping === true) ? derivedStructure : null);
   if (tableLike && activeStructure && rawRows.length > 1) {
     const structuredEntries = buildEntriesFromTbStructure(rawRows, activeStructure);
-    if (structuredEntries.length) {
-      const suppressFallbackWarnings = activeStructure?.sourceOfTruth === 'header_inferred' || activeStructure?.sourceOfTruth === 'manual_mapping';
-      const structureWarnings = suppressFallbackWarnings ? [] : (parsed?.parseInfo?.mappingWarnings || []);
-      parsed = finalizeParsedTable({
-        entries: structuredEntries,
-        rows: rawRows,
-        warnings: structureWarnings,
-        parsingMode: options.smartParsingAvailable === true ? 'smart' : 'fallback',
-        smartParsingAvailable: options.smartParsingAvailable === true,
-        usedFallbackMapping: activeStructure?.sourceOfTruth === 'manual_mapping',
-        hasExplicitHeaders: true,
-        tbStructure: activeStructure,
-        tbStructuringMode: activeStructure?.sourceOfTruth === 'manual_mapping'
-          ? 'manual_mapping'
-          : activeStructure?.sourceOfTruth === 'header_inferred'
-            ? 'explicitly_inferred'
-            : options.smartParsingAvailable === true
-              ? 'ai_structured'
-              : 'deterministic'
-      });
-    }
+    const suppressFallbackWarnings = activeStructure?.sourceOfTruth === 'header_inferred' || activeStructure?.sourceOfTruth === 'manual_mapping';
+    const structureWarnings = suppressFallbackWarnings ? [] : (parsed?.parseInfo?.mappingWarnings || []);
+    parsed = finalizeParsedTable({
+      entries: structuredEntries,
+      rows: rawRows,
+      warnings: structureWarnings,
+      parsingMode: options.smartParsingAvailable === true ? 'smart' : 'fallback',
+      smartParsingAvailable: options.smartParsingAvailable === true,
+      usedFallbackMapping: activeStructure?.sourceOfTruth === 'manual_mapping',
+      hasExplicitHeaders: true,
+      tbStructure: activeStructure,
+      tbStructuringMode: activeStructure?.sourceOfTruth === 'manual_mapping'
+        ? 'manual_mapping'
+        : activeStructure?.sourceOfTruth === 'header_inferred'
+          ? 'explicitly_inferred'
+          : options.smartParsingAvailable === true
+            ? 'ai_structured'
+            : 'deterministic'
+    });
   }
 
   if (activeStructure && parsed?.parseInfo) {
@@ -960,7 +985,21 @@ function parseGlossaryAsset(asset, options = {}) {
     }
   }
 
-  const limitedEntries = (parsed.entries || []).filter(Boolean).slice(0, MAX_GLOSSARY_ROWS);
+  if (tableLike && parsed?.parseInfo) {
+    parsed.parseInfo.hasHeader = asset.tbHasHeader !== false;
+    const width = fileRows.reduce((max, row) => Math.max(max, row.length), 0);
+    parsed.parseInfo.rawColumnDetails = Array.from({ length: width }, (_, columnIndex) => ({
+      columnIndex, columnName: String(fileRows[0]?.[columnIndex] || ''),
+      samples: fileRows.slice(1, 4).map((row) => String(row[columnIndex] || ''))
+    }));
+    parsed.parseInfo.availableColumnDetails = (rawRows[0] || []).map((/** @type {any} */ name, /** @type {number} */ columnIndex) => ({
+      columnIndex, columnName: String(name || ''), samples: rawRows.slice(1, 4).map((row) => String(row[columnIndex] || ''))
+    }));
+    parsed.parseInfo.languageColumns = activeStructure?.languageColumns || (activeStructure?.languagePair?.source && activeStructure?.languagePair?.target
+      ? [{ columnIndex: activeStructure.matchColumnIndex, language: activeStructure.languagePair.source },
+        { columnIndex: activeStructure.targetColumnIndex, language: activeStructure.languagePair.target }] : []);
+  }
+  const limitedEntries = (parsed.entries || []).filter(Boolean).slice(0, activeStructure?.kind === 'multilingual' ? 50000 : MAX_GLOSSARY_ROWS);
   const renderedText = truncateText(createRenderedTb(limitedEntries), MAX_GLOSSARY_CHARACTERS);
   const fingerprint = createTbFingerprint(limitedEntries);
   const matcher = createTbMatcher(limitedEntries);

@@ -257,7 +257,9 @@ test('high-risk actions and async mutations expose confirmation and pending cont
   assert.match(appSource, /beginPendingOperation\('history-delete'/);
   assert.match(builderSource, /loading=\{saving\}/);
   assert.match(builderSource, /disabled: saving \|\| duplicating/);
-  assert.match(assetsSource, /loading=\{Boolean\(importingAssetType\)\}/);
+  assert.match(assetsSource, /loading=\{importingAssetType === 'glossary'\}/);
+  assert.match(assetsSource, /loading=\{importingAssetType === 'custom_tm'\}/);
+  assert.equal((assetsSource.match(/disabled=\{Boolean\(importingAssetType\)\}/g) || []).length, 2);
   assert.match(appSource, /history\.exportSelectedCsv/);
   assert.match(appSource, /history\.exportFilteredXlsx/);
 });
@@ -321,7 +323,8 @@ test('translation style presets and empty-state next actions stay localized and 
   assert.match(builderSource, /TRANSLATION_STYLE_PRESETS/);
   assert.match(builderSource, /t\(selected\.instructionKey\)/);
   assert.doesNotMatch(builderSource, /Prefer natural, concise/);
-  assert.match(assetsSource, /<EmptyState[\s\S]*<Dropdown menu=\{addAssetMenu\}/);
+  assert.match(assetsSource, /\{importActions\}[\s\S]*<EmptyState/);
+  assert.match(assetsSource, /context\.assetNoSearchResults/);
   assert.match(providersSource, /<EmptyState\s+description=\{t\('providers\.createProviderFirst'\)\}[\s\S]*<Dropdown menu=\{addProviderMenu\}/);
 });
 
@@ -386,7 +389,8 @@ test('feature pages keep tables and overlays responsive on narrow viewports', ()
   assert.match(logsSource, /className="responsive-action-bar"/);
   assert.match(assetsSource, /className="asset-library-item"/);
   assert.match(assetsSource, /id: 'custom_tm'/);
-  assert.match(assetsSource, /key: 'custom_tm', label: t\('context\.uploadCustomTm'\)/);
+  assert.match(assetsSource, /onImportAsset\?\.\('custom_tm'\)/);
+  assert.match(assetsSource, /t\('context\.assetImportTm'\)/);
   assert.match(assetsSource, /customTm: \(assetImportRules\?\.customTm\?\.extensions \|\| \[\]\)\.join\(', '\)/);
   assert.match(assetsSource, /t\('context\.assetNotAttached'\)/);
   assert.doesNotMatch(assetsSource, /t\('providers\.notAvailable'\)/);

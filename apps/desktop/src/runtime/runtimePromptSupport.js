@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { normalizeCanonicalLanguageTag } = require('../shared/languageNormalization');
 
 const {
   createTbFingerprint,
@@ -101,7 +102,7 @@ function buildSegmentTbContext({
     matches,
     termHits,
     glossaryText: renderMatchedTerminologyBlock(matches),
-    tbMetadataText: renderMatchedTbMetadataBlock(matches, assetContext?.tb || {}),
+    tbMetadataText: renderMatchedTbMetadataBlock(matches, { ...assetContext?.tb, languagePair: { source: normalizeCanonicalLanguageTag(matches[0]?.entry?.srcLang || payload?.sourceLanguage), target: normalizeCanonicalLanguageTag(matches[0]?.entry?.tgtLang || payload?.targetLanguage) } }),
     fingerprint: createTbFingerprint(matches.map((match) => match.entry || match))
   };
 }

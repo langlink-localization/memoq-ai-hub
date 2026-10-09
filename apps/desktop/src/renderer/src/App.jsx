@@ -174,6 +174,8 @@ export default function App() {
   const [viewportWidth, setViewportWidth] = useState(() => Number(globalThis.innerWidth || 1366));
   const [mappingEditorSaving, setMappingEditorSaving] = useState(false);
   const [mappingEditorDirty, setMappingEditorDirty] = useState(false);
+  const [assetEditorDirty, setAssetEditorDirty] = useState(false);
+  const [assetEditorSaving, setAssetEditorSaving] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState(null);
   const [navigationResolving, setNavigationResolving] = useState(false);
   const pendingOperationsRef = useRef(null);
@@ -268,7 +270,7 @@ export default function App() {
   const profileDraftsRef = useRef(profileDraftsById);
   providerDraftsRef.current = providerDraftsById;
   profileDraftsRef.current = profileDraftsById;
-  const hasUnsavedDrafts = savingProvider || savingProfile || mappingEditorDirty || mappingEditorSaving || Object.values(providerDraftsById).some((entry) => entry?.isNew || entry?.dirtyFields?.length)
+  const hasUnsavedDrafts = assetEditorDirty || assetEditorSaving || savingProvider || savingProfile || mappingEditorDirty || mappingEditorSaving || Object.values(providerDraftsById).some((entry) => entry?.isNew || entry?.dirtyFields?.length)
     || Object.values(profileDraftsById).some((entry) => entry?.isNew || entry?.dirtyFields?.length);
   const shellNavigationMode = getShellNavigationMode(viewportWidth);
 
@@ -415,7 +417,7 @@ export default function App() {
   const assetImportRules = state?.contextBuilder?.assetImportRules || {};
   const assets = state?.contextBuilder?.assets || [];
 
-  const assetPreview = useAssetPreviewController({ api, t, message, notifyError, refresh, assets });
+  const assetPreview = useAssetPreviewController({ api, t, message, notifyError, refresh, assets, modal });
   const dashboard = useDashboardActions({ api, t, message, modal, notifyError, refresh, historyFilters, setState, startupStatus: state?.startup?.status, dashboardLifecycle });
 
   useAppDataLifecycle({
@@ -520,6 +522,11 @@ export default function App() {
       || (kind === 'profile' && value === currentProfile?.id);
     if (isSameDestination) return;
 
+    if (activePage === 'assets' && (assetEditorDirty || assetEditorSaving) && kind === 'page') {
+      requestEditorDeparture({ dirty: assetEditorDirty, busy: assetEditorSaving, name: t('nav.assets'), modal, t,
+        proceed: () => { setAssetEditorDirty(false); commitNavigation({ kind, value }); } });
+      return;
+    }
     if (activePage === 'mapping' && (mappingEditorDirty || mappingEditorSaving) && kind === 'page') {
       requestEditorDeparture({
         dirty: mappingEditorDirty, busy: mappingEditorSaving,
@@ -679,6 +686,19 @@ export default function App() {
     requestPageNavigation('history');
   }
 
+  async function saveAssetDetails(payload) {
+    if (payload.bindingsChanged && (savingProfile || Object.values(profileDraftsRef.current).some((entry) => entry?.isNew || entry?.dirtyFields?.length))) {
+      message.warning(t('context.assetBindingsDraftBlocked'));
+      return false;
+    }
+    try {
+      await api.saveAssetDetails(payload);
+      await refresh();
+      message.success(t('feedback.actionSucceeded'));
+      return true;
+    } catch (error) { notifyError(error); return false; }
+  }
+
   function confirmDeleteAsset(assetId) {
     const asset = state?.contextBuilder?.assets?.find((item) => item.id === assetId);
     if (!asset) return;
@@ -694,6 +714,7 @@ export default function App() {
           await refresh();
         } catch (deleteError) {
           notifyError(deleteError, t('feedback.blockedDelete'));
+          throw deleteError;
         }
       }
     });
@@ -821,7 +842,11 @@ export default function App() {
 
           {activePage === 'assets' && (
             <AssetsPage
-              profileItems={profileItems}
+              profileItems={state?.contextBuilder?.profiles || []}
+              onSaveAsset={saveAssetDetails}
+              onDirtyChange={setAssetEditorDirty}
+              onBusyChange={setAssetEditorSaving}
+              bindingsBlocked={savingProfile || Object.values(profileDraftsById).some((entry) => entry?.isNew || entry?.dirtyFields?.length)}
               assets={assets}
               assetImportRules={assetImportRules}
               importingAssetType={importingAssetType}

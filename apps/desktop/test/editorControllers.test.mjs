@@ -156,3 +156,44 @@ test('provider controller rejects duplicate saves until the current save settles
   await act(async () => { gate.resolve(provider); await first; });
   assert.equal(controller.savingProvider, false);
 });
+
+
+test('multilingual column edits require discard confirmation and save all languages before refreshing', async (t) => {
+  let confirmation, saved;
+  let languageColumns = [{ columnIndex: 0, language: 'en' }, { columnIndex: 1, language: 'zh' }];
+  const h = mountAssets(t, {
+    getAssetPreview: async () => ({ availableColumnDetails: [{ columnIndex: 0 }, { columnIndex: 1 }, { columnIndex: 2 }], languageColumns }),
+    saveAssetTbConfig: async (_id, payload) => { saved = payload; languageColumns = payload.languageColumns; }
+  }, { modal: { confirm: (options) => { confirmation = options; } } });
+  await act(async () => { await h.current().openAssetPreview('a'); });
+  act(() => h.current().setAssetPreviewManualDraft((current) => ({ ...current,
+    languageColumns: [...current.languageColumns, { columnIndex: 2, language: 'ja' }] })));
+  act(() => h.current().closeAssetPreview());
+  assert.equal(h.current().assetPreviewOpen, true);
+  assert.equal(typeof confirmation.onOk, 'function');
+  await act(async () => { await h.current().saveAssetPreviewTbConfig(); });
+  assert.deepEqual(saved.languageColumns.map((column) => column.language), ['en', 'zh', 'ja']);
+  assert.deepEqual(h.current().assetPreviewManualDraft.languageColumns, languageColumns);
+  confirmation = null;
+  act(() => h.current().closeAssetPreview());
+  assert.equal(confirmation, null);
+  assert.equal(h.current().assetPreviewOpen, false);
+});
+
+
+test('header-only edits are protected on close and persist through the controller', async (t) => {
+  let confirmation, saved, hasHeader = true;
+  const languageColumns = [{ columnIndex: 0, language: 'en' }, { columnIndex: 1, language: 'ja' }];
+  const h = mountAssets(t, {
+    getAssetPreview: async () => ({ availableColumnDetails: [{ columnIndex: 0 }, { columnIndex: 1 }], languageColumns, hasHeader }),
+    saveAssetTbConfig: async (_id, payload) => { saved = payload; hasHeader = payload.hasHeader; }
+  }, { modal: { confirm: (options) => { confirmation = options; } } });
+  await act(async () => { await h.current().openAssetPreview('a'); });
+  act(() => h.current().setAssetPreviewManualDraft((current) => ({ ...current, hasHeader: false })));
+  act(() => h.current().closeAssetPreview());
+  assert.equal(typeof confirmation.onOk, 'function');
+  assert.equal(h.current().assetPreviewOpen, true);
+  await act(async () => { await h.current().saveAssetPreviewTbConfig(); });
+  assert.equal(saved.hasHeader, false);
+  assert.equal(h.current().assetPreviewManualDraft.hasHeader, false);
+});
