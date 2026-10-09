@@ -435,6 +435,8 @@ body,
 }
 
 .side-panel-row {
+  display: flex;
+  align-items: center;
   width: 100%;
   cursor: pointer;
   border-radius: var(--memoq-border-radius);
@@ -444,6 +446,10 @@ body,
   transition: background 0.2s ease, color 0.2s ease;
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+.side-panel-row:not(:last-child) {
+  border-bottom: 1px solid var(--memoq-color-border-secondary);
 }
 
 .side-panel-row-content {
@@ -495,6 +501,8 @@ body,
 }
 
 .provider-list-item {
+  display: flex;
+  align-items: center;
   padding: 10px 12px;
   border: none;
   border-radius: var(--memoq-border-radius);

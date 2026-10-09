@@ -228,7 +228,7 @@ test('renderer feedback uses the themed Ant Design app context and recoverable s
   assert.doesNotMatch(appSource, /\n\s*message,\s*\n/);
   assert.doesNotMatch(appSource, /Modal\.confirm\(/);
   assert.match(appSource, /className="app-initial-loading"/);
-  assert.match(appSource, /<Result[\s\S]*app\.startupErrorTitle/);
+  assert.match(appSource, /<PageResult[\s\S]*app\.startupErrorTitle/);
   assert.match(appSource, /closable=\{\{ onClose: \(\) => setError\(''\) \}\}/);
 });
 
@@ -321,8 +321,8 @@ test('translation style presets and empty-state next actions stay localized and 
   assert.match(builderSource, /TRANSLATION_STYLE_PRESETS/);
   assert.match(builderSource, /t\(selected\.instructionKey\)/);
   assert.doesNotMatch(builderSource, /Prefer natural, concise/);
-  assert.match(assetsSource, /<Empty[\s\S]*<Dropdown menu=\{addAssetMenu\}/);
-  assert.match(providersSource, /<Empty description=\{t\('providers\.createProviderFirst'\)\}>[\s\S]*<Dropdown menu=\{addProviderMenu\}/);
+  assert.match(assetsSource, /<EmptyState[\s\S]*<Dropdown menu=\{addAssetMenu\}/);
+  assert.match(providersSource, /<EmptyState\s+description=\{t\('providers\.createProviderFirst'\)\}[\s\S]*<Dropdown menu=\{addProviderMenu\}/);
 });
 
 test('dashboard and history use responsive grid and horizontal table scroll', () => {

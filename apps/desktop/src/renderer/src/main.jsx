@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { useReducedMotion } from './hooks/useReducedMotion.mjs';
 import ReactDOM from 'react-dom/client';
-import { App as AntdApp, Button, ConfigProvider, Result, theme, Typography } from 'antd';
+import { App as AntdApp, Button, ConfigProvider, theme, Typography } from 'antd';
+import { PageResult } from '@langlink-tech/antd-kit/feedback';
 import enUS from 'antd/locale/en_US';
 import zhCN from 'antd/locale/zh_CN';
 import 'dayjs/locale/zh-cn';
@@ -76,7 +77,7 @@ function RendererErrorFallback({ error }) {
   const details = String(error?.stack || error?.message || error || t('app.unknownRenderError'));
 
   return (
-    <Result
+    <PageResult
       status="error"
       className="renderer-error-fallback"
       title={t('app.renderErrorTitle')}
@@ -87,7 +88,7 @@ function RendererErrorFallback({ error }) {
         <Text strong>{t('app.renderErrorDetails')}</Text>
       </Paragraph>
       <pre className="renderer-error-details">{details}</pre>
-    </Result>
+    </PageResult>
   );
 }
 

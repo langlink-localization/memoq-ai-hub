@@ -3,16 +3,18 @@ import {
   Button,
   Card,
   Dropdown,
-  Empty,
+  Flex,
   Input,
-  List,
+  Listy,
   Segmented,
   Space,
   Tag,
   Typography
 } from 'antd';
+import { EmptyState } from '@langlink-tech/antd-kit/feedback';
 import { useMemo, useState } from 'react';
 import { useI18n } from '../../i18n';
+import { LISTY_SMALL_ITEM_STYLE } from '../../tableLayout.mjs';
 import { ASSET_CATEGORIES, buildAssetUsageMap } from './assetPresentation.mjs';
 
 const { Text } = Typography;
@@ -84,31 +86,25 @@ export default function AssetsPage({
               </Text>
 
               {visibleAssets.length === 0 ? (
-                <Empty description={t('context.noAssets')}>
-                  <Dropdown menu={addAssetMenu} trigger={['click']}>
-                    <Button type="primary" icon={<PlusOutlined />} loading={Boolean(importingAssetType)}>
-                      {t('common.add')}
-                    </Button>
-                  </Dropdown>
-                </Empty>
+                <EmptyState
+                  description={t('context.noAssets')}
+                  action={(
+                    <Dropdown menu={addAssetMenu} trigger={['click']}>
+                      <Button type="primary" icon={<PlusOutlined />} loading={Boolean(importingAssetType)}>
+                        {t('common.add')}
+                      </Button>
+                    </Dropdown>
+                  )}
+                />
               ) : (
-                <List
-                  size="small"
-                  dataSource={visibleAssets}
-                  renderItem={(asset) => {
+                <Listy
+                  items={visibleAssets}
+                  rowKey="id"
+                  styles={{ item: LISTY_SMALL_ITEM_STYLE }}
+                  itemRender={(asset) => {
                     const usageProfiles = assetUsage.get(asset.id) || [];
                     return (
-                      <List.Item
-                        className="asset-library-item"
-                        actions={[
-                          <Button key={`preview-${asset.id}`} type="text" icon={<EyeOutlined />} onClick={() => onPreviewAsset?.(asset.id)}>
-                            {t('context.previewAsset')}
-                          </Button>,
-                          <Button key={`delete-${asset.id}`} danger type="text" icon={<DeleteOutlined />} onClick={() => onDeleteAsset(asset.id)}>
-                            {t('common.delete')}
-                          </Button>
-                        ]}
-                      >
+                      <Flex className="asset-library-item" align="center" justify="space-between">
                         <Space orientation="vertical" size={6} className="app-full-width">
                           <Space wrap size={[8, 8]}>
                             <Text strong>{asset.name}</Text>
@@ -125,7 +121,15 @@ export default function AssetsPage({
                             <Text type="secondary">{t('context.assetNotAttached')}</Text>
                           )}
                         </Space>
-                      </List.Item>
+                        <Space size={8}>
+                          <Button type="text" icon={<EyeOutlined />} onClick={() => onPreviewAsset?.(asset.id)}>
+                            {t('context.previewAsset')}
+                          </Button>
+                          <Button danger type="text" icon={<DeleteOutlined />} onClick={() => onDeleteAsset(asset.id)}>
+                            {t('common.delete')}
+                          </Button>
+                        </Space>
+                      </Flex>
                     );
                   }}
                 />

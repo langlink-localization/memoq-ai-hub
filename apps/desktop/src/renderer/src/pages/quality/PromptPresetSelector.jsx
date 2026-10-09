@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { EditOutlined } from '@ant-design/icons';
 import { Alert, App as AntdApp, Button, Drawer, Form, Input, Select, Space, Tag, Typography } from 'antd';
+import { useDestructiveConfirm } from '@langlink-tech/antd-kit/overlay';
 import { useI18n } from '../../i18n';
 
 const { Text } = Typography;
 
 export default function PromptPresetSelector({ api, presets = [], scope, value, onChange, onPresetsChange, label }) {
   const { t } = useI18n();
-  const { message, modal } = AntdApp.useApp();
+  const { message } = AntdApp.useApp();
+  const confirmDestructive = useDestructiveConfirm();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState(null);
@@ -56,10 +58,9 @@ export default function PromptPresetSelector({ api, presets = [], scope, value, 
   }
 
   function remove() {
-    modal.confirm({
+    confirmDestructive({
       title: t('promptPresets.deleteTitle'),
-      okText: t('common.delete'),
-      okButtonProps: { danger: true },
+      actionLabel: t('common.delete'),
       async onOk() {
         await api.deletePromptPreset(draft.id);
         const next = presets.filter((item) => item.id !== draft.id);

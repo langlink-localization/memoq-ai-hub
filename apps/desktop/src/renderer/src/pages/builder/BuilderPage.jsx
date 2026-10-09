@@ -6,7 +6,6 @@ import {
   Col,
   Collapse,
   Dropdown,
-  Empty,
   Form,
   Input,
   InputNumber,
@@ -18,6 +17,7 @@ import {
   Tag,
   Typography
 } from 'antd';
+import { EmptyState } from '@langlink-tech/antd-kit/feedback';
 import { useMemo, useState } from 'react';
 import { useI18n } from '../../i18n';
 import {
@@ -720,7 +720,7 @@ export default function BuilderPage({
               onDelete={onDeleteProfile}
             />
           ) : (
-            <Card className="page-card"><Empty description={t('context.createProfileFirst')} /></Card>
+            <Card className="page-card"><EmptyState description={t('context.createProfileFirst')} /></Card>
           )}
         </Col>
       </Row>

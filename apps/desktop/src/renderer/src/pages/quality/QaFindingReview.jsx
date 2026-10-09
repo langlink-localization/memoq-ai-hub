@@ -10,11 +10,12 @@ import {
   Dropdown,
   Select,
   Space,
-  Table,
   Tag,
   Tooltip,
   Typography
 } from 'antd';
+import { useDestructiveConfirm } from '@langlink-tech/antd-kit/overlay';
+import { DataTable } from '@langlink-tech/antd-kit/table';
 import { useI18n } from '../../i18n';
 import { applyQaFindingFeedback, feedbackMapFromEntries, filterQaFindings } from './qaFindingReview.mjs';
 import { useLatestCallback } from '../../hooks/useAppLifecycle.mjs';
@@ -42,7 +43,8 @@ export default function QaFindingReview({
   embedded = false
 }) {
   const { t } = useI18n();
-  const { message, modal } = AntdApp.useApp();
+  const { message } = AntdApp.useApp();
+  const confirmDestructive = useDestructiveConfirm();
   const [filters, setFilters] = useState({ severity: '', category: '', origin: '', reviewState: '' });
   const [feedbackByFinding, setFeedbackByFinding] = useState(() => feedbackMapFromEntries(feedbackEntries));
   const [selectedFinding, setSelectedFinding] = useState(null);
@@ -112,11 +114,10 @@ export default function QaFindingReview({
       void applyFeedback(finding, state).catch(() => {});
       return;
     }
-    modal.confirm({
+    confirmDestructive({
       title: t('quality.disableRuleTitle'),
       content: t('quality.disableRuleDescription'),
-      okText: t('quality.feedbackDisableRule'),
-      okButtonProps: { danger: true },
+      actionLabel: t('quality.feedbackDisableRule'),
       onOk: () => applyFeedback(finding, state)
     });
   }
@@ -184,7 +185,7 @@ export default function QaFindingReview({
         </Space>
       ) : null}
       <Text type="secondary">{t('quality.findingReviewSummary', { visible: visibleFindings.length, total: findings.length, reviewed: reviewedCount })}</Text>
-      <Table
+      <DataTable
         rowKey="id"
         size="small"
         columns={compact ? columns.filter((column) => !['category', 'feedback'].includes(column.dataIndex || column.key)) : columns}

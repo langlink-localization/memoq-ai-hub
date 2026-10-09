@@ -15,7 +15,6 @@ import {
   Col,
   Drawer,
   Dropdown,
-  Empty,
   Form,
   Input,
   InputNumber,
@@ -23,10 +22,12 @@ import {
   Select,
   Space,
   Switch,
-  Table,
   Tag,
   Typography
 } from 'antd';
+import { EmptyState } from '@langlink-tech/antd-kit/feedback';
+import { useAppConfirm, useDestructiveConfirm } from '@langlink-tech/antd-kit/overlay';
+import { DataTable } from '@langlink-tech/antd-kit/table';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { requestEditorDeparture } from '../../editorNavigation.mjs';
 import { useI18n } from '../../i18n';
@@ -59,6 +60,8 @@ export default function MappingRulesPage({
 }) {
   const { t } = useI18n();
   const { message, modal } = App.useApp();
+  const confirm = useAppConfirm();
+  const confirmDestructive = useDestructiveConfirm();
   const [editorForm] = Form.useForm();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingRule, setEditingRule] = useState(null);
@@ -154,7 +157,7 @@ export default function MappingRulesPage({
     if (!hasMappingRuleConditions(payload)) warnings.push(t('mapping.catchAllWarning'));
     if (hasDuplicateRulePriority(sortedRules, payload)) warnings.push(t('mapping.duplicatePriorityWarning'));
     if (warnings.length) {
-      modal.confirm({
+      confirm({
         title: t('mapping.confirmSaveTitle'),
         content: <Space orientation="vertical">{warnings.map((warning) => <Text key={warning}>{warning}</Text>)}</Space>,
         okText: t('common.save'),
@@ -183,12 +186,11 @@ export default function MappingRulesPage({
   }
 
   function confirmDeleteRule(rule) {
-    modal.confirm({
+    confirmDestructive({
       title: t('mapping.deleteRuleTitle', { name: rule.ruleName }),
       content: t('mapping.deleteRuleDescription'),
-      okText: t('common.delete'),
+      actionLabel: t('common.delete'),
       cancelText: t('common.cancel'),
-      okButtonProps: { danger: true },
       onOk: async () => {
         setPendingRuleId(rule.id);
         setError('');
@@ -332,13 +334,14 @@ export default function MappingRulesPage({
         )}
       >
         {!profiles.length ? (
-          <Empty description={t('mapping.createProfileFirst')} />
+          <EmptyState description={t('mapping.createProfileFirst')} />
         ) : !sortedRules.length ? (
-          <Empty description={t('mapping.emptyDescription')}>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => openRuleEditor()}>{t('mapping.addRule')}</Button>
-          </Empty>
+          <EmptyState
+            description={t('mapping.emptyDescription')}
+            action={<Button type="primary" icon={<PlusOutlined />} onClick={() => openRuleEditor()}>{t('mapping.addRule')}</Button>}
+          />
         ) : (
-          <Table rowKey="id" dataSource={sortedRules} columns={columns} pagination={false} scroll={{ x: TABLE_SCROLL_X }} />
+          <DataTable rowKey="id" dataSource={sortedRules} columns={columns} pagination={false} scroll={{ x: TABLE_SCROLL_X }} />
         )}
       </Card>
 

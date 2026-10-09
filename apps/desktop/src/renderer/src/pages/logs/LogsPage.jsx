@@ -9,12 +9,11 @@ import {
   Button,
   Card,
   Descriptions,
-  Empty,
   Space,
-  Table,
   Tag,
   Typography
 } from 'antd';
+import { DataTable } from '@langlink-tech/antd-kit/table';
 import { useMemo } from 'react';
 import { useI18n } from '../../i18n';
 import { TABLE_COLUMN_WIDTHS } from '../../tableLayout.mjs';
@@ -83,18 +82,15 @@ export default function LogsPage({
       </Card>
 
       <Card className="page-card" title={t('logs.filesTitle')}>
-        <Table
+        <DataTable
           rowKey="key"
           loading={loading}
           scroll={{ x: TABLE_SCROLL_X }}
           dataSource={files}
           pagination={false}
-          locale={{
-            emptyText: (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('logs.noFiles')}>
-                <Button icon={<ReloadOutlined />} loading={loading} onClick={onRefresh}>{t('logs.refresh')}</Button>
-              </Empty>
-            )
+          emptyState={{
+            description: t('logs.noFiles'),
+            action: <Button icon={<ReloadOutlined />} loading={loading} onClick={onRefresh}>{t('logs.refresh')}</Button>
           }}
           columns={[
             {

@@ -16,7 +16,6 @@ import {
   Button,
   Card,
   Collapse,
-  Empty,
   Form,
   Input,
   Segmented,
@@ -29,6 +28,8 @@ import {
   Typography,
   theme
 } from 'antd';
+import { EmptyState } from '@langlink-tech/antd-kit/feedback';
+import { useAppConfirm } from '@langlink-tech/antd-kit/overlay';
 import { useI18n } from '../../i18n';
 import QualityExecutionSummary from './QualityExecutionSummary.jsx';
 import QaHistoryPanel from './QaHistoryPanel.jsx';
@@ -73,7 +74,8 @@ function matchesRule(rule, sample) {
 export default function QualityPage({ api = window.memoqDesktop, profiles = [], providers = [], promptPresets: initialPromptPresets = [], compact = false }) {
   const { t } = useI18n();
   const { token } = theme.useToken();
-  const { message, modal, notification } = AntdApp.useApp();
+  const { message, notification } = AntdApp.useApp();
+  const confirm = useAppConfirm();
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [status, setStatus] = useState(null);
@@ -175,7 +177,7 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
   }
 
   function confirmBatchImport() {
-    modal.confirm({
+    confirm({
       title: t('quality.batchPrivacyTitle'),
       content: t('quality.batchPrivacyDescription'),
       okText: t('quality.selectFile'),
@@ -362,7 +364,7 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
             compact={compact}
           />}
         </>
-      ) : <Empty description={t('quality.waitingForPreview')} />}
+      ) : <EmptyState description={t('quality.waitingForPreview')} />}
 
       {!compact ? (
         <Collapse items={[

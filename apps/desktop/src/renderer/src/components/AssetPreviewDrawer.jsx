@@ -8,10 +8,11 @@ import {
   Input,
   Select,
   Space,
-  Table,
   Tag,
   Typography
 } from 'antd';
+import { EmptyState } from '@langlink-tech/antd-kit/feedback';
+import { DataTable } from '@langlink-tech/antd-kit/table';
 import {
   buildAssetPreviewRows,
   canApplyTbStructurePreview,
@@ -197,7 +198,7 @@ export default function AssetPreviewDrawer({ controller }) {
         ) : null}
         {Array.isArray(assetPreviewData?.rows) && assetPreviewData.rows.length ? (
           <>
-            <Table
+            <DataTable
               size="small"
               pagination={false}
               scroll={{ x: TABLE_SCROLL_X }}
@@ -212,11 +213,11 @@ export default function AssetPreviewDrawer({ controller }) {
             {assetPreviewData?.truncated ? <Text type="secondary">{t('context.assetPreviewTruncated')}</Text> : null}
           </>
         ) : Array.isArray(assetPreviewData?.rows) ? (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('context.assetPreviewEmpty')} />
+          <EmptyState image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('context.assetPreviewEmpty')} />
         ) : assetPreviewData?.text ? (
           <pre className="history-json">{assetPreviewData.text}</pre>
         ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('context.assetPreviewEmpty')} />
+          <EmptyState image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('context.assetPreviewEmpty')} />
         )}
       </Space>
     </Drawer>

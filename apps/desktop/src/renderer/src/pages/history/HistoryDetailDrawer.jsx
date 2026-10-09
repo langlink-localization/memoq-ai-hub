@@ -6,15 +6,16 @@ import {
   Descriptions,
   Drawer,
   Empty,
-  List,
+  Listy,
   Space,
   Spin,
-  Table,
   Tag,
   Typography
 } from 'antd';
+import { EmptyState } from '@langlink-tech/antd-kit/feedback';
+import { DataTable } from '@langlink-tech/antd-kit/table';
 import HoverText from '../../components/HoverText.jsx';
-import { TABLE_COLUMN_WIDTHS, TABLE_SCROLL_X } from '../../tableLayout.mjs';
+import { LISTY_SMALL_ITEM_STYLE, TABLE_COLUMN_WIDTHS, TABLE_SCROLL_X } from '../../tableLayout.mjs';
 import { formatLocalTimestamp } from '../../timeFormatting.mjs';
 import {
   buildHistoryPromptItems,
@@ -103,7 +104,7 @@ export default function HistoryDetailDrawer({
               children: (
                 <Space orientation="vertical" size={16} className="app-block-space">
                   <Card size="small" title={t('history.attemptTimeline')}>
-                    <Table
+                    <DataTable
                       size="small"
                       pagination={false}
                       scroll={{ x: TABLE_SCROLL_X }}
@@ -222,11 +223,11 @@ export default function HistoryDetailDrawer({
                   </Card>
                   {shouldShowHistoryActualSentContent(currentHistoryRecord, historySegments) ? (
                     <Card size="small" title={t('history.actualSentContent')}>
-                      <List
-                        size="small"
-                        dataSource={buildHistoryPromptItems(currentHistoryRecord, historySegments)}
-                        renderItem={(item) => (
-                          <List.Item>
+                      <Listy
+                        items={buildHistoryPromptItems(currentHistoryRecord, historySegments)}
+                        rowKey="segmentIndex"
+                        styles={{ item: LISTY_SMALL_ITEM_STYLE }}
+                        itemRender={(item) => (
                             <Space orientation="vertical" size={6} className="app-full-width">
                               <Text strong>{t('history.batchItemLabel', { index: item.segmentIndex })}</Text>
                               <div>
@@ -238,17 +239,16 @@ export default function HistoryDetailDrawer({
                                 <pre className="history-json">{item.promptInstructions || t('history.promptUnavailable')}</pre>
                               </div>
                             </Space>
-                          </List.Item>
                         )}
                       />
                     </Card>
                   ) : null}
                   <Card size="small" title={t('history.segments')}>
-                    <List
-                      size="small"
-                      dataSource={historySegments}
-                      renderItem={(segment) => (
-                        <List.Item>
+                    <Listy
+                      items={historySegments}
+                      rowKey="segmentIndex"
+                      styles={{ item: LISTY_SMALL_ITEM_STYLE }}
+                      itemRender={(segment) => (
                           <Space orientation="vertical" size={6} className="app-full-width">
                             <Text strong>{t('history.batchItemLabel', { index: segment.segmentIndex })}</Text>
                             <Text>{`${t('history.source')}: ${segment.source || '-'}`}</Text>
@@ -262,7 +262,6 @@ export default function HistoryDetailDrawer({
                               </Text>
                             ) : null}
                           </Space>
-                        </List.Item>
                       )}
                     />
                   </Card>
@@ -272,7 +271,7 @@ export default function HistoryDetailDrawer({
           />
         </Space>
       ) : (
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('history.noSelection')} />
+        <EmptyState image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('history.noSelection')} />
       )}
     </Drawer>
   );

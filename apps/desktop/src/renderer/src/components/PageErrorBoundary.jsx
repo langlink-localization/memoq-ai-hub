@@ -1,5 +1,6 @@
 import { Component } from 'react';
-import { Button, Result } from 'antd';
+import { Button } from 'antd';
+import { PageResult } from '@langlink-tech/antd-kit/feedback';
 
 // A page failure must leave navigation and unsaved editor drafts in the shell
 // available. The root boundary remains responsible for failures in the shell.
@@ -22,7 +23,7 @@ export default class PageErrorBoundary extends Component {
   render() {
     if (!this.state.error) return this.props.children;
     const { t } = this.props;
-    return <Result status="error" title={t('app.pageErrorTitle')}
+    return <PageResult status="error" title={t('app.pageErrorTitle')}
       subTitle={t('app.pageErrorDescription')}
       extra={<Button onClick={() => this.setState({ error: null })}>{t('common.retry')}</Button>} />;
   }

@@ -10,18 +10,20 @@ import {
   Empty,
   Form,
   Input,
-  List,
+  Flex,
+  Listy,
   Modal,
   Radio,
   Row,
   Select,
   Space,
   Switch,
-  Table,
   Tag,
   Tooltip,
   Typography
 } from 'antd';
+import { EmptyState } from '@langlink-tech/antd-kit/feedback';
+import { DataTable } from '@langlink-tech/antd-kit/table';
 import { useState } from 'react';
 import {
   buildCollapsiblePanelEntries,
@@ -31,7 +33,7 @@ import {
 } from '../../appShell.mjs';
 import { CollapsibleItemList, CollapsibleSidePanel, SidePanelMeta } from '../../components/CollapsibleSidePanel';
 import { useI18n } from '../../i18n';
-import { TABLE_COLUMN_WIDTHS } from '../../tableLayout.mjs';
+import { LISTY_FLUSH_ITEM_STYLE, TABLE_COLUMN_WIDTHS } from '../../tableLayout.mjs';
 import {
   getEnabledModelCount,
   getProviderConnectionHelperText,
@@ -136,13 +138,12 @@ function ProviderCatalog({
                   <div className="provider-list-group-label">
                     <Text type="secondary">{group.label}</Text>
                   </div>
-                  <List
-                    role="listbox"
-                    dataSource={group.items}
-                    renderItem={(item) => {
+                  <div role="listbox">
+                    {group.items.map((item) => {
                       const tagMeta = getStatusTagMeta(item.status, t);
                       return (
-                        <List.Item
+                        <div
+                          key={item.id}
                           role="option"
                           tabIndex={0}
                           aria-selected={item.id === currentProvider?.id}
@@ -167,15 +168,15 @@ function ProviderCatalog({
                               {item.enabled ? t('common.enabled') : t('common.disabled')}
                             </Text>
                           </Space>
-                        </List.Item>
+                        </div>
                       );
-                    }}
-                  />
+                    })}
+                  </div>
                 </div>
               ))}
             </div>
             {!filteredProviders.length && (
-              <Empty
+              <EmptyState
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
                 description={providerSearch ? t('providers.noSearchResults') : t('providers.noProviders')}
               />
@@ -188,7 +189,7 @@ function ProviderCatalog({
             emptyText={providerSearch ? t('providers.noSearchResults') : t('providers.noProviders')}
             onSelect={onSelectProvider}
             renderExpandedItem={(entry, { compact }) => (
-              <List.Item
+              <div
                 key={entry.id}
                 role="option"
                 tabIndex={0}
@@ -200,7 +201,7 @@ function ProviderCatalog({
                 <Tooltip placement="right" title={compact ? entry.label : null}>
                   <Text ellipsis>{entry.label}</Text>
                 </Tooltip>
-              </List.Item>
+              </div>
             )}
           />
         )}
@@ -307,7 +308,7 @@ function ProviderModelTable({
         </Space>
       </div>
 
-      <Table
+      <DataTable
         rowKey="id"
         pagination={false}
         scroll={{ x: TABLE_SCROLL_X }}
@@ -402,30 +403,18 @@ function ProviderModelLibraryModal({
           </Button>
         </div>
         <div className="provider-model-manager-list">
-          <List
-            dataSource={filteredCurrentProviderModelCatalog}
-            locale={{ emptyText: t('providers.noModelsDiscovered') }}
-            renderItem={(modelName) => {
+          {filteredCurrentProviderModelCatalog.length ? <Listy
+            items={filteredCurrentProviderModelCatalog}
+            rowKey={(modelName) => modelName}
+            styles={{ item: LISTY_FLUSH_ITEM_STYLE }}
+            itemRender={(modelName) => {
               const existingModel = (currentProvider.models || []).find((model) => String(model.modelName || '').trim().toLowerCase() === modelName.toLowerCase());
               return (
-                <List.Item
+                <Flex
                   className={existingModel ? 'provider-model-library-item provider-model-library-item-active' : 'provider-model-library-item'}
-                  actions={[
-                    existingModel ? (
-                      <Button
-                        key="remove"
-                        type="text"
-                        danger
-                        onClick={() => onRemoveModelFromCurrentProvider?.(existingModel)}
-                      >
-                        {t('providers.removeModel')}
-                      </Button>
-                    ) : (
-                      <Button key="add" type="primary" ghost onClick={() => onAddModelToCurrentProvider?.(modelName)}>
-                        {t('providers.addModel')}
-                      </Button>
-                    )
-                  ]}
+                  align="center"
+                  justify="space-between"
+                  gap={12}
                 >
                   <Space orientation="vertical" size={4}>
                     <Text strong>{modelName}</Text>
@@ -433,10 +422,19 @@ function ProviderModelLibraryModal({
                       {existingModel ? t('providers.modelEnabledInList') : t('providers.modelAvailableToAdd')}
                     </Text>
                   </Space>
-                </List.Item>
+                  {existingModel ? (
+                    <Button type="text" danger onClick={() => onRemoveModelFromCurrentProvider?.(existingModel)}>
+                      {t('providers.removeModel')}
+                    </Button>
+                  ) : (
+                    <Button type="primary" ghost onClick={() => onAddModelToCurrentProvider?.(modelName)}>
+                      {t('providers.addModel')}
+                    </Button>
+                  )}
+                </Flex>
               );
             }}
-          />
+          /> : <EmptyState image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('providers.noModelsDiscovered')} />}
         </div>
       </Space>
     </Modal>
@@ -722,11 +720,14 @@ export function ProvidersPage(props) {
           </Space>
         ) : (
           <Card className="page-card">
-            <Empty description={t('providers.createProviderFirst')}>
-              <Dropdown menu={addProviderMenu} trigger={['click']}>
-                <Button type="primary" icon={<PlusOutlined />}>{t('common.add')}</Button>
-              </Dropdown>
-            </Empty>
+            <EmptyState
+              description={t('providers.createProviderFirst')}
+              action={(
+                <Dropdown menu={addProviderMenu} trigger={['click']}>
+                  <Button type="primary" icon={<PlusOutlined />}>{t('common.add')}</Button>
+                </Dropdown>
+              )}
+            />
           </Card>
         )}
       </Col>
