@@ -30,6 +30,8 @@
 
 ## 当前版本亮点
 
+**v1.0.50** 桌面界面升级到 Ant Design 6 和 React 19，并接入 LangLink 统一的 antd kit：次要文字满足 WCAG 对比度底线，支持系统高对比度、降低透明度和强制颜色设置。插件合约和数据库 schema 不变。详见[版本说明](docs/release-notes/v1.0.50.md)。
+
 **v1.0.49** 为更新清单、下载资源和持久化更新状态，以及 sql.js 数据库句柄补上类型。更新和存储行为不变；便携版准备更新时如果清单资源缺失，会按完整性失败关闭。详见[版本说明](docs/release-notes/v1.0.49.md)。
 
 **v1.0.48** 用共享 domain 类型描述预览 helper 的 part/segment，以及 memoQ 集成安装选项。匹配行为、插件合约和数据库 schema 不变。详见[版本说明](docs/release-notes/v1.0.48.md)。

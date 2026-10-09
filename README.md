@@ -30,6 +30,8 @@ The repository contains runtime code for more advanced capabilities, but not eve
 
 ## Current Release Highlights
 
+**v1.0.50** moves the desktop UI to Ant Design 6 and React 19 on the shared LangLink antd kit, with a WCAG contrast floor for secondary text and support for high-contrast, reduced-transparency, and forced-colors settings. The plugin contract and database schema are unchanged. See [release notes](docs/release-notes/v1.0.50.md).
+
 **v1.0.49** types the update manifest, downloadable asset, persisted update state, and the sql.js database handle. Update and storage behavior stay the same aside from a fail-closed portable prepare when the manifest asset is missing. See [release notes](docs/release-notes/v1.0.49.md).
 
 **v1.0.48** types the preview-helper part and segment boundary and the memoQ integration install options with the shared runtime domain types. Matching behavior, the plugin contract, and the database schema are unchanged. See [release notes](docs/release-notes/v1.0.48.md).
