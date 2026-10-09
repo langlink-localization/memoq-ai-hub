@@ -48,7 +48,7 @@ export default function HistoryPage({
 }) {
   return (
     <>
-      <Space direction="vertical" size={16} className="app-block-space">
+      <Space orientation="vertical" size={16} className="app-block-space">
               <Card
                 className="page-card"
                 title={t('history.title')}
@@ -74,7 +74,7 @@ export default function HistoryPage({
                   </Space>
                 )}
               >
-                <Space direction="vertical" size={16} className="app-block-space history-filter-stack">
+                <Space orientation="vertical" size={16} className="app-block-space history-filter-stack">
                   <div className="history-insights-panel">
                     <div className="history-insights-header">
                       <div>
@@ -98,7 +98,7 @@ export default function HistoryPage({
                         className="history-insight-focus-alert"
                         type="info"
                         showIcon
-                        message={t('history.insights.focusTitle')}
+                        title={t('history.insights.focusTitle')}
                         description={t('history.insights.focusDescription', {
                           source: getHistoryInsightFocusMessage(t, historyInsightFocus),
                           count: historyInsights.totalRequests || 0
@@ -111,7 +111,7 @@ export default function HistoryPage({
                       />
                     ) : null}
                     {(historyInsights.totalRequests || 0) > 0 ? (
-                      <Space direction="vertical" size={14} className="app-block-space">
+                      <Space orientation="vertical" size={14} className="app-block-space">
                         <Row gutter={[16, 16]}>
                           <Col xs={24} md={8}>
                             <div className="history-insight-stat">

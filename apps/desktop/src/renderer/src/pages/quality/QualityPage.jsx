@@ -292,26 +292,26 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
   if (loading) return <Skeleton active={token.motion !== false} paragraph={{ rows: compact ? 6 : 10 }} />;
 
   const content = (
-    <Space direction="vertical" size="large" className={compact ? 'quality-float-content' : 'quality-page'}>
-      {error ? <Alert type="error" showIcon closable message={error} onClose={() => setError('')} /> : null}
-      {settingsError ? <Alert type="error" showIcon closable message={settingsError} onClose={() => setSettingsError('')} /> : null}
+    <Space orientation="vertical" size="large" className={compact ? 'quality-float-content' : 'quality-page'}>
+      {error ? <Alert type="error" showIcon closable={{ onClose: () => setError('') }} title={error} /> : null}
+      {settingsError ? <Alert type="error" showIcon closable={{ onClose: () => setSettingsError('') }} title={settingsError} /> : null}
       <Alert
         type={latestResult?.status === 'local-only' ? 'warning' : status?.activeRequestCount ? 'info' : 'success'}
         showIcon
-        message={status?.activeRequestCount ? t('quality.checking') : latestResult ? t('quality.currentResult') : t('quality.waitingForPreview')}
+        title={status?.activeRequestCount ? t('quality.checking') : latestResult ? t('quality.currentResult') : t('quality.waitingForPreview')}
         description={latestResult?.status === 'local-only' ? t('quality.localOnlyDescription') : t('quality.statusDescription')}
       />
 
       {!compact ? (
         <Card>
-          <Space direction="vertical" size="middle" className="quality-controls">
+          <Space orientation="vertical" size="middle" className="quality-controls">
             <Segmented value={mode} onChange={setMode} options={[{ value: 'current', label: t('quality.currentSegment') }, { value: 'batch', label: t('quality.batchFile') }]} />
             <Space wrap>
               <Select value={selectedProfileId} onChange={setSelectedProfileId} placeholder={t('quality.profile')} options={profiles.map((item) => ({ value: item.id, label: item.name }))} className="quality-select" />
               <Select value={selectedProviderId} onChange={setSelectedProviderId} placeholder={t('common.provider')} options={providers.map((item) => ({ value: item.id, label: item.name }))} className="quality-select" />
               <Select value={selectedModel} onChange={setSelectedModel} placeholder={t('quality.model')} options={(provider?.models || []).filter((item) => item.enabled !== false).map((item) => ({ value: item.modelName || item.id, label: item.modelName }))} className="quality-select" />
             </Space>
-            <Space direction="vertical" className="quality-controls" size="small">
+            <Space orientation="vertical" className="quality-controls" size="small">
               <Text>{t('promptPresets.qaPreset')}</Text>
               <PromptPresetSelector api={api} presets={promptPresets} scope="qa" value={qaPresetId} onChange={setQaPresetId} onPresetsChange={setPromptPresets} />
             </Space>
@@ -341,12 +341,12 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
             <Text type="secondary">{latestResult.segment?.target || '-'}</Text>
           </Card>
           <QualityExecutionSummary compact={compact} execution={latestResult.execution} />
-          {['failed', 'circuit-open', 'cancelled'].includes(latestResult.execution?.ai?.status) && findings.length > 0 ? <Alert type="warning" showIcon message={t('quality.aiFailedTitle')} description={t('quality.aiFailedDescription')} action={<Button size="small" onClick={runCurrentCheck}>{t('common.retry')}</Button>} /> : null}
+          {['failed', 'circuit-open', 'cancelled'].includes(latestResult.execution?.ai?.status) && findings.length > 0 ? <Alert type="warning" showIcon title={t('quality.aiFailedTitle')} description={t('quality.aiFailedDescription')} action={<Button size="small" onClick={runCurrentCheck}>{t('common.retry')}</Button>} /> : null}
           {findings.length === 0 ? (
             <Alert
               type={['failed', 'circuit-open', 'cancelled'].includes(latestResult.execution?.ai?.status) ? 'warning' : 'success'}
               showIcon
-              message={['failed', 'circuit-open', 'cancelled'].includes(latestResult.execution?.ai?.status) ? t('quality.aiFailedTitle') : t('quality.checkCompleteNoFindings')}
+              title={['failed', 'circuit-open', 'cancelled'].includes(latestResult.execution?.ai?.status) ? t('quality.aiFailedTitle') : t('quality.checkCompleteNoFindings')}
               description={['failed', 'circuit-open', 'cancelled'].includes(latestResult.execution?.ai?.status) ? t('quality.aiFailedDescription') : latestResult.execution?.ai?.status === 'disabled' ? t('quality.aiNotRequestedDescription') : undefined}
               action={['failed', 'circuit-open', 'cancelled'].includes(latestResult.execution?.ai?.status) ? <Button size="small" onClick={runCurrentCheck}>{t('common.retry')}</Button> : null}
             />
@@ -368,8 +368,8 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
         <Collapse items={[
           {
             key: 'prompt', label: t('quality.qaPromptTemplates'), children: (
-              <Space direction="vertical" className="quality-rules" size="middle">
-                <Alert type="info" showIcon message={t('quality.qaPromptGuardrails')} />
+              <Space orientation="vertical" className="quality-rules" size="middle">
+                <Alert type="info" showIcon title={t('quality.qaPromptGuardrails')} />
                 <Form layout="vertical">
                   <Form.Item label={t('quality.qaSystemPrompt')}><Input.TextArea rows={5} value={qaSystemPrompt} onChange={(event) => setQaSystemPrompt(event.target.value)} /></Form.Item>
                   <Form.Item label={t('quality.qaUserPrompt')}><Input.TextArea rows={8} value={qaUserPrompt} onChange={(event) => setQaUserPrompt(event.target.value)} /></Form.Item>
@@ -380,7 +380,7 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
           },
           {
           key: 'rules', label: t('quality.projectRules'), children: (
-            <Space direction="vertical" className="quality-rules" size="middle">
+            <Space orientation="vertical" className="quality-rules" size="middle">
               <Form form={ruleForm} layout="vertical" onFinish={addRule} initialValues={{ type: 'contains', scope: 'target', category: 'style', severity: 'minor' }}>
                 <Form.Item name="name" label={t('quality.ruleName')} rules={[{ required: true }]}><Input /></Form.Item>
                 <Space wrap align="start">
@@ -391,7 +391,7 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
                 <Form.Item name="expression" label={t('quality.ruleExpression')} rules={[{ required: true }]}><Input.TextArea rows={2} /></Form.Item>
                 <Form.Item name="message" label={t('quality.ruleMessage')}><Input /></Form.Item>
                 <Input.TextArea value={sampleText} onChange={(event) => setSampleText(event.target.value)} rows={2} placeholder={t('quality.sampleText')} />
-                {ruleTestMatched != null ? <Alert type={ruleTestMatched ? 'warning' : 'success'} showIcon message={ruleTestMatched ? t('quality.sampleMatched') : t('quality.sampleNotMatched')} /> : null}
+                {ruleTestMatched != null ? <Alert type={ruleTestMatched ? 'warning' : 'success'} showIcon title={ruleTestMatched ? t('quality.sampleMatched') : t('quality.sampleNotMatched')} /> : null}
                 <Button type="primary" htmlType="submit">{t('quality.addRule')}</Button>
               </Form>
               {rules.map((rule) => <Card size="small" key={rule.id} title={rule.name} extra={<Button danger type="link" onClick={() => setRules((current) => current.filter((item) => item.id !== rule.id))}>{t('common.delete')}</Button>}><Space wrap><Tag>{rule.type}</Tag><SeverityTag severity={rule.severity} /><Text>{rule.pattern || rule.value || rule.instruction}</Text></Space></Card>)}

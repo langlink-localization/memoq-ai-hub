@@ -27,14 +27,15 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
-    "antd": "^5.27.6",
+    "@langlink-tech/antd-kit": "file:vendor/langlink-tech-antd-kit-0.10.1-4ef8b10.tgz",
+    "antd": "6.6.2",
     "body-parser": "1.20.6",
     "dayjs": "^1.11.20",
     "express": "^4.21.2",
     "fast-xml-parser": "^5.7.0",
     "openai": "^6.1.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
     "sql.js": "^1.13.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
@@ -47,7 +48,7 @@
     "@vitejs/plugin-react": "6.0.5",
     "concurrently": "^9.2.1",
     "electron": "44.4.5",
-    "react-test-renderer": "18.3.1",
+    "react-test-renderer": "19.2.4",
     "vite": "8.2.0"
   }
 }

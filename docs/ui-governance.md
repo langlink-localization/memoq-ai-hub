@@ -58,7 +58,9 @@ Navigation, onboarding, documentation, and empty-state actions must use this ord
 
 ## Visual System
 
-- Use Ant Design 5 components and repository theme tokens before adding custom controls.
+- Use Ant Design 6 components and repository theme tokens before adding custom controls.
+- The root theme goes through the shared `@langlink-tech/antd-kit` (vendored under `apps/desktop/vendor/`): `withContrastFloorTheme` lifts text slots to the WCAG 4.5:1 floor, and `withSystemDisplayTheme` plus `<SystemDisplayStyle />` follow the system contrast, transparency and forced-colors preferences. Those kit-owned media-query rules are the only `!important` styles allowed.
+- Use the current Ant Design 6 prop names (`Space orientation`, `Alert title`, `closable={{ onClose }}`, `Drawer size`, `destroyOnHidden`, `mask={{ closable }}`); `pnpm run test:antd` must report zero deprecated findings.
 - `ConfigProvider.theme` is the visual token source of truth. Renderer CSS must not add a parallel color-token system, unscoped Ant Design internals, or `!important` overrides.
 - Configuration fields use `Form` and `Form.Item`; numeric and date values use `InputNumber` and `DatePicker` when those semantics apply.
 - The spacing rhythm uses 8px increments where practical; page content defaults to 24px wide-screen padding and 16px compact padding.

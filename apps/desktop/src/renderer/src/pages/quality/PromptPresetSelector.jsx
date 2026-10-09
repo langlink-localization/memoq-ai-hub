@@ -82,10 +82,10 @@ export default function PromptPresetSelector({ api, presets = [], scope, value, 
         />
         <Button icon={<EditOutlined />} disabled={!selected} onClick={edit} aria-label={t('promptPresets.edit')} />
       </Space.Compact>
-      <Drawer title={t('promptPresets.editorTitle')} open={open} onClose={() => setOpen(false)} width="min(680px, calc(100vw - 32px))" destroyOnHidden>
+      <Drawer title={t('promptPresets.editorTitle')} open={open} onClose={() => setOpen(false)} size="min(680px, calc(100vw - 32px))" destroyOnHidden>
         {draft ? (
           <Form layout="vertical" onFinish={() => persist(false)}>
-            <Alert type="info" showIcon message={t('promptPresets.placeholderHint')} />
+            <Alert type="info" showIcon title={t('promptPresets.placeholderHint')} />
             <Form.Item label={t('promptPresets.name')} required><Input value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /></Form.Item>
             <Form.Item label={t('promptPresets.scope')}><Space><Tag>{draft.scope}</Tag>{draft.builtin ? <Tag color="blue">{t('promptPresets.builtin')}</Tag> : null}</Space></Form.Item>
             {draft.scope !== 'qa' ? <Form.Item label={t('promptPresets.style')}><Input.TextArea rows={3} value={draft.style} onChange={(event) => setDraft((current) => ({ ...current, style: event.target.value }))} /></Form.Item> : null}

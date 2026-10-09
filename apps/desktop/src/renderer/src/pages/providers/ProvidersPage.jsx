@@ -116,7 +116,7 @@ function ProviderCatalog({
         </Dropdown>
       )}
     >
-      <Space direction="vertical" size={16} className="app-block-space">
+      <Space orientation="vertical" size={16} className="app-block-space">
         {!collapsed ? (
           <>
             <SidePanelMeta>
@@ -150,11 +150,11 @@ function ProviderCatalog({
                           onKeyDown={(event) => activateOnKeyboard(event, () => onSelectProvider?.(item.id))}
                           className={item.id === currentProvider?.id ? 'provider-list-item provider-list-item-active' : 'provider-list-item'}
                         >
-                          <Space direction="vertical" size={6} className="app-full-width">
+                          <Space orientation="vertical" size={6} className="app-full-width">
                             <div className="provider-list-header">
                               <Space wrap size={[8, 8]}>
                                 <Text strong>{item.name}</Text>
-                                {isDraftProvider(item) && <Tag bordered={false}>{t('providers.draft')}</Tag>}
+                                {isDraftProvider(item) && <Tag variant="filled">{t('providers.draft')}</Tag>}
                               </Space>
                               <Tag color={tagMeta.color}>{tagMeta.label}</Tag>
                             </div>
@@ -389,7 +389,7 @@ function ProviderModelLibraryModal({
       footer={null}
       width={MODEL_LIBRARY_MODAL_WIDTH}
     >
-      <Space direction="vertical" size={16} className="app-block-space">
+      <Space orientation="vertical" size={16} className="app-block-space">
         <div className="provider-model-manager-toolbar">
           <Input.Search
             allowClear
@@ -427,7 +427,7 @@ function ProviderModelLibraryModal({
                     )
                   ]}
                 >
-                  <Space direction="vertical" size={4}>
+                  <Space orientation="vertical" size={4}>
                     <Text strong>{modelName}</Text>
                     <Text type="secondary">
                       {existingModel ? t('providers.modelEnabledInList') : t('providers.modelAvailableToAdd')}
@@ -472,7 +472,7 @@ function ProviderHealthPanel({ connectionSnapshot }) {
         <Alert
           type="error"
           showIcon
-          message={t('providers.lastError')}
+          title={t('providers.lastError')}
           description={lastError}
         />
       )}
@@ -565,13 +565,13 @@ export function ProvidersPage(props) {
       </Col>
       <Col xs={24} xl={getPanelContentSpan(sidebarCollapsed)}>
         {currentProvider ? (
-          <Space direction="vertical" size={16} className="app-block-space">
+          <Space orientation="vertical" size={16} className="app-block-space">
             {insightFocus ? (
               <Alert
                 type="info"
                 showIcon
                 className="provider-insight-focus-alert"
-                message={t('providers.insightFocusTitle')}
+                title={t('providers.insightFocusTitle')}
                 description={insightFocusModelName
                   ? t('providers.insightFocusDescription', { provider: insightFocusProviderName || '-', model: insightFocusModelName })
                   : t('providers.insightFocusProviderDescription', { provider: insightFocusProviderName || '-' })}
@@ -640,14 +640,14 @@ export function ProvidersPage(props) {
                   items={[{
                     key: 'advanced',
                     label: (
-                      <Space direction="vertical" size={0}>
+                      <Space orientation="vertical" size={0}>
                         <Text strong>{t('providers.advancedConfiguration')}</Text>
                         <Text type="secondary">{t('providers.advancedConfigurationHint')}</Text>
                       </Space>
                     ),
                     children: (
-                      <Space direction="vertical" size={16} className="app-block-space">
-                        <Space direction="vertical" size={8} className="app-block-space">
+                      <Space orientation="vertical" size={16} className="app-block-space">
+                        <Space orientation="vertical" size={8} className="app-block-space">
                   <Text strong>{t('providers.responseFormatDefault')}</Text>
                   <Select
                     value={currentProvider.capabilities?.responseFormat || (currentProvider.type === 'openai-compatible' ? 'auto' : 'json_schema')}
@@ -665,7 +665,7 @@ export function ProvidersPage(props) {
                   <Text type="secondary">{t('providers.responseFormatDefaultHint')}</Text>
                         </Space>
 
-                <Space direction="vertical" size={8} className="app-block-space">
+                <Space orientation="vertical" size={8} className="app-block-space">
                   <Text strong>{t('providers.throughputModeDefault')}</Text>
                   <Select
                     value={currentProvider.capabilities?.throughputMode || 'auto'}
@@ -684,7 +684,7 @@ export function ProvidersPage(props) {
                   <Alert
                     type="info"
                     showIcon
-                    message={t('providers.memoqParallelismNoticeTitle')}
+                    title={t('providers.memoqParallelismNoticeTitle')}
                     description={t('providers.memoqParallelismNotice')}
                   />
                         </Space>

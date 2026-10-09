@@ -156,7 +156,7 @@ export default function MappingRulesPage({
     if (warnings.length) {
       modal.confirm({
         title: t('mapping.confirmSaveTitle'),
-        content: <Space direction="vertical">{warnings.map((warning) => <Text key={warning}>{warning}</Text>)}</Space>,
+        content: <Space orientation="vertical">{warnings.map((warning) => <Text key={warning}>{warning}</Text>)}</Space>,
         okText: t('common.save'),
         cancelText: t('common.cancel'),
         onOk: () => persistRule(payload)
@@ -318,9 +318,9 @@ export default function MappingRulesPage({
   ];
 
   return (
-    <Space direction="vertical" size={16} className="app-block-space">
-      {error ? <Alert type="error" showIcon closable message={error} onClose={() => setError('')} /> : null}
-      <Alert type="info" showIcon message={t('mapping.overrideNoticeTitle')} description={t('mapping.overrideNoticeDescription')} />
+    <Space orientation="vertical" size={16} className="app-block-space">
+      {error ? <Alert type="error" showIcon closable={{ onClose: () => setError('') }} title={error} /> : null}
+      <Alert type="info" showIcon title={t('mapping.overrideNoticeTitle')} description={t('mapping.overrideNoticeDescription')} />
       <Card
         className="page-card"
         title={t('mapping.title')}
@@ -365,10 +365,10 @@ export default function MappingRulesPage({
       <Drawer
         title={editingRule?.id ? t('mapping.editRule') : t('mapping.addRule')}
         open={editorOpen}
-        width={RULE_EDITOR_WIDTH}
+        size={RULE_EDITOR_WIDTH}
         onClose={closeRuleEditor}
         closable={!saving}
-        maskClosable={false}
+        mask={{ closable: false }}
         keyboard={!saving}
         destroyOnHidden
         footer={<Space className="mapping-editor-footer">
@@ -396,11 +396,11 @@ export default function MappingRulesPage({
             </Col>
             <Col xs={24}>
               <Form.Item name="profileId" label={t('mapping.profile')} rules={[{ required: true, message: t('mapping.profileRequired') }]}>
-                <Select showSearch optionFilterProp="label" options={profileOptions} />
+                <Select showSearch={{ optionFilterProp: 'label' }} options={profileOptions} />
               </Form.Item>
             </Col>
           </Row>
-          <Alert type="info" showIcon message={t('mapping.andSemantics')} className="mapping-editor-hint" />
+          <Alert type="info" showIcon title={t('mapping.andSemantics')} className="mapping-editor-hint" />
           <Row gutter={[16, 0]}>
             {MEMOQ_METADATA_FIELDS.map((field) => (
               <Col xs={24} md={12} key={field.ruleKey}>

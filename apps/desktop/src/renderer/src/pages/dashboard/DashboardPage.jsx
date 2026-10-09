@@ -106,7 +106,7 @@ export default function DashboardPage({
   }, [installDraftDirty, setInstallDraft, state?.integration]);
 
   return (
-<Space direction="vertical" size={16} className="app-block-space">
+<Space orientation="vertical" size={16} className="app-block-space">
               <Card
                 className="page-card dashboard-journey-card"
                 title={(
@@ -129,7 +129,7 @@ export default function DashboardPage({
                   <div className={`dashboard-journey-step ${item.completed ? 'dashboard-journey-step-complete' : ''}`} key={item.key}>
                     <div className="dashboard-journey-step-heading">
                       <Text strong>{item.title}</Text>
-                      <Tag bordered={false} color={item.completed ? 'green' : item.optional ? 'blue' : undefined}>
+                      <Tag variant="filled" color={item.completed ? 'green' : item.optional ? 'blue' : undefined}>
                         {item.completed
                           ? t('dashboard.stepComplete')
                           : item.optional
@@ -160,17 +160,17 @@ export default function DashboardPage({
                 </Col>
                 <Col xs={24} xl={12}>
                   <Card className="page-card" title={t('dashboard.installConfig')}>
-                    <Space direction="vertical" size={16} className="app-block-space">
-                      <Alert type="info" showIcon message={t('dashboard.installDialogHint')} />
+                    <Space orientation="vertical" size={16} className="app-block-space">
+                      <Alert type="info" showIcon title={t('dashboard.installDialogHint')} />
                       <Alert
                         type="warning"
                         showIcon
-                        message={t('dashboard.memoqParallelismNoticeTitle')}
+                        title={t('dashboard.memoqParallelismNoticeTitle')}
                         description={t('dashboard.memoqParallelismNotice')}
                       />
                       <Row gutter={[16, 16]}>
                         <Col xs={24} md={12}>
-                          <Space direction="vertical" size={8} className="app-block-space">
+                          <Space orientation="vertical" size={8} className="app-block-space">
                             <Text strong>{t('dashboard.installMemoqVersion')}</Text>
                             <Select
                               value={installDraft.memoqVersion}
@@ -190,7 +190,7 @@ export default function DashboardPage({
                           </Space>
                         </Col>
                         <Col xs={24} md={12}>
-                          <Space direction="vertical" size={8} className="app-block-space">
+                          <Space orientation="vertical" size={8} className="app-block-space">
                             <Text strong>{t('dashboard.installMode')}</Text>
                             <Radio.Group
                               value={installDraft.mode}
@@ -214,12 +214,12 @@ export default function DashboardPage({
                         </Col>
                       </Row>
                       {installDraft.mode === 'preset' ? (
-                        <Space direction="vertical" size={8} className="app-block-space">
+                        <Space orientation="vertical" size={8} className="app-block-space">
                           <Text strong>{t('dashboard.installTargetDir')}</Text>
                           <div className="install-path-preview">{installPreviewPath}</div>
                         </Space>
                       ) : (
-                        <Space direction="vertical" size={8} className="app-block-space">
+                        <Space orientation="vertical" size={8} className="app-block-space">
                           <Text strong>{t('dashboard.installTargetDir')}</Text>
                           <Space.Compact block>
                             <Input
@@ -251,7 +251,7 @@ export default function DashboardPage({
                   label: <Text strong>{t('dashboard.updatesTitle')}</Text>,
                   extra: <Tag>{updateStatusLabel}</Tag>,
                   children: (
-                    <Space direction="vertical" size={16} className="app-block-space">
+                    <Space orientation="vertical" size={16} className="app-block-space">
                   <Descriptions column={1}>
                     <Descriptions.Item label={t('dashboard.currentVersion')}><HoverText value={updateCenter.currentVersion} /></Descriptions.Item>
                     <Descriptions.Item label={t('dashboard.packagingMode')}><HoverText value={packagingModeLabel} /></Descriptions.Item>
@@ -274,7 +274,7 @@ export default function DashboardPage({
                   <Alert
                     type="info"
                     showIcon
-                    message={t(updateCenter.packagingMode === 'installed'
+                    title={t(updateCenter.packagingMode === 'installed'
                       ? 'dashboard.updateInstalledHint'
                       : portableInAppSupported
                         ? 'dashboard.updatePortableInAppHint'

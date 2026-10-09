@@ -38,7 +38,7 @@ export default function LogsPage({
   const policy = logState?.policy || {};
 
   return (
-    <Space direction="vertical" size={16} className="app-block-space">
+    <Space orientation="vertical" size={16} className="app-block-space">
       <Card
         className="page-card logs-summary-card"
         title={t('logs.title')}
@@ -59,8 +59,8 @@ export default function LogsPage({
           </Space>
         )}
       >
-        <Space direction="vertical" size={16} className="app-block-space">
-          <Alert type="info" showIcon message={t('logs.supportHint')} />
+        <Space orientation="vertical" size={16} className="app-block-space">
+          <Alert type="info" showIcon title={t('logs.supportHint')} />
           <Descriptions column={1} className="wrap-descriptions">
             <Descriptions.Item label={t('logs.directory')}>
               <Text copyable className="long-value">{logState?.logsDir || '-'}</Text>

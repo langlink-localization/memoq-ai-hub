@@ -756,9 +756,8 @@ export default function App() {
             <Alert
               type="error"
               showIcon
-              closable
-              message={error}
-              onClose={() => setError('')}
+              closable={{ onClose: () => setError('') }}
+              title={error}
               className="app-error-alert"
             />
           )}
