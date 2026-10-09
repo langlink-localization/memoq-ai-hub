@@ -24,6 +24,7 @@ export default function HistoryPage({
   confirmHistoryDeletion,
   currentHistoryListItem,
   currentHistoryRecord,
+  profiles,
   deletingHistory,
   exportHistory,
   exportingHistoryFormat,
@@ -361,6 +362,7 @@ export default function HistoryPage({
               </Card>
       </Space>
       <HistoryDetailDrawer
+        profiles={profiles}
         currentHistoryListItem={currentHistoryListItem}
         currentHistoryRecord={currentHistoryRecord}
         detailError={historyDetailError}

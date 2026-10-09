@@ -35,6 +35,13 @@ const generatedBridgeMethods = Object.fromEntries(
 
 contextBridge.exposeInMainWorld('memoqDesktop', {
   ...generatedBridgeMethods,
+  onHistoryNavigation: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('desktop:history-navigation-available', handler);
+    return () => ipcRenderer.removeListener('desktop:history-navigation-available', handler);
+  },
+  peekHistoryNavigation: () => ipcRenderer.invoke('desktop:peek-history-navigation'),
+  acknowledgeHistoryNavigation: (requestId) => ipcRenderer.invoke('desktop:ack-history-navigation', requestId),
 
   recordRendererLog: (payload) => ipcRenderer.invoke('desktop:record-renderer-log', payload || {}),
 

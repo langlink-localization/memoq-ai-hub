@@ -86,6 +86,7 @@ function buildSegmentTbContext({
   });
   const termHits = matches.map((match) => ({
     entryId: String(match.entryId || match?.entry?.id || ''),
+    assetId: String(match.entry?.assetId || ''),
     sourceTerm: String(match.sourceTerm || match?.entry?.sourceTerm || ''),
     targetTerm: String(match.targetTerm || match?.entry?.targetTerm || ''),
     forbidden: Boolean(match.forbidden ?? match?.entry?.forbidden),
@@ -99,10 +100,12 @@ function buildSegmentTbContext({
 
   return {
     sourcePlainText,
+    sourceLanguage: payload?.sourceLanguage || '',
+    targetLanguage: payload?.targetLanguage || '',
     matches,
     termHits,
     glossaryText: renderMatchedTerminologyBlock(matches),
-    tbMetadataText: renderMatchedTbMetadataBlock(matches, { ...assetContext?.tb, languagePair: { source: normalizeCanonicalLanguageTag(matches[0]?.entry?.srcLang || payload?.sourceLanguage), target: normalizeCanonicalLanguageTag(matches[0]?.entry?.tgtLang || payload?.targetLanguage) } }),
+    tbMetadataText: matches.length ? renderMatchedTbMetadataBlock(matches, { ...assetContext?.tb, languagePair: { source: normalizeCanonicalLanguageTag(matches[0]?.entry?.srcLang || payload?.sourceLanguage), target: normalizeCanonicalLanguageTag(matches[0]?.entry?.tgtLang || payload?.targetLanguage) } }) : '',
     fingerprint: createTbFingerprint(matches.map((match) => match.entry || match))
   };
 }

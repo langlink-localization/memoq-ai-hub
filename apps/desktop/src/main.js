@@ -1,3 +1,4 @@
+const { HISTORY_PROTOCOL, historyRequestFromArgv } = require('./shared/historyNavigation');
 const path = require('path');
 const fs = require('fs');
 const { fork } = require('child_process');
@@ -28,6 +29,7 @@ const appPaths = createAppPaths();
 const logger = createLogger({ source: 'desktop-main', logsDir: appPaths.logsDir });
 const rendererLogger = createLogger({ source: 'renderer', logsDir: appPaths.logsDir });
 let mainWindow;
+let pendingHistoryRequest = historyRequestFromArgv(process.argv);
 let qualityWindow;
 let appIsQuitting = false;
 let startupState = { status: 'starting', message: '' };
@@ -509,10 +511,20 @@ const registerIpcHandlers = createRendererIpcRegistrar({
   }
 });
 
-if (!app.requestSingleInstanceLock()) {
+const squirrelUninstall = process.platform === 'win32' && process.argv.includes('--squirrel-uninstall');
+if (squirrelUninstall) {
+  const removed = app.removeAsDefaultProtocolClient(HISTORY_PROTOCOL);
+  logger.info('history-protocol-removed', 'Removed history protocol registration.', { removed });
+  app.quit();
+} else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, commandLine) => {
+    const requestId = historyRequestFromArgv(commandLine);
+    if (requestId) {
+      pendingHistoryRequest = requestId;
+      mainWindow?.webContents.send('desktop:history-navigation-available');
+    }
     revealWindow();
   });
 
@@ -521,6 +533,14 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
       logger.warn('permission-denied', 'Denied a renderer permission request.', { permission });
       callback(false);
+    });
+    if (process.platform === 'win32' && app.isPackaged) {
+      const registered = app.setAsDefaultProtocolClient(HISTORY_PROTOCOL);
+      logger.info('history-protocol-registration', 'Registered history protocol.', { registered });
+    }
+    ipcMain.handle('desktop:peek-history-navigation', (event) => event.sender === mainWindow?.webContents ? pendingHistoryRequest : '');
+    ipcMain.handle('desktop:ack-history-navigation', (event, requestId) => {
+      if (event.sender === mainWindow?.webContents && requestId === pendingHistoryRequest) pendingHistoryRequest = '';
     });
     registerIpcHandlers();
     createWindow();

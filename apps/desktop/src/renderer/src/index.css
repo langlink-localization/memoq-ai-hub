@@ -944,3 +944,7 @@ body,
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+
+.translation-result-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.translation-evidence { overflow-wrap: anywhere; min-width: 0; }

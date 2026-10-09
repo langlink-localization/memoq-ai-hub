@@ -229,6 +229,8 @@ namespace MemoQAIHubPlugin
         public string providerId { get; set; }
         public string model { get; set; }
         public bool partial { get; set; }
+        public int[] nonRetryableSegmentIndexes { get; set; }
+        public MemoQAIHubRejectedSegment[] nonRetryableSegments { get; set; }
         public MemoQAIHubError error { get; set; }
         public List<MemoQAIHubSegmentResult> translations { get; set; }
     }
@@ -279,12 +281,21 @@ namespace MemoQAIHubPlugin
         public MemoQAIHubError error { get; set; }
     }
 
+    internal class MemoQAIHubRejectedSegment
+    {
+        public int index { get; set; }
+        public string historyRequestId { get; set; }
+        public int historySegmentIndex { get; set; }
+    }
+
     internal class MemoQAIHubSegmentResult
     {
         public int index { get; set; }
         public string text { get; set; }
         public double confidence { get; set; }
         public string info { get; set; }
+        public string historyRequestId { get; set; }
+        public int? historySegmentIndex { get; set; }
         public Dictionary<string, object> confidenceSignals { get; set; }
     }
 

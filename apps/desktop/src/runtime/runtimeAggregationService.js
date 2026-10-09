@@ -433,6 +433,8 @@ function createRuntimeAggregationService(options = /** @type {import('../types/r
         traceId: entry.traceId,
         jobRequestId: entry.jobRequestId,
         aggregationGroupId: entry.groupId,
+        nonRetryableSegmentIndexes: rescueResult.nonRetryableSegmentIndexes || [],
+        nonRetryableSegments: rescueResult.nonRetryableSegments || [],
         providerId: rescueResult.providerId || '',
         model: rescueResult.model || '',
         pending: false,
@@ -491,6 +493,9 @@ function createRuntimeAggregationService(options = /** @type {import('../types/r
     });
 
     const translationsByIndex = new Map();
+    const nonRetryableIndexes = new Set();
+    /** @type {any[]} */
+    const nonRetryableSegments = [];
     let providerQueuedMs = 0;
     /** @type {Record<string, any> | null} */
     let lastError = null;
@@ -506,6 +511,8 @@ function createRuntimeAggregationService(options = /** @type {import('../types/r
 
     const buildResult = () => ({
       statusCode: lastStatusCode,
+      nonRetryableSegmentIndexes: [...nonRetryableIndexes],
+      nonRetryableSegments,
       translations: Array.from(translationsByIndex.values()).sort((/** @type {any} */ left, /** @type {any} */ right) => left.index - right.index),
       error: lastError,
       providerQueuedMs,
@@ -548,12 +555,15 @@ function createRuntimeAggregationService(options = /** @type {import('../types/r
         if (body.error) {
           lastError = body.error;
         }
+        nonRetryableSegments.push(...(body.nonRetryableSegments || []));
+        for (const index of body.nonRetryableSegmentIndexes || []) nonRetryableIndexes.add(index);
         for (const translation of (Array.isArray(body.translations) ? body.translations : [])) {
           const translatedIndex = Number(translation.index);
           if (!translationsByIndex.has(translatedIndex)) {
             translationsByIndex.set(translatedIndex, {
-              index: translatedIndex,
-              text: translation.text
+              ...translation,
+              ...(body.requestId ? { historyRequestId: translation.historyRequestId || body.requestId, historySegmentIndex: translation.historySegmentIndex ?? translation.index } : {}),
+              index: translatedIndex
             });
           }
         }
@@ -614,7 +624,7 @@ function createRuntimeAggregationService(options = /** @type {import('../types/r
         launchMore();
       }
 
-      if (!translationsByIndex.size) {
+      if (!translationsByIndex.size && nonRetryableIndexes.size === 0) {
         entry.fallbackState = 'fallback_failed';
         entry.fallbackError = lastError || { code: ERROR_CODES.translationFailed, message: 'Aggregate rescue did not return any translations.' };
         runtimeLogger.info('aggregate-fallback-complete', 'Aggregate fallback completed without translations.', {
@@ -696,8 +706,9 @@ function createRuntimeAggregationService(options = /** @type {import('../types/r
         continue;
       }
       translationsByEntry.get(mapping.entry.jobRequestId).push({
-        index: mapping.originalIndex,
-        text: translation.text
+        ...translation,
+        ...(body.requestId ? { historyRequestId: translation.historyRequestId || body.requestId, historySegmentIndex: translation.historySegmentIndex ?? translation.index } : {}),
+        index: mapping.originalIndex
       });
     }
 
@@ -723,6 +734,8 @@ function createRuntimeAggregationService(options = /** @type {import('../types/r
         providerId: body.providerId || '',
         model: body.model || '',
         partial: Boolean(body.partial || missingCount > 0),
+        nonRetryableSegmentIndexes: (body.nonRetryableSegmentIndexes || []).map((/** @type {number} */ index) => mappings.get(index)).filter((/** @type {any} */ mapping) => mapping?.entry.jobRequestId === entry.jobRequestId).map((/** @type {any} */ mapping) => mapping.originalIndex),
+        nonRetryableSegments: (body.nonRetryableSegments || []).map((/** @type {any} */ rejected) => ({ rejected, mapping: mappings.get(rejected.index) })).filter((/** @type {any} */ item) => item.mapping?.entry.jobRequestId === entry.jobRequestId).map((/** @type {any} */ item) => ({ ...item.rejected, index: item.mapping.originalIndex })),
         error: body.error || (missingCount > 0 ? {
           code: ERROR_CODES.translationFailed,
           message: 'Translation failed for one or more aggregated segments.'

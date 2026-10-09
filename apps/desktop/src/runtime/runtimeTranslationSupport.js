@@ -137,6 +137,8 @@ function createTranslationCacheKey({
     },
     segmentMetadata: normalizeSegmentMetadataItem(segmentMetadata || {}),
     profile: {
+      terminologyMode: profile?.terminologyMode || 'advisory',
+      terminologyRepairEnabled: profile?.terminologyRepairEnabled === true,
       translationStyle: String(profile?.translationStyle || ''),
       useMetadata: profile?.useMetadata !== false,
       useBestFuzzyTm: profile?.useBestFuzzyTm !== false,

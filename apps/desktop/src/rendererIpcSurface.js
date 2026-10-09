@@ -41,6 +41,9 @@ const MAIN_LOCAL_METHODS = {
 
 /** @type {Record<string, WorkerProxiedMethodSpec>} */
 const WORKER_PROXIED_METHODS = {
+  resolveHistoryEntryByRequestId: { channel: 'desktop:resolve-history-request', worker: 'resolveHistoryEntryByRequestId' },
+  testAssets: { channel: 'desktop:test-assets', worker: 'testAssets' },
+  retranslateHistory: { channel: 'desktop:retranslate-history', worker: 'retranslateHistory' },
   getHistoryEntry: {
     channel: 'desktop:get-history-entry',
     worker: 'getHistoryEntry',

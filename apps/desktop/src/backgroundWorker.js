@@ -147,6 +147,9 @@ const requestHandlers = {
   getAppState(payload) {
     return requireRuntime().getAppState(payload || {});
   },
+  resolveHistoryEntryByRequestId(payload) { return requireRuntime().resolveHistoryEntryByRequestId(payload); },
+  testAssets(payload) { return requireRuntime().testAssets(payload); },
+  retranslateHistory(payload) { return requireRuntime().retranslateHistory(payload); },
   getHistoryEntry(payload) {
     return requireRuntime().getHistoryEntry(payload?.entryId || payload);
   },

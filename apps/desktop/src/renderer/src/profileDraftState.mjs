@@ -112,6 +112,8 @@ export function buildProfileFingerprint(profile) {
     useBestFuzzyTm: profile.useBestFuzzyTm !== false,
     useMetadata: profile.useMetadata !== false,
     useUploadedGlossary: profile.useUploadedGlossary !== false,
+    terminologyMode: profile.terminologyMode === 'strict' ? 'strict' : 'advisory',
+    terminologyRepairEnabled: profile.terminologyRepairEnabled === true,
     useCustomTm: profile.useCustomTm !== false,
     customTmMatchBuckets: Array.isArray(profile.customTmMatchBuckets) ? profile.customTmMatchBuckets : DEFAULT_CUSTOM_TM_MATCH_BUCKETS,
     useBrief: profile.useBrief !== false,

@@ -277,6 +277,8 @@ function ensureProfile(profile = {}) {
     useBestFuzzyTm: profile.useBestFuzzyTm !== false,
     useMetadata: profile.useMetadata !== false,
     useUploadedGlossary: profile.useUploadedGlossary !== false,
+    terminologyMode: profile.terminologyMode === 'strict' ? 'strict' : 'advisory',
+    terminologyRepairEnabled: profile.terminologyRepairEnabled === true,
     useCustomTm: profile.useCustomTm !== false,
     customTmMatchBuckets: profile.customTmMatchBuckets,
     useBrief: profile.useBrief !== false,
