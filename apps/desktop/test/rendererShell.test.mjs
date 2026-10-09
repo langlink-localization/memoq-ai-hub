@@ -710,3 +710,16 @@ test('shouldShowHistoryActualSentContent hides single payloads and keeps batch p
     true
   );
 });
+
+test('actual sent content does not present cached or mixed evidence as an outbound batch', () => {
+  const record = { requestMode: 'batch' };
+  const model = { segmentIndex: 0, source: 'One', evidence: { version: 1, modelInvoked: true } };
+  const cached = { segmentIndex: 1, source: 'Two', evidence: { version: 1, modelInvoked: false } };
+  assert.equal(shouldShowHistoryActualSentContent(record, [cached]), false);
+  assert.equal(shouldShowHistoryActualSentContent(record, [model, cached]), false);
+  assert.equal(shouldShowHistoryActualSentContent(record, [model]), true);
+  assert.equal(shouldShowHistoryActualSentContent(
+    { ...record, segments: [model, cached] },
+    [{ segmentIndex: 0, source: 'One' }, { segmentIndex: 1, source: 'Two' }]
+  ), false);
+});

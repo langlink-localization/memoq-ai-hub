@@ -226,6 +226,13 @@ export function buildHistoryPromptItems(record, segments = []) {
 }
 
 export function shouldShowHistoryActualSentContent(record, segments = []) {
+  // A reconstructed batch is not an actual outbound payload when some results came from cache.
+  const evidenceSegments = Array.isArray(record?.segments) && record.segments.length ? record.segments : segments;
+  if (evidenceSegments.some((segment) => segment.evidence?.version === 1)
+    && evidenceSegments.some((segment) => segment.evidence?.modelInvoked !== true)) {
+    return false;
+  }
+
   const items = buildHistoryPromptItems(record, segments);
   if (!items.length) {
     return false;

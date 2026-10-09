@@ -29,7 +29,7 @@ namespace MemoQAIHubPlugin
             if (!response.success)
             {
                 throw new MTException(
-                    response.error?.message ?? "Desktop translation failed.",
+                    (response.error?.message ?? "Desktop translation failed.") + (response.nonRetryableSegments?.Length > 0 ? " | Hub record: " + response.nonRetryableSegments[0].historyRequestId : string.Empty),
                     response.error?.code ?? "TRANSLATION_FAILED",
                     null
                 );
@@ -110,7 +110,8 @@ namespace MemoQAIHubPlugin
             Segment[] segs,
             MemoQAIHubSegmentResult[] translationsByIndex,
             TranslationResult[] results,
-            FormattingAndTagsUsageOption formattingMode)
+            FormattingAndTagsUsageOption formattingMode,
+            string requestId = null)
         {
             for (var index = 0; index < segs.Length; index += 1)
             {
@@ -138,7 +139,8 @@ namespace MemoQAIHubPlugin
                     results[index].Translation = BuildSegmentFromResult(segs[index], translationText, formattingMode);
                     results[index].Confidence = Math.Max(0d, Math.Min(1d, translation.confidence));
                     results[index].ConfidenceProviderName = results[index].Confidence > 0d ? "memoQ AI Hub" : null;
-                    results[index].Info = string.IsNullOrWhiteSpace(translation.info) ? null : translation.info;
+                    var historyRequestId = string.IsNullOrWhiteSpace(translation.historyRequestId) ? requestId : translation.historyRequestId;
+                    results[index].Info = (string.IsNullOrWhiteSpace(translation.info) ? string.Empty : translation.info + " | ") + (string.IsNullOrWhiteSpace(historyRequestId) ? string.Empty : "Hub record: " + historyRequestId + (translation.historySegmentIndex.HasValue ? " (segment " + translation.historySegmentIndex.Value + ")" : string.Empty));
                     results[index].Exception = null;
                     _log($"Segment conversion success index={index}");
                 }

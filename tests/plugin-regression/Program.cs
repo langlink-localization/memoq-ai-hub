@@ -25,6 +25,7 @@ internal static class Program
         {
             RunEngineCapabilityScenario();
             RunPartialBatchRetryScenario();
+            RunTerminologyPolicyRejectionScenario();
             RunRequestTypeFallbackScenario();
             RunGatewayConcurrencyScenario();
             RunAggregateSubmitGateScenario();
@@ -68,6 +69,24 @@ internal static class Program
         Assert(engine.MaxDegreeOfParallelism == 8, "Expected plugin engine parallelism to preserve memoQ resource compatibility.");
     }
 
+    private static void RunTerminologyPolicyRejectionScenario()
+    {
+        var requests = 0;
+        RunScenario("terminology-policy-rejection",
+            new MemoQAIHubGeneralSettings { EnableGateway = true, GatewayTimeoutMs = 10000, FormattingAndTagUsage = FormattingAndTagsUsageOption.Plaintext },
+            new[] { SegmentBuilder.CreateFromString("alpha"), SegmentBuilder.CreateFromString("beta") },
+            requestBody => {
+                requests += 1;
+                return "{\"success\":true,\"partial\":true,\"requestId\":\"caller-1\",\"nonRetryableSegmentIndexes\":[1],\"translations\":[{\"index\":0,\"text\":\"alpha translated\",\"info\":\"term checked\",\"historyRequestId\":\"aggregate-history-1\"}]}";
+            },
+            results => {
+                Assert(requests == 1, "Policy rejection must not cause formatting retries.");
+                Assert(results[0].Exception == null, "Successful partial segment must remain usable.");
+                Assert(results[1].Exception != null, "Rejected segment must not return a translation.");
+                Assert(results[0].Info.Contains("term checked") && results[0].Info.Contains("Hub record: aggregate-history-1"), "Preserve info and the actual aggregate history locator.");
+            });
+    }
+
     private static void RunPartialBatchRetryScenario()
     {
         var requestBodies = new List<string>();
@@ -106,6 +125,9 @@ internal static class Program
                 Assert(results[0].Exception == null && results[0].Translation.PlainText == "alpha translated", "Expected segment 0 batch success.");
                 Assert(results[1].Exception == null && results[1].Translation.PlainText == "beta translated", "Expected segment 1 retry success.");
                 Assert(results[2].Exception == null && results[2].Translation.PlainText == "gamma translated", "Expected segment 2 batch success.");
+                Assert(results[0].Info.Contains("Hub record: batch-1"), "Expected batch record locator for segment 0.");
+                Assert(results[1].Info.Contains("Hub record: retry-1"), "Expected retry record locator for segment 1.");
+                Assert(results[2].Info.Contains("Hub record: batch-1"), "Expected batch record locator for segment 2.");
                 Assert(requestBodies.Count == 2, "Expected one batch request and one single-segment retry request.");
             }
         );

@@ -13,7 +13,7 @@ const { normalizeMemoQMetadata, normalizeSegmentMetadataItem } = require('../sha
 const { PromptTemplateError } = require('../shared/promptTemplate');
 const { CONTRACT_VERSION, ERROR_CODES } = require('../shared/desktopContract');
 const { buildPreviewContextBundle } = require('../preview/previewContext');
-const { enrichTranslationResult } = require('./translationConfidence');
+const { enrichTranslationResult, calculateStructuralValidity } = require('./translationConfidence');
 const {
   createSingleRequestMetadata,
   createBatchRequestMetadata,
@@ -257,7 +257,7 @@ function createRuntimeTranslationService({
         timeoutMs: attemptTimeoutMs,
         assetContext,
         requestOptions: {
-          localPromptCacheEnabled: !payload.assistantOperation,
+          localPromptCacheEnabled: !payload.assistantOperation && payload.bypassTranslationCache !== true && !batch.some((/** @type {any} */ item) => item.tbContext?.matches?.length),
           readPromptCache: (/** @type {any} */ key) => persistence.readPromptResponseCache(key),
           writePromptCache: (/** @type {any} */ key, /** @type {any} */ text) => persistence.writePromptResponseCache(key, text, nowIso()),
           providerPromptCacheEnabled: route.model.promptCacheEnabled === true,
@@ -355,7 +355,7 @@ function createRuntimeTranslationService({
             segmentPreviewContext: segment.previewContext || null,
             neighborContext: segment.neighborContext || null,
             requestOptions: {
-              localPromptCacheEnabled: !payload.assistantOperation,
+              localPromptCacheEnabled: !payload.assistantOperation && payload.bypassTranslationCache !== true && !segment.tbContext?.matches?.length,
               readPromptCache: (/** @type {any} */ key) => persistence.readPromptResponseCache(key),
               writePromptCache: (/** @type {any} */ key, /** @type {any} */ text) => persistence.writePromptResponseCache(key, text, nowIso()),
               providerPromptCacheEnabled: route.model.promptCacheEnabled === true,
@@ -856,15 +856,12 @@ function createRuntimeTranslationService({
         cache: parsedAssetCache
       });
     } catch (/** @type {any} */ error) {
-      return {
-        statusCode: 400,
-        body: {
-          success: false,
-          requestId,
-          traceId,
-          error: { code: ERROR_CODES.promptTemplateInvalid, message: error.message }
-        }
-      };
+      terminalError = { code: ERROR_CODES.promptTemplateInvalid, message: error.message };
+      assetContext.assetError = error.message;
+      assetContext.assetSnapshots = (profile.assetBindings || []).map((/** @type {any} */ binding) => {
+        const asset = state.assets.find((/** @type {any} */ item) => item.id === binding.assetId);
+        return { id: binding.assetId, name: asset?.name || binding.assetId, purpose: binding.purpose || asset?.type, fingerprint: '', error: error.message };
+      });
     }
     const segmentMetadataIndex = buildSegmentMetadataIndex(normalizedMetadata.segmentLevelMetadata);
     const incomingSegments = (payload.segments || []).map((/** @type {any} */ segment, /** @type {any} */ idx) => {
@@ -1004,7 +1001,7 @@ function createRuntimeTranslationService({
     const translatedByIndex = new Map();
     const requestMode = incomingSegments.length > 1 ? 'batch' : 'single';
 
-    for (const route of routes) {
+    for (const route of terminalError ? [] : routes) {
       try {
       let remainingSegments = incomingSegments.filter((/** @type {any} */ segment) => !translatedByIndex.has(segment.index));
       if (!remainingSegments.length) {
@@ -1012,7 +1009,7 @@ function createRuntimeTranslationService({
       }
 
       for (const segment of remainingSegments) {
-        if (!segment.cacheKey) {
+        {
           segment.cacheKey = createTranslationCacheKey({
             providerId: route.provider.id,
             modelName: route.model.modelName,
@@ -1050,9 +1047,11 @@ function createRuntimeTranslationService({
       if (profile.cacheEnabled && !requestBypassTranslationCache) {
         const unresolved = [];
         for (const segment of remainingSegments) {
-          const exactCachedText = persistence.readTranslationCache(segment.cacheKey);
+          const storedExactText = persistence.readTranslationCache(segment.cacheKey);
+          const exactCachedText = storedExactText && evaluateTerminologyQa({ translatedText: storedExactText, matches: segment.tbContext?.matches || [] }).ok ? storedExactText : '';
+          const hasTermMatches = Boolean(segment.tbContext?.matches?.length);
           const hasCustomTmMatches = Array.isArray(segment.customTmMatches) && segment.customTmMatches.length > 0;
-          const adaptiveCachedText = hasCustomTmMatches ? '' : persistence.readTranslationCache(segment.adaptiveCacheKey);
+          const adaptiveCachedText = hasCustomTmMatches || hasTermMatches ? '' : persistence.readTranslationCache(segment.adaptiveCacheKey);
           const cachedText = exactCachedText || adaptiveCachedText;
           if (cachedText) {
             translatedByIndex.set(segment.index, { index: segment.index, text: cachedText, fromCache: true });
@@ -1143,8 +1142,23 @@ function createRuntimeTranslationService({
       for (const translation of routeResult.translations) {
         translatedByIndex.set(translation.index, translation);
         const originalSegment = remainingSegments.find((/** @type {any} */ segment) => segment.index === translation.index);
-        if (profile.cacheEnabled && originalSegment?.cacheKey) {
-          persistence.writeTranslationCache(originalSegment.cacheKey, translation.text, nowIso());
+        if (originalSegment && profile.terminologyMode === 'strict' && profile.terminologyRepairEnabled === true
+          && !originalSegment.terminologyRepair && !evaluateTerminologyQa({ translatedText: translation.text, matches: originalSegment.tbContext?.matches || [] }).ok) {
+          originalSegment.terminologyRepair = { originalText: translation.text, attempted: true };
+          const repair = await translatePendingSegmentsWithRoute({
+            state, route, pendingSegments: [originalSegment], secret, normalizedMetadata,
+            profile: { ...profile, translationStyle: `${profile.translationStyle || ''}\nCorrect the translation to include every required target terminology form and avoid forbidden forms. Preserve all tags and placeholders.` },
+            payload: { ...payload, bypassTranslationCache: true }, assetContext,
+            previewContext: effectiveRequestPreviewContext, requestMode: 'single'
+          });
+          repair.attempts.forEach((/** @type {any} */ attempt) => { attempt.terminologyRepair = true; });
+          attempts.push(...repair.attempts);
+          totalLatencyMs += Number(repair.latencyMs || 0);
+          const repaired = repair.translations.find((/** @type {any} */ item) => item.index === translation.index);
+          const repairAccepted = Boolean(repaired && calculateStructuralValidity(originalSegment.sourceText, repaired.text) === 1
+            && evaluateTerminologyQa({ translatedText: repaired.text, matches: originalSegment.tbContext?.matches || [] }).ok);
+          originalSegment.terminologyRepair.outcome = repairAccepted ? 'accepted' : 'rejected';
+          if (repairAccepted) translatedByIndex.set(translation.index, { ...repaired, repairApplied: true });
         }
       }
 
@@ -1182,6 +1196,15 @@ function createRuntimeTranslationService({
         translatedText: translated.text,
         matches: segment.tbContext?.matches || []
       });
+      if (profile.terminologyMode === 'strict' && segment.qaSummary.ok === false) {
+        segment.qaSummary.blocking = true;
+        segment.rejectedTranslation = translated.text;
+        terminalError = { code: ERROR_CODES.translationFailed, message: 'Required terminology was not followed. Review the translation record before retrying.' };
+        continue;
+      }
+      if (!translated.fromCache && profile.cacheEnabled && segment.cacheKey && segment.qaSummary.ok) {
+        persistence.writeTranslationCache(segment.cacheKey, translated.text, nowIso());
+      }
       translations.push(payload?.capabilities?.mtConfidenceInfo === true
         ? enrichTranslationResult({
           segment,
@@ -1345,6 +1368,8 @@ function createRuntimeTranslationService({
 
     saveState(latestState);
 
+    const nonRetryableSegmentIndexes = incomingSegments.filter((/** @type {any} */ segment) => segment.qaSummary?.blocking === true).map((/** @type {any} */ segment) => segment.index);
+    const nonRetryableSegments = nonRetryableSegmentIndexes.map((/** @type {number} */ index) => ({ index, historyRequestId: requestId, historySegmentIndex: index }));
     if (terminalError && translations.length === 0) {
       return {
         statusCode: 502,
@@ -1352,6 +1377,8 @@ function createRuntimeTranslationService({
           success: false,
           requestId,
           traceId,
+          nonRetryableSegmentIndexes,
+          nonRetryableSegments,
           error: { code: terminalError.code || ERROR_CODES.translationFailed, message: terminalError.message || 'Translation failed.' }
         }
       };
@@ -1366,6 +1393,8 @@ function createRuntimeTranslationService({
         providerId: historyEntry.providerId,
         model: historyEntry.model,
         partial: Boolean(terminalError),
+        nonRetryableSegmentIndexes,
+        nonRetryableSegments,
         error: terminalError ? { code: terminalError.code || ERROR_CODES.translationFailed, message: terminalError.message || 'Translation failed.' } : null,
         profileResolution: {
           profileId: profile.id,

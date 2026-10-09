@@ -156,7 +156,8 @@ function filterHistoryEntries(historyEntries, filters = {}) {
       entry.providerName,
       entry.model,
       entry.status,
-      entry.segmentSummary
+      entry.segmentSummary,
+      ...(entry.segments || []).flatMap((/** @type {any} */ segment) => [segment.sourceText, segment.targetText])
     ].map((item) => String(item || '').toLowerCase()).join(' ');
     return summaryText.includes(keyword);
   });

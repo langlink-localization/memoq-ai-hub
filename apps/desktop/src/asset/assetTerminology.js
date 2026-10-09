@@ -5,7 +5,7 @@ const {
   normalizeCanonicalLanguageTag
 } = require('../shared/languageNormalization');
 
-const NORMALIZED_MATCHER_VERSION = 'normalized-ac-v1';
+const NORMALIZED_MATCHER_VERSION = 'normalized-ac-v2';
 
 /** @typedef {Record<string, any>} TbEntry */
 
@@ -98,7 +98,7 @@ function normalizeCharChunk(char, entry = {}) {
       next = next.toLocaleLowerCase();
     }
 
-    if (normalizeMatchMode(entry.matchMode) === 'normalized' && isSeparatorChar(next)) {
+    if (normalizeMatchMode(entry.matchMode) === 'normalized' && next !== '_' && isSeparatorChar(next)) {
       output.push(' ');
       continue;
     }
@@ -382,14 +382,6 @@ function isAsciiWordChar(char) {
 }
 
 /**
- * @param {string} char
- * @returns {boolean}
- */
-function isCjkChar(char) {
-  return /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(char);
-}
-
-/**
  * @param {string} text
  * @param {number} start
  * @param {number} end
@@ -400,12 +392,12 @@ function passesBoundary(text, start, end, entry) {
   if (entry.matchMode === 'phrase' || entry.matchMode === 'normalized') {
     const prev = charAt(text, start - 1);
     const next = charAt(text, end);
-    if (isCjkChar(prev) || isCjkChar(next)) return true;
-    if (!prev && !next) return true;
-    if (!prev || !isAsciiWordChar(prev)) {
-      return !next || !isAsciiWordChar(next);
-    }
-    return false;
+    // Apply each boundary only when that edge of the term forms a word.
+    // CJK terms may touch levels (炉3/Lv8), but cat2 and 犬12 must not
+    // match cat and 犬1 merely because the other neighbor is CJK.
+    const wordEdge = /[\p{Script=Latin}\p{Script=Cyrillic}\p{Script=Greek}\p{N}\p{M}_]/u;
+    return !(wordEdge.test(charAt(text, start)) && wordEdge.test(prev))
+      && !(wordEdge.test(charAt(text, end - 1)) && wordEdge.test(next));
   }
 
   if (entry.matchMode === 'whole_word' || entry.matchMode === 'exact') {
@@ -723,6 +715,7 @@ function evaluateTerminologyQa({ translatedText, matches = [] } = {}) {
 }
 
 module.exports = {
+  terminologyLanguageMatches,
   NORMALIZED_MATCHER_VERSION,
   createTbFingerprint,
   createTbMatcher,

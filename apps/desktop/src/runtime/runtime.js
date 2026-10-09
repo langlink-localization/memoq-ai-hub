@@ -1,3 +1,4 @@
+const { createRuntimeTranslationTools } = require('./runtimeTranslationTools');
 const { createRuntimeProviderStatus } = require('./runtimeProviderStatus');
 const crypto = require('crypto');
 const { createAppPaths } = require('../shared/paths');
@@ -290,6 +291,7 @@ async function createRuntime(options = {}) {
     nowIso
   });
   const { performTranslation } = translationService;
+  const translationTools = createRuntimeTranslationTools({ loadState, loadHistoryEntry, loadHistoryEntries, performTranslation, createId, hasSmartTbParsingCapability });
 
   const qaService = createRuntimeQaService({
     persistence,
@@ -425,6 +427,9 @@ async function createRuntime(options = {}) {
     getAppState(filters = {}) {
       return stateView.getState(filters);
     },
+    resolveHistoryEntryByRequestId: translationTools.resolveHistoryEntryByRequestId,
+    testAssets: translationTools.testAssets,
+    retranslateHistory: translationTools.retranslateHistory,
     getHistoryEntry(/** @type {any} */ entryId) {
       const entry = loadHistoryEntry(entryId);
       return entry ? { ...entry, ...buildHistorySummary(entry), issueFlags: buildHistoryIssueFlags(entry) } : null;

@@ -1,0 +1,22 @@
+id: translation-evidence
+title: Translation evidence and terminology reliability
+status: active
+owner: repository maintainers
+repos:
+  - path: ../..
+    role: source-of-truth
+source_plan: docs/specs/translation-evidence/spec.md
+spec_link: docs/specs/translation-evidence/spec.md
+github_links:
+  project: none
+  issues: []
+current_stage: P5
+last_verified_commit: 7311d19
+next_action: Finish independent review and current-candidate checks, then publish PR, merge, and release v1.0.53.
+drift_guard:
+  ui_contract: docs/ui-governance.md
+  toolchain_contract: AGENTS.md
+  validation_command: pnpm run lint && pnpm run typecheck && pnpm run test:desktop && pnpm run test:repo && pnpm run test:antd
+  source_of_truth: GitHub, repository tests, Windows packaging and published release artifacts
+intentional_divergences: []
+resume_prompt: Read this ledger and spec, verify the worktree, continue P0–P5, and report merge, release and live memoQ acceptance separately.

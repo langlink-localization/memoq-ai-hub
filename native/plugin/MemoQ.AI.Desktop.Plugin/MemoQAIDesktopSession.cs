@@ -122,6 +122,16 @@ namespace MemoQAIHubPlugin
             );
 
             var translationsByIndex = _responseMapper.MapTranslationsByIndex(response, segs.Length, results);
+            foreach (var index in response.nonRetryableSegmentIndexes ?? new int[0])
+            {
+                if (index >= 0 && index < results.Length && results[index].Exception != null)
+                    results[index].Exception.Data["NoRetry"] = true;
+            }
+            foreach (var rejected in response.nonRetryableSegments ?? new MemoQAIHubRejectedSegment[0])
+            {
+                if (rejected.index >= 0 && rejected.index < results.Length && results[rejected.index].Exception != null)
+                    results[rejected.index].Info = "Hub record: " + rejected.historyRequestId + " (segment " + rejected.historySegmentIndex + ")";
+            }
             var missingCount = GetFailedIndexes(results).Count;
             if (response.partial || missingCount > 0)
             {
@@ -129,7 +139,7 @@ namespace MemoQAIHubPlugin
                     $"Partial translate response translations={response.translations?.Count ?? 0} missing={missingCount} retrying={missingCount} error={response.error?.message ?? string.Empty}"
                 );
             }
-            _responseMapper.ApplyTranslations(segs, translationsByIndex, results, formattingMode);
+            _responseMapper.ApplyTranslations(segs, translationsByIndex, results, formattingMode, response.requestId ?? request.requestId);
         }
 
         private void RetryFailedSegmentsIndividually(
@@ -180,7 +190,8 @@ namespace MemoQAIHubPlugin
                     }
 
                     results[originalIndex].Exception = retryResult.Exception;
-                    stillFailing.Add(originalIndex);
+                    results[originalIndex].Info = retryResult.Info;
+                    if (!Equals(retryResult.Exception?.Data["NoRetry"], true)) stillFailing.Add(originalIndex);
                     MemoQAIHubPluginLogger.Log($"Retry stage failed index={originalIndex} mode={retryMode} error={retryResult.Exception?.Message ?? string.Empty}");
                 });
 
@@ -225,11 +236,19 @@ namespace MemoQAIHubPlugin
                 MemoQAIHubPluginLogger.Log(
                     $"Retry response success={response.success} translations={response.translations?.Count ?? 0} originalIndex={originalIndex} mode={formattingMode} requestId={response.requestId ?? request.requestId} traceId={response.traceId ?? request.traceId}"
                 );
+                if (!response.success && (response.nonRetryableSegmentIndexes ?? new int[0]).Contains(0))
+                {
+                    result.Exception = new MTException(response.error?.message ?? "Terminology policy rejected this translation.", "TRANSLATION_FAILED", null);
+                    result.Exception.Data["NoRetry"] = true;
+                    var rejected = response.nonRetryableSegments?.FirstOrDefault();
+                    result.Info = "Hub record: " + (rejected?.historyRequestId ?? response.requestId ?? request.requestId);
+                    return result;
+                }
                 MemoQAIHubResponseMapper.ThrowIfUnsuccessful(response);
 
                 var singleResults = CreateInitializedResults(1);
                 var translationsByIndex = _responseMapper.MapTranslationsByIndex(response, 1, singleResults);
-                _responseMapper.ApplyTranslations(singleSeg, translationsByIndex, singleResults, formattingMode);
+                _responseMapper.ApplyTranslations(singleSeg, translationsByIndex, singleResults, formattingMode, response.requestId ?? request.requestId);
 
                 return singleResults[0];
             }
@@ -264,7 +283,7 @@ namespace MemoQAIHubPlugin
         private static List<int> GetFailedIndexes(TranslationResult[] results)
         {
             return Enumerable.Range(0, results.Length)
-                .Where(index => results[index].Exception != null)
+                .Where(index => results[index].Exception != null && !Equals(results[index].Exception.Data["NoRetry"], true))
                 .ToList();
         }
 

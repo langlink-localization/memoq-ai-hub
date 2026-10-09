@@ -1,3 +1,4 @@
+const { buildTranslationEvidence } = require('./translationEvidence');
 const {
   buildPrompt,
   buildBatchPrompt
@@ -433,6 +434,9 @@ function buildHistoryEntry({
   return {
     id: createId('hist'),
     requestId,
+    parentHistoryId: String(payload.parentHistoryId || ''),
+    parentSegmentIndex: payload.parentSegmentIndex ?? null,
+    requestType: payload.requestType || 'Plaintext',
     runtime: {
       ...runtimeIdentity
     },
@@ -496,7 +500,9 @@ function buildHistoryEntry({
     qaSummary: {
       terminology: {
         ok: incomingSegments.every((/** @type {any} */ segment) => segment.qaSummary?.ok !== false),
-        blocking: false,
+        checked: incomingSegments.some((/** @type {any} */ segment) => segment.tbContext?.matches?.length && segment.qaSummary),
+        matchCount: incomingSegments.reduce((/** @type {number} */ count, /** @type {any} */ segment) => count + (segment.tbContext?.matches?.length || 0), 0),
+        blocking: incomingSegments.some((/** @type {any} */ segment) => segment.qaSummary?.blocking === true),
         issues: incomingSegments.flatMap((/** @type {any} */ segment) => segment.qaSummary?.issues || [])
       }
     },
@@ -524,8 +530,11 @@ function buildHistoryEntry({
         tmTarget: String(segment.tmTarget || ''),
         tmDiagnostics: incomingSegment?.tmDiagnostics || null,
         customTmMatches: incomingSegment?.customTmMatches || [],
+        evidence: buildTranslationEvidence({ profile, assetContext, segment: incomingSegment || { index: segmentIndex }, attempts, hasResult: Boolean(translated) }),
         qaSummary: incomingSegment?.qaSummary || { ok: true, blocking: false, issues: [] },
         tbContext: incomingSegment?.tbContext || null,
+        terminologyRepair: incomingSegment?.terminologyRepair || null,
+        rejectedTranslation: incomingSegment?.rejectedTranslation || '',
         previewWarmup: incomingSegment?.previewWarmup || null,
         previewContext: incomingSegment?.previewDebugContext || incomingSegment?.previewContext || null
       };

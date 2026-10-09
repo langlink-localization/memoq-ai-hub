@@ -498,11 +498,45 @@ export default function App() {
     }
   }
 
+  const historyNavigationSequence = useRef(0);
+  async function openHistoryRequest(requestId) {
+    const sequence = ++historyNavigationSequence.current;
+    try {
+      const resolved = await api.resolveHistoryEntryByRequestId(requestId);
+      if (sequence !== historyNavigationSequence.current) return;
+      if (resolved.status !== 'found') {
+        modal.warning({ title: t(resolved.status === 'ambiguous' ? 'evidence.ambiguousRecord' : 'evidence.missingRecord'), content: <Text copyable>{requestId}</Text> });
+        return;
+      }
+      await historyFiltersController.resetHistoryFilters();
+      if (sequence !== historyNavigationSequence.current) return;
+      setSelectedHistoryId(resolved.historyId);
+    } catch (error) { notifyError(error); }
+  }
+  const externalNavigationRef = useRef(null);
+  externalNavigationRef.current = (requestId) => requestNavigation('page', 'history', requestId);
+  const historyNavigationReady = state?.dashboard?.runtimeStatus?.connectionStatus === 'Connected'
+    && !savingProvider && !savingProfile && !navigationResolving && !assetEditorSaving && !mappingEditorSaving;
+  useEffect(() => {
+    if (!api?.onHistoryNavigation || !historyNavigationReady) return undefined;
+    let disposed = false;
+    const receive = async () => {
+      try {
+        const requestId = await api.peekHistoryNavigation();
+        if (!disposed && requestId) externalNavigationRef.current(requestId);
+      } catch { /* Startup may still be waiting for the desktop bridge. */ }
+    };
+    const unsubscribe = api.onHistoryNavigation(receive);
+    receive();
+    return () => { disposed = true; unsubscribe(); };
+  }, [api, historyNavigationReady]);
+
   function commitNavigation(navigation) {
     if (!navigation) return;
     if (navigation.kind === 'page') {
       persistCurrentPageScrollPosition();
       setActivePage(navigation.value);
+      if (navigation.historyRequestId) void openHistoryRequest(navigation.historyRequestId);
       return;
     }
     if (navigation.kind === 'provider') {
@@ -515,23 +549,24 @@ export default function App() {
     }
   }
 
-  function requestNavigation(kind, value) {
+  function requestNavigation(kind, value, historyRequestId = '') {
     if (['provider-save', 'profile-save', 'navigation-save'].some((key) => pendingOperationsRef.current.isPending(key))) return;
+    if (historyRequestId) void api.acknowledgeHistoryNavigation(historyRequestId);
     const isSameDestination = (kind === 'page' && value === activePage)
       || (kind === 'provider' && value === currentProvider?.id)
       || (kind === 'profile' && value === currentProfile?.id);
-    if (isSameDestination) return;
+    if (isSameDestination) { if (historyRequestId) void openHistoryRequest(historyRequestId); return; }
 
     if (activePage === 'assets' && (assetEditorDirty || assetEditorSaving) && kind === 'page') {
       requestEditorDeparture({ dirty: assetEditorDirty, busy: assetEditorSaving, name: t('nav.assets'), modal, t,
-        proceed: () => { setAssetEditorDirty(false); commitNavigation({ kind, value }); } });
+        proceed: () => { setAssetEditorDirty(false); commitNavigation({ kind, value, historyRequestId }); } });
       return;
     }
     if (activePage === 'mapping' && (mappingEditorDirty || mappingEditorSaving) && kind === 'page') {
       requestEditorDeparture({
         dirty: mappingEditorDirty, busy: mappingEditorSaving,
         name: t('nav.mapping'), modal, t,
-        proceed: () => { setMappingEditorDirty(false); commitNavigation({ kind, value }); }
+        proceed: () => { setMappingEditorDirty(false); commitNavigation({ kind, value, historyRequestId }); }
       });
       return;
     }
@@ -541,7 +576,7 @@ export default function App() {
       currentProviderDirty,
       currentProfileDirty
     });
-    const navigation = { kind, value, dirtyKind };
+    const navigation = { kind, value, dirtyKind, historyRequestId };
     if (dirtyKind) {
       setPendingNavigation(navigation);
       return;
@@ -929,6 +964,7 @@ export default function App() {
 
           {activePage === 'history' && (
             <HistoryPage
+              profiles={state?.contextBuilder?.profiles || []}
               activeHistoryFilterTags={activeHistoryFilterTags}
               applyHistoryFilters={historyFiltersController.applyHistoryFilters}
               confirmDeleteCurrentHistoryEntry={confirmDeleteCurrentHistoryEntry}

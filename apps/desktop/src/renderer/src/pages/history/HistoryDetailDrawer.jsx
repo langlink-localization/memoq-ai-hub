@@ -25,6 +25,7 @@ import {
   shouldShowHistoryActualSentContent
 } from '../../appShell.mjs';
 import HistoryIssueTags from './HistoryIssueTags.jsx';
+import TranslationResults from './TranslationResults.jsx';
 import {
   buildHistoryAttemptRows,
   buildHistoryDiagnosticSummary,
@@ -39,6 +40,7 @@ const HISTORY_DETAIL_DRAWER_WIDTH = 'min(920px, calc(100vw - 32px))';
 export default function HistoryDetailDrawer({
   currentHistoryListItem,
   currentHistoryRecord,
+  profiles,
   detailError,
   detailLoading,
   historyFilters,
@@ -66,6 +68,7 @@ export default function HistoryDetailDrawer({
         <Alert type="error" showIcon title={detailError} />
       ) : currentHistoryRecord ? (
         <Space orientation="vertical" size={16} className="app-block-space">
+          <TranslationResults key={currentHistoryRecord.id} record={currentHistoryRecord} profiles={profiles} t={t} />
           <Card size="small" title={t('history.diagnosticSummary')} className="history-diagnostic-card">
             {(() => {
               const diagnosticSummary = buildHistoryDiagnosticSummary(currentHistoryRecord);

@@ -32,12 +32,12 @@ test('the surface covers the bridge methods the renderer expects', () => {
   const methodNames = new Set(Object.keys({ ...WORKER_PROXIED_METHODS, ...MAIN_LOCAL_METHODS }));
 
   for (const expected of [
-    'getAppState', 'saveProfile', 'saveProvider', 'deleteProviderModel', 'importAsset',
+    'testAssets', 'retranslateHistory', 'getAppState', 'saveProfile', 'saveProvider', 'deleteProviderModel', 'importAsset',
     'getAssetPreview', 'saveAssetDetails', 'exportHistory', 'checkQaDocument', 'runPreviewAssistant',
     'checkForUpdates', 'applyPortableUpdate', 'openPath', 'copyText', 'testHandshake'
   ]) {
     assert.equal(methodNames.has(expected), true, `expected renderer bridge method ${expected}`);
   }
 
-  assert.equal(methodNames.size, 62, 'the renderer bridge exposes exactly 62 methods');
+  assert.equal(methodNames.size, 65, 'the renderer bridge exposes exactly 65 methods');
 });

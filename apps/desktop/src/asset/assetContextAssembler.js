@@ -83,6 +83,7 @@ function buildAssetContext({
   const briefEntries = [];
   const customTmParsedEntries = [];
   const assetHints = [];
+  const assetSnapshots = [];
 
   for (const entry of boundEntries) {
     const purpose = normalizeAssetPurpose(entry.binding.purpose || entry.asset.type);
@@ -92,10 +93,17 @@ function buildAssetContext({
       continue;
     }
 
+    const disabled = purpose === ASSET_PURPOSES.glossary ? profile.useUploadedGlossary === false
+      : purpose === ASSET_PURPOSES.customTm ? profile.useCustomTm === false : profile.useBrief === false;
+    if (disabled) {
+      assetSnapshots.push({ id: entry.asset.id, name: entry.asset.name, purpose, fingerprint: hashObject({ sha256: entry.asset.sha256, columns: entry.asset.tbLanguageColumns }), entryCount: 0, hasContent: false });
+      continue;
+    }
     try {
       const parsed = getParsedAsset(entry.asset, cache, {
         smartParsingAvailable: profile?.smartTbParsingAvailable === true
       });
+      assetSnapshots.push({ id: entry.asset.id, name: entry.asset.name, purpose, fingerprint: hashObject({ sha256: entry.asset.sha256, columns: entry.asset.tbLanguageColumns, hasHeader: entry.asset.tbHasHeader, entries: parsed.entries }), languagePairs: [...new Set((parsed.entries || []).map((/** @type {any} */ item) => `${item.srcLang || "*"}|${item.tgtLang || "*"}`))], entryCount: parsed.entries?.length || 0, hasContent: Boolean(parsed.text || parsed.entries?.length) });
       if (purpose === ASSET_PURPOSES.glossary) {
         glossaryEntries.push({
           ...parsed,
@@ -121,8 +129,8 @@ function buildAssetContext({
 
   const glossary = combineParsedEntries(glossaryEntries);
   const brief = combineParsedEntries(briefEntries);
-  const tbEntries = glossaryEntries.flatMap((entry) => entry.entries || []);
-  const tbStructures = glossaryEntries
+  const tbEntries = profile?.useUploadedGlossary === false ? [] : glossaryEntries.flatMap((entry) => entry.entries || []);
+  const tbStructures = (profile?.useUploadedGlossary === false ? [] : glossaryEntries)
     .map((entry) => entry.parseInfo?.tbStructure)
     .filter((item) => item && typeof item === 'object');
   const languagePairs = tbStructures
@@ -167,6 +175,7 @@ function buildAssetContext({
     briefFingerprint: profile?.useBrief === false ? fingerprintText('') : brief.fingerprint,
     customTmFingerprint: profile?.useCustomTm === false ? fingerprintText('') : customTm.fingerprint,
     assetHints,
+    assetSnapshots,
     tb,
     customTm: profile?.useCustomTm === false ? { entries: [], fingerprint: fingerprintText(''), matcher: createCustomTmMatcher([]) } : customTm
   };

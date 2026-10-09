@@ -1166,7 +1166,10 @@ test('runtime aggregate queue uses small groups and returns original indexes', a
     assert.equal(providerCalls.flat().length, 16);
     for (let requestIndex = 0; requestIndex < results.length; requestIndex += 1) {
       assert.equal(results[requestIndex].statusCode, 200);
-      assert.deepEqual(results[requestIndex].body.translations, [
+      for (const translation of results[requestIndex].body.translations) {
+        assert.equal(runtime.resolveHistoryEntryByRequestId(translation.historyRequestId).status, 'found', 'each aggregate/rescue segment must locate its actual saved record');
+      }
+      assert.deepEqual(results[requestIndex].body.translations.map(({ index, text }) => ({ index, text })), [
         { index: 0, text: `Segment ${requestIndex}.0 -> ZH` },
         { index: 1, text: `Segment ${requestIndex}.1 -> ZH` }
       ]);
@@ -1291,7 +1294,10 @@ test('runtime aggregate soft deadline settles entries with rescue fallback and m
       assert.equal(results[requestIndex].body.aggregation.rescueMode, 'single_segment_fast');
       assert.equal(results[requestIndex].body.aggregation.rescueBatchSize, 1);
       assert.equal(results[requestIndex].body.aggregation.rescueConcurrency, 2);
-      assert.deepEqual(results[requestIndex].body.translations, [
+      for (const translation of results[requestIndex].body.translations) {
+        assert.equal(runtime.resolveHistoryEntryByRequestId(translation.historyRequestId).status, 'found', 'each aggregate/rescue segment must locate its actual saved record');
+      }
+      assert.deepEqual(results[requestIndex].body.translations.map(({ index, text }) => ({ index, text })), [
         { index: 0, text: `Soft ${requestIndex}.0 fallback` },
         { index: 1, text: `Soft ${requestIndex}.1 fallback` }
       ]);
@@ -4864,9 +4870,9 @@ test('runtime translation cache changes when bound glossary content changes', as
       appDataRoot: tempRoot,
       providerRegistry: {
         testConnection: async () => ({ ok: true, latencyMs: 12, message: 'ok' }),
-        translateSegment: async ({ sourceText }) => {
+        translateSegment: async ({ tbContext }) => {
           translateCalls += 1;
-          return { text: `${sourceText} -> FR`, latencyMs: 10 };
+          return { text: `${tbContext.matches[0].targetTerm} service`, latencyMs: 10 };
         }
       }
     });
@@ -6084,7 +6090,8 @@ test('runtime records summary cache and generation debug details in history', as
     assert.equal(second.statusCode, 200);
     assert.equal(summaryCalls, 1);
 
-    const history = runtime.getAppState().historyExplorer.items;
+    const records = runtime.getAppState().historyExplorer.items;
+    const history = ['REQ-SUMMARY-2', 'REQ-SUMMARY-1'].map((requestId) => records.find((entry) => entry.requestId === requestId));
     assert.equal(history[0].assembly.previewContext.summary.requested, true);
     assert.equal(history[0].assembly.previewContext.summary.cacheHit, true);
     assert.equal(history[0].assembly.previewContext.summary.generated, false);
@@ -6457,4 +6464,100 @@ test('successful fallback clears the primary error while retaining failed-attemp
     assert.ok(state.historyExplorer.items[0].attempts.some(attempt => attempt.providerId === primary.id && !attempt.success));
     assert.equal(state.providerHub.providers.find(item => item.id === fallback.id).status, 'connected');
   } finally { runtime?.dispose(); fs.rmSync(tempRoot, { recursive: true, force: true }); }
+});
+
+test('terminology policy validates CJK level matches, cache writes, repair and fresh retranslation', async () => {
+  const tempRoot = createTempAppRoot();
+  const calls = [];
+  let outputs = [];
+  try {
+    const runtime = await createRuntime({ appDataRoot: tempRoot, providerRegistry: {
+      testConnection: async () => ({ ok: true }),
+      translateSegment: async (request) => { calls.push(request); return { text: outputs.shift() || '大炉レベル3', latencyMs: 1 }; }
+    } });
+    const provider = await runtime.saveProvider({ name: 'Test', type: 'openai', baseUrl: 'https://example.invalid/v1', apiKey: 'test-key', models: [{ modelName: 'test', enabled: true }] });
+    const file = path.join(tempRoot, 'terms.csv');
+    fs.writeFileSync(file, '大熔炉,大型炉,zh,ja,,,,phrase,10,false,,\n');
+    const asset = runtime.importAssetFromPath('glossary', file);
+    let profile = await runtime.saveProfile({ name: 'Terms', providerId: provider.id, cacheEnabled: true, useUploadedGlossary: true, assetBindings: [{ assetId: asset.id, purpose: 'glossary' }] });
+    let serial = 0;
+    const translate = (sourceText = '大熔炉3级解锁交易') => runtime.translate({ requestId: `evidence-${++serial}`, traceId: `trace-${serial}`, contractVersion: '1', sourceLanguage: 'zh', targetLanguage: 'ja', requestType: 'Plaintext', profileResolution: { profileId: profile.id, useCase: 'interactive' }, segments: [{ index: 0, text: sourceText, plainText: sourceText }] });
+    const preview = runtime.testAssets({ profileId: profile.id, sourceLanguage: 'zh', targetLanguage: 'ja', sourceText: '大熔炉3级解锁交易' });
+    assert.equal(preview.evidence.assets[0].matches[0].targetTerm, '大型炉');
+    assert.equal(preview.evidence.assets[0].sentToModel, false);
+    assert.equal(calls.length, 0);
+    assert.equal((await translate()).statusCode, 200);
+    assert.equal((await translate()).statusCode, 200);
+    assert.equal(calls.length, 2, 'noncompliant advisory output must not enter any translation cache');
+    assert.equal(calls[0].requestOptions.localPromptCacheEnabled, false);
+    profile = await runtime.saveProfile({ ...profile, terminologyMode: 'strict', terminologyRepairEnabled: false });
+    const rejected = await translate();
+    assert.notEqual(rejected.statusCode, 200);
+    assert.deepEqual(rejected.body.nonRetryableSegmentIndexes, [0]);
+    assert.equal(calls.length, 3, 'strict mode does not silently retry');
+    profile = await runtime.saveProfile({ ...profile, terminologyRepairEnabled: true });
+    outputs = ['大炉レベル3', '大型炉レベル3'];
+    assert.equal((await translate()).statusCode, 200);
+    assert.equal(calls.length, 5, 'one explicit repair call');
+    assert.equal((await translate()).statusCode, 200);
+    assert.equal(calls.length, 5, 'compliant output may be cached');
+    const item = runtime.getAppState().historyExplorer.items.find((entry) => entry.requestId === `evidence-${serial}`);
+    outputs = ['大型炉レベル3'];
+    const comparison = await runtime.retranslateHistory({ historyId: item.id, segmentIndex: 0 });
+    assert.equal(comparison.statusCode, 200);
+    assert.equal(calls.length, 6, 'retranslation bypasses exact and prompt caches');
+    assert.equal(comparison.evidence.terminologyStatus, 'compliant');
+    assert.equal(comparison.evidence.assets[0].sentToModel, true);
+    assert.equal(comparison.originalText, '大型炉レベル3');
+    outputs = ['<b>大炉</b>', '大型炉'];
+    const brokenRepair = await translate('<b>大熔炉</b>');
+    assert.equal(brokenRepair.statusCode, 502, 'a repair that loses tags must remain rejected');
+    assert.equal(calls.length, 8, 'rejected repair is not retried again');
+  } finally { fs.rmSync(tempRoot, { recursive: true, force: true }); }
+});
+
+test('aggregate policy rejections retain caller indexes and actual history through rescue', async () => {
+  for (const rescue of [false, true]) {
+    const tempRoot = createTempAppRoot();
+    try {
+      const runtime = await createRuntime({ appDataRoot: tempRoot, aggregateSoftDeadlineMs: rescue ? 10 : 1000, aggregateHardDeadlineMs: 500,
+        providerRegistry: {
+          testConnection: async () => ({ ok: true }),
+          translateBatch: async ({ segments }) => {
+            if (rescue) await new Promise((resolve) => setTimeout(resolve, 100));
+            return { translations: segments.map((segment) => ({ index: segment.index, text: segment.index % 2 ? '大炉' : '大型炉' })), latencyMs: 1 };
+          },
+          translateSegment: async () => ({ text: '大炉', latencyMs: 1 })
+        }
+      });
+      const provider = await runtime.saveProvider({ name: 'Test', type: 'openai', baseUrl: 'https://example.invalid/v1', apiKey: 'test-key', models: [{ modelName: 'test', enabled: true }] });
+      const file = path.join(tempRoot, 'terms.csv');
+      fs.writeFileSync(file, '大熔炉,大型炉,zh,ja,,,,phrase,10,false,,\n');
+      const asset = runtime.importAssetFromPath('glossary', file);
+      const profile = await runtime.saveProfile({ name: 'Strict', providerId: provider.id, terminologyMode: 'strict', cacheEnabled: false, assetBindings: [{ assetId: asset.id, purpose: 'glossary' }] });
+      const submitted = [];
+      for (let request = 0; request < 2; request += 1) {
+        const response = await runtime.submitAggregateTranslation({ requestId: `strict-${request}`, contractVersion: '1', sourceLanguage: 'zh', targetLanguage: 'ja', requestType: 'Plaintext', capabilities: { mtConfidenceInfo: true }, profileResolution: { profileId: profile.id, useCase: 'batch' }, segments: [{ index: 0, text: '大熔炉3级' }, { index: 1, text: '大熔炉4级' }] });
+        submitted.push(response.body);
+      }
+      for (const item of submitted) {
+        const response = await runtime.waitAggregateTranslation({ jobRequestId: item.jobRequestId, waitTimeoutMs: 1000 });
+        assert.equal(response.body.aggregation.settleMode, rescue ? 'rescue' : 'normal');
+        assert.deepEqual(response.body.nonRetryableSegmentIndexes, rescue ? [0, 1] : [1]);
+        for (const rejected of response.body.nonRetryableSegments) {
+          assert.equal(runtime.resolveHistoryEntryByRequestId(rejected.historyRequestId).status, 'found');
+          assert.ok(Number.isInteger(rejected.historySegmentIndex));
+        }
+        if (!rescue) {
+          const translation = response.body.translations[0];
+          assert.equal(translation.index, 0);
+          assert.ok(translation.confidence > 0);
+          assert.ok(translation.info);
+          assert.ok(translation.confidenceSignals);
+          assert.ok(Number.isInteger(translation.historySegmentIndex));
+        } else assert.equal(response.statusCode, 502, 'explicit policy failure, not hard timeout');
+      }
+      if (rescue) await new Promise((resolve) => setTimeout(resolve, 120));
+    } finally { fs.rmSync(tempRoot, { recursive: true, force: true }); }
+  }
 });

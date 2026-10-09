@@ -30,6 +30,8 @@
 
 ## 当前版本亮点
 
+**v1.0.53** 修复中日韩术语与数字相邻时的漏匹配，新增可选严格术语检查、逐句资产证据、本地资产测试和重新翻译对比。插件结果编号可定位 Hub 记录。参见 [发布说明](docs/release-notes/v1.0.53.md) 和 [使用说明](docs/reference/translation-evidence.md)。
+
 **v1.0.52** 修复六项依赖安全告警，Windows 构建升级到 Electron Forge 8，无需迁移设置。详见[版本说明](docs/release-notes/v1.0.52.md)。
 
 **v1.0.51** 支持多语言术语表复用、按语言名称配置栏位、无表头导入，以及资产直接绑定和重命名。详见[版本说明](docs/release-notes/v1.0.51.md)。

@@ -29,6 +29,7 @@ import {
 } from '../../appShell.mjs';
 import { CollapsibleItemList, CollapsibleSidePanel, ProfileListRow } from '../../components/CollapsibleSidePanel';
 import HoverText from '../../components/HoverText';
+import AssetTestPanel from './AssetTestPanel.jsx';
 import { TRANSLATION_STYLE_PRESETS } from '../../translationStylePresets.mjs';
 
 const { Paragraph, Text } = Typography;
@@ -523,6 +524,13 @@ function BuilderEditor({
                     </Col>
                   ))}
                 </Row>
+                <Form.Item label={t('evidence.mode')}>
+                  <Select value={profile.terminologyMode || 'advisory'} onChange={(value) => onChange('terminologyMode', value)} options={['advisory', 'strict'].map((value) => ({ value, label: t(`evidence.${value}`) }))} />
+                </Form.Item>
+                <Form.Item label={t('evidence.repair')} help={t('evidence.repairHint')}>
+                  <Switch checked={profile.terminologyRepairEnabled === true} disabled={profile.terminologyMode !== 'strict'} onChange={(value) => onChange('terminologyRepairEnabled', value)} />
+                </Form.Item>
+                <AssetTestPanel key={`${profile.id}:${isDirty}`} profile={profile} isDirty={isDirty} />
                 <Text type="secondary">{t('context.assetModuleHint')}</Text>
               </Space>
             </StepCard>

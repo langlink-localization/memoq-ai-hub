@@ -21,7 +21,7 @@ namespace MemoQAIHubPlugin
             Options = options;
             Text = "memoQ AI Hub Options";
             Width = 540;
-            Height = 360;
+            Height = 440;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -44,7 +44,7 @@ namespace MemoQAIHubPlugin
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 8,
+                RowCount = 10,
                 Padding = new Padding(16)
             };
             table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 36));
@@ -65,6 +65,24 @@ namespace MemoQAIHubPlugin
             table.Controls.Add(new Label { Text = "Formatting Mode", AutoSize = true }, 0, 6);
             table.Controls.Add(_formattingMode, 1, 6);
 
+            var recordId = new TextBox { Dock = DockStyle.Fill, MaxLength = 160 };
+            table.Controls.Add(new Label { Text = "Hub record ID", AutoSize = true }, 0, 7);
+            table.Controls.Add(recordId, 1, 7);
+            var openRecord = new Button { Text = "View translation record in Hub", AutoSize = true };
+            openRecord.Click += (sender, args) => {
+                var id = recordId.Text.Trim();
+                if (!System.Text.RegularExpressions.Regex.IsMatch(id, @"\A[A-Za-z0-9._:-]{1,160}\z")) {
+                    MessageBox.Show(this, "Copy the Hub record ID from the translation result information.", "Translation record");
+                    return;
+                }
+                try {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("memoq-ai-hub://history?requestId=" + Uri.EscapeDataString(id)) { UseShellExecute = true });
+                } catch (Exception) {
+                    MessageBox.Show(this, "Start or install memoQ AI Hub, then try again. You can also search this ID in Hub translation history.", "Could not open Hub");
+                }
+            };
+            table.Controls.Add(openRecord, 1, 8);
+
             var buttons = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
@@ -74,7 +92,7 @@ namespace MemoQAIHubPlugin
             var cancelButton = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel };
             buttons.Controls.Add(okButton);
             buttons.Controls.Add(cancelButton);
-            table.Controls.Add(buttons, 0, 7);
+            table.Controls.Add(buttons, 0, 9);
             table.SetColumnSpan(buttons, 2);
 
             Controls.Add(table);
