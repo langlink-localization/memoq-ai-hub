@@ -9,11 +9,15 @@ import 'antd/dist/reset.css';
 import './index.css';
 import App from './App';
 import { I18nProvider, useI18n } from './i18n';
+import { SystemDisplayStyle, usePrefersContrastMore, usePrefersReducedTransparency, withSystemDisplayTheme } from '@langlink-tech/antd-kit/motion';
+import { withContrastFloorTheme } from '@langlink-tech/antd-kit/theme';
 import AssistantWindow from './pages/quality/AssistantWindow.jsx';
 
 const { Paragraph, Text } = Typography;
 
-const appTheme = {
+// Text slots below the WCAG 4.5:1 body floor (description, placeholder, link and
+// status text) are lifted by the shared kit; seeds and host tokens are unchanged.
+const appTheme = withContrastFloorTheme({
   algorithm: theme.defaultAlgorithm,
   cssVar: {
     prefix: 'memoq',
@@ -36,7 +40,7 @@ const appTheme = {
       lightSiderBg: '#ffffff'
     }
   }
-};
+});
 
 class RenderErrorBoundary extends React.Component {
   constructor(props) {
@@ -109,12 +113,18 @@ window.addEventListener('unhandledrejection', (event) => {
 
 function LocalizedAntdRoot() {
   const reducedMotion = useReducedMotion();
-  const accessibleTheme = useMemo(() => ({ ...appTheme, token: { ...appTheme.token, motion: !reducedMotion } }), [reducedMotion]);
+  const contrastMore = usePrefersContrastMore();
+  const reduceTransparency = usePrefersReducedTransparency();
+  const accessibleTheme = useMemo(
+    () => withSystemDisplayTheme({ ...appTheme, token: { ...appTheme.token, motion: !reducedMotion } }, { contrastMore, reduceTransparency }),
+    [reducedMotion, contrastMore, reduceTransparency]
+  );
   const { locale } = useI18n();
   const windowMode = new URLSearchParams(globalThis.location?.search || '').get('window');
   const compactAssistantWindow = windowMode === 'assistant-float' || windowMode === 'quality-float';
   return (
     <ConfigProvider theme={accessibleTheme} locale={locale === 'zh-CN' ? zhCN : enUS}>
+      <SystemDisplayStyle />
       <AntdApp>
         <RenderErrorBoundary>
           {compactAssistantWindow ? <AssistantWindow /> : <App />}

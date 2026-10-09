@@ -54,22 +54,22 @@ export default function HistoryDetailDrawer({
       extra={currentHistoryListItem ? <Button danger onClick={onDeleteCurrent}>{t('common.delete')}</Button> : null}
       open={Boolean(selectedHistoryId)}
       onClose={onClose}
-      width={HISTORY_DETAIL_DRAWER_WIDTH}
-      destroyOnClose
+      size={HISTORY_DETAIL_DRAWER_WIDTH}
+      destroyOnHidden
     >
       {detailLoading ? (
         <div className="app-loading-region">
           <Spin />
         </div>
       ) : detailError ? (
-        <Alert type="error" showIcon message={detailError} />
+        <Alert type="error" showIcon title={detailError} />
       ) : currentHistoryRecord ? (
-        <Space direction="vertical" size={16} className="app-block-space">
+        <Space orientation="vertical" size={16} className="app-block-space">
           <Card size="small" title={t('history.diagnosticSummary')} className="history-diagnostic-card">
             {(() => {
               const diagnosticSummary = buildHistoryDiagnosticSummary(currentHistoryRecord);
               return (
-                <Space direction="vertical" size={12} className="app-block-space">
+                <Space orientation="vertical" size={12} className="app-block-space">
                   <HistoryIssueTags t={t} record={currentHistoryRecord} activeIssue={historyFilters.issue} />
                   <Descriptions bordered column={1} size="small">
                     <Descriptions.Item label={t('history.diagnosticIssueCount')}>
@@ -101,7 +101,7 @@ export default function HistoryDetailDrawer({
               key: 'technical-details',
               label: t('history.technicalDetails'),
               children: (
-                <Space direction="vertical" size={16} className="app-block-space">
+                <Space orientation="vertical" size={16} className="app-block-space">
                   <Card size="small" title={t('history.attemptTimeline')}>
                     <Table
                       size="small"
@@ -116,7 +116,7 @@ export default function HistoryDetailDrawer({
                           title: t('history.attemptRoute'),
                           width: TABLE_COLUMN_WIDTHS.entityName,
                           render: (_, record) => (
-                            <Space direction="vertical" size={0}>
+                            <Space orientation="vertical" size={0}>
                               <Text>{record.route || t('history.unknown')}</Text>
                               <Text type="secondary">{record.provider || t('history.unknown')}</Text>
                             </Space>
@@ -193,7 +193,7 @@ export default function HistoryDetailDrawer({
                     <Descriptions.Item label={t('history.throughputSummary')}><HoverText value={formatHistoryThroughputValue(currentHistoryRecord, t)} /></Descriptions.Item>
                   </Descriptions>
                   <Card size="small" title={t('history.promptViewTitle')}>
-                    <Space direction="vertical" size={12} className="app-block-space">
+                    <Space orientation="vertical" size={12} className="app-block-space">
                       <div>
                         <Text strong>{t('history.renderedSystemPrompt')}</Text>
                         <pre className="history-json">
@@ -227,7 +227,7 @@ export default function HistoryDetailDrawer({
                         dataSource={buildHistoryPromptItems(currentHistoryRecord, historySegments)}
                         renderItem={(item) => (
                           <List.Item>
-                            <Space direction="vertical" size={6} className="app-full-width">
+                            <Space orientation="vertical" size={6} className="app-full-width">
                               <Text strong>{t('history.batchItemLabel', { index: item.segmentIndex })}</Text>
                               <div>
                                 <Text strong>{t('history.sentSourceText')}</Text>
@@ -249,7 +249,7 @@ export default function HistoryDetailDrawer({
                       dataSource={historySegments}
                       renderItem={(segment) => (
                         <List.Item>
-                          <Space direction="vertical" size={6} className="app-full-width">
+                          <Space orientation="vertical" size={6} className="app-full-width">
                             <Text strong>{t('history.batchItemLabel', { index: segment.segmentIndex })}</Text>
                             <Text>{`${t('history.source')}: ${segment.source || '-'}`}</Text>
                             <Text>{`${t('history.target')}: ${segment.target || '-'}`}</Text>

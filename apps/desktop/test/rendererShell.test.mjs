@@ -229,7 +229,7 @@ test('renderer feedback uses the themed Ant Design app context and recoverable s
   assert.doesNotMatch(appSource, /Modal\.confirm\(/);
   assert.match(appSource, /className="app-initial-loading"/);
   assert.match(appSource, /<Result[\s\S]*app\.startupErrorTitle/);
-  assert.match(appSource, /closable[\s\S]*onClose=\{\(\) => setError\(''\)\}/);
+  assert.match(appSource, /closable=\{\{ onClose: \(\) => setError\(''\) \}\}/);
 });
 
 test('high-risk actions and async mutations expose confirmation and pending contracts', () => {
@@ -345,8 +345,8 @@ test('dashboard and history use responsive grid and horizontal table scroll', ()
   assert.match(historySource, /<Col xs=\{24\} sm=\{12\} lg=\{8\} xl=\{4\}>/);
   assert.match(pageSource, /scroll=\{\{ x: TABLE_SCROLL_X \}\}/);
   assert.equal((`${appSource}\n${pageSource}`.match(/scroll=\{\{ x: TABLE_SCROLL_X \}\}/g) || []).length >= 3, true);
-  assert.match(previewDrawerSource, /width=\{WIDE_SIDE_DRAWER_WIDTH\}/);
-  assert.match(historyDetailSource, /width=\{HISTORY_DETAIL_DRAWER_WIDTH\}/);
+  assert.match(previewDrawerSource, /size=\{WIDE_SIDE_DRAWER_WIDTH\}/);
+  assert.match(historyDetailSource, /size=\{HISTORY_DETAIL_DRAWER_WIDTH\}/);
 });
 
 test('renderer tables use semantic column-width tokens instead of inline pixel widths', () => {

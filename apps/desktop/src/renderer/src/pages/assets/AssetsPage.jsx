@@ -50,7 +50,7 @@ export default function AssetsPage({
   };
 
   return (
-    <Space direction="vertical" size={16} className="app-block-space">
+    <Space orientation="vertical" size={16} className="app-block-space">
       <Card
         className="page-card"
         title={t('context.assetLibraryTitle')}
@@ -60,7 +60,7 @@ export default function AssetsPage({
           </Dropdown>
         )}
       >
-            <Space direction="vertical" size={12} className="app-block-space">
+            <Space orientation="vertical" size={12} className="app-block-space">
               <div className="asset-library-toolbar">
                 <Segmented
                   options={categoryOptions}
@@ -109,7 +109,7 @@ export default function AssetsPage({
                           </Button>
                         ]}
                       >
-                        <Space direction="vertical" size={6} className="app-full-width">
+                        <Space orientation="vertical" size={6} className="app-full-width">
                           <Space wrap size={[8, 8]}>
                             <Text strong>{asset.name}</Text>
                             <Tag>{t(`context.assetType.${asset.type}`)}</Tag>

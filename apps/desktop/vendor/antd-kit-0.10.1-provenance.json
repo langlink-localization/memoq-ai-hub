@@ -1,0 +1,11 @@
+{
+  "version": "0.10.1",
+  "sourceRepository": "https://github.com/langlink-tech/antd-kit",
+  "sourceCommit": "4ef8b10c9ed5b59a34494075f581f957697fb549",
+  "build": "Published by CI from merge commit 4ef8b10 (run 37780790707: verify, publish and consume-smoke passed)",
+  "sha256": "226465f41d7c3d57fae0557b9ae5b52de875cce107e023004ed5eb2bc3b704b2",
+  "integrity": "sha512-EFVo8sqkYfuaqSbowWEHqfxZLaYXWw996c/8b2PSrZuwqpYpP9gFjL13Fpm8R4xeL8DxA2y70gM7gLwd3A5SVA==",
+  "contentFingerprint": "905601f2457a01bdee78b9904835cb779d91c46c90bb5a6563a10592d34dbc2c",
+  "sourceReleaseEvidence": "https://github.com/langlink-tech/antd-kit/pull/28",
+  "registryDirectRead": "Registry tarball downloaded from npm.pkg.github.com (shasum 513236803c024a1cf37888b4d1c0687fa4008b9b); sha512 matches registry metadata and the content fingerprint matches an exact-source build of the merge commit."
+}

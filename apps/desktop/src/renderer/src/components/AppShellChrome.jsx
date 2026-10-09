@@ -72,7 +72,7 @@ export function AppNavigation({
         className="app-nav-drawer"
         title={t('app.title')}
         placement="left"
-        width="min(320px, calc(100vw - 32px))"
+        size="min(320px, calc(100vw - 32px))"
         open={mobileNavOpen}
         onClose={onCloseMobileNav}
       >

@@ -88,6 +88,9 @@ test('selectable profile row exposes listbox semantics and responds to keyboard 
 
 import { act, create } from 'react-test-renderer';
 
+// React 19 checks this flag before act() and warns through console.error otherwise.
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
 test('page error boundary keeps surrounding navigation mounted and recovers on retry', async () => {
   const { default: PageErrorBoundary } = await loadRendererComponent('/src/components/PageErrorBoundary.jsx');
   // Project boundary logic runs in React. Adapt only AntD presentation to the
@@ -123,7 +126,10 @@ test('page error boundary keeps surrounding navigation mounted and recovers on r
     shouldFail = false;
     act(() => renderer.root.findByType('button').props.onClick());
     assert.equal(renderer.root.findByType('p').children[0], 'Recovered page');
-    assert.equal(reportedErrors.length, 1);
+    // React 19 also logs a react-test-renderer deprecation notice; count only the
+    // boundary's own report of the thrown error.
+    const boundaryReports = reportedErrors.filter((args) => args.some((arg) => arg?.message === 'expected test failure'));
+    assert.equal(boundaryReports.length, 1);
   } finally {
     if (renderer) act(() => renderer.unmount());
     console.error = previousError;

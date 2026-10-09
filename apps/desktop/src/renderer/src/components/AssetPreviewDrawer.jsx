@@ -51,12 +51,12 @@ export default function AssetPreviewDrawer({ controller }) {
       open={assetPreviewOpen}
       onClose={closeAssetPreview}
       closable={!assetPreviewSaving}
-      maskClosable={!assetPreviewSaving}
+      mask={{ closable: !assetPreviewSaving }}
       keyboard={!assetPreviewSaving}
-      width={WIDE_SIDE_DRAWER_WIDTH}
-      destroyOnClose
+      size={WIDE_SIDE_DRAWER_WIDTH}
+      destroyOnHidden
     >
-      <Space direction="vertical" size={16} className="app-block-space">
+      <Space orientation="vertical" size={16} className="app-block-space">
         {assetPreviewRecord ? (
           <Descriptions bordered column={1} size="small">
             <Descriptions.Item label={t('context.name')}>{assetPreviewRecord.name || '-'}</Descriptions.Item>
@@ -88,15 +88,15 @@ export default function AssetPreviewDrawer({ controller }) {
         {assetPreviewLoading ? (
           <Text type="secondary" role="status" aria-live="polite">{t('app.loading')}</Text>
         ) : assetPreviewData?.unsupported ? (
-          <Alert type="info" showIcon message={t('context.assetPreviewUnavailable')} />
+          <Alert type="info" showIcon title={t('context.assetPreviewUnavailable')} />
         ) : assetPreviewData?.error ? (
-          <Alert type="error" showIcon message={assetPreviewData.error}
+          <Alert type="error" showIcon title={assetPreviewData.error}
             action={<Button onClick={retryAssetPreview}>{t('common.retry')}</Button>} />
         ) : assetPreviewData?.smartParsingAvailable === false && assetPreviewData?.smartParsingRecommended ? (
           <Alert
             type="info"
             showIcon
-            message={t('context.assetPreviewSmartUpgradeTitle')}
+            title={t('context.assetPreviewSmartUpgradeTitle')}
             description={t('context.assetPreviewSmartUpgradeDescription')}
           />
         ) : null}
@@ -104,7 +104,7 @@ export default function AssetPreviewDrawer({ controller }) {
           <Alert
             type="warning"
             showIcon
-            message={t('context.assetPreviewWarnings')}
+            title={t('context.assetPreviewWarnings')}
             description={assetPreviewData.mappingWarnings.join(' ')}
           />
         ) : null}
@@ -112,13 +112,13 @@ export default function AssetPreviewDrawer({ controller }) {
           <Alert
             type="warning"
             showIcon
-            message={t('context.assetPreviewTbStructureWarnings')}
+            title={t('context.assetPreviewTbStructureWarnings')}
             description={assetPreviewData.tbStructureWarnings.join(' ')}
           />
         ) : null}
         {assetPreviewData?.manualMappingRequired ? (
           <Card size="small" title={t('context.assetPreviewManualMappingTitle')}>
-            <Space direction="vertical" size={12} className="app-block-space">
+            <Space orientation="vertical" size={12} className="app-block-space">
               <Text type="secondary">{t('context.assetPreviewManualMappingDescription')}</Text>
               <Select
                 value={assetPreviewManualDraft.srcColumn || undefined}
@@ -168,7 +168,7 @@ export default function AssetPreviewDrawer({ controller }) {
         ) : null}
         {canApplyTbStructurePreview(assetPreviewData) ? (
           <Card size="small" title={t('context.assetPreviewApplyDetectedTitle')}>
-            <Space direction="vertical" size={12} className="app-block-space">
+            <Space orientation="vertical" size={12} className="app-block-space">
               <Text type="secondary">{t('context.assetPreviewApplyDetectedDescription')}</Text>
               <Button
                 type="primary"

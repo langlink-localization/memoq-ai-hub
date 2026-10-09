@@ -231,14 +231,14 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
   const aiStatus = qaResult?.execution?.ai?.status || '';
   const aiUnavailable = ['failed', 'circuit-open', 'cancelled'].includes(aiStatus);
   return (
-    <Space direction="vertical" size="middle" className="assistant-window">
+    <Space orientation="vertical" size="middle" className="assistant-window">
       <Title level={4}>{t('assistant.title')}</Title>
       <Segmented block value={mode} onChange={setMode} options={[
         { value: 'translate', label: t('assistant.translatePolish') },
         { value: 'qa', label: t('assistant.qa') }
       ]} />
-      {error ? <Alert type="error" showIcon closable message={error} onClose={() => setError('')} action={<Button className="assistant-action-button" size="small" onClick={() => mode === 'qa' ? runQa() : refresh()}>{t('common.retry')}</Button>} /> : null}
-      {!snapshot ? <Alert type="warning" showIcon message={t('quality.waitingForPreview')} /> : null}
+      {error ? <Alert type="error" showIcon closable={{ onClose: () => setError('') }} title={error} action={<Button className="assistant-action-button" size="small" onClick={() => mode === 'qa' ? runQa() : refresh()}>{t('common.retry')}</Button>} /> : null}
+      {!snapshot ? <Alert type="warning" showIcon title={t('quality.waitingForPreview')} /> : null}
       <Space wrap className="assistant-route-controls">
         <Select value={profileId} onChange={setProfileId} placeholder={t('quality.profile')} options={profiles.map((item) => ({ value: item.id, label: item.name }))} />
         <Select value={providerId} onChange={setProviderId} placeholder={t('common.provider')} options={providers.map((item) => ({ value: item.id, label: item.name }))} />
@@ -254,7 +254,7 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
         className="assistant-glossary-select"
       />
       {mode === 'translate' ? (
-        <Space direction="vertical" className="quality-page">
+        <Space orientation="vertical" className="quality-page">
           <Text>{t('promptPresets.translatePreset')}</Text>
           <PromptPresetSelector api={api} presets={promptPresets} scope="translate" value={translatePresetId} onChange={setTranslatePresetId} onPresetsChange={updatePromptPresets} />
           <Text>{t('promptPresets.polishPreset')}</Text>
@@ -290,8 +290,8 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
             {busy ? <Button className="assistant-action-button" danger icon={<StopOutlined />} onClick={cancel}>{t('common.cancel')}</Button> : null}
           </Space>
           {qaResult ? <QualityExecutionSummary compact execution={qaResult.execution} /> : null}
-          {qaResult && aiUnavailable ? <Alert type="warning" showIcon message={t('quality.aiFailedTitle')} description={t('quality.aiFailedDescription')} action={<Button size="small" onClick={runQa}>{t('common.retry')}</Button>} /> : null}
-          {qaResult && findings.length === 0 && !aiUnavailable ? <Alert type="success" showIcon message={t('quality.checkCompleteNoFindings')} /> : null}
+          {qaResult && aiUnavailable ? <Alert type="warning" showIcon title={t('quality.aiFailedTitle')} description={t('quality.aiFailedDescription')} action={<Button size="small" onClick={runQa}>{t('common.retry')}</Button>} /> : null}
+          {qaResult && findings.length === 0 && !aiUnavailable ? <Alert type="success" showIcon title={t('quality.checkCompleteNoFindings')} /> : null}
           {findings.length ? <QaFindingReview
             findings={findings}
             requestId={qaResult.requestId}

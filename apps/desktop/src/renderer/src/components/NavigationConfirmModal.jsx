@@ -24,7 +24,7 @@ export default function NavigationConfirmModal({
       open={Boolean(pendingNavigation)}
       onCancel={onStay}
       closable={!navigationResolving}
-      maskClosable={!navigationResolving}
+      mask={{ closable: !navigationResolving }}
       keyboard={!navigationResolving}
       footer={[
         <Button key="stay" onClick={onStay} disabled={navigationResolving}>
@@ -44,12 +44,12 @@ export default function NavigationConfirmModal({
         </Button>
       ]}
     >
-      <Space direction="vertical" size={8}>
+      <Space orientation="vertical" size={8}>
         <Text>{t('navigation.unsavedDescription', {
           name: pendingNavigation?.dirtyKind === 'provider' ? currentProvider?.name || '-' : currentProfile?.name || '-'
         })}</Text>
         {pendingNavigation?.dirtyKind === 'provider' && currentProviderConnectionMeta.color !== 'green' ? (
-          <Alert type="warning" showIcon message={t('navigation.providerMustTestBeforeSave')} />
+          <Alert type="warning" showIcon title={t('navigation.providerMustTestBeforeSave')} />
         ) : null}
       </Space>
     </Modal>

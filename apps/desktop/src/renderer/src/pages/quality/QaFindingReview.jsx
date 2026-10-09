@@ -133,7 +133,7 @@ export default function QaFindingReview({
 
   const columns = [
     { title: t('quality.severity'), dataIndex: 'severity', width: 112, render: (value) => <Tag color={SEVERITY_COLOR[value] || 'default'}>{value}</Tag> },
-    { title: t('quality.issue'), key: 'issue', ellipsis: true, render: (_, finding) => <Space direction="vertical" size={0}><Text>{finding.title || finding.message}</Text><Text type="secondary" ellipsis>{finding.message}</Text></Space> },
+    { title: t('quality.issue'), key: 'issue', ellipsis: true, render: (_, finding) => <Space orientation="vertical" size={0}><Text>{finding.title || finding.message}</Text><Text type="secondary" ellipsis>{finding.message}</Text></Space> },
     { title: t('quality.category'), dataIndex: 'category', width: 140, render: (value) => <Tag>{value}</Tag> },
     { title: t('quality.reviewState'), key: 'feedback', width: 130, render: (_, finding) => <Tag>{feedbackLabel(feedbackByFinding[finding.id])}</Tag> },
     {
@@ -165,8 +165,8 @@ export default function QaFindingReview({
   ];
 
   return (
-    <Space direction="vertical" size="middle" className="qa-finding-review">
-      {error ? <Alert type="error" showIcon closable message={error} onClose={() => setError('')} /> : null}
+    <Space orientation="vertical" size="middle" className="qa-finding-review">
+      {error ? <Alert type="error" showIcon closable={{ onClose: () => setError('') }} title={error} /> : null}
       {!compact ? (
         <Space wrap>
           <Select allowClear value={filters.severity || undefined} onChange={(value) => setFilters((current) => ({ ...current, severity: value || '' }))} placeholder={t('quality.allSeverities')} options={severityOptions} className="quality-select" />
@@ -202,7 +202,7 @@ export default function QaFindingReview({
         { key: 'origin', label: t('quality.origin'), children: selectedFinding.origin || '-' },
         { key: 'feedback', label: t('quality.reviewState'), children: feedbackLabel(feedbackByFinding[selectedFinding.id]) }
       ]} /></Card> : null}
-      {!embedded ? <Drawer title={selectedFinding?.title || selectedFinding?.message} open={Boolean(selectedFinding)} onClose={() => setSelectedFinding(null)} width="min(640px, calc(100vw - 32px))" destroyOnHidden>
+      {!embedded ? <Drawer title={selectedFinding?.title || selectedFinding?.message} open={Boolean(selectedFinding)} onClose={() => setSelectedFinding(null)} size="min(640px, calc(100vw - 32px))" destroyOnHidden>
         {selectedFinding ? <Descriptions column={1} bordered size="small" items={[
           { key: 'severity', label: t('quality.severity'), children: <Tag color={SEVERITY_COLOR[selectedFinding.severity] || 'default'}>{selectedFinding.severity}</Tag> },
           { key: 'category', label: t('quality.category'), children: selectedFinding.category || '-' },

@@ -192,7 +192,7 @@ export default function QaHistoryPanel({ api, profiles = [], onProfileSaved, ref
     { title: t('quality.history.source'), dataIndex: 'trigger', width: 150, render: (value) => <Tag>{triggerLabel(value, t)}</Tag> },
     {
       title: t('quality.history.segment'), key: 'segment', ellipsis: true,
-      render: (_, item) => <Space direction="vertical" size={0}><Text ellipsis>{item.segment?.source || '-'}</Text><Text type="secondary" ellipsis>{item.segment?.target || '-'}</Text></Space>
+      render: (_, item) => <Space orientation="vertical" size={0}><Text ellipsis>{item.segment?.source || '-'}</Text><Text type="secondary" ellipsis>{item.segment?.target || '-'}</Text></Space>
     },
     { title: t('quality.history.findings'), dataIndex: 'findingCounts', width: 260, render: (counts) => <SeverityCounts counts={counts} /> },
     { title: t('quality.history.status'), dataIndex: 'status', width: 110, render: (value) => <Tag color={value === 'complete' ? 'success' : 'warning'}>{value}</Tag> },
@@ -202,10 +202,10 @@ export default function QaHistoryPanel({ api, profiles = [], onProfileSaved, ref
   const detailResult = detail?.result;
 
   return (
-    <Space direction="vertical" size="large" className="quality-page">
-      {error ? <Alert type="error" showIcon message={error} action={<Button size="small" onClick={loadHistory}>{t('common.retry')}</Button>} /> : null}
+    <Space orientation="vertical" size="large" className="quality-page">
+      {error ? <Alert type="error" showIcon title={error} action={<Button size="small" onClick={loadHistory}>{t('common.retry')}</Button>} /> : null}
       <Card>
-        <Space direction="vertical" size="middle" className="quality-controls">
+        <Space orientation="vertical" size="middle" className="quality-controls">
           <Space wrap>
             <Select allowClear value={documentId || undefined} onChange={(value) => setDocumentId(value || '')} placeholder={t('quality.history.allDocuments')} options={documentOptions} className="quality-select" />
             <Select allowClear value={trigger || undefined} onChange={(value) => setTrigger(value || '')} placeholder={t('quality.history.allSources')} options={['manual', 'batch', 'import', AUTOMATIC_TRIGGER].map((value) => ({ value, label: triggerLabel(value, t) }))} className="quality-select" />
@@ -243,11 +243,11 @@ export default function QaHistoryPanel({ api, profiles = [], onProfileSaved, ref
         title={t('quality.history.detailTitle')}
         open={Boolean(detail)}
         onClose={() => setDetail(null)}
-        width="min(760px, calc(100vw - 32px))"
+        size="min(760px, calc(100vw - 32px))"
         destroyOnHidden
       >
         {detailResult ? (
-          <Space direction="vertical" size="large" className="quality-page">
+          <Space orientation="vertical" size="large" className="quality-page">
             <Descriptions bordered size="small" column={1} items={[
               { key: 'time', label: t('quality.history.checkedAt'), children: formatTimestamp(detail.item?.updatedAt || detailResult.updatedAt || detailResult.createdAt) },
               { key: 'document', label: t('quality.history.document'), children: detailResult.document?.name || detailResult.document?.id || '-' },

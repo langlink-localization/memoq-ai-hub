@@ -252,7 +252,7 @@ function RouteSelectorCard({ route, profile, providers, onChange }) {
 
   return (
     <Card size="small" className="builder-subcard" title={t(route.titleKey)}>
-      <Space direction="vertical" size={10} className="app-block-space">
+      <Space orientation="vertical" size={10} className="app-block-space">
         <Select
           value={providerId || undefined}
           options={providerOptions}
@@ -284,7 +284,7 @@ function TranslationStyleCard({ profile, onChange }) {
 
   return (
     <Card size="small" className="builder-subcard">
-      <Space direction="vertical" size={12} className="app-block-space">
+      <Space orientation="vertical" size={12} className="app-block-space">
         <Text strong>{t('context.translationStyleTitle')}</Text>
         <Text type="secondary">{t('context.translationStyleHint')}</Text>
         <Select
@@ -330,7 +330,7 @@ function AssetRoleCard({ role, profile, assets, onChange, onProfileChange }) {
 
   return (
     <Card size="small" className="builder-subcard" title={t(role.titleKey)}>
-      <Space direction="vertical" size={10} className="app-block-space">
+      <Space orientation="vertical" size={10} className="app-block-space">
         <Select
           allowClear
           value={selectedAssetId}
@@ -472,11 +472,11 @@ function BuilderEditor({
                 </Space>
               )}
             >
-              <Space direction="vertical" size={16} className="app-block-space">
+              <Space orientation="vertical" size={16} className="app-block-space">
                 <Alert
                   type="info"
                   showIcon
-                  message={t('context.promptManagedTitle')}
+                  title={t('context.promptManagedTitle')}
                   description={t('context.promptManagedDescription')}
                 />
                 <Row gutter={[16, 16]}>
@@ -485,7 +485,7 @@ function BuilderEditor({
                   </Col>
                   <Col xs={24} xl={10}>
                     <Card size="small" className="builder-subcard">
-                      <Space direction="vertical" size={10} className="app-block-space">
+                      <Space orientation="vertical" size={10} className="app-block-space">
                         <Text strong>{t('context.promptIncludedTitle')}</Text>
                         <Paragraph type="secondary" className="builder-prompt-included-hint">
                           {t('context.promptIncludedHint')}
@@ -510,7 +510,7 @@ function BuilderEditor({
               title={t('context.builderStepAssetsTitle')}
               description={t('context.builderStepAssetsDescription')}
             >
-              <Space direction="vertical" size={14} className="app-block-space">
+              <Space orientation="vertical" size={14} className="app-block-space">
                 <div className="builder-asset-summary">
                   {ASSET_ROLE_CONFIGS.map((role) => (
                     <Tag key={role.key}>{`${t(role.titleKey)}: ${assetCounts[role.key] || 0}`}</Tag>
@@ -540,11 +540,11 @@ function BuilderEditor({
                     key: 'advanced',
                     label: t('context.advancedCollapsedLabel'),
                     children: (
-                      <Space direction="vertical" size={16} className="app-block-space">
+                      <Space orientation="vertical" size={16} className="app-block-space">
                         <Alert
                           type="info"
                           showIcon
-                          message={t('context.promptManagedTitle')}
+                          title={t('context.promptManagedTitle')}
                           description={t('context.advancedPromptTemplatesHint')}
                         />
 
@@ -564,7 +564,7 @@ function BuilderEditor({
 
                         {profile?.cacheEnabled !== false && (
                           <Card size="small" className="builder-subcard" title={t('context.cacheMaintenanceTitle')}>
-                            <Space direction="vertical" size={10} className="app-block-space">
+                            <Space orientation="vertical" size={10} className="app-block-space">
                               <Text type="secondary">{t('context.cacheMaintenanceHint')}</Text>
                               <Space wrap className="responsive-action-bar">
                                 <Button
@@ -587,7 +587,7 @@ function BuilderEditor({
                         )}
 
                         {profile?.usePreviewContext === true && profile?.usePreviewAboveBelow === true && (
-                          <Space direction="vertical" size={14} className="app-block-space">
+                          <Space orientation="vertical" size={14} className="app-block-space">
                             <Text type="secondary">{t('context.previewContextHint')}</Text>
                             <Row gutter={[16, 16]}>
                               <Col xs={24} md={12} xl={6}>
@@ -680,7 +680,7 @@ export default function BuilderPage({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
-    <Space direction="vertical" size={16} className="app-block-space">
+    <Space orientation="vertical" size={16} className="app-block-space">
       <Row gutter={[16, 16]} align="top">
         <Col xs={24} xl={getPanelColumnSpan(sidebarCollapsed)}>
           <ProfileListPanel

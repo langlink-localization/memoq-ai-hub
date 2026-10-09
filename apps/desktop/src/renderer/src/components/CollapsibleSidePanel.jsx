@@ -104,7 +104,7 @@ export function ProfileListRow({ entry, compact, onClick }) {
         {Array.isArray(entry.tags) && entry.tags.length ? (
           <Space wrap size={[6, 6]} className="side-panel-row-tags">
             {entry.tags.map((tag) => (
-              <Tag key={`${entry.id}-${tag.key}`} color={tag.color} bordered={false}>
+              <Tag key={`${entry.id}-${tag.key}`} color={tag.color} variant="filled">
                 {tag.label}
               </Tag>
             ))}
