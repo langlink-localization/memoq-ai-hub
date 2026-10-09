@@ -3,7 +3,6 @@ import {
   Button,
   Card,
   Empty,
-  List,
   Space,
   Tag,
   Tooltip,
@@ -73,13 +72,12 @@ export function CollapsibleItemList({
   }
 
   return (
-    <List
+    <div
       role="listbox"
-      size="small"
       className={`side-panel-list ${collapsed ? 'side-panel-list-collapsed' : ''} ${listClassName}`.trim()}
-      dataSource={entries}
-      renderItem={(entry) => renderExpandedItem(entry, { compact: collapsed, onSelect })}
-    />
+    >
+      {entries.map((entry) => renderExpandedItem(entry, { compact: collapsed, onSelect }))}
+    </div>
   );
 }
 
@@ -89,7 +87,7 @@ export function SidePanelMeta({ children }) {
 
 export function ProfileListRow({ entry, compact, onClick }) {
   return (
-    <List.Item
+    <div
       key={entry.id}
       role="option"
       tabIndex={0}
@@ -112,6 +110,6 @@ export function ProfileListRow({ entry, compact, onClick }) {
           </Space>
         ) : null}
       </div>
-    </List.Item>
+    </div>
   );
 }

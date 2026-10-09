@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
-import { Alert, Button, Card, Col, Collapse, Descriptions, Input, List, Radio, Row, Select, Space, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Col, Collapse, Descriptions, Input, Listy, Radio, Row, Select, Space, Tag, Typography } from 'antd';
 import { EmptyState } from '@langlink-tech/antd-kit/feedback';
 import { DeploymentUnitOutlined, ReloadOutlined } from '@ant-design/icons';
 import HoverText from '../../components/HoverText.jsx';
+import { LISTY_SMALL_ITEM_STYLE } from '../../tableLayout.mjs';
 import { formatLocalTimestamp } from '../../timeFormatting.mjs';
 import { buildDashboardChecklist } from '../../uiBehavior.mjs';
 import {
@@ -343,7 +344,7 @@ export default function DashboardPage({
               />
               <Card className="page-card" title={t('dashboard.notices')}>
                 {visibleDashboardNotices.length ? (
-                  <List size="small" dataSource={visibleDashboardNotices} renderItem={(item) => <List.Item>{item}</List.Item>} />
+                  <Listy items={visibleDashboardNotices} rowKey={(item) => item} styles={{ item: LISTY_SMALL_ITEM_STYLE }} itemRender={(item) => item} />
                 ) : (
                   <EmptyState description={t('dashboard.noNotices')} />
                 )}
