@@ -718,4 +718,8 @@ test('actual sent content does not present cached or mixed evidence as an outbou
   assert.equal(shouldShowHistoryActualSentContent(record, [cached]), false);
   assert.equal(shouldShowHistoryActualSentContent(record, [model, cached]), false);
   assert.equal(shouldShowHistoryActualSentContent(record, [model]), true);
+  assert.equal(shouldShowHistoryActualSentContent(
+    { ...record, segments: [model, cached] },
+    [{ segmentIndex: 0, source: 'One' }, { segmentIndex: 1, source: 'Two' }]
+  ), false);
 });
