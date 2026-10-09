@@ -30,6 +30,8 @@
 
 ## 当前版本亮点
 
+**v1.0.52** 修复六项依赖安全告警，Windows 构建升级到 Electron Forge 8，无需迁移设置。详见[版本说明](docs/release-notes/v1.0.52.md)。
+
 **v1.0.51** 支持多语言术语表复用、按语言名称配置栏位、无表头导入，以及资产直接绑定和重命名。详见[版本说明](docs/release-notes/v1.0.51.md)。
 
 **v1.0.50** 桌面界面升级到 Ant Design 6 和 React 19，并接入 LangLink 统一的 antd kit：次要文字满足 WCAG 对比度底线，支持系统高对比度、降低透明度和强制颜色设置。插件合约和数据库 schema 不变。详见[版本说明](docs/release-notes/v1.0.50.md)。

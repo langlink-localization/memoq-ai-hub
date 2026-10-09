@@ -30,6 +30,8 @@ The repository contains runtime code for more advanced capabilities, but not eve
 
 ## Current Release Highlights
 
+**v1.0.52** resolves six dependency security alerts and updates the Windows build to Electron Forge 8. No settings migration is required. See [release notes](docs/release-notes/v1.0.52.md).
+
 **v1.0.51** adds reusable multilingual terminology tables, language-name column selection, headerless imports, and direct asset binding and renaming. See [release notes](docs/release-notes/v1.0.51.md).
 
 **v1.0.50** moves the desktop UI to Ant Design 6 and React 19 on the shared LangLink antd kit, with a WCAG contrast floor for secondary text and support for high-contrast, reduced-transparency, and forced-colors settings. The plugin contract and database schema are unchanged. See [release notes](docs/release-notes/v1.0.50.md).
