@@ -1,14 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AppstoreOutlined,
-  ApartmentOutlined,
-  CloudServerOutlined,
-  DatabaseOutlined,
-  DeploymentUnitOutlined,
-  FileSearchOutlined,
-  FileTextOutlined,
-  SafetyCertificateOutlined
-} from '@ant-design/icons';
+import { AppsIcon, DatabaseIcon, DeploymentIcon, DocumentIcon, FileSearchIcon, OrgChartIcon, ServerIcon, ShieldIcon } from '@langlink-tech/antd-kit/icons';
 import {
   Alert,
   App as AntdApp,
@@ -285,14 +276,14 @@ export default function App() {
   }
 
   const navPageItems = [
-    { key: 'dashboard', label: <span className="app-nav-label">{t('nav.dashboard')}</span>, title: t('nav.dashboard'), icon: <AppstoreOutlined className="app-nav-icon" /> },
-    { key: 'providers', label: <span className="app-nav-label">{t('nav.providers')}</span>, title: t('nav.providers'), icon: <CloudServerOutlined className="app-nav-icon" /> },
-    { key: 'assets', label: <span className="app-nav-label">{t('nav.assets')}</span>, title: t('nav.assets'), icon: <DatabaseOutlined className="app-nav-icon" /> },
-    { key: 'builder', label: <span className="app-nav-label">{t('nav.builder')}</span>, title: t('nav.builder'), icon: <DeploymentUnitOutlined className="app-nav-icon" /> },
-    { key: 'mapping', label: <span className="app-nav-label">{t('nav.mapping')}</span>, title: t('nav.mapping'), icon: <ApartmentOutlined className="app-nav-icon" /> },
-    { key: 'quality', label: <span className="app-nav-label">{t('nav.quality')}</span>, title: t('nav.quality'), icon: <SafetyCertificateOutlined className="app-nav-icon" /> },
-    { key: 'history', label: <span className="app-nav-label">{t('nav.history')}</span>, title: t('nav.history'), icon: <FileSearchOutlined className="app-nav-icon" /> },
-    { key: 'logs', label: <span className="app-nav-label">{t('nav.logs')}</span>, title: t('nav.logs'), icon: <FileTextOutlined className="app-nav-icon" /> }
+    { key: 'dashboard', label: <span className="app-nav-label">{t('nav.dashboard')}</span>, title: t('nav.dashboard'), icon: <AppsIcon className="app-nav-icon" /> },
+    { key: 'providers', label: <span className="app-nav-label">{t('nav.providers')}</span>, title: t('nav.providers'), icon: <ServerIcon className="app-nav-icon" /> },
+    { key: 'assets', label: <span className="app-nav-label">{t('nav.assets')}</span>, title: t('nav.assets'), icon: <DatabaseIcon className="app-nav-icon" /> },
+    { key: 'builder', label: <span className="app-nav-label">{t('nav.builder')}</span>, title: t('nav.builder'), icon: <DeploymentIcon className="app-nav-icon" /> },
+    { key: 'mapping', label: <span className="app-nav-label">{t('nav.mapping')}</span>, title: t('nav.mapping'), icon: <OrgChartIcon className="app-nav-icon" /> },
+    { key: 'quality', label: <span className="app-nav-label">{t('nav.quality')}</span>, title: t('nav.quality'), icon: <ShieldIcon className="app-nav-icon" /> },
+    { key: 'history', label: <span className="app-nav-label">{t('nav.history')}</span>, title: t('nav.history'), icon: <FileSearchIcon className="app-nav-icon" /> },
+    { key: 'logs', label: <span className="app-nav-label">{t('nav.logs')}</span>, title: t('nav.logs'), icon: <DocumentIcon className="app-nav-icon" /> }
   ];
   const navItems = [
     navPageItems[0],

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { EditOutlined } from '@ant-design/icons';
+import { EditIcon } from '@langlink-tech/antd-kit/icons';
 import { Alert, App as AntdApp, Button, Drawer, Form, Input, Select, Space, Tag, Typography } from 'antd';
 import { useDestructiveConfirm } from '@langlink-tech/antd-kit/overlay';
 import { useI18n } from '../../i18n';
@@ -81,7 +81,7 @@ export default function PromptPresetSelector({ api, presets = [], scope, value, 
           options={scoped.map((item) => ({ value: item.id, label: item.name }))}
           style={{ width: '100%' }}
         />
-        <Button icon={<EditOutlined />} disabled={!selected} onClick={edit} aria-label={t('promptPresets.edit')} />
+        <Button icon={<EditIcon />} disabled={!selected} onClick={edit} aria-label={t('promptPresets.edit')} />
       </Space.Compact>
       <Drawer title={t('promptPresets.editorTitle')} open={open} onClose={() => setOpen(false)} size="min(680px, calc(100vw - 32px))" destroyOnHidden>
         {draft ? (

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CopyOutlined, ReloadOutlined, StopOutlined } from '@ant-design/icons';
+import { BlockIcon, CopyIcon, RefreshIcon } from '@langlink-tech/antd-kit/icons';
 import {
   Alert,
   App as AntdApp,
@@ -272,12 +272,12 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
       {mode === 'translate' ? (
         <>
           <Space wrap>
-            <Button className="assistant-action-button" type="primary" icon={<ReloadOutlined />} loading={busy === 'translate'} disabled={!snapshot || Boolean(busy)} onClick={() => runAssistant('translate')}>{t('assistant.translate')}</Button>
+            <Button className="assistant-action-button" type="primary" icon={<RefreshIcon />} loading={busy === 'translate'} disabled={!snapshot || Boolean(busy)} onClick={() => runAssistant('translate')}>{t('assistant.translate')}</Button>
             <Button className="assistant-action-button" loading={busy === 'polish'} disabled={!snapshot?.target || Boolean(busy)} onClick={() => runAssistant('polish')}>{t('assistant.polish')}</Button>
-            {busy ? <Button className="assistant-action-button" danger icon={<StopOutlined />} onClick={cancel}>{t('common.cancel')}</Button> : null}
+            {busy ? <Button className="assistant-action-button" danger icon={<BlockIcon />} onClick={cancel}>{t('common.cancel')}</Button> : null}
           </Space>
           {assistantResult ? (
-            <Card size="small" title={t('assistant.generatedResult')} extra={<Button type="text" icon={<CopyOutlined />} aria-label={t('assistant.copy')} onClick={() => copy(assistantResult.text)} />}>
+            <Card size="small" title={t('assistant.generatedResult')} extra={<Button type="text" icon={<CopyIcon />} aria-label={t('assistant.copy')} onClick={() => copy(assistantResult.text)} />}>
               <Paragraph copyable={false}>{assistantResult.text}</Paragraph>
               <Space wrap><Tag>{assistantResult.providerName || assistantResult.providerId} / {assistantResult.model}</Tag><Tag>{assistantResult.durationMs ?? assistantResult.latencyMs ?? 0} ms</Tag><Tag>{t(assistantResult.fromCache ? 'assistant.cacheHit' : 'assistant.providerGenerated')}</Tag><Tag>{t('assistant.termMatches', { count: assistantResult.terminology?.matchCount || 0 })}</Tag></Space>
             </Card>
@@ -286,8 +286,8 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
       ) : (
         <>
           <Space wrap>
-            <Button className="assistant-action-button" type="primary" icon={<ReloadOutlined />} loading={busy === 'qa'} disabled={!snapshot || Boolean(busy)} onClick={runQa}>{t('quality.recheck')}</Button>
-            {busy ? <Button className="assistant-action-button" danger icon={<StopOutlined />} onClick={cancel}>{t('common.cancel')}</Button> : null}
+            <Button className="assistant-action-button" type="primary" icon={<RefreshIcon />} loading={busy === 'qa'} disabled={!snapshot || Boolean(busy)} onClick={runQa}>{t('quality.recheck')}</Button>
+            {busy ? <Button className="assistant-action-button" danger icon={<BlockIcon />} onClick={cancel}>{t('common.cancel')}</Button> : null}
           </Space>
           {qaResult ? <QualityExecutionSummary compact execution={qaResult.execution} /> : null}
           {qaResult && aiUnavailable ? <Alert type="warning" showIcon title={t('quality.aiFailedTitle')} description={t('quality.aiFailedDescription')} action={<Button size="small" onClick={runQa}>{t('common.retry')}</Button>} /> : null}

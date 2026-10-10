@@ -30,6 +30,8 @@
 
 ## 当前版本亮点
 
+**v1.0.58** 桌面界面统一使用 LangLink UI kit 1.0 的主题 Provider 和图标。参见 [发布说明](docs/release-notes/v1.0.58.md)。
+
 **v1.0.57** 将 memoQ 的确定性术语规则用于源文匹配和译文检查，支持大小写约束、完整词匹配、有限词尾 HalfPrefix，以及按语言侧生效的 NonTerm。资产预览和翻译记录展示已解析规则及未支持情况；**测试资产**可输入译文，在本地验证而无需调用 AI。参见 [发布说明](docs/release-notes/v1.0.57.md) 和 [规则兼容范围](docs/reference/glossary-languages.md#memoq-term-rules)。
 
 **v1.0.53** 修复中日韩术语与数字相邻时的漏匹配，新增可选严格术语检查、逐句资产证据、本地资产测试和重新翻译对比。可将翻译结果信息中的编号粘贴到插件 Options 窗口，打开对应的 Hub 记录。参见 [发布说明](docs/release-notes/v1.0.53.md) 和 [使用说明](docs/reference/translation-evidence.md)。

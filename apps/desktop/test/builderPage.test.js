@@ -9,7 +9,7 @@ test('BuilderPage keeps save primary and destructive actions in the editor card 
     'utf8'
   );
 
-  assert.match(source, /loading=\{saving\} type="primary" icon=\{<SaveOutlined \/>\} onClick=\{onSave\}/);
+  assert.match(source, /loading=\{saving\} type="primary" icon=\{<SaveIcon \/>\} onClick=\{onSave\}/);
   assert.match(source, /<Dropdown menu=\{editorActionMenu\}/);
   assert.match(source, /key: 'discard', danger: true/);
   assert.match(source, /key: 'delete', danger: true/);

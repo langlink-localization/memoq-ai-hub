@@ -1,5 +1,5 @@
 import { Button, Progress, Space, Typography } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import { RefreshIcon } from '@langlink-tech/antd-kit/icons';
 const { Text } = Typography;
 
 export default function UpdateActions({
@@ -31,7 +31,7 @@ export default function UpdateActions({
       <Progress percent={Math.min(99, Math.floor(updateCenter.downloadProgress.receivedBytes * 100 / updateCenter.downloadProgress.totalBytes))} status="active" />
     ) : null}
     <Space wrap>
-      <Button icon={<ReloadOutlined />} disabled={updateActionLoading || safeUpdateStatus === 'downloading'} loading={checkingUpdates} onClick={() => void checkForUpdates(true)}>
+      <Button icon={<RefreshIcon />} disabled={updateActionLoading || safeUpdateStatus === 'downloading'} loading={checkingUpdates} onClick={() => void checkForUpdates(true)}>
         {t('dashboard.checkForUpdates')}
       </Button>
       {updateCenter.packagingMode === 'portable' && hasAvailableUpdate && portableInAppSupported ? (

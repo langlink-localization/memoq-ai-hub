@@ -1,10 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  DeleteOutlined,
-  DownloadOutlined,
-  EyeOutlined,
-  ReloadOutlined
-} from '@ant-design/icons';
+import { DeleteIcon, DownloadIcon, RefreshIcon, ViewIcon } from '@langlink-tech/antd-kit/icons';
 import {
   Alert,
   App as AntdApp,
@@ -197,7 +192,7 @@ export default function QaHistoryPanel({ api, profiles = [], onProfileSaved, ref
     },
     { title: t('quality.history.findings'), dataIndex: 'findingCounts', width: 260, render: (counts) => <SeverityCounts counts={counts} /> },
     { title: t('quality.history.status'), dataIndex: 'status', width: 110, render: (value) => <Tag color={value === 'complete' ? 'success' : 'warning'}>{value}</Tag> },
-    { title: t('common.actions'), key: 'actions', width: 90, render: (_, item) => <Button type="link" icon={<EyeOutlined />} loading={detailLoading} onClick={() => openDetail(item.requestId)}>{t('common.review')}</Button> }
+    { title: t('common.actions'), key: 'actions', width: 90, render: (_, item) => <Button type="link" icon={<ViewIcon />} loading={detailLoading} onClick={() => openDetail(item.requestId)}>{t('common.review')}</Button> }
   ];
 
   const detailResult = detail?.result;
@@ -214,10 +209,10 @@ export default function QaHistoryPanel({ api, profiles = [], onProfileSaved, ref
           </Space>
           <Space wrap>
             <label className="quality-switch-row"><Switch checked={showAutomatic} onChange={setShowAutomatic} /><Text>{t('quality.history.showAutomatic')}</Text></label>
-            <Button icon={<ReloadOutlined />} onClick={loadHistory}>{t('app.refresh')}</Button>
-            <Button danger disabled={!selectedIds.length} icon={<DeleteOutlined />} onClick={confirmDelete}>{t('quality.history.deleteSelected')}</Button>
+            <Button icon={<RefreshIcon />} onClick={loadHistory}>{t('app.refresh')}</Button>
+            <Button danger disabled={!selectedIds.length} icon={<DeleteIcon />} onClick={confirmDelete}>{t('quality.history.deleteSelected')}</Button>
             <Dropdown menu={{ items: [{ key: 'csv', label: 'CSV' }, { key: 'xlsx', label: 'XLSX' }], onClick: ({ key }) => exportHistory(key) }}>
-              <Button icon={<DownloadOutlined />}>{t('common.export')}</Button>
+              <Button icon={<DownloadIcon />}>{t('common.export')}</Button>
             </Dropdown>
           </Space>
         </Space>

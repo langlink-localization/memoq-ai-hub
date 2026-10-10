@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { Alert, Button, Card, Col, Collapse, Descriptions, Input, Listy, Radio, Row, Select, Space, Tag, Typography } from 'antd';
 import { EmptyState } from '@langlink-tech/antd-kit/feedback';
-import { DeploymentUnitOutlined } from '@ant-design/icons';
+import { DeploymentIcon } from '@langlink-tech/antd-kit/icons';
 import UpdateActions from './UpdateActions.jsx';
 import HoverText from '../../components/HoverText.jsx';
 import { LISTY_SMALL_ITEM_STYLE } from '../../tableLayout.mjs';
@@ -239,7 +239,7 @@ export default function DashboardPage({
                         </Space>
                       )}
                       <Space wrap className="responsive-action-bar">
-                        <Button loading={installing} type="primary" icon={<DeploymentUnitOutlined />} onClick={confirmInstallIntegration}>
+                        <Button loading={installing} type="primary" icon={<DeploymentIcon />} onClick={confirmInstallIntegration}>
                           {t('dashboard.installReinstall')}
                         </Button>
                       </Space>

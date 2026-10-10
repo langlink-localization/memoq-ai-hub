@@ -1,14 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  CheckCircleOutlined,
-  ExclamationCircleOutlined,
-  ExportOutlined,
-  FileSearchOutlined,
-  PauseOutlined,
-  CaretRightOutlined,
-  ReloadOutlined,
-  WarningOutlined
-} from '@ant-design/icons';
+import { ChevronRightIcon, ExportIcon, FileSearchIcon, PauseIcon, RefreshIcon, SuccessIcon, WarningIcon } from '@langlink-tech/antd-kit/icons';
 import {
   Alert,
   App as AntdApp,
@@ -43,16 +34,16 @@ const { Paragraph, Text, Title } = Typography;
 const { DEFAULT_QA_SYSTEM_PROMPT, DEFAULT_QA_USER_PROMPT } = qaPromptModule;
 
 const SEVERITY_ICON = {
-  critical: ExclamationCircleOutlined,
-  major: WarningOutlined,
-  minor: FileSearchOutlined,
-  info: CheckCircleOutlined
+  critical: WarningIcon,
+  major: WarningIcon,
+  minor: FileSearchIcon,
+  info: SuccessIcon
 };
 const SEVERITY_COLOR = { critical: 'error', major: 'warning', minor: 'gold', info: 'blue' };
 
 function SeverityTag({ severity }) {
   const { token } = theme.useToken();
-  const Icon = SEVERITY_ICON[severity] || FileSearchOutlined;
+  const Icon = SEVERITY_ICON[severity] || FileSearchIcon;
   return (
     <Tag color={SEVERITY_COLOR[severity] || 'default'} icon={<Icon />} style={{ color: severity === 'major' ? token.colorWarningText : undefined }}>
       {severity}
@@ -323,15 +314,15 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
               <label className="quality-switch-row"><Switch loading={savingField === 'qaIncludeFullText'} checked={includeFullText} disabled={!aiEnabled || Boolean(savingField)} onChange={(value) => saveToggle('qaIncludeFullText', value, setIncludeFullText, includeFullText)} /><Text type={!aiEnabled ? 'secondary' : undefined}>{t('quality.includeFullText')}</Text></label>
             </Space>
             <Space wrap>
-              {mode === 'current' ? <Button type="primary" icon={<ReloadOutlined />} loading={checking} onClick={runCurrentCheck}>{t('quality.recheck')}</Button> : <Button type="primary" icon={<ExportOutlined />} onClick={confirmBatchImport}>{t('quality.selectFile')}</Button>}
+              {mode === 'current' ? <Button type="primary" icon={<RefreshIcon />} loading={checking} onClick={runCurrentCheck}>{t('quality.recheck')}</Button> : <Button type="primary" icon={<ExportIcon />} onClick={confirmBatchImport}>{t('quality.selectFile')}</Button>}
               <Button onClick={saveQualitySettings}>{t('quality.saveSettings')}</Button>
             </Space>
           </Space>
         </Card>
       ) : (
         <Space wrap>
-          <Button type="primary" icon={<ReloadOutlined />} loading={checking} onClick={runCurrentCheck}>{t('quality.recheck')}</Button>
-          <Button icon={status?.paused ? <CaretRightOutlined /> : <PauseOutlined />} onClick={togglePaused}>{status?.paused ? t('quality.resume') : t('quality.pause')}</Button>
+          <Button type="primary" icon={<RefreshIcon />} loading={checking} onClick={runCurrentCheck}>{t('quality.recheck')}</Button>
+          <Button icon={status?.paused ? <ChevronRightIcon /> : <PauseIcon />} onClick={togglePaused}>{status?.paused ? t('quality.resume') : t('quality.pause')}</Button>
           <Badge count={findings.filter((item) => item.severity === 'critical' || item.severity === 'major').length} showZero><Text>{t('quality.seriousIssues')}</Text></Badge>
         </Space>
       )}

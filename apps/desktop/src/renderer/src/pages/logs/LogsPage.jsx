@@ -1,9 +1,4 @@
-import {
-  ClearOutlined,
-  CopyOutlined,
-  FolderOpenOutlined,
-  ReloadOutlined
-} from '@ant-design/icons';
+import { ClearIcon, CopyIcon, FolderOpenIcon, RefreshIcon } from '@langlink-tech/antd-kit/icons';
 import {
   Alert,
   Button,
@@ -43,16 +38,16 @@ export default function LogsPage({
         title={t('logs.title')}
         extra={(
           <Space wrap className="responsive-action-bar">
-            <Button icon={<ReloadOutlined />} loading={loading} onClick={onRefresh}>
+            <Button icon={<RefreshIcon />} loading={loading} onClick={onRefresh}>
               {t('logs.refresh')}
             </Button>
-            <Button icon={<FolderOpenOutlined />} onClick={onOpenLogsDir} disabled={!logState?.logsDir}>
+            <Button icon={<FolderOpenIcon />} onClick={onOpenLogsDir} disabled={!logState?.logsDir}>
               {t('logs.openFolder')}
             </Button>
-            <Button icon={<CopyOutlined />} onClick={onCopyDiagnostics} disabled={!logState}>
+            <Button icon={<CopyIcon />} onClick={onCopyDiagnostics} disabled={!logState}>
               {t('logs.copyDiagnostics')}
             </Button>
-            <Button icon={<ClearOutlined />} loading={pruning} onClick={onPruneLogs}>
+            <Button icon={<ClearIcon />} loading={pruning} onClick={onPruneLogs}>
               {t('logs.cleanNow')}
             </Button>
           </Space>
@@ -90,7 +85,7 @@ export default function LogsPage({
           pagination={false}
           emptyState={{
             description: t('logs.noFiles'),
-            action: <Button icon={<ReloadOutlined />} loading={loading} onClick={onRefresh}>{t('logs.refresh')}</Button>
+            action: <Button icon={<RefreshIcon />} loading={loading} onClick={onRefresh}>{t('logs.refresh')}</Button>
           }}
           columns={[
             {

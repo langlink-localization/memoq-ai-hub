@@ -1,11 +1,5 @@
 import { Button, Drawer, Layout, Menu, Select, Space, Tooltip, Typography } from 'antd';
-import {
-  MenuFoldOutlined,
-  MenuOutlined,
-  MenuUnfoldOutlined,
-  ReloadOutlined,
-  SelectOutlined
-} from '@ant-design/icons';
+import { MenuIcon, RefreshIcon, SelectIcon, SidebarCollapseIcon, SidebarExpandIcon } from '@langlink-tech/antd-kit/icons';
 import DashboardConnectionStatus from './DashboardConnectionStatus.jsx';
 import { useI18n } from '../i18n';
 
@@ -47,7 +41,7 @@ export function AppNavigation({
                   <Button
                     type="text"
                     className="app-nav-toggle"
-                    icon={navCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                    icon={navCollapsed ? <SidebarExpandIcon /> : <SidebarCollapseIcon />}
                     aria-label={navCollapsed ? t('common.expandSidebar') : t('common.collapseSidebar')}
                     onClick={onToggleCollapsed}
                   />
@@ -115,7 +109,7 @@ export function AppHeader({
             <Button
               type="text"
               className="app-mobile-nav-trigger"
-              icon={<MenuOutlined />}
+              icon={<MenuIcon />}
               aria-label={t('common.openNavigation')}
               onClick={onOpenMobileNav}
             />
@@ -136,7 +130,7 @@ export function AppHeader({
               type="text"
               size="small"
               className="app-header-assistant"
-              icon={<SelectOutlined />}
+              icon={<SelectIcon />}
               onClick={() => api.openAssistantWindow?.()}
               aria-label={t('app.openAssistant')}
             />
@@ -146,7 +140,7 @@ export function AppHeader({
               type="text"
               size="small"
               className="app-header-refresh"
-              icon={<ReloadOutlined />}
+              icon={<RefreshIcon />}
               loading={refreshing}
               onClick={onRefresh}
               disabled={startupStatus === 'starting'}

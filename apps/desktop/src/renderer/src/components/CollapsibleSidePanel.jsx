@@ -1,4 +1,4 @@
-import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
+import { SidebarCollapseIcon, SidebarExpandIcon } from '@langlink-tech/antd-kit/icons';
 import {
   Button,
   Card,
@@ -19,7 +19,7 @@ function SidePanelToggle({ collapsed, onToggle, expandLabel, collapseLabel }) {
       <Button
         type="text"
         size="small"
-        icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+        icon={collapsed ? <SidebarExpandIcon /> : <SidebarCollapseIcon />}
         aria-label={collapsed ? expandLabel : collapseLabel}
         onClick={onToggle}
       />

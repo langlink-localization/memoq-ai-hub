@@ -1,0 +1,47 @@
+{
+  "apps/desktop/src/renderer/src/App.jsx": {
+    "langlink/no-wrapped-antd-import": {
+      "count": 1
+    }
+  },
+  "apps/desktop/src/renderer/src/components/AssetPreviewDrawer.jsx": {
+    "langlink/no-wrapped-antd-import": {
+      "count": 1
+    }
+  },
+  "apps/desktop/src/renderer/src/components/CollapsibleSidePanel.jsx": {
+    "langlink/no-wrapped-antd-import": {
+      "count": 1
+    }
+  },
+  "apps/desktop/src/renderer/src/components/NavigationConfirmModal.jsx": {
+    "langlink/no-wrapped-antd-import": {
+      "count": 1
+    }
+  },
+  "apps/desktop/src/renderer/src/pages/assets/AssetDetailsModal.jsx": {
+    "langlink/no-wrapped-antd-import": {
+      "count": 1
+    }
+  },
+  "apps/desktop/src/renderer/src/pages/history/HistoryDetailDrawer.jsx": {
+    "langlink/no-wrapped-antd-import": {
+      "count": 2
+    }
+  },
+  "apps/desktop/src/renderer/src/pages/history/HistoryPage.jsx": {
+    "langlink/no-wrapped-antd-import": {
+      "count": 1
+    }
+  },
+  "apps/desktop/src/renderer/src/pages/history/TranslationResults.jsx": {
+    "langlink/no-wrapped-antd-import": {
+      "count": 1
+    }
+  },
+  "apps/desktop/src/renderer/src/pages/providers/ProvidersPage.jsx": {
+    "langlink/no-wrapped-antd-import": {
+      "count": 2
+    }
+  }
+}

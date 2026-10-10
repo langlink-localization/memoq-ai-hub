@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CopyOutlined, EyeOutlined, MoreOutlined } from '@ant-design/icons';
+import { CopyIcon, MoreVerticalIcon, ViewIcon } from '@langlink-tech/antd-kit/icons';
 import {
   Alert,
   App as AntdApp,
@@ -144,8 +144,8 @@ export default function QaFindingReview({
         const allowRuleDisable = Boolean(finding.ruleId && profileId && canDisableRule?.(finding));
         return (
           <Space size="small">
-            <Tooltip title={t('common.review')}><Button type="text" icon={<EyeOutlined />} aria-label={t('common.review')} onClick={() => setSelectedFinding(finding)} /></Tooltip>
-            <Tooltip title={t('quality.copySuggestion')}><Button type="text" icon={<CopyOutlined />} aria-label={t('quality.copySuggestion')} onClick={() => copySuggestion(finding)} /></Tooltip>
+            <Tooltip title={t('common.review')}><Button type="text" icon={<ViewIcon />} aria-label={t('common.review')} onClick={() => setSelectedFinding(finding)} /></Tooltip>
+            <Tooltip title={t('quality.copySuggestion')}><Button type="text" icon={<CopyIcon />} aria-label={t('quality.copySuggestion')} onClick={() => copySuggestion(finding)} /></Tooltip>
             <Dropdown trigger={['click']} menu={{
               items: [
                 { key: 'accepted', label: t('quality.feedbackAccepted') },
@@ -157,7 +157,7 @@ export default function QaFindingReview({
               ],
               onClick: ({ key }) => chooseFeedback(finding, key)
             }}>
-              <Button type="text" loading={pending} icon={<MoreOutlined />} aria-label={t('quality.moreFeedback')} disabled={!onSaveFeedback} />
+              <Button type="text" loading={pending} icon={<MoreVerticalIcon />} aria-label={t('quality.moreFeedback')} disabled={!onSaveFeedback} />
             </Dropdown>
           </Space>
         );
@@ -210,7 +210,7 @@ export default function QaFindingReview({
           { key: 'message', label: t('quality.issue'), children: selectedFinding.message || '-' },
           { key: 'source', label: t('quality.sourceEvidence'), children: selectedFinding.sourceEvidence || '-' },
           { key: 'target', label: t('quality.targetEvidence'), children: selectedFinding.targetEvidence || '-' },
-          { key: 'suggestion', label: t('quality.suggestion'), children: <Space><Text>{selectedFinding.suggestedTranslation || '-'}</Text><Button type="text" icon={<CopyOutlined />} aria-label={t('quality.copySuggestion')} onClick={() => copySuggestion(selectedFinding)} /></Space> },
+          { key: 'suggestion', label: t('quality.suggestion'), children: <Space><Text>{selectedFinding.suggestedTranslation || '-'}</Text><Button type="text" icon={<CopyIcon />} aria-label={t('quality.copySuggestion')} onClick={() => copySuggestion(selectedFinding)} /></Space> },
           { key: 'origin', label: t('quality.origin'), children: selectedFinding.origin || '-' },
           { key: 'feedback', label: t('quality.reviewState'), children: feedbackLabel(feedbackByFinding[selectedFinding.id]) }
         ]} /> : null}
