@@ -2,12 +2,23 @@ import { EmptyState } from '@langlink-tech/antd-kit/feedback';
 import { DataTable } from '@langlink-tech/antd-kit/table';
 import { Alert, Button, Card, Checkbox, Collapse, Descriptions, Drawer, Empty, Form, Select, Space, Typography } from 'antd';
 import { buildAssetPreviewRows, formatAssetPreviewMapping } from '../pages/assets/assetPresentation.mjs';
-import { buildAssetLanguageOptions, getAssetColumnDetails, isValidLanguageColumnDraft } from '../pages/assets/assetLanguages.mjs';
+import { buildAssetLanguageOptions, getAssetColumnDetails, getLanguageColumnIssues, isValidLanguageColumnDraft } from '../pages/assets/assetLanguages.mjs';
 import { useI18n } from '../i18n';
-import { TABLE_SCROLL_X } from '../tableLayout.mjs';
 
 const { Text } = Typography;
 const WIDE_SIDE_DRAWER_WIDTH = 'min(920px, calc(100vw - 32px))';
+
+export function AssetRowDetails({ row, t }) {
+  const groups = [...new Set((row.details || []).map((item) => item.group))];
+  return <Space orientation="vertical" size={12} className="app-block-space asset-preview-details">
+    <Text type="secondary">{t('context.assetMetadataHint')}</Text>
+    {groups.map((group) => <Descriptions key={group} title={group.startsWith('language:') ? `${t('context.assetDetailGroup.language')} · ${group.slice(9)}` : t(`context.assetDetailGroup.${group}`)} bordered column={1} size="small"
+      items={row.details.filter((item) => item.group === group).map((item, index) => ({
+        key: `${group}-${index}`, label: ['rules', 'scope'].includes(group) ? t(`context.assetPreviewField.${item.label}`) : item.label,
+        children: <Text className="asset-preview-value" copyable>{item.value}</Text>
+      }))} />)}
+  </Space>;
+}
 
 export default function AssetPreviewDrawer({ controller }) {
   const { t, locale } = useI18n();
@@ -25,7 +36,7 @@ export default function AssetPreviewDrawer({ controller }) {
   const editable = assetPreviewRecord?.type === 'glossary' && columns.length > 0;
   const warnings = [...new Set([...(data?.mappingWarnings || []), ...(data?.tbStructureWarnings || [])])];
   const ready = !assetPreviewLoading && !data?.error && !data?.unsupported;
-  const duplicateLanguages = new Set(mappings.map((column) => column.language)).size !== mappings.length;
+  const languageIssues = getLanguageColumnIssues(mappings);
 
   return (
     <Drawer title={assetPreviewRecord?.name || t('context.assetPreviewTitle')} placement="right"
@@ -73,7 +84,10 @@ export default function AssetPreviewDrawer({ controller }) {
                     onChange={(value) => setAssetPreviewManualDraft((current) => ({ ...current, ruleLanguagePair: { ...current.ruleLanguagePair, [side]: value } }))} />
                 </Form.Item>)}
               </Form> : null}
-              {duplicateLanguages ? <Alert type="warning" showIcon title={t('context.assetDuplicateLanguage')} /> : null}
+              {languageIssues.map((issue) => <Alert key={issue.columnIndex} type="warning" showIcon
+                title={t(issue.kind === 'duplicate' ? 'context.assetDuplicateLanguageColumns' : 'context.assetInvalidColumnLanguage', {
+                  column: issue.columnIndex + 1, other: issue.otherColumnIndex + 1, language: issue.language
+                })} />)}
               <Button type="primary" loading={assetPreviewSaving} disabled={!isValidLanguageColumnDraft(mappings) || !validRulePair}
                 onClick={() => void saveAssetPreviewTbConfig()}>{t('context.assetPreviewManualSave')}</Button>
               <Text type="secondary">{t('context.assetSavedPreviewHint')}</Text>
@@ -85,13 +99,20 @@ export default function AssetPreviewDrawer({ controller }) {
         {ready && Array.isArray(data?.rows) && data.rows.length ? (
           <Card size="small" title={t('context.assetPreviewTitle')} extra={<Text type="secondary">{t('context.assetPreviewRowCount')}: {data.rowCount}</Text>}>
             <Space orientation="vertical" size={12} className="app-block-space">
-              <DataTable size="small" pagination={{ pageSize: 10, hideOnSinglePage: true }} scroll={{ x: TABLE_SCROLL_X }}
+              <DataTable size="small" pagination={{ pageSize: 10, hideOnSinglePage: true }} tableLayout="fixed" scroll={{ x: Math.max(760, (data.columns?.length || 4) * 160) }}
                 dataSource={buildAssetPreviewRows(data)}
+                expandable={{
+                  columnTitle: t('context.assetRowDetails'), columnWidth: 72,
+                  rowExpandable: (row) => Boolean(row.details?.length),
+                  expandedRowRender: (row) => <AssetRowDetails row={row} t={t} />
+                }}
                 columns={(data.columns || Object.keys(data.rows[0] || {})).map((columnKey) => ({
+                  width: ['note', 'rules'].includes(columnKey) ? 240 : 160,
                   title: data.columnLanguages?.[columnKey] ? (languageOptions.find((option) => option.value === data.columnLanguages[columnKey])?.label || data.columnLanguages[columnKey]) : t(`context.assetPreviewColumn.${columnKey}`), dataIndex: columnKey, key: columnKey,
                   render: (value) => columnKey === 'rules' && Array.isArray(value)
                     ? value.map((rule) => `${t(`context.assetPreviewField.${rule.role}`)}: ${rule.value}`).join(' · ') || '—'
-                    : String(value ?? '')
+                    : columnKey === 'forbidden' ? t(value ? 'context.assetBooleanYes' : 'context.assetBooleanNo')
+                      : <span className="asset-preview-value">{String(value ?? '') || '—'}</span>
                 }))} />
               {data.truncated ? <Text type="secondary">{t('context.assetPreviewTruncated')}</Text> : null}
             </Space>

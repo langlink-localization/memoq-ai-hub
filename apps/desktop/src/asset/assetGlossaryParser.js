@@ -1,3 +1,4 @@
+const { resolveAssetLanguage } = require('../shared/languageNormalization');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -174,8 +175,8 @@ function mapEntryRow(raw = {}, index = 0) {
     allowReverse: raw.allowReverse,
     sourceTerm: raw.sourceTerm,
     targetTerm: raw.targetTerm,
-    srcLang: raw.srcLang,
-    tgtLang: raw.tgtLang,
+    srcLang: resolveAssetLanguage(raw.srcLang) || raw.srcLang,
+    tgtLang: resolveAssetLanguage(raw.tgtLang) || raw.tgtLang,
     domain: raw.domain,
     client: raw.client,
     project: raw.project,
@@ -1005,10 +1006,17 @@ function parseGlossaryAsset(asset, options = {}) {
   if (asset.tbDirectionMode === 'automatic') {
     parsed.entries = (parsed.entries || []).map((/** @type {any} */ entry) => ({ ...entry, allowReverse: entry.allowReverse !== false && !hasEffectiveDirectionalRule(entry) }));
   }
+  if (Array.isArray(parsed.parseInfo.languageColumns)) {
+    parsed.parseInfo.languageColumns = parsed.parseInfo.languageColumns.map((/** @type {any} */ column) => ({ ...column, language: resolveAssetLanguage(column.language) || column.language }));
+  }
   parsed.parseInfo.directionMode = asset.tbDirectionMode === 'automatic' ? 'automatic' : 'legacy';
   parsed.parseInfo.ruleLanguagePair = activeStructure?.ruleLanguagePair || asset.tbRuleLanguagePair || activeStructure?.languagePair || asset.tbLanguagePair || { source: '', target: '' };
   parsed.parseInfo.directionalRuleColumns = (tableLike ? detectTbRuleColumns(rawRows[0] || [], (parsed.parseInfo.languageColumns || []).map((/** @type {any} */ column) => column.columnIndex)) : []).filter((/** @type {any} */ column) => ['forbidden', 'allowedVariants', 'caseSensitive', 'matchMode', 'priority', 'partOfSpeech'].includes(column.role));
   parsed.parseInfo.hasDirectionalRules = tableLike && tableHasDirectionalRules(rawRows, parsed.parseInfo.directionalRuleColumns);
+  parsed.parseInfo.ruleLanguagePair = {
+    source: resolveAssetLanguage(parsed.parseInfo.ruleLanguagePair.source) || parsed.parseInfo.ruleLanguagePair.source,
+    target: resolveAssetLanguage(parsed.parseInfo.ruleLanguagePair.target) || parsed.parseInfo.ruleLanguagePair.target
+  };
   const rulePair = parsed.parseInfo.ruleLanguagePair;
   parsed.parseInfo.ruleDirectionRequired = parsed.parseInfo.directionMode === 'automatic' && parsed.parseInfo.languageColumns?.length >= 2 && parsed.parseInfo.hasDirectionalRules && (!parsed.parseInfo.languageColumns?.some((/** @type {any} */ column) => column.language === rulePair.source) || !parsed.parseInfo.languageColumns?.some((/** @type {any} */ column) => column.language === rulePair.target) || rulePair.source === rulePair.target);
   if (tableLike) {

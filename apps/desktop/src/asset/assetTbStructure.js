@@ -755,7 +755,8 @@ function buildMultilingualTbStructure(rows, asset, mappings, sourceOfTruth = 'ma
     if (!Number.isInteger(columnIndex) || columnIndex < 0 || columnIndex >= header.length || indexes.has(columnIndex)) {
       throw new Error('Choose distinct columns from this file.');
     }
-    if (!language || languages.has(language)) throw new Error('Choose a different valid language for each column.');
+    if (!language) throw new Error(`Column ${columnIndex + 1} has an unrecognized language: "${String(mapping.language || '')}". Choose a language from the list.`);
+    if (languages.has(language)) throw new Error(`More than one column resolves to language "${language}" (including column ${columnIndex + 1}). Keep one terminology column per language.`);
     indexes.add(columnIndex); languages.add(language);
     return { columnIndex, columnName: String(header[columnIndex] || ''), language };
   });

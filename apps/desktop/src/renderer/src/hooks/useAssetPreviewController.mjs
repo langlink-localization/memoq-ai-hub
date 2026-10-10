@@ -1,3 +1,4 @@
+import { normalizeLanguageColumnDraft, normalizeRuleLanguagePair } from '../pages/assets/assetLanguages.mjs';
 import { useRef, useState } from 'react';
 import { requestEditorDeparture } from '../editorNavigation.mjs';
 import { runLatestRequest } from '../requestLifecycle.mjs';
@@ -34,9 +35,9 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
   function closeAssetPreview() {
     const dirty = Array.isArray(assetPreviewManualDraft.languageColumns)
       && (assetPreviewManualDraft.directionMode !== (assetPreviewData?.directionMode || 'legacy')
-        || JSON.stringify(assetPreviewManualDraft.ruleLanguagePair) !== JSON.stringify(assetPreviewData?.ruleLanguagePair || { source: '', target: '' })
+        || JSON.stringify(assetPreviewManualDraft.ruleLanguagePair) !== JSON.stringify(normalizeRuleLanguagePair(assetPreviewData?.ruleLanguagePair))
         || assetPreviewManualDraft.hasHeader !== (assetPreviewData?.hasHeader !== false)
-        || JSON.stringify(assetPreviewManualDraft.languageColumns) !== JSON.stringify((assetPreviewData?.languageColumns || []).map(({ columnIndex, language }) => ({ columnIndex, language }))));
+        || JSON.stringify(assetPreviewManualDraft.languageColumns) !== JSON.stringify(normalizeLanguageColumnDraft((assetPreviewData?.languageColumns || []).map(({ columnIndex, language }) => ({ columnIndex, language })))));
     requestEditorDeparture({ dirty, busy: savingRef.current, name: assetPreviewRecord?.name || '', modal, t, proceed: dismissAssetPreview });
   }
 
@@ -70,9 +71,9 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
       resolve: (preview) => {
         setAssetPreviewData(preview || {});
         setAssetPreviewManualDraft({
-          ...(Array.isArray(preview?.availableColumnDetails) ? { hasHeader: preview.hasHeader !== false, languageColumns: (preview?.languageColumns || []).map(({ columnIndex, language }) => ({ columnIndex, language })) } : {}),
+          ...(Array.isArray(preview?.availableColumnDetails) ? { hasHeader: preview.hasHeader !== false, languageColumns: normalizeLanguageColumnDraft((preview?.languageColumns || []).map(({ columnIndex, language }) => ({ columnIndex, language }))) } : {}),
           directionMode: preview?.directionMode || 'legacy',
-          ruleLanguagePair: preview?.ruleLanguagePair || { source: '', target: '' },
+          ruleLanguagePair: normalizeRuleLanguagePair(preview?.ruleLanguagePair),
           srcColumn: String(preview?.manualMapping?.srcColumn || ''),
           tgtColumn: String(preview?.manualMapping?.tgtColumn || ''),
           sourceLanguage: String(preview?.languagePair?.source || ''),

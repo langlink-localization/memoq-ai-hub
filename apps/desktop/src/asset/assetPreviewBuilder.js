@@ -5,6 +5,66 @@ const { ASSET_PURPOSES, normalizeAssetPurpose } = require('./assetRules');
 const DEFAULT_PREVIEW_MAX_ROWS = 50;
 const DEFAULT_PREVIEW_MAX_CHARACTERS = 2000;
 
+/** @param {unknown} value */
+function displayValue(value) {
+  return value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+}
+
+/** @param {string} name */
+function isNoteColumn(name) {
+  return /(?:^|[ _-])(?:notes?|comments?|remarks?)(?:$|[ _-])/i.test(name)
+    || /^(?:entry)?(?:note|notes|comment|comments|remark|remarks)$/i.test(name)
+    || /备注|注释|注記/.test(name);
+}
+
+/** @param {string} group @param {Record<string, any>=} values */
+function detailGroup(group, values = {}) {
+  return Object.entries(values).filter(([, value]) => value != null && displayValue(value).trim() !== '')
+    .map(([label, value]) => ({ group, label, value: displayValue(value) }));
+}
+
+/** Keep runtime notes and prompt metadata intact; only separate the preview presentation.
+ * @param {any} entry
+ */
+function glossaryDetails(entry) {
+  const metadata = entry.metadata || {};
+  const grouped = ['entry', 'source', 'target'].some((group) => metadata[group] && typeof metadata[group] === 'object');
+  const details = grouped
+    ? ['entry', 'source', 'target'].flatMap((group) => detailGroup(group, metadata[group]))
+    : detailGroup('entry', metadata);
+  let note = String(entry.note || '');
+  if (grouped && details.length) {
+    const flattened = details.map((item) => item.value).join(' | ');
+    // This exact prefix is emitted by buildEntriesFromTbStructure. Never split free-form notes on pipes.
+    if (note === flattened) note = '';
+    else if (note.startsWith(`${flattened} | `)) note = note.slice(flattened.length + 3);
+    if (!note) note = [...new Set(details.filter((item) => isNoteColumn(item.label)).map((item) => item.value))].join('\n');
+  }
+  details.push(...detailGroup('scope', Object.fromEntries(['domain', 'client', 'project'].filter((key) => entry[key]).map((key) => [key, entry[key]]))));
+  details.push(...detailGroup('rules', Object.fromEntries(['caseSensitive', 'matchMode', 'priority', 'allowedVariants', 'partOfSpeech'].filter((key) => entry[key] && entry[key] !== 'phrase' && (!Array.isArray(entry[key]) || entry[key].length)).map((key) => [key, entry[key]]))));
+  return { note, details: details.filter((item) => !isNoteColumn(item.label) || item.value !== note) };
+}
+
+/** @param {any} info @param {any[]} cells */
+function conceptDetails(info, cells) {
+  const excluded = new Set([...info.languageColumns.map((/** @type {any} */ column) => column.columnIndex),
+    ...(info.directionalRuleColumns || []).map((/** @type {any} */ column) => column.index)]);
+  const details = (info.availableColumnDetails || []).filter((/** @type {any} */ column) => !excluded.has(column.columnIndex))
+    .map((/** @type {any} */ column) => {
+      const language = info.languageColumns.find((/** @type {any} */ item) =>
+        (item.metaColumns || []).some((/** @type {any} */ meta) => meta.index === column.columnIndex));
+      const isEntry = (info.tbStructure?.entryMetaColumns || []).some((/** @type {any} */ meta) => meta.index === column.columnIndex);
+      return {
+        group: language ? `language:${language.language}` : isEntry ? 'entry' : 'columns',
+        label: `${column.columnIndex + 1}. ${column.columnName || ''}`,
+        value: displayValue(cells[column.columnIndex]),
+        isNote: isNoteColumn(column.columnName || '') || (info.tbStructure?.noteColumnIndexes || []).includes(column.columnIndex)
+      };
+    })
+    .filter((/** @type {any} */ item) => item.value.trim());
+  return { note: [...new Set(details.filter((/** @type {any} */ item) => item.isNote).map((/** @type {any} */ item) => item.value))].join('\n'), details: details.filter((/** @type {any} */ item) => !item.isNote).map((/** @type {any} */ item) => ({ group: item.group, label: item.label, value: item.value })) };
+}
+
 /**
  * @typedef {Object} AssetPreviewOptions
  * @property {unknown=} maxRows
@@ -82,9 +142,10 @@ function buildAssetPreview(asset, parsed, options = {}, helpers = /** @type {Ass
     const ruleColumns = info.directionalRuleColumns || [];
     return {
       ...info, type: assetType, previewLayout: 'concepts', rowCount: info.conceptCount,
-      columns: [...info.languageColumns.map((/** @type {any} */ column) => `language_${column.columnIndex}`), ...(ruleColumns.length ? ['rules'] : [])],
+      columns: [...info.languageColumns.map((/** @type {any} */ column) => `language_${column.columnIndex}`), ...(ruleColumns.length ? ['rules'] : []), 'note'],
       columnLanguages: Object.fromEntries(info.languageColumns.map((/** @type {any} */ column) => [`language_${column.columnIndex}`, column.language])),
       rows: (info.conceptRows || []).slice(0, maxRows).map((/** @type {any[]} */ cells) => ({
+        ...conceptDetails(info, cells),
         ...Object.fromEntries(info.languageColumns.map((/** @type {any} */ column) => [`language_${column.columnIndex}`, cells[column.columnIndex] || ''])),
         ...(ruleColumns.length ? { rules: ruleColumns.map((/** @type {any} */ column) => ({ role: column.role, value: cells[column.index] || '' })).filter((/** @type {any} */ rule) => rule.value) } : {})
       })),
@@ -102,7 +163,7 @@ function buildAssetPreview(asset, parsed, options = {}, helpers = /** @type {Ass
         srcLang: entry.srcLang || '',
         tgtLang: entry.tgtLang || '',
         forbidden: entry.forbidden === true,
-        note: entry.note || ''
+        ...glossaryDetails(entry)
       })),
       truncated: entries.length > rows.length,
       ...(parsed.parseInfo || {})
@@ -122,7 +183,8 @@ function buildAssetPreview(asset, parsed, options = {}, helpers = /** @type {Ass
         sourceLang: entry.sourceLang || entry.srcLang || '',
         targetLang: entry.targetLang || entry.tgtLang || '',
         srcLang: entry.srcLang || entry.sourceLang || '',
-        tgtLang: entry.tgtLang || entry.targetLang || ''
+        tgtLang: entry.tgtLang || entry.targetLang || '',
+        details: [...detailGroup('entry', entry.metadata), ...detailGroup('context', entry.context)]
       })),
       truncated: entries.length > rows.length,
       ...(parsed.parseInfo || {})

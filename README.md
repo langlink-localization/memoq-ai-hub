@@ -30,6 +30,8 @@ The repository contains runtime code for more advanced capabilities, but not eve
 
 ## Current Release Highlights
 
+**v1.0.56** fixes saving automatically detected regional language columns, including memoQ exports using `Portuguese_Brazil`. Asset previews separate actual notes from expandable, labelled metadata; multilingual concepts retain notes and extra columns, and Custom TM previews expose parsed metadata and context. See [release notes](docs/release-notes/v1.0.56.md).
+
 **v1.0.55** separates glossary languages from translation direction. New imports automatically match ordinary terms in either direction, while rule-bearing rows use an explicit direction. Concept previews and translation evidence show how the asset is used; existing assets retain their previous behavior. See [release notes](docs/release-notes/v1.0.55.md) and [glossary language guide](docs/reference/glossary-languages.md).
 
 **v1.0.54** makes update checks and downloads follow the system proxy, including PAC rules. Downloads show progress and speed, support cancellation and retry, and keep a browser download option available in every state. See [release notes](docs/release-notes/v1.0.54.md) and [update networking and recovery](docs/reference/update-network.md).

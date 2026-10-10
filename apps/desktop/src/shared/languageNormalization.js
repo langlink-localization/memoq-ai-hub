@@ -127,6 +127,23 @@ function getLanguageAliasKeys(value) {
 
 const ASSET_LANGUAGE_CODES = require('./assetLanguages.json');
 const languageNames = ['en', 'zh-CN'].map((locale) => new Intl.DisplayNames([locale], { type: 'language' }));
+const regionNames = ['en', 'zh-CN'].map((locale) => new Intl.DisplayNames([locale], { type: 'region' }));
+
+// memoQ exports use names such as Portuguese_Brazil. Register the same language
+// names shown by the picker, with separators normalized, before resolving tags.
+for (const code of ASSET_LANGUAGE_CODES) {
+  const [base, region] = code.split('-');
+  for (const [index, names] of languageNames.entries()) {
+    // CLDR may display pt-BR as Brazilian Portuguese, whereas memoQ uses Portuguese_Brazil.
+    if (/^[A-Z]{2}$/.test(region || '')) {
+      const exportedName = `${names.of(base)} ${regionNames[index].of(region)}`.toLowerCase();
+      if (!LANGUAGE_ALIAS_MAP.has(exportedName)) LANGUAGE_ALIAS_MAP.set(exportedName, code);
+    }
+    const key = normalizeLanguageInput(names.of(code)).toLowerCase().replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    if (key && !LANGUAGE_ALIAS_MAP.has(key)) LANGUAGE_ALIAS_MAP.set(key, code);
+  }
+}
+
 
 /** Resolve a known language name or valid tag; never treat an arbitrary header as a language.
  * @param {unknown} value

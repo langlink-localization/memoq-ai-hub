@@ -206,3 +206,18 @@ test('asset preview separates language columns from scoped rules and blocks inco
   assert.equal(draft.directionMode, 'legacy');
   assert.equal(items.some((node) => node.props['aria-label'] === 'context.assetRuleLanguage.source'), false);
 });
+
+
+test('asset row details show labelled groups and escape literal business tags', async () => {
+  const { AssetRowDetails } = await loadRendererComponent('/src/components/AssetPreviewDrawer.jsx');
+  const html = renderToString(createElement(AssetRowDetails, { t: (key) => key, row: { details: [
+    { group: 'entry', label: 'Entry_ID', value: '10001' },
+    { group: 'source', label: 'Term_Info', value: 'CasePermissive;HalfPrefix' },
+    { group: 'context', label: 'previousSource', value: '<desc_id=123>' }
+  ] } }));
+  assert.match(html, /Entry_ID/);
+  assert.match(html, /10001/);
+  assert.match(html, /context.assetDetailGroup.source/);
+  assert.match(html, /&lt;desc_id=123&gt;/);
+  assert.doesNotMatch(html, /\[object Object\]/);
+});

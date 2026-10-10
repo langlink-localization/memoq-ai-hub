@@ -99,3 +99,42 @@ test('asset preview builder truncates brief previews without affecting row count
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+
+test('memoQ preview separates notes from repeated metadata without changing runtime entries', () => {
+  const entry = { sourceTerm: 'PlayStation®5 console', targetTerm: 'console PlayStation®5',
+    metadata: { entry: { Entry_ID: '10001', Entry_Subject: 'Action', Entry_Note: 'Keep <desc_id=1> | literal' },
+      source: { Term_Info: 'CasePermissive;HalfPrefix' }, target: { Term_Info: 'CasePermissive;HalfPrefix' } } };
+  entry.note = '10001 | Action | Keep <desc_id=1> | literal | CasePermissive;HalfPrefix | CasePermissive;HalfPrefix | Keep <desc_id=1> | literal';
+  const original = JSON.stringify(entry);
+  const row = buildAssetPreview({ type: 'glossary' }, { entries: [entry] }).rows[0];
+  assert.equal(row.note, 'Keep <desc_id=1> | literal');
+  assert.deepEqual(row.details.filter((item) => item.label === 'Term_Info').map((item) => item.group), ['source', 'target']);
+  assert.equal(row.details.some((item) => item.label === 'Entry_Note'), false);
+  assert.equal(JSON.stringify(entry), original);
+  entry.metadata.entry.Entry_Note = '';
+  entry.note = '10001 | Action | CasePermissive;HalfPrefix | CasePermissive;HalfPrefix';
+  assert.equal(buildAssetPreview({ type: 'glossary' }, { entries: [entry] }).rows[0].note, '');
+});
+
+test('concept previews retain notes, duplicate header positions and non-language fields', () => {
+  const parseInfo = { directionMode: 'automatic', conceptCount: 1,
+    languageColumns: [{ columnIndex: 1, language: 'en' }, { columnIndex: 2, language: 'pt-BR' }],
+    availableColumnDetails: ['Entry_ID', 'English', 'Portuguese_Brazil', 'Entry_Note', 'Term_Info', 'Term_Info'].map((columnName, columnIndex) => ({ columnIndex, columnName })),
+    conceptRows: [['10001', 'console', 'console', 'Actual note', 'HalfPrefix', 'HalfPrefix']] };
+  const preview = buildAssetPreview({ type: 'glossary' }, { entries: [], parseInfo });
+  assert.equal(preview.rows[0].note, 'Actual note');
+  assert.deepEqual(preview.rows[0].details.map((item) => item.label), ['1. Entry_ID', '5. Term_Info', '6. Term_Info']);
+  assert.ok(preview.columns.includes('note'));
+});
+
+test('plain notes preserve delimiters and TM previews retain metadata and context', () => {
+  const note = 'A | B\n<desc_id=123>';
+  assert.equal(buildAssetPreview({ type: 'glossary' }, { entries: [{ note }] }).rows[0].note, note);
+  const row = buildAssetPreview({ type: 'custom_tm' }, { entries: [{ sourceText: 'Save', targetText: 'Salvar',
+    metadata: { tuid: '42', flag: false }, context: { previousSource: '<desc_id=123>', nextSource: '' } }] }).rows[0];
+  assert.deepEqual(row.details, [
+    { group: 'entry', label: 'tuid', value: '42' }, { group: 'entry', label: 'flag', value: 'false' },
+    { group: 'context', label: 'previousSource', value: '<desc_id=123>' }
+  ]);
+});

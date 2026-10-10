@@ -348,7 +348,9 @@ test('dashboard and history use responsive grid and horizontal table scroll', ()
   assert.match(historySource, /<Col xs=\{24\} lg=\{12\}>/);
   assert.match(historySource, /<Col xs=\{24\} sm=\{12\} lg=\{8\} xl=\{4\}>/);
   assert.match(pageSource, /scroll=\{\{ x: TABLE_SCROLL_X \}\}/);
-  assert.equal((`${appSource}\n${pageSource}`.match(/scroll=\{\{ x: TABLE_SCROLL_X \}\}/g) || []).length >= 3, true);
+  assert.equal((`${appSource}\n${pageSource}`.match(/scroll=\{\{ x: TABLE_SCROLL_X \}\}/g) || []).length >= 2, true);
+  // Expanded metadata needs bounded columns; max-content lets long details stretch the entire table.
+  assert.match(previewDrawerSource, /tableLayout="fixed" scroll=\{\{ x: Math.max\(760,/);
   assert.match(previewDrawerSource, /size=\{WIDE_SIDE_DRAWER_WIDTH\}/);
   assert.match(historyDetailSource, /size=\{HISTORY_DETAIL_DRAWER_WIDTH\}/);
 });

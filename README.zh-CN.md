@@ -30,6 +30,8 @@
 
 ## 当前版本亮点
 
+**v1.0.56** 修复自动识别的区域语言栏位无法保存的问题，包括 memoQ 导出的 `Portuguese_Brazil`。资产预览将真实备注与可展开、带字段名的元数据分开展示；多语言概念保留备注与附加栏位，Custom TM 显示已解析的元数据及上下文。参见 [发布说明](docs/release-notes/v1.0.56.md)。
+
 **v1.0.53** 修复中日韩术语与数字相邻时的漏匹配，新增可选严格术语检查、逐句资产证据、本地资产测试和重新翻译对比。可将翻译结果信息中的编号粘贴到插件 Options 窗口，打开对应的 Hub 记录。参见 [发布说明](docs/release-notes/v1.0.53.md) 和 [使用说明](docs/reference/translation-evidence.md)。
 
 **v1.0.52** 修复六项依赖安全告警，Windows 构建升级到 Electron Forge 8，无需迁移设置。详见[版本说明](docs/release-notes/v1.0.52.md)。

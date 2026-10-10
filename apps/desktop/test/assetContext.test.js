@@ -187,7 +187,8 @@ test('asset context builds preview rows for custom tm assets', () => {
       sourceLang: '',
       targetLang: '',
       srcLang: '',
-      tgtLang: ''
+      tgtLang: '',
+      details: []
     });
     assert.equal(preview.truncated, false);
   } finally {
@@ -357,7 +358,8 @@ test('asset context infers bilingual tb structure and language pair from explici
     assert.equal(preview.rows[0].targetTerm, '英雄');
     assert.equal(preview.rows[0].srcLang, 'en-US');
     assert.equal(preview.rows[0].tgtLang, 'zh-CN');
-    assert.match(preview.rows[0].note, /Grand & 4X/);
+    assert.equal(preview.rows[0].note, '');
+    assert.ok(preview.rows[0].details.some((item) => item.label === 'Entry_Subject' && item.value === 'Grand & 4X'));
     assert.match(preview.rows[1].note, /英雄的一种属性/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

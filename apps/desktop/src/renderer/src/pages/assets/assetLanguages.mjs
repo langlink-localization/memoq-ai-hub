@@ -1,9 +1,19 @@
 import languageCodes from '../../../../shared/assetLanguages.json' with { type: 'json' };
 
+// Preview responses contain canonical language tags. Validate the actual picker
+// values here; human-readable/exported names are resolved by the backend.
+function resolveAssetLanguage(value) {
+  try {
+    const tag = Intl.getCanonicalLocales(String(value || '').trim().replace(/_/g, '-'))[0] || '';
+    return languageCodes.includes(tag.split('-')[0]) ? tag : '';
+  } catch { return ''; }
+}
+
+
 export function buildAssetLanguageOptions(locale = 'en', selected = []) {
   const names = new Intl.DisplayNames([locale], { type: 'language' });
   const english = new Intl.DisplayNames(['en'], { type: 'language' });
-  return [...new Set([...languageCodes, ...selected.filter(Boolean)])].map((value) => {
+  return [...new Set([...languageCodes, ...selected.filter(Boolean).map((value) => resolveAssetLanguage(value) || value)])].map((value) => {
     let name = value;
     let englishName = value;
     try { name = names.of(value); englishName = english.of(value); } catch { /* Keep legacy values visible for correction. */ }
@@ -11,10 +21,29 @@ export function buildAssetLanguageOptions(locale = 'en', selected = []) {
   });
 }
 
+export function normalizeLanguageColumnDraft(columns = []) {
+  return columns.map((column) => ({ ...column, language: resolveAssetLanguage(column.language) || column.language }));
+}
+
+export function normalizeRuleLanguagePair(pair = {}) {
+  return { source: resolveAssetLanguage(pair.source) || pair.source || '', target: resolveAssetLanguage(pair.target) || pair.target || '' };
+}
+
+export function getLanguageColumnIssues(columns = []) {
+  const seen = new Map();
+  return columns.flatMap((column) => {
+    const language = resolveAssetLanguage(column.language);
+    if (!language) return [{ kind: 'invalid', columnIndex: column.columnIndex, language: String(column.language || '') }];
+    if (seen.has(language)) return [{ kind: 'duplicate', columnIndex: column.columnIndex, otherColumnIndex: seen.get(language), language }];
+    seen.set(language, column.columnIndex);
+    return [];
+  });
+}
+
 export function isValidLanguageColumnDraft(columns = []) {
-  return columns.length >= 2 && columns.every((column) => Number.isInteger(column.columnIndex) && column.language)
+  return columns.length >= 2 && columns.every((column) => Number.isInteger(column.columnIndex) && column.columnIndex >= 0)
     && new Set(columns.map((column) => column.columnIndex)).size === columns.length
-    && new Set(columns.map((column) => column.language)).size === columns.length;
+    && getLanguageColumnIssues(columns).length === 0;
 }
 
 export function getAssetColumnDetails(preview = {}, hasHeader = true) {

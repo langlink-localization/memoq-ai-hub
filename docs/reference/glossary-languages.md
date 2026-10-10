@@ -27,3 +27,11 @@ Translation evidence records the matched source and target languages and identif
 ## Verification
 
 Regression coverage includes all six directions of a three-language glossary, ordinary bilingual matching, directional rules, ineffective rule values, sparse cells, legacy behavior, save/reload/cache invalidation, real import defaults and translation evidence. Browser acceptance uses synthetic data in the existing Ant Design 6.6.2 drawer and form composition at desktop and 768px widths. No memoQ plugin contract or database schema change is required.
+
+## Notes and metadata in previews
+
+The Note column shows actual comments rather than flattened entry and term metadata. Expand **Details** for labelled IDs, categories, definitions, scope and parsed rules; values can be copied. Multilingual previews retain non-language columns and identify repeated headers by their file column number. Custom TM previews also expose available metadata and context.
+
+Imported metadata such as memoQ `Term_Info` is reference information, not proof that the Hub applies that matching rule. Use **Test assets** to verify the production matcher for a sample segment and language pair.
+
+Regional export headers such as `English_United_States` and `Portuguese_Brazil` are normalized to `en-US` and `pt-BR`. Existing mappings receive the same normalization in the preview and when saved. Unrecognized or duplicate languages name the affected columns so they can be corrected or left unassigned.

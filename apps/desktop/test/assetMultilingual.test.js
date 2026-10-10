@@ -209,7 +209,7 @@ test('automatic bilingual assets are concepts and preserve both translation dire
   const preview = buildAssetPreview(asset, parsed);
   assert.equal(preview.previewLayout, 'concepts');
   assert.equal(preview.rowCount, 1);
-  assert.deepEqual(preview.rows, [{ language_0: 'Furnace', language_1: '大熔炉' }]);
+  assert.deepEqual(preview.rows, [{ language_0: 'Furnace', language_1: '大熔炉', note: '', details: [] }]);
 });
 
 test('automatic multi-language rules only match the chosen direction while plain rows remain reusable', (t) => {
@@ -293,4 +293,36 @@ test('directional rows with missing target cells do not produce empty translatio
     tbDirectionMode: 'automatic', tbRuleLanguagePair: { source: 'en', target: 'ja' }
   }));
   assert.deepEqual(parsed.entries, []);
+});
+
+test('memoQ regional language headers can be auto-detected and saved unchanged', (t) => {
+  const asset = fixture(t, 'Entry_ID,English_United_States,Portuguese_Brazil,Entry_Note\n1,Save,Salvar,UI command\n', { tbDirectionMode: 'automatic' });
+  const preview = parseGlossaryAsset(asset).parseInfo;
+  assert.deepEqual(preview.languageColumns.map((column) => column.language), ['en-US', 'pt-BR']);
+  const service = createRuntimeAssetTbService({ loadState: () => ({ assets: [asset] }), saveState: () => {}, parsedAssetCache: new Map() });
+  assert.doesNotThrow(() => service.saveAssetTbConfig(asset.id, {
+    languageColumns: preview.languageColumns.map(({ columnIndex, language }) => ({ columnIndex, language }))
+  }));
+  assert.deepEqual(matches(parseGlossaryAsset(ensureAsset(asset)), 'Save', 'en-US', 'pt-BR'), ['Salvar']);
+});
+
+test('legacy detected Portuguese-Brazil mapping remains editable and saves as pt-BR', (t) => {
+  const asset = fixture(t, 'English_United_States,Portuguese_Brazil\nSave,Salvar\n', {
+    tbStructure: { kind: 'bilingual', derivedFromSha256: 'test', matchColumnIndex: 0, targetColumnIndex: 1, languagePair: { source: 'en-US', target: 'Portuguese-Brazil' } }, tbDirectionMode: 'automatic'
+  });
+  const parsed = parseGlossaryAsset(asset);
+  const preview = parsed.parseInfo;
+  assert.equal(parsed.entries[0].srcLang, 'en-US');
+  assert.equal(parsed.entries[0].tgtLang, 'pt-BR');
+  assert.equal(preview.languageColumns[1].language, 'pt-BR');
+  const service = createRuntimeAssetTbService({ loadState: () => ({ assets: [asset] }), saveState: () => {}, parsedAssetCache: new Map() });
+  service.saveAssetTbConfig(asset.id, { languageColumns: preview.languageColumns });
+  assert.deepEqual(asset.tbLanguageColumns, [{ columnIndex: 0, language: 'en-US' }, { columnIndex: 1, language: 'pt-BR' }]);
+});
+
+test('regional exported names normalize without accepting arbitrary text as a language', () => {
+  for (const [raw, expected] of [['Portuguese_Brazil', 'pt-BR'], ['Portuguese-Brazil', 'pt-BR'], ['Portuguese (Brazil)', 'pt-BR'], ['French_Canada', 'fr-CA'], ['Spanish_Mexico', 'es-MX']]) {
+    assert.equal(resolveAssetLanguage(raw), expected, raw);
+  }
+  assert.equal(resolveAssetLanguage('Reviewer_Notes'), '');
 });

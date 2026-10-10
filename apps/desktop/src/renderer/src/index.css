@@ -948,3 +948,13 @@ body,
 .translation-result-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .translation-evidence { overflow-wrap: anywhere; min-width: 0; }
+
+.asset-preview-value {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.asset-preview-details {
+  width: min(760px, calc(100vw - 128px));
+  max-width: 100%;
+}

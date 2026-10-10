@@ -33,3 +33,17 @@ test('asset search combines file, localized type, language, and bound profile te
   assert.deepEqual(getConfiguredAssetLanguages({ tbLanguagePair: { source: 'en', target: 'zh' } }), ['en', 'zh']);
   assert.deepEqual(getConfiguredAssetLanguages({}), []);
 });
+
+test('preview and save validation use canonical languages including exported regional names', async () => {
+  const { normalizeLanguageColumnDraft, normalizeRuleLanguagePair, getLanguageColumnIssues } = await import('../src/renderer/src/pages/assets/assetLanguages.mjs');
+  const columns = [{ columnIndex: 0, language: 'en_US' }, { columnIndex: 1, language: 'pt_br' }];
+  assert.deepEqual(normalizeLanguageColumnDraft(columns), [{ columnIndex: 0, language: 'en-US' }, { columnIndex: 1, language: 'pt-BR' }]);
+  assert.deepEqual(normalizeRuleLanguagePair({ source: 'en_US', target: 'pt_br' }), { source: 'en-US', target: 'pt-BR' });
+  assert.equal(isValidLanguageColumnDraft(columns), true);
+  const duplicate = [...columns, { columnIndex: 2, language: 'pt-BR' }];
+  assert.equal(isValidLanguageColumnDraft(duplicate), false);
+  assert.deepEqual(getLanguageColumnIssues(duplicate), [{ kind: 'duplicate', columnIndex: 2, otherColumnIndex: 1, language: 'pt-BR' }]);
+  assert.equal(isValidLanguageColumnDraft([{ columnIndex: 0, language: 'en' }, { columnIndex: 1, language: 'Reviewer Notes' }]), false);
+  assert.equal(buildAssetLanguageOptions('en', ['pt_br']).filter((option) => option.value === 'pt-BR').length, 1);
+  assert.equal(buildAssetLanguageOptions('en', ['pt_br']).some((option) => option.value === 'pt_br'), false);
+});
