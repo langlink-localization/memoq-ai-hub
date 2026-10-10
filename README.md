@@ -19,10 +19,10 @@ The current desktop app exposes these operator-facing modules:
 
 - `Dashboard`: install or reinstall the memoQ integration, check runtime status, and review update state.
 - `AI Services`: configure OpenAI or OpenAI-compatible providers, test connectivity, and manage enabled models.
-- `Setup`: create translation profiles, choose provider routes, bind terminology and Custom TM assets, select TM score buckets, and configure optional context features.
+- `Setup`: create translation profiles, choose provider routes, bind terminology and Custom TM assets, select TM score buckets, configure terminology policy and optional context, and test saved profile assets locally without calling a model.
 - `Project Rules`: route memoQ projects to saved Profiles by client, domain, subject, project, language pair, document regex, or segment status, then test the result before translation.
-- `Assets`: import and preview glossary, TB, TMX, and table-based Custom TM assets.
-- `Translation Records`: inspect translation runs, Custom TM matches, prompts, and diagnostics, then export or delete records.
+- `Assets`: import and preview glossary, TB, TMX, and table-based Custom TM assets. Map multilingual terminology columns by language name, reuse one table across language pairs, and search, rename, or assign assets to profiles.
+- `Translation Records`: search source text, target text, or request IDs; inspect source/target pairs, matched terms, asset fingerprints, model/cache details and terminology checks; translate a segment again with a saved profile and compare results. Prompt diagnostics, export and deletion remain available.
 - `Quality Checks`: inspect the active Preview segment with observable deterministic/AI execution details, review and export local QA history, manage scoped QA/Translate/Polish prompt presets, open the two-mode Translate/Polish and QA Assistant, import MQXLIFF/XLIFF files read-only, and export HTML/CSV/JSON reports.
 - `Logs`: review local diagnostic logs, open log files, clean old logs, and copy a short support summary.
 
@@ -30,7 +30,7 @@ The repository contains runtime code for more advanced capabilities, but not eve
 
 ## Current Release Highlights
 
-**v1.0.53** improves CJK terminology matching, adds optional strict terminology checks, and shows per-segment asset evidence with local asset tests and fresh translation comparisons. Plugin result IDs open exact Hub records. See [release notes](docs/release-notes/v1.0.53.md) and [usage guide](docs/reference/translation-evidence.md).
+**v1.0.53** improves CJK terminology matching, adds optional strict terminology checks, and shows per-segment asset evidence with local asset tests and fresh translation comparisons. The plugin Options window can open the exact Hub record using the ID from translation result information. See [release notes](docs/release-notes/v1.0.53.md) and [usage guide](docs/reference/translation-evidence.md).
 
 **v1.0.52** resolves six dependency security alerts and updates the Windows build to Electron Forge 8. No settings migration is required. See [release notes](docs/release-notes/v1.0.52.md).
 
@@ -78,8 +78,9 @@ The repository contains runtime code for more advanced capabilities, but not eve
 2. The DLL normalizes the request and forwards it to the local desktop gateway at `http://127.0.0.1:5271`.
 3. The desktop runtime resolves the active profile and provider route.
 4. The runtime assembles context from profile settings, metadata, TB assets, preview context, TM hints, and cache policy.
-5. The provider registry calls an OpenAI or OpenAI-compatible API.
-6. The result is written back into history and cache, then returned to memoQ.
+5. The runtime checks eligible cached results against current terminology or calls the selected OpenAI or OpenAI-compatible API.
+6. The runtime checks terminology and records per-segment asset evidence. Advisory mode returns translations with warnings; strict mode withholds noncompliant segments and can optionally attempt one repair. Noncompliant results are not cached.
+7. The plugin receives the result and its history locator; policy-rejected segments do not trigger formatting retries in the updated plugin.
 
 Confirmed translations can also flow back through `StoreTranslation` so the desktop runtime can reuse them as adaptive cache entries later.
 
@@ -89,16 +90,30 @@ The current dashboard and user flow are aligned around this order:
 
 1. Install or repair the memoQ integration.
 2. Connect and test an AI service.
-3. Upload optional terminology or translation-memory assets.
-4. Create and save a translation profile in Setup.
+3. Upload optional terminology or translation-memory assets. For multilingual tables, select each column's language by name and confirm the preview.
+4. Create and save a translation profile in Setup. Use **Test assets** with a sample source and language pair to check matching before calling a model.
 5. Optionally add and test Project Rules to select a Profile from memoQ project metadata.
 6. Run a translation in memoQ and review the translation record.
 
 If you are setting up the app for the first time, this is the path that matches the shipped UI.
 
+## Checking Terminology and Translation Results
+
+Start in **Setup → Test assets** to check whether a saved profile finds the expected terms for a language pair. This is a local matching test and makes no model call. One multilingual glossary can serve multiple language pairs, including reverse translation, when the corresponding columns are configured.
+
+After translation, open **Translation Records** to see which terms matched, whether assets were sent to the model, and whether the returned translation passed the terminology check. Disabled assets, unavailable language pairs, no matches, asset errors and missing historical evidence are shown separately. A terminology pass does not establish overall translation quality; cached results do not recover the original model-call evidence.
+
+Terminology handling defaults to returning translations with warnings. Strict rejection and an additional repair attempt are opt-in. **Translate again with current profile** uses current saved settings, bypasses caches, may incur model charges, and saves a linked record for comparison. It preserves the original record and does not replace text in memoQ.
+
+To locate a record from memoQ, copy the **Hub record** ID from translation result information, paste it into the plugin **Options** window, and choose **View translation record in Hub**. This uses the supported plugin Options entry; it is not a custom memoQ editor toolbar button.
+
+See the [usage guide](docs/reference/translation-evidence.md) for details and the [verification record](docs/specs/translation-evidence/verification.md) for tested scope. Windows builds, packaged-bundle checks and local renderer acceptance passed for v1.0.53; licensed memoQ execution and installed/portable Windows record navigation still need live-environment acceptance.
+
 ## Upgrade Notes
 
 - Keep the memoQ AI Hub desktop app running while memoQ uses the local gateway.
+- Start the updated Hub once on Windows to register record navigation. If you move a portable installation, start it from the new location before using the plugin shortcut.
+- v1.0.53 preserves existing settings and history without a database migration. Older records without asset evidence remain explicitly marked as unavailable.
 - If you already installed an older memoQ AI Hub plugin DLL, open the desktop Dashboard after upgrading and click **Install / Reinstall** so memoQ receives the latest `MemoQ.AI.Hub.Plugin.dll`.
 - Restart memoQ after reinstalling the integration. memoQ loads plugin DLLs at startup, so a running memoQ instance can keep using the old DLL until it restarts.
 - If you install manually, replace `MemoQ.AI.Hub.Plugin.dll` in memoQ's `Addins` directory and then restart memoQ.
@@ -163,6 +178,7 @@ Typical outputs include:
 
 Repository Structure guidance lives under `docs/`; keep desktop code under `apps/desktop/` and shared scripts under `tooling/scripts/`.
 
+- Terminology and translation evidence: [docs/reference/translation-evidence.md](docs/reference/translation-evidence.md)
 - User guide: [docs/user-guide.md](docs/user-guide.md)
 - Chinese user guide: [docs/user-guide.zh-CN.md](docs/user-guide.zh-CN.md)
 - Repository structure: [docs/repository-structure.md](docs/repository-structure.md)
