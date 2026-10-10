@@ -30,6 +30,8 @@ export default defineConfig({
         gatewayLifecycle: path.resolve(__dirname, 'src/gatewayLifecycle.js'),
         gatewayGuard: path.resolve(__dirname, 'src/gatewayGuard.js'),
         gatewayRequestValidation: path.resolve(__dirname, 'src/gatewayRequestValidation.js'),
+        'update/systemUpdateTransport': path.resolve(__dirname, 'src/update/systemUpdateTransport.js'),
+        'update/workerUpdateFetch': path.resolve(__dirname, 'src/update/workerUpdateFetch.js'),
         main: path.resolve(__dirname, 'src/main.js'),
         mainIpcRegistrar: path.resolve(__dirname, 'src/mainIpcRegistrar.js'),
         rendererIpcSurface: path.resolve(__dirname, 'src/rendererIpcSurface.js'),

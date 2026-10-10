@@ -16,10 +16,11 @@ test('worker request policy assigns bounded deadlines by workload', () => {
   for (const channel of [
     'checkQaDocument', 'importAsset', 'getAssetPreview', 'applyAssetTbStructure', 'saveAssetTbConfig',
     'exportHistory', 'exportQaHistory', 'inspectBilingualFile', 'installIntegration',
-    'downloadPortableUpdate', 'downloadInstallerUpdate', 'preparePortableUpdate', 'verifyDownloadedInstallerUpdate'
+    'preparePortableUpdate', 'verifyDownloadedInstallerUpdate'
   ]) {
     assert.equal(getWorkerRequestTimeoutMs(channel), BULK_WORKER_REQUEST_TIMEOUT_MS, channel);
   }
 
+  for (const channel of ['downloadPortableUpdate', 'downloadInstallerUpdate']) assert.equal(getWorkerRequestTimeoutMs(channel), 35 * 60_000);
   assert.equal(getWorkerRequestTimeoutMs('getAppState'), DEFAULT_WORKER_REQUEST_TIMEOUT_MS);
 });

@@ -838,6 +838,7 @@ export default function App() {
               downloadInstallerUpdate={dashboard.downloadInstallerUpdate}
               downloadPortableUpdateNow={dashboard.downloadPortableUpdateNow}
               handleChecklistAction={handleChecklistAction}
+              cancelUpdateDownload={dashboard.cancelUpdateDownload}
               openPortableDownloadPage={dashboard.openPortableDownloadPage}
               openUpdateReleaseNotes={dashboard.openUpdateReleaseNotes}
               preparePortableUpdateNow={dashboard.preparePortableUpdateNow}

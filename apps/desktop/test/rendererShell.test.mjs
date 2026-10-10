@@ -129,6 +129,7 @@ test('dashboard keeps refresh controls icon-first and guards stale available upd
   const dashboardSource = readRendererSources(
     'pages/dashboard/DashboardPage.jsx',
     'pages/dashboard/dashboardPresentation.mjs',
+    'pages/dashboard/UpdateActions.jsx',
     'hooks/useDashboardActions.mjs'
   );
 
@@ -139,7 +140,7 @@ test('dashboard keeps refresh controls icon-first and guards stale available upd
   assert.match(dashboardSource, /const effectiveUpdateStatus = checkingUpdates \? 'checking' : safeUpdateStatus;/);
   assert.match(dashboardSource, /const latestVersionDisplay = updateCenter\.latestVersion/);
   assert.match(dashboardSource, /getUpdateErrorDisplay\(result, t\)/);
-  assert.match(dashboardSource, /const hasAvailableUpdate = !checkingUpdates && safeUpdateStatus === 'available';/);
+  assert.match(dashboardSource, /canDownloadUpdate\(updateCenter, checkingUpdates\)/);
   assert.match(dashboardSource, /icon=\{<ReloadOutlined \/>}/);
   assert.match(en.dashboard.updateCheckingLatestVersion, /Checking/);
   assert.equal(zhCN.dashboard.updateCheckingLatestVersion, '检查中...');

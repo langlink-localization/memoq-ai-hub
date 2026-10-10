@@ -2,8 +2,9 @@ const { HISTORY_PROTOCOL, historyRequestFromArgv } = require('./shared/historyNa
 const path = require('path');
 const fs = require('fs');
 const { fork } = require('child_process');
+const { createSystemUpdateTransport } = require('./update/systemUpdateTransport');
 const { pathToFileURL } = require('url');
-const { app, BrowserWindow, ipcMain, dialog, shell, screen, clipboard, session, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, screen, clipboard, session, net, Tray, Menu, nativeImage } = require('electron');
 const { createAppPaths } = require('./shared/paths');
 const {
   DEFAULT_LOG_POLICY,
@@ -100,6 +101,22 @@ const portableUpdateApplier = createPortableUpdateApplier({
   logger
 });
 
+let updateSessionPromise;
+const systemUpdateTransport = createSystemUpdateTransport({
+  createRequest: (options) => net.request(options),
+  getSession: () => {
+    if (!updateSessionPromise) {
+      updateSessionPromise = (async () => {
+        await app.whenReady();
+        const updateSession = session.fromPartition('update-network', { cache: false });
+        await updateSession.setProxy({ mode: 'system' });
+        return updateSession;
+      })().catch((error) => { updateSessionPromise = null; throw error; });
+    }
+    return updateSessionPromise;
+  }
+});
+
 const workerSupervisor = createWorkerSupervisor({
   workerPath: path.join(__dirname, 'backgroundWorker.js'),
   forkWorker: (workerModulePath, workerArgs, workerOptions) => fork(workerModulePath, workerArgs, workerOptions),
@@ -109,6 +126,7 @@ const workerSupervisor = createWorkerSupervisor({
   }),
   logger,
   mainRequestHandler: async ({ channel, payload }) => {
+    if (channel.startsWith('updates.network.')) return systemUpdateTransport.handle(channel, payload);
     if (channel === 'secrets.get') {
       return { value: mainSecretService.get(String(payload?.id || '')) };
     }
@@ -126,6 +144,7 @@ const workerSupervisor = createWorkerSupervisor({
     throw new Error(`Unknown main request channel: ${channel}`);
   },
   onStatusChange(state) {
+    if (state.status !== 'ready') systemUpdateTransport.dispose();
     startupState = state;
     updateTrayStatus(state.status);
   },
@@ -562,6 +581,7 @@ if (squirrelUninstall) {
   });
 
   app.on('before-quit', () => {
+    systemUpdateTransport.dispose();
     appIsQuitting = true;
     saveQualityBounds();
     logger.info('app-before-quit', 'Electron app is shutting down.');

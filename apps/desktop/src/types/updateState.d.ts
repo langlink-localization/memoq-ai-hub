@@ -110,6 +110,9 @@ export type UpdateArchiveExtract = (sourcePath: string, targetDir: string) => Pr
 export interface UpdateServiceOptions {
   fs?: UpdateFs;
   fetch?: UpdateFetch;
+  networkMode?: string;
+  downloadIdleTimeoutMs?: number;
+  downloadTimeoutMs?: number;
   logger?: UpdateLogger;
   manifestTimeoutMs?: number;
   nowIso?: () => string;

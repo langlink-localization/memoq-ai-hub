@@ -135,3 +135,42 @@ test('page error boundary keeps surrounding navigation mounted and recovers on r
     console.error = previousError;
   }
 });
+
+test('update actions keep browser download available during checks, downloads and failures', async () => {
+  const { default: UpdateActions } = await loadRendererComponent('/src/pages/dashboard/UpdateActions.jsx');
+  const { canDownloadUpdate } = await import('../src/renderer/src/pages/dashboard/dashboardPresentation.mjs');
+  function buttons(element) {
+    if (!element || typeof element !== 'object') return [];
+    const children = Array.isArray(element.props?.children) ? element.props.children.flat(Infinity) : [element.props?.children];
+    return (typeof element.props?.onClick === 'function' ? [element] : []).concat(children.flatMap(buttons));
+  }
+  for (const mode of ['installed', 'portable']) {
+    for (const status of ['idle', 'checking', 'available', 'downloading', 'prepared', 'error', 'up-to-date']) {
+      let opened = '';
+      let cancelled = 0;
+      const updateCenter = { packagingMode: mode, updateStatus: status, currentVersion: '1.0.0', latestVersion: '1.0.1', availableAssets: { installer: { url: 'https://example.com/setup', sha256: 'a'.repeat(64) }, portable: { url: 'https://example.com/zip', sha256: 'b'.repeat(64) } } };
+      const isDownloading = status === 'downloading';
+      const element = UpdateActions({
+        updateCenter, safeUpdateStatus: status, checkingUpdates: status === 'checking',
+        updateActionLoading: isDownloading, portableInAppSupported: true,
+        hasAvailableUpdate: canDownloadUpdate(updateCenter, status === 'checking'),
+        portableDownloadPage: 'https://github.com/langlink-localization/memoq-ai-hub/releases/latest',
+        openPortableDownloadPage: (url) => { opened = url; },
+        cancelUpdateDownload: () => { cancelled += 1; },
+        t: (key) => key
+      });
+      const actions = buttons(element);
+      const browser = actions.find((button) => button.props.children === 'dashboard.openPortableDownloadPage');
+      assert.ok(browser, `${mode}/${status}`);
+      assert.ok(!browser.props.loading && !browser.props.disabled);
+      browser.props.onClick();
+      assert.ok(opened.endsWith('/releases/latest'));
+      const cancel = actions.find((button) => button.props.children === 'dashboard.cancelUpdateDownload');
+      assert.equal(Boolean(cancel), isDownloading);
+      if (cancel) { cancel.props.onClick(); assert.equal(cancelled, 1); }
+      if (isDownloading) assert.equal(actions.find((button) => button.props.children === 'dashboard.checkForUpdates').props.disabled, true);
+      if (status === 'error') assert.ok(actions.some((button) => button.props.children === 'dashboard.retryUpdateDownload'));
+    }
+  }
+  assert.equal(canDownloadUpdate({ updateStatus: 'error', currentVersion: '1.0.2', latestVersion: '1.0.1', availableAssets: { portable: { url: 'https://example.com', sha256: 'x' } } }), false);
+});

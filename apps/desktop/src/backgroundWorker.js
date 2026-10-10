@@ -1,4 +1,6 @@
 const path = require('path');
+const { createWorkerUpdateFetch } = require('./update/workerUpdateFetch');
+const updateNetwork = createWorkerUpdateFetch({ send: (message) => process.send?.(message) });
 const { createRuntime } = require('./runtime/runtime');
 const { createGatewayServer } = require('./server');
 const { startGatewayLifecycle, stopGatewayLifecycle } = require('./gatewayLifecycle');
@@ -69,7 +71,9 @@ async function startRuntimeAndGateway() {
     runtime = await createRuntime({
       ...loadProviderRegistryOverride(),
       logger,
-      secretStore
+      secretStore,
+      updateFetch: typeof process.send === 'function' ? updateNetwork.fetch : undefined,
+      updateNetworkMode: typeof process.send === 'function' ? 'system' : 'direct'
     });
 
     ({ server } = await startGatewayLifecycle({
@@ -282,6 +286,7 @@ const requestHandlers = {
   checkForUpdates(payload) {
     return requireRuntime().checkForUpdates(payload || {});
   },
+  cancelUpdateDownload() { return requireRuntime().cancelUpdateDownload(); },
   downloadPortableUpdate(payload) {
     return requireRuntime().downloadPortableUpdate(payload?.versionOrAssetId);
   },
@@ -308,6 +313,7 @@ const requestHandlers = {
 
 process.on('message', async (message) => {
   secretStore.handleMessage(message);
+  updateNetwork.handleMessage(message);
 
   if (!message || message.type !== 'request') {
     return;

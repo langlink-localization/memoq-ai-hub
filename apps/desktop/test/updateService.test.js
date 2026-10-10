@@ -478,12 +478,12 @@ test('update service streams installer downloads with incremental progress', asy
     assert.equal(fs.existsSync(`${path.join(paths.updateDownloadsDir, 'memoq-ai-hub-setup.exe')}.part`), false);
     assert.deepEqual(downloaded.downloadProgress, {
       receivedBytes: installerBytes.length,
-      totalBytes: installerBytes.length
+      totalBytes: installerBytes.length,
+      bytesPerSecond: 0
     });
-    assert.deepEqual(
-      midwayProgress.find((progress) => progress.receivedBytes === firstChunk.length),
-      { receivedBytes: firstChunk.length, totalBytes: installerBytes.length }
-    );
+    const midway = midwayProgress.find((progress) => progress.receivedBytes === firstChunk.length);
+    assert.equal(midway.totalBytes, installerBytes.length);
+    assert.ok(midway.bytesPerSecond > 0);
 
     const verified = await service.verifyDownloadedInstallerUpdate(downloaded.downloadedArtifactPath);
     assert.equal(verified.ok, true);
@@ -857,4 +857,73 @@ test('update service rejects an asset download redirected to an unsafe final URL
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
+});
+
+test('downloads can be cancelled and retried, and concurrent checks cannot replace active state', async () => {
+  const root = createTempRoot();
+  const bytes = Buffer.from('verified update');
+  let started;
+  const ready = new Promise((resolve) => { started = resolve; });
+  let attempt = 0;
+  const paths = createAppPaths({ appDataRoot: root });
+  const service = createUpdateService({ paths, currentVersion: '1.0.0', packagingMode: 'installed', manifestUrl: 'https://example.com/manifest',
+    fetch: async (url, options) => {
+      if (url.endsWith('/manifest')) return new Response(JSON.stringify({ version: '1.0.2', assets: { installer: { name: 'setup.exe', url: 'https://example.com/setup.exe', sha256: sha256(bytes) } } }));
+      attempt += 1;
+      if (attempt === 1) {
+        started();
+        return new Promise((resolve, reject) => options.signal.addEventListener('abort', () => reject(options.signal.reason)));
+      }
+      return new Response(bytes);
+    }
+  });
+  try {
+    await service.checkForUpdates();
+    const pending = service.downloadInstallerUpdate();
+    await ready;
+    await assert.rejects(service.downloadInstallerUpdate(), /already running/);
+    assert.equal((await service.checkForUpdates()).updateStatus, 'downloading');
+    service.cancelUpdateDownload();
+    assert.equal((await pending).lastErrorCode, 'UPDATE_DOWNLOAD_CANCELLED');
+    assert.equal(service.getStatus().updateStatus, 'available');
+    const retry = await service.downloadInstallerUpdate();
+    assert.equal(fs.readFileSync(retry.downloadedArtifactPath).toString(), bytes.toString());
+    assert.equal(fs.existsSync(retry.downloadedArtifactPath + '.part'), false);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('stalled download times out, cleans partial data and publishes a retryable error', async () => {
+  const root = createTempRoot();
+  const service = createUpdateService({ paths: createAppPaths({ appDataRoot: root }), currentVersion: '1.0.0', packagingMode: 'installed', manifestUrl: 'https://example.com/manifest', downloadIdleTimeoutMs: 20,
+    fetch: async (url, options) => {
+      if (url.endsWith('/manifest')) return new Response(JSON.stringify({ version: '1.0.2', assets: { installer: { name: 'setup.exe', url: 'https://example.com/setup.exe', sha256: sha256('x') } } }));
+      return new Response(new ReadableStream({ start(controller) {
+        controller.enqueue(Buffer.from('partial'));
+        options.signal.addEventListener('abort', () => controller.error(options.signal.reason));
+      } }));
+    }
+  });
+  try {
+    await service.checkForUpdates();
+    await assert.rejects(service.downloadInstallerUpdate(), (error) => error.code === 'UPDATE_DOWNLOAD_TIMEOUT');
+    assert.equal(service.getStatus().updateStatus, 'error');
+    assert.equal(service.getStatus().lastErrorCode, 'UPDATE_DOWNLOAD_TIMEOUT');
+    assert.equal(service.getStatus().downloadedArtifactPath, '');
+    assert.equal(fs.readdirSync(path.join(root, 'updates', 'downloads')).some((name) => name.endsWith('.part')), false);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('manifest deadline includes a stalled response body, not only headers', async () => {
+  const root = createTempRoot();
+  let aborted = false;
+  const service = createUpdateService({ paths: createAppPaths({ appDataRoot: root }), currentVersion: '1.0.0', manifestTimeoutMs: 20,
+    fetch: async (_url, options) => new Response(new ReadableStream({ start(controller) {
+      options.signal.addEventListener('abort', () => { aborted = true; controller.error(options.signal.reason); });
+    } }))
+  });
+  try {
+    const result = await service.checkForUpdates();
+    assert.equal(result.lastErrorCode, 'UPDATE_CHECK_TIMEOUT');
+    assert.equal(aborted, true);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });

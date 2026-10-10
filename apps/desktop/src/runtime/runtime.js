@@ -137,7 +137,8 @@ async function createRuntime(options = {}) {
   const updateService = options.updateService || createUpdateService({
     paths,
     currentVersion: runtimeIdentity.desktopVersion,
-    fetch: options.fetch,
+    fetch: options.updateFetch || options.fetch,
+    networkMode: options.updateNetworkMode,
     logger: options.updateLogger || createLogger({ source: 'update', logsDir: paths.logsDir }),
     manifestTimeoutMs: options.manifestTimeoutMs,
     packagingMode: options.packagingMode,
@@ -440,6 +441,7 @@ async function createRuntime(options = {}) {
     async checkForUpdates(/** @type {any} */ options = {}) {
       return updateService.checkForUpdates(options || {});
     },
+    cancelUpdateDownload() { return updateService.cancelUpdateDownload(); },
     async downloadPortableUpdate(/** @type {any} */ versionOrAssetId) {
       return updateService.downloadPortableUpdate(versionOrAssetId);
     },

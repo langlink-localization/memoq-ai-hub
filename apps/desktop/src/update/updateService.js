@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const path = require('path');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
+const { pipeline } = require('stream/promises');
 const {
   normalizeExternalHttpsUrl,
   normalizeUpdateArtifactName
@@ -566,6 +567,11 @@ function createUpdateService(options = {}) {
   const defaultState = createDefaultUpdateState({ currentVersion, packagingMode, manifestUrl });
   const persistedState = readPersistedState();
   let state = normalizePersistedUpdateState(defaultState, persistedState);
+  /** @type {AbortController | null} */
+  let activeDownload = null;
+  let checking = false;
+  let bytesPerSecond = 0;
+  let lastProgressAt = 0;
   if (JSON.stringify(state) !== JSON.stringify({ ...defaultState, ...persistedState })) {
     writePersistedState(state);
   }
@@ -588,6 +594,8 @@ function createUpdateService(options = {}) {
   function getStatus() {
     return {
       ...state,
+      networkMode: options.networkMode || 'direct',
+      downloadProgress: { ...state.downloadProgress, bytesPerSecond: Date.now() - lastProgressAt < 5000 ? bytesPerSecond : 0 },
       currentVersion,
       releaseChannel: STABLE_RELEASE_CHANNEL,
       packagingMode,
@@ -640,28 +648,24 @@ function createUpdateService(options = {}) {
       }, manifestTimeoutMs);
     });
 
-    let response;
     try {
-      response = await Promise.race([
-        Promise.resolve().then(() => fetchImpl(manifestUrl, requestOptions)),
+      return await Promise.race([
+        (async () => {
+          const response = await fetchImpl(manifestUrl, requestOptions);
+          if (!response || response.ok !== true) {
+            await response?.body?.cancel?.();
+            throw new Error(`Update manifest request failed with status ${response?.status || 'unknown'}.`);
+          }
+          if (response.url) normalizeExternalHttpsUrl(response.url, { label: 'Final update manifest URL' });
+          return normalizeManifest(await response.json());
+        })(),
         timeoutPromise
       ]);
     } catch (error) {
       throw normalizeUpdateCheckError(error).code === UPDATE_CHECK_TIMEOUT_CODE
         ? createUpdateCheckTimeoutError(manifestTimeoutMs)
         : error;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    if (!response || response.ok !== true) {
-      throw new Error(`Update manifest request failed with status ${response?.status || 'unknown'}.`);
-    }
-    if (response.url) {
-      normalizeExternalHttpsUrl(response.url, { label: 'Final update manifest URL' });
-    }
-
-    return normalizeManifest(await response.json());
+    } finally { clearTimeout(timeoutId); }
   }
 
   /**
@@ -725,111 +729,82 @@ function createUpdateService(options = {}) {
    * @param {any} kind
    */
   async function downloadAsset(kind) {
+    if (activeDownload || checking) throw new Error('An update operation is already running.');
     const asset = getRequestedAsset(kind);
     const destinationPath = path.join(updateDownloadsDir, asset.name);
     const partialPath = `${destinationPath}.part`;
     let expectedSha256;
-
-    try {
-      expectedSha256 = getRequiredAssetSha256(asset);
-    } catch (error) {
-      throw markIntegrityFailure(error);
-    }
-
-    setState({
-      updateStatus: 'downloading',
-      downloadProgress: { receivedBytes: 0, totalBytes: 0 },
-      lastError: '',
-      lastErrorCode: ''
-    });
-
-    const response = await fetchImpl(asset.url);
-    if (!response || response.ok !== true) {
-      throw new Error(`Update download failed with status ${response?.status || 'unknown'}.`);
-    }
-    if (response.url) {
-      normalizeExternalHttpsUrl(response.url, { label: 'Final update download URL' });
-    }
-
-    const declaredTotalBytes = normalizePersistedByteCount(
-      typeof response.headers?.get === 'function' ? response.headers.get('content-length') : ''
-    );
-    const hash = crypto.createHash('sha256');
-    const writeStream = fsImpl.createWriteStream(partialPath);
-    let receivedBytes = 0;
-    let lastEmittedBytes = 0;
-
-    const finishWrite = () => new Promise((/** @type {(value?: void) => void} */ resolve, /** @type {(reason?: any) => void} */ reject) => {
-      writeStream.end((/** @type {any} */ writeError) => {
-        if (writeError) {
-          reject(writeError);
-        } else {
-          resolve();
-        }
-      });
-    });
-
-    const removePartial = () => {
-      try {
-        if (fsImpl.existsSync(partialPath)) {
-          fsImpl.rmSync(partialPath, { force: true });
-        }
-      } catch {
-        // Best-effort cleanup; a stale .part file is overwritten on retry.
-      }
+    try { expectedSha256 = getRequiredAssetSha256(asset); }
+    catch (error) { throw markIntegrityFailure(error); }
+    const controller = new AbortController();
+    activeDownload = controller;
+    bytesPerSecond = 0;
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
+    let idleTimer;
+    const timeoutError = Object.assign(new Error('Update download timed out. Retry or open the download page.'), { code: 'UPDATE_DOWNLOAD_TIMEOUT' });
+    const refreshDeadline = () => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => controller.abort(timeoutError), options.downloadIdleTimeoutMs || 45_000);
     };
-
+    const totalTimer = setTimeout(() => controller.abort(timeoutError), options.downloadTimeoutMs || 30 * 60_000);
+    const aborted = new Promise((_, reject) => controller.signal.addEventListener('abort', () => reject(controller.signal.reason), { once: true }));
+    // Both header waits and body reads must be cancellable.
+    void aborted.catch(() => {});
+    let response;
     try {
-      const body = response.body;
-      if (body && typeof body[Symbol.asyncIterator] === 'function') {
+      setState({ updateStatus: 'downloading', downloadedArtifactPath: '', preparedDirectory: '', downloadProgress: { receivedBytes: 0, totalBytes: 0 }, lastError: '', lastErrorCode: '' });
+      refreshDeadline();
+      response = await Promise.race([fetchImpl(asset.url, { signal: controller.signal }), aborted]);
+      if (!response || response.ok !== true) throw new Error(`Update download failed with status ${response?.status || 'unknown'}.`);
+      if (response.url) normalizeExternalHttpsUrl(response.url, { label: 'Final update download URL' });
+      const totalBytes = normalizePersistedByteCount(response.headers?.get?.('content-length'));
+      const hash = crypto.createHash('sha256');
+      let receivedBytes = 0;
+      let emittedBytes = 0;
+      let emittedAt = Date.now();
+      const body = response.body && typeof response.body[Symbol.asyncIterator] === 'function'
+        ? response.body : [Buffer.from(await Promise.race([response.arrayBuffer(), aborted]))];
+      await pipeline(async function* () {
         for await (const chunk of body) {
-          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          const buffer = Buffer.from(chunk);
           hash.update(buffer);
-          if (!writeStream.write(buffer)) {
-            await new Promise((resolve) => writeStream.once('drain', resolve));
-          }
           receivedBytes += buffer.length;
-          if (receivedBytes - lastEmittedBytes >= DOWNLOAD_PROGRESS_EMIT_BYTES) {
-            lastEmittedBytes = receivedBytes;
-            setState({ downloadProgress: { receivedBytes, totalBytes: declaredTotalBytes } });
+          refreshDeadline();
+          const now = Date.now();
+          if (receivedBytes - emittedBytes >= DOWNLOAD_PROGRESS_EMIT_BYTES || now - emittedAt >= 500) {
+            bytesPerSecond = Math.round((receivedBytes - emittedBytes) * 1000 / Math.max(1, now - emittedAt));
+            lastProgressAt = now;
+            emittedBytes = receivedBytes;
+            emittedAt = now;
+            setState({ downloadProgress: { receivedBytes, totalBytes } });
           }
+          yield buffer;
         }
-      } else {
-        const buffer = Buffer.from(await response.arrayBuffer());
-        hash.update(buffer);
-        writeStream.write(buffer);
-        receivedBytes = buffer.length;
-      }
-      await finishWrite();
-    } catch (error) {
-      removePartial();
-      throw error;
-    }
-
-    try {
+      }, fsImpl.createWriteStream(partialPath), { signal: controller.signal });
+      controller.signal.throwIfAborted();
       verifyHexSha256(hash.digest('hex'), expectedSha256);
-    } catch (error) {
-      removePartial();
-      throw markIntegrityFailure(error, [destinationPath, partialPath]);
-    }
-
-    try {
-      if (fsImpl.existsSync(destinationPath)) {
-        fsImpl.rmSync(destinationPath, { force: true });
-      }
+      if (fsImpl.existsSync(destinationPath)) fsImpl.rmSync(destinationPath, { force: true });
       fsImpl.renameSync(partialPath, destinationPath);
-    } catch (error) {
-      removePartial();
-      throw error;
+      bytesPerSecond = 0;
+      return setState({ updateStatus: 'available', downloadedArtifactPath: destinationPath, downloadProgress: { receivedBytes, totalBytes: receivedBytes }, lastError: '', lastErrorCode: '' });
+    } catch (/** @type {any} */ caught) {
+      const error = controller.signal.aborted ? controller.signal.reason : caught;
+      // pipeline has closed the file before removal, including Windows cancellation.
+      if (fsImpl.existsSync(partialPath)) fsImpl.rmSync(partialPath, { force: true });
+      if (error?.code === UPDATE_INTEGRITY_FAILED_CODE) throw markIntegrityFailure(error, [destinationPath]);
+      if (error?.code === 'UPDATE_DOWNLOAD_CANCELLED') {
+        return setState({ updateStatus: 'available', downloadedArtifactPath: '', lastError: '', lastErrorCode: 'UPDATE_DOWNLOAD_CANCELLED' });
+      }
+      const code = ['UPDATE_DOWNLOAD_TIMEOUT', 'UPDATE_PROXY_AUTH_REQUIRED'].includes(error?.code) ? error.code : 'UPDATE_DOWNLOAD_FAILED';
+      setState({ updateStatus: 'error', downloadedArtifactPath: '', lastError: 'Unable to download the update. Retry or open the download page.', lastErrorCode: code });
+      throw Object.assign(error instanceof Error ? error : new Error(String(error)), { code });
+    } finally {
+      clearTimeout(idleTimer);
+      clearTimeout(totalTimer);
+      activeDownload = null;
+      bytesPerSecond = 0;
+      if (response?.body && !response.body.locked) await response.body.cancel?.().catch(() => {});
     }
-
-    return setState({
-      updateStatus: 'available',
-      downloadedArtifactPath: destinationPath,
-      downloadProgress: { receivedBytes, totalBytes: receivedBytes },
-      lastError: '',
-      lastErrorCode: ''
-    });
   }
 
   function isSquirrelFirstRun() {
@@ -839,7 +814,12 @@ function createUpdateService(options = {}) {
 
   return {
     getStatus,
+    cancelUpdateDownload() {
+      activeDownload?.abort(Object.assign(new Error('Update download cancelled.'), { code: 'UPDATE_DOWNLOAD_CANCELLED' }));
+      return getStatus();
+    },
     async checkForUpdates(/** @type {{ manual?: boolean }} */ options = {}) {
+      if (activeDownload || checking) return getStatus();
       if (packagingMode === 'installed' && isSquirrelFirstRun()) {
         return setState({
           updateStatus: DEFAULT_UPDATE_STATUS,
@@ -850,6 +830,7 @@ function createUpdateService(options = {}) {
         });
       }
 
+      checking = true;
       setState({
         updateStatus: 'checking',
         lastError: '',
@@ -913,7 +894,7 @@ function createUpdateService(options = {}) {
           lastError: normalizedError.message,
           lastErrorCode: normalizedError.code
         });
-      }
+      } finally { checking = false; }
     },
     async downloadPortableUpdate() {
       if (packagingMode !== 'portable') {

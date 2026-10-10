@@ -239,6 +239,7 @@ const WORKER_PROXIED_METHODS = {
     worker: 'checkForUpdates',
     workerPayload: (payload) => payload || {}
   },
+  cancelUpdateDownload: { channel: 'desktop:cancel-update-download', worker: 'cancelUpdateDownload' },
   downloadPortableUpdate: {
     channel: 'desktop:download-portable-update',
     worker: 'downloadPortableUpdate',

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { Alert, Button, Card, Col, Collapse, Descriptions, Input, Listy, Radio, Row, Select, Space, Tag, Typography } from 'antd';
 import { EmptyState } from '@langlink-tech/antd-kit/feedback';
-import { DeploymentUnitOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DeploymentUnitOutlined } from '@ant-design/icons';
+import UpdateActions from './UpdateActions.jsx';
 import HoverText from '../../components/HoverText.jsx';
 import { LISTY_SMALL_ITEM_STYLE } from '../../tableLayout.mjs';
 import { formatLocalTimestamp } from '../../timeFormatting.mjs';
@@ -10,6 +11,7 @@ import {
   buildInstallDraft,
   buildInstallOptions,
   formatDownloadProgress,
+  canDownloadUpdate,
   getPackagingModeLabel,
   getPresetInstallDir,
   getRuntimeConnectionLabel,
@@ -27,6 +29,7 @@ const { Text } = Typography;
 export default function DashboardPage({
   api,
   checkForUpdates,
+  cancelUpdateDownload,
   checkingUpdates,
   chooseInstallDirectory,
   confirmInstallIntegration,
@@ -85,10 +88,8 @@ export default function DashboardPage({
   const updateCenter = state?.updateCenter || state?.dashboard?.updateCenter || { availableAssets: {} };
   const safeUpdateStatus = getSafeUpdateStatus(updateCenter);
   const effectiveUpdateStatus = checkingUpdates ? 'checking' : safeUpdateStatus;
-  const hasAvailableUpdate = !checkingUpdates && safeUpdateStatus === 'available';
-  const portableDownloadPage = hasAvailableUpdate
-    ? (updateCenter.portableDownloadUrl || updateCenter.releaseNotesUrl || updateCenter.availableAssets?.portable?.url || '')
-    : '';
+  const hasAvailableUpdate = canDownloadUpdate(updateCenter, checkingUpdates);
+  const portableDownloadPage = 'https://github.com/langlink-localization/memoq-ai-hub/releases/latest';
   const updateStatusLabel = getUpdateStatusLabel(effectiveUpdateStatus, t);
   const latestVersionDisplay = updateCenter.latestVersion
     || (effectiveUpdateStatus === 'checking' ? t('dashboard.updateCheckingLatestVersion') : '');
@@ -283,61 +284,28 @@ export default function DashboardPage({
                         : 'dashboard.updatePortableHint')}
                     description={t('dashboard.updatePluginHint')}
                   />
-                  <Space wrap>
-                    <Button icon={<ReloadOutlined />} loading={checkingUpdates} onClick={() => void checkForUpdates(true)}>
-                      {t('dashboard.checkForUpdates')}
-                    </Button>
-                    {updateCenter.packagingMode === 'portable' && hasAvailableUpdate && portableInAppSupported && safeUpdateStatus === 'available' ? (
-                      <Button type="primary" loading={updateActionLoading} onClick={() => void downloadPortableUpdateNow(updateCenter)}>
-                        {t('dashboard.downloadUpdate')}
-                      </Button>
-                    ) : null}
-                    {updateCenter.packagingMode === 'portable' && hasAvailableUpdate && !portableInAppSupported ? (
-                      <Button type="primary" loading={updateActionLoading} onClick={() => void openPortableDownloadPage(portableDownloadPage)}>
-                        {t('dashboard.openPortableDownloadPage')}
-                      </Button>
-                    ) : null}
-                    {updateCenter.packagingMode === 'portable' && hasAvailableUpdate && portableInAppSupported ? (
-                      <Button loading={updateActionLoading} onClick={() => void openPortableDownloadPage(portableDownloadPage)}>
-                        {t('dashboard.openPortableDownloadPage')}
-                      </Button>
-                    ) : null}
-                    {updateCenter.packagingMode === 'portable' && safeUpdateStatus === 'prepared' && portableInAppSupported ? (
-                      <Button danger loading={updateActionLoading} onClick={() => confirmApplyPortableUpdate(updateCenter, { busy: updateBusy })}>
-                        {t('dashboard.restartAndInstallUpdate')}
-                      </Button>
-                    ) : null}
-                    {updateCenter.packagingMode === 'portable' && safeUpdateStatus === 'available' && updateCenter.downloadedArtifactPath && portableInAppSupported ? (
-                      <Button loading={updateActionLoading} onClick={() => void preparePortableUpdateNow(updateCenter)}>
-                        {t('dashboard.prepareUpdateRetry')}
-                      </Button>
-                    ) : null}
-                    {updateCenter.packagingMode === 'installed' && hasAvailableUpdate ? (
-                      <Button type="primary" loading={updateActionLoading} onClick={() => void downloadInstallerUpdate(updateCenter)}>
-                        {t('dashboard.downloadAndInstallUpdate')}
-                      </Button>
-                    ) : null}
-                    {updateCenter.packagingMode === 'installed' && updateCenter.downloadedArtifactPath ? (
-                      <Button danger loading={updateActionLoading} onClick={() => confirmLaunchDownloadedInstallerUpdate(updateCenter)}>
-                        {t('dashboard.restartAndInstallUpdate')}
-                      </Button>
-                    ) : null}
-                    {updateCenter.packagingMode === 'installed' && updateCenter.downloadedArtifactPath ? (
-                      <Button loading={updateActionLoading} onClick={() => void runUpdateAction(() => api.showItemInFolder(updateCenter.downloadedArtifactPath))}>
-                        {t('dashboard.revealDownloadedUpdate')}
-                      </Button>
-                    ) : null}
-                    {updateCenter.packagingMode === 'portable' && updateCenter.downloadedArtifactPath ? (
-                      <Button loading={updateActionLoading} onClick={() => void runUpdateAction(() => api.showItemInFolder(updateCenter.downloadedArtifactPath))}>
-                        {t('dashboard.revealDownloadedUpdate')}
-                      </Button>
-                    ) : null}
-                    {updateCenter.releaseNotesUrl ? (
-                      <Button loading={updateActionLoading} onClick={() => void openUpdateReleaseNotes(updateCenter)}>
-                        {t('dashboard.viewReleaseNotes')}
-                      </Button>
-                    ) : null}
-                  </Space>
+                  <UpdateActions
+                    api={api}
+                    checkForUpdates={checkForUpdates}
+                    cancelUpdateDownload={cancelUpdateDownload}
+                    checkingUpdates={checkingUpdates}
+                    updateActionLoading={updateActionLoading}
+                    safeUpdateStatus={safeUpdateStatus}
+                    hasAvailableUpdate={hasAvailableUpdate}
+                    updateCenter={updateCenter}
+                    portableInAppSupported={portableInAppSupported}
+                    openPortableDownloadPage={openPortableDownloadPage}
+                    portableDownloadPage={portableDownloadPage}
+                    downloadPortableUpdateNow={downloadPortableUpdateNow}
+                    preparePortableUpdateNow={preparePortableUpdateNow}
+                    confirmApplyPortableUpdate={confirmApplyPortableUpdate}
+                    updateBusy={updateBusy}
+                    downloadInstallerUpdate={downloadInstallerUpdate}
+                    confirmLaunchDownloadedInstallerUpdate={confirmLaunchDownloadedInstallerUpdate}
+                    runUpdateAction={runUpdateAction}
+                    openUpdateReleaseNotes={openUpdateReleaseNotes}
+                    t={t}
+                  />
                     </Space>
                   )
                 }]}

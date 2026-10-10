@@ -30,6 +30,8 @@ The repository contains runtime code for more advanced capabilities, but not eve
 
 ## Current Release Highlights
 
+**v1.0.54** makes update checks and downloads follow the system proxy, including PAC rules. Downloads show progress and speed, support cancellation and retry, and keep a browser download option available in every state. See [release notes](docs/release-notes/v1.0.54.md) and [update networking and recovery](docs/reference/update-network.md).
+
 **v1.0.53** improves CJK terminology matching, adds optional strict terminology checks, and shows per-segment asset evidence with local asset tests and fresh translation comparisons. The plugin Options window can open the exact Hub record using the ID from translation result information. See [release notes](docs/release-notes/v1.0.53.md) and [usage guide](docs/reference/translation-evidence.md).
 
 **v1.0.52** resolves six dependency security alerts and updates the Windows build to Electron Forge 8. No settings migration is required. See [release notes](docs/release-notes/v1.0.52.md).

@@ -34,14 +34,16 @@ export function getUpdateStatusLabel(status, t) {
 export function formatDownloadProgress(progress) {
   const receivedBytes = Number(progress?.receivedBytes);
   const totalBytes = Number(progress?.totalBytes);
+  const rate = Number(progress?.bytesPerSecond);
+  const speed = Number.isFinite(rate) && rate > 0 ? ` · ${(rate / (1024 * 1024)).toFixed(2)} MB/s` : '';
   const receivedLabel = Number.isFinite(receivedBytes) && receivedBytes >= 0 ? `${(receivedBytes / (1024 * 1024)).toFixed(1)} MB` : '';
   if (!receivedLabel) {
     return '';
   }
   if (Number.isFinite(totalBytes) && totalBytes > 0) {
-    return `${receivedLabel} / ${(totalBytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${receivedLabel} / ${(totalBytes / (1024 * 1024)).toFixed(1)} MB${speed}`;
   }
-  return receivedLabel;
+  return receivedLabel + speed;
 }
 
 function compareDisplayVersions(leftVersion, rightVersion) {
@@ -72,6 +74,9 @@ export function getSafeUpdateStatus(updateCenter = {}) {
 
 export function getUpdateErrorDisplay(updateCenter = {}, t) {
   const errorCode = String(updateCenter.lastErrorCode || '').trim();
+  if (errorCode === 'UPDATE_PROXY_AUTH_REQUIRED') return t('dashboard.updateProxyAuthError');
+  if (errorCode === 'UPDATE_DOWNLOAD_FAILED') return t('dashboard.updateDownloadFailedError');
+  if (errorCode === 'UPDATE_DOWNLOAD_TIMEOUT') return t('dashboard.updateDownloadTimeoutError');
   if (errorCode === 'UPDATE_CHECK_TIMEOUT') return t('dashboard.updateCheckTimeoutError');
   if (errorCode === 'UPDATE_CHECK_FAILED') return t('dashboard.updateCheckFailedError');
   return String(updateCenter.lastError || '').trim();
@@ -133,4 +138,12 @@ export function buildInstallDraft(integration = {}) {
     selectedInstallDir: finalSelectedInstallDir,
     customInstallDir: isCustom ? (customInstallDir || selectedInstallDir || finalSelectedInstallDir) : ''
   };
+}
+
+export function canDownloadUpdate(updateCenter = {}, checking = false) {
+  const status = getSafeUpdateStatus(updateCenter);
+  const asset = updateCenter.availableAssets?.[updateCenter.packagingMode === 'installed' ? 'installer' : 'portable'];
+  return !checking && ['available', 'error'].includes(status)
+    && compareDisplayVersions(updateCenter.latestVersion, updateCenter.currentVersion) > 0
+    && Boolean(asset?.url && asset?.sha256);
 }

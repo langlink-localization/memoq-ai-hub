@@ -27,6 +27,7 @@ const BULK_CHANNELS = new Set([
 ]);
 
 function getWorkerRequestTimeoutMs(channel) {
+  if (['downloadPortableUpdate', 'downloadInstallerUpdate'].includes(channel)) return 35 * 60_000;
   if (BULK_CHANNELS.has(channel)) {
     return BULK_WORKER_REQUEST_TIMEOUT_MS;
   }

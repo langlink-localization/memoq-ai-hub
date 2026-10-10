@@ -17,6 +17,7 @@ export function useDashboardActions({ api, t, message, modal, notifyError, refre
   const [updateActionLoading, setUpdateActionLoading] = useState(false);
   const [installDraft, setInstallDraft] = useState(() => buildInstallDraft());
   const [installDraftDirty, setInstallDraftDirty] = useState(false);
+  const updateActionPendingRef = useRef(false);
   const autoUpdateCheckStartedRef = useRef(false);
 
   async function refreshDashboardStatus() {
@@ -128,18 +129,21 @@ export function useDashboardActions({ api, t, message, modal, notifyError, refre
   }
 
   async function runUpdateAction(action, successMessage = '') {
+    if (updateActionPendingRef.current) return null;
+    updateActionPendingRef.current = true;
     setUpdateActionLoading(true);
     try {
       const result = await action();
-      if (successMessage) {
+      if (successMessage && result?.lastErrorCode !== 'UPDATE_DOWNLOAD_CANCELLED') {
         message.success(successMessage);
       }
       await refresh(historyFilters);
       return result;
     } catch (updateError) {
-      notifyError(updateError);
+      notifyError(new Error(getUpdateErrorDisplay({ lastErrorCode: updateError?.code, lastError: updateError?.message }, t)));
       return null;
     } finally {
+      updateActionPendingRef.current = false;
       setUpdateActionLoading(false);
     }
   }
@@ -187,7 +191,7 @@ export function useDashboardActions({ api, t, message, modal, notifyError, refre
         }
       }
     } catch (updateError) {
-      notifyError(updateError);
+      notifyError(new Error(getUpdateErrorDisplay({ lastErrorCode: updateError?.code, lastError: updateError?.message }, t)));
     } finally {
       setCheckingUpdates(false);
     }
@@ -252,18 +256,23 @@ export function useDashboardActions({ api, t, message, modal, notifyError, refre
     });
   }
 
+  async function cancelUpdateDownload() {
+    try { await api.cancelUpdateDownload(); await refreshDashboardStatus(); }
+    catch (error) { notifyError(error); }
+  }
+
   async function openPortableDownloadPage(portableDownloadUrl = '') {
     if (!portableDownloadUrl || typeof api?.openExternalUrl !== 'function') {
       return;
     }
-    await runUpdateAction(() => api.openExternalUrl(portableDownloadUrl));
+    try { await api.openExternalUrl(portableDownloadUrl); } catch (error) { notifyError(error); }
   }
 
   async function openUpdateReleaseNotes(dashboardUpdateCenter = {}) {
     if (!dashboardUpdateCenter.releaseNotesUrl || typeof api?.openExternalUrl !== 'function') {
       return;
     }
-    await runUpdateAction(() => api.openExternalUrl(dashboardUpdateCenter.releaseNotesUrl));
+    try { await api.openExternalUrl(dashboardUpdateCenter.releaseNotesUrl); } catch (error) { notifyError(error); }
   }
 
   async function launchDownloadedInstallerUpdateNow(dashboardUpdateCenter = {}) {
@@ -308,6 +317,7 @@ export function useDashboardActions({ api, t, message, modal, notifyError, refre
     preparePortableUpdateNow,
     confirmApplyPortableUpdate,
     openPortableDownloadPage,
+    cancelUpdateDownload,
     openUpdateReleaseNotes,
     confirmLaunchDownloadedInstallerUpdate
   };
