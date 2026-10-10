@@ -21,7 +21,7 @@ The current desktop app exposes these operator-facing modules:
 - `AI Services`: configure OpenAI or OpenAI-compatible providers, test connectivity, and manage enabled models.
 - `Setup`: create translation profiles, choose provider routes, bind terminology and Custom TM assets, select TM score buckets, configure terminology policy and optional context, and test saved profile assets locally without calling a model.
 - `Project Rules`: route memoQ projects to saved Profiles by client, domain, subject, project, language pair, document regex, or segment status, then test the result before translation.
-- `Assets`: import and preview glossary, TB, TMX, and table-based Custom TM assets. Map multilingual terminology columns by language name, reuse one table across language pairs, and search, rename, or assign assets to profiles.
+- `Assets`: import and preview glossary, TB, TMX, and table-based Custom TM assets. Confirm terminology column languages, preview concepts across languages, and automatically match ordinary terms to each translation direction. Scope directional rules explicitly; existing assets retain their behavior until opted in. Search, rename, and profile assignment remain available.
 - `Translation Records`: search source text, target text, or request IDs; inspect source/target pairs, matched terms, asset fingerprints, model/cache details and terminology checks; translate a segment again with a saved profile and compare results. Prompt diagnostics, export and deletion remain available.
 - `Quality Checks`: inspect the active Preview segment with observable deterministic/AI execution details, review and export local QA history, manage scoped QA/Translate/Polish prompt presets, open the two-mode Translate/Polish and QA Assistant, import MQXLIFF/XLIFF files read-only, and export HTML/CSV/JSON reports.
 - `Logs`: review local diagnostic logs, open log files, clean old logs, and copy a short support summary.
@@ -29,6 +29,8 @@ The current desktop app exposes these operator-facing modules:
 The repository contains runtime code for more advanced capabilities, but not every internal/runtime concept is exposed as a dedicated top-level UI page in the current build. The README and user flow below describe the shipped surface, not every internal module.
 
 ## Current Release Highlights
+
+**v1.0.55** separates glossary languages from translation direction. New imports automatically match ordinary terms in either direction, while rule-bearing rows use an explicit direction. Concept previews and translation evidence show how the asset is used; existing assets retain their previous behavior. See [release notes](docs/release-notes/v1.0.55.md) and [glossary language guide](docs/reference/glossary-languages.md).
 
 **v1.0.54** makes update checks and downloads follow the system proxy, including PAC rules. Downloads show progress and speed, support cancellation and retry, and keep a browser download option available in every state. See [release notes](docs/release-notes/v1.0.54.md) and [update networking and recovery](docs/reference/update-network.md).
 

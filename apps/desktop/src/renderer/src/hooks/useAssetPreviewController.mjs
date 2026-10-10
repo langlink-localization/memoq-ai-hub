@@ -33,7 +33,9 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
 
   function closeAssetPreview() {
     const dirty = Array.isArray(assetPreviewManualDraft.languageColumns)
-      && (assetPreviewManualDraft.hasHeader !== (assetPreviewData?.hasHeader !== false)
+      && (assetPreviewManualDraft.directionMode !== (assetPreviewData?.directionMode || 'legacy')
+        || JSON.stringify(assetPreviewManualDraft.ruleLanguagePair) !== JSON.stringify(assetPreviewData?.ruleLanguagePair || { source: '', target: '' })
+        || assetPreviewManualDraft.hasHeader !== (assetPreviewData?.hasHeader !== false)
         || JSON.stringify(assetPreviewManualDraft.languageColumns) !== JSON.stringify((assetPreviewData?.languageColumns || []).map(({ columnIndex, language }) => ({ columnIndex, language }))));
     requestEditorDeparture({ dirty, busy: savingRef.current, name: assetPreviewRecord?.name || '', modal, t, proceed: dismissAssetPreview });
   }
@@ -69,6 +71,8 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
         setAssetPreviewData(preview || {});
         setAssetPreviewManualDraft({
           ...(Array.isArray(preview?.availableColumnDetails) ? { hasHeader: preview.hasHeader !== false, languageColumns: (preview?.languageColumns || []).map(({ columnIndex, language }) => ({ columnIndex, language })) } : {}),
+          directionMode: preview?.directionMode || 'legacy',
+          ruleLanguagePair: preview?.ruleLanguagePair || { source: '', target: '' },
           srcColumn: String(preview?.manualMapping?.srcColumn || ''),
           tgtColumn: String(preview?.manualMapping?.tgtColumn || ''),
           sourceLanguage: String(preview?.languagePair?.source || ''),
@@ -93,6 +97,8 @@ export function useAssetPreviewController({ api, t, message, notifyError, refres
     try {
       await api.saveAssetTbConfig(assetPreviewRecord.id, {
         ...(Array.isArray(assetPreviewManualDraft.languageColumns) ? { hasHeader: assetPreviewManualDraft.hasHeader !== false, languageColumns: assetPreviewManualDraft.languageColumns } : {}),
+        directionMode: assetPreviewManualDraft.directionMode,
+        ruleLanguagePair: assetPreviewManualDraft.ruleLanguagePair,
         manualMapping: {
           srcColumn: assetPreviewManualDraft.srcColumn,
           tgtColumn: assetPreviewManualDraft.tgtColumn

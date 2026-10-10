@@ -1,5 +1,5 @@
 const { buildAssetPreview } = require('../asset/assetContext');
-const { buildMultilingualTbStructure, buildEntriesFromTbStructure, prepareTbTableRows } = require('../asset/assetTbStructure');
+const { tableHasDirectionalRules, buildMultilingualTbStructure, buildEntriesFromTbStructure, prepareTbTableRows } = require('../asset/assetTbStructure');
 const { __internals: { collectRawTableRowsFromAsset } } = require('../asset/assetGlossaryParser');
 const { ensureAsset } = require('./runtimeState');
 const { hasSmartTbParsingCapability } = require('./runtimeTranslationService');
@@ -180,12 +180,21 @@ function createRuntimeAssetTbService({ loadState, saveState, parsedAssetCache })
       if (payload.hasHeader !== undefined && typeof payload.hasHeader !== 'boolean') throw new Error('Header setting must be true or false.');
       const hasHeader = payload.hasHeader !== false;
       const rows = prepareTbTableRows(collectRawTableRowsFromAsset({ ...asset, tbHasHeader: hasHeader }), hasHeader);
-      const structure = buildMultilingualTbStructure(rows, asset, payload.languageColumns);
+      if (payload.directionMode !== undefined && !['legacy', 'automatic'].includes(payload.directionMode)) throw new Error('Invalid terminology direction mode.');
+      const directionMode = payload.directionMode || asset.tbDirectionMode || 'legacy';
+      const ruleLanguagePair = normalizeLanguagePair(payload.ruleLanguagePair || asset.tbRuleLanguagePair || asset.tbLanguagePair || {});
+      const structure = buildMultilingualTbStructure(rows, { ...asset, tbDirectionMode: directionMode, tbRuleLanguagePair: ruleLanguagePair }, payload.languageColumns);
+      const directionalRules = tableHasDirectionalRules(rows, structure.ruleColumns);
+      const languages = structure.languageColumns.map((/** @type {any} */ column) => column.language);
+      if (directionMode === 'automatic' && directionalRules && (!languages.includes(ruleLanguagePair.source) || !languages.includes(ruleLanguagePair.target) || ruleLanguagePair.source === ruleLanguagePair.target)) {
+        throw new Error('Choose the original and translated languages for directional terminology rules.');
+      }
       buildEntriesFromTbStructure(rows, structure);
       return updateAssetTbState(state, asset.id, {
+        tbDirectionMode: directionMode, tbRuleLanguagePair: ruleLanguagePair,
         tbHasHeader: hasHeader,
         tbLanguageColumns: structure.languageColumns.map((/** @type {any} */ column) => ({ columnIndex: column.columnIndex, language: column.language })),
-        tbManualMapping: null, tbLanguagePair: { source: '', target: '' }, tbStructure: structure,
+        tbManualMapping: null, tbLanguagePair: asset.tbLanguagePair || { source: '', target: '' }, tbStructure: structure,
         tbStructureConfidence: structure.confidence, tbStructureSource: 'manual_mapping'
       });
     }
@@ -199,6 +208,7 @@ function createRuntimeAssetTbService({ loadState, saveState, parsedAssetCache })
     }
 
     return updateAssetTbState(state, asset.id, {
+      tbDirectionMode: 'legacy',
       tbHasHeader: true,
       tbLanguageColumns: [],
       tbManualMapping: manualMapping,

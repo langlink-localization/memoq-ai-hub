@@ -17,6 +17,11 @@ export default function AssetPreviewDrawer({ controller }) {
   const columns = getAssetColumnDetails(data || {}, draft.hasHeader !== false);
   const mappings = draft.languageColumns || [];
   const languageOptions = buildAssetLanguageOptions(locale, mappings.map((column) => column.language));
+  const automatic = draft.directionMode === 'automatic';
+  const ruleOptions = languageOptions.filter((option) => mappings.some((column) => column.language === option.value));
+  const rulePair = draft.ruleLanguagePair || {};
+  const rulesNeedDirection = automatic && data?.hasDirectionalRules === true;
+  const validRulePair = !rulesNeedDirection || (rulePair.source !== rulePair.target && ruleOptions.some((option) => option.value === rulePair.source) && ruleOptions.some((option) => option.value === rulePair.target));
   const editable = assetPreviewRecord?.type === 'glossary' && columns.length > 0;
   const warnings = [...new Set([...(data?.mappingWarnings || []), ...(data?.tbStructureWarnings || [])])];
   const ready = !assetPreviewLoading && !data?.error && !data?.unsupported;
@@ -35,6 +40,11 @@ export default function AssetPreviewDrawer({ controller }) {
           <Card size="small" title={t('context.assetLanguageColumnsTitle')}>
             <Space orientation="vertical" size={16} className="app-block-space">
               <Text type="secondary">{t('context.assetLanguageColumnsHint')}</Text>
+              <Checkbox checked={automatic} disabled={assetPreviewSaving}
+                onChange={(event) => setAssetPreviewManualDraft((current) => ({ ...current, directionMode: event.target.checked ? 'automatic' : 'legacy' }))}>
+                {t('context.assetAutomaticDirection')}
+              </Checkbox>
+              <Text type="secondary">{t(automatic ? 'context.assetAutomaticDirectionHint' : 'context.assetLegacyDirectionHint')}</Text>
               <Checkbox checked={draft.hasHeader !== false} disabled={assetPreviewSaving}
                 onChange={(event) => setAssetPreviewManualDraft((current) => ({ ...current, hasHeader: event.target.checked }))}>
                 {t('context.assetFirstRowHeader')}
@@ -56,13 +66,21 @@ export default function AssetPreviewDrawer({ controller }) {
                   </Form.Item>
                 ))}
               </Form>
+              {rulesNeedDirection ? <Form layout="vertical" disabled={assetPreviewSaving}>
+                <Alert type="info" showIcon title={t('context.assetRuleDirectionHint')} />
+                {['source', 'target'].map((side) => <Form.Item key={side} label={t(`context.assetRuleLanguage.${side}`)} required>
+                  <Select aria-label={t(`context.assetRuleLanguage.${side}`)} options={ruleOptions} value={rulePair[side] || undefined}
+                    onChange={(value) => setAssetPreviewManualDraft((current) => ({ ...current, ruleLanguagePair: { ...current.ruleLanguagePair, [side]: value } }))} />
+                </Form.Item>)}
+              </Form> : null}
               {duplicateLanguages ? <Alert type="warning" showIcon title={t('context.assetDuplicateLanguage')} /> : null}
-              <Button type="primary" loading={assetPreviewSaving} disabled={!isValidLanguageColumnDraft(mappings)}
+              <Button type="primary" loading={assetPreviewSaving} disabled={!isValidLanguageColumnDraft(mappings) || !validRulePair}
                 onClick={() => void saveAssetPreviewTbConfig()}>{t('context.assetPreviewManualSave')}</Button>
               <Text type="secondary">{t('context.assetSavedPreviewHint')}</Text>
             </Space>
           </Card>
         ) : null}
+        {ready && data?.ruleDirectionRequired ? <Alert type="warning" showIcon title={t('context.assetRuleDirectionRequired')} /> : null}
         {ready && warnings.length ? <Alert type="warning" showIcon title={t('context.assetPreviewWarnings')} description={warnings.join(' ')} /> : null}
         {ready && Array.isArray(data?.rows) && data.rows.length ? (
           <Card size="small" title={t('context.assetPreviewTitle')} extra={<Text type="secondary">{t('context.assetPreviewRowCount')}: {data.rowCount}</Text>}>
@@ -70,8 +88,10 @@ export default function AssetPreviewDrawer({ controller }) {
               <DataTable size="small" pagination={{ pageSize: 10, hideOnSinglePage: true }} scroll={{ x: TABLE_SCROLL_X }}
                 dataSource={buildAssetPreviewRows(data)}
                 columns={(data.columns || Object.keys(data.rows[0] || {})).map((columnKey) => ({
-                  title: t(`context.assetPreviewColumn.${columnKey}`), dataIndex: columnKey, key: columnKey,
-                  render: (value) => String(value ?? '')
+                  title: data.columnLanguages?.[columnKey] ? (languageOptions.find((option) => option.value === data.columnLanguages[columnKey])?.label || data.columnLanguages[columnKey]) : t(`context.assetPreviewColumn.${columnKey}`), dataIndex: columnKey, key: columnKey,
+                  render: (value) => columnKey === 'rules' && Array.isArray(value)
+                    ? value.map((rule) => `${t(`context.assetPreviewField.${rule.role}`)}: ${rule.value}`).join(' · ') || '—'
+                    : String(value ?? '')
                 }))} />
               {data.truncated ? <Text type="secondary">{t('context.assetPreviewTruncated')}</Text> : null}
             </Space>

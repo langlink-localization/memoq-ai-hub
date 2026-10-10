@@ -85,3 +85,28 @@ test('fresh retranslation blocks duplicate work and preserves original segment m
   assert.equal((await first).translatedText, 'new');
   assert.equal(original.segments[0].targetText, 'old');
 });
+
+test('evidence respects forward-only rules and distinguishes missing configuration from no match', () => {
+  const profile = { id: 'p' };
+  const segment = { index: 0, tbContext: { sourceLanguage: 'ja', targetLanguage: 'zh', termHits: [] } };
+  const snapshot = { id: 'tb', purpose: 'glossary', languagePairs: ['zh|ja'], languageDirections: ['zh|ja'] };
+  const evidence = (asset) => buildTranslationEvidence({ profile, segment, assetContext: { assetSnapshots: [asset] } });
+  assert.equal(evidence(snapshot).terminologyStatus, 'language_mismatch');
+  assert.equal(evidence({ ...snapshot, languageDirections: ['zh|ja', 'ja|zh'] }).terminologyStatus, 'no_match');
+  const pending = evidence({ ...snapshot, ruleDirectionRequired: true, languageDirections: [], languagePairs: [] });
+  assert.equal(pending.terminologyStatus, 'configuration_required');
+  assert.equal(pending.assets[0].ruleDirectionRequired, true);
+});
+
+test('term evidence records the requested direction and identifies forward-only rules', () => {
+  const { buildSegmentTbContext } = require('../src/runtime/runtimePromptSupport');
+  const entries = [{ sourceTerm: 'Furnace', targetTerm: '大熔炉', srcLang: 'en', tgtLang: 'ja', assetId: 'tb' }];
+  const assetContext = { tb: { matcher: createTbMatcher(entries) } };
+  const reversed = buildSegmentTbContext({ assetContext, segment: { plainText: '大熔炉' }, payload: { sourceLanguage: 'ja', targetLanguage: 'en' }, metadata: {} });
+  assert.equal(reversed.termHits[0].sourceLanguage, 'ja');
+  assert.equal(reversed.termHits[0].targetLanguage, 'en');
+  assert.equal(reversed.termHits[0].direction, 'reverse');
+  const forwardOnly = { tb: { matcher: createTbMatcher([{ ...entries[0], forbidden: true, allowReverse: false }]) } };
+  const forward = buildSegmentTbContext({ assetContext: forwardOnly, segment: { plainText: 'Furnace' }, payload: { sourceLanguage: 'en', targetLanguage: 'ja' }, metadata: {} });
+  assert.equal(forward.termHits[0].directionalRule, true);
+});

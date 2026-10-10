@@ -26,6 +26,7 @@ function createRuntimeAssetService({
     const asset = {
       id,
       type: normalizedAsset.type,
+      ...(normalizedAsset.type === 'glossary' ? { tbDirectionMode: 'automatic' } : {}),
       name: fileName,
       fileName,
       storedPath,

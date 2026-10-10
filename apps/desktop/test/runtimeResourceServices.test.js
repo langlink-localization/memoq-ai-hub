@@ -126,6 +126,7 @@ test('asset service owns imported file lifecycle and parsed-cache eviction', () 
 
   try {
     const asset = service.importAssetFromPath('brief', sourcePath);
+    assert.equal(asset.tbDirectionMode, undefined);
     parsedAssetCache.set(`${asset.id}:${asset.sha256}`, { parsed: true });
 
     assert.equal(fs.existsSync(asset.storedPath), true);

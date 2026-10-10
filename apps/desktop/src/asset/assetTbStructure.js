@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { hasEffectiveDirectionalRule } = require('./assetTerminology');
 const { normalizeCanonicalLanguageTag, resolveAssetLanguage } = require('../shared/languageNormalization');
 
 const TB_STRUCTURE_SAMPLE_ROWS = 8;
@@ -369,11 +370,11 @@ function inferExplicitTbStructure(rows = [], asset = {}) {
     return null;
   }
 
-  if (new Set(languageColumns.map((column) => resolveAssetLanguage(column.name))).size !== languageColumns.length) {
+  if (new Set(languageColumns.map((/** @type {any} */ column) => resolveAssetLanguage(column.name))).size !== languageColumns.length) {
     return null;
   }
-  if (languageColumns.length > 2) {
-    return buildMultilingualTbStructure(rows, asset, languageColumns.map((column) => ({ columnIndex: column.index, language: resolveAssetLanguage(column.name) })), 'header_inferred');
+  if (languageColumns.length > 2 || asset.tbDirectionMode === 'automatic') {
+    return buildMultilingualTbStructure(rows, asset, languageColumns.map((/** @type {any} */ column) => ({ columnIndex: column.index, language: resolveAssetLanguage(column.name) })), 'header_inferred');
   }
   const sourceColumn = languageColumns[0];
   const targetColumn = languageColumns[1];
@@ -629,6 +630,30 @@ function buildEntriesFromTbStructure(rows = [], structure = {}) {
   if (structure.kind === 'multilingual') {
     const columns = structure.languageColumns || [];
     const entries = [];
+    if (structure.directionMode === 'automatic' && structure.ruleColumns?.length) {
+      for (const cells of rows.slice(1)) {
+        const rules = Object.fromEntries(structure.ruleColumns.map((/** @type {any} */ column) => [column.role, normalizeWhitespace(cells[column.index])]));
+        const directional = hasEffectiveDirectionalRule(rules);
+        const pair = structure.ruleLanguagePair || {};
+        const sourceColumn = columns.find((/** @type {any} */ column) => column.language === pair.source);
+        const targetColumn = columns.find((/** @type {any} */ column) => column.language === pair.target);
+        if (directional && (!sourceColumn || !targetColumn || sourceColumn === targetColumn)) continue;
+        const rowStructure = directional ? {
+          ...structure, kind: 'bilingual',
+          matchColumnIndex: sourceColumn.columnIndex, targetColumnIndex: targetColumn.columnIndex,
+          sourceMetaColumns: sourceColumn.metaColumns, targetMetaColumns: targetColumn.metaColumns,
+          languagePair: pair
+        } : { ...structure, ruleColumns: [] };
+        const rowEntries = buildEntriesFromTbStructure([rows[0], cells], rowStructure);
+        entries.push(...rowEntries.filter((entry) => entry.sourceTerm && entry.targetTerm).map((entry) => ({
+          ...entry, ...rules,
+          allowedVariants: String(rules.allowedVariants || '').split(/[|;,\n]+/).map((value) => value.trim()).filter(Boolean),
+          allowReverse: !directional
+        })));
+        if (entries.length > 50000) throw new Error('Terminology table exceeds 50,000 language-pair entries. Split it into smaller files.');
+      }
+      return entries;
+    }
     for (let source = 0; source < columns.length; source += 1) {
       for (let target = source + 1; target < columns.length; target += 1) {
         entries.push(...buildEntriesFromTbStructure(rows, {
@@ -734,17 +759,27 @@ function buildMultilingualTbStructure(rows, asset, mappings, sourceOfTruth = 'ma
     indexes.add(columnIndex); languages.add(language);
     return { columnIndex, columnName: String(header[columnIndex] || ''), language };
   });
-  const mainColumns = languageColumns.map((column) => columns[column.columnIndex]);
+  const mainColumns = languageColumns.map((/** @type {any} */ column) => columns[column.columnIndex]);
   const structure = {
-    version: 3, kind: 'multilingual', derivedFromSha256: String(asset.sha256 || ''),
-    languageColumns: languageColumns.map((column) => ({ ...column, metaColumns: buildSideMetaColumns(columns, mainColumns, columns[column.columnIndex]) })),
+    version: 3, kind: 'multilingual',
+    directionMode: asset.tbDirectionMode === 'automatic' ? 'automatic' : 'legacy',
+    ruleLanguagePair: asset.tbRuleLanguagePair || asset.tbLanguagePair || { source: '', target: '' },
+    ruleColumns: detectTbRuleColumns(header, [...indexes]),
+    languageColumns: languageColumns.map((/** @type {any} */ column) => ({ ...column, metaColumns: buildSideMetaColumns(columns, mainColumns, columns[column.columnIndex]) })),
     languagePair: { source: '', target: '' },
     entryMetaColumns: buildEntryMetaColumns(columns, indexes),
     noteColumnIndexes: columns.filter((/** @type {any} */ column) => !indexes.has(column.index) && SMART_ROLE_ALIASES.note.includes(column.normalizedName)).map((/** @type {any} */ column) => column.index),
     sourceOfTruth, confidence: { level: 'high', score: 1 },
-    summary: languageColumns.map((column) => `${column.columnName}: ${column.language}`).join(' ; ')
+    summary: languageColumns.map((/** @type {any} */ column) => `${column.columnName}: ${column.language}`).join(' ; ')
   };
   return { ...structure, fingerprint: hashObject(structure) };
+}
+
+/** @param {any[]} header @param {number[]} [excluded] */
+function detectTbRuleColumns(header, excluded = []) {
+  return header.flatMap((name, index) => excluded.includes(index) ? [] :
+    ['forbidden', 'allowedVariants', 'caseSensitive', 'matchMode', 'priority', 'partOfSpeech', 'domain', 'client', 'project'].flatMap((role) =>
+      SMART_ROLE_ALIASES[role].includes(normalizeHeader(name)) ? [{ index, role }] : []));
 }
 
 /** Give headerless tables positional columns without consuming the first record.
@@ -758,7 +793,14 @@ function prepareTbTableRows(rows, hasHeader = true) {
   return [Array.from({ length: width }, () => ''), ...rows];
 }
 
+/** @param {any[]} rows @param {any[]} ruleColumns */
+function tableHasDirectionalRules(rows, ruleColumns) {
+  return rows.slice(1).some((cells) => hasEffectiveDirectionalRule(Object.fromEntries(ruleColumns.map((column) => [column.role, cells[column.index]]))));
+}
+
 module.exports = {
+  tableHasDirectionalRules,
+  detectTbRuleColumns,
   prepareTbTableRows,
   buildMultilingualTbStructure,
   buildDetectedMapping,

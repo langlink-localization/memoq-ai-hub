@@ -15,15 +15,15 @@ function buildTranslationEvidence({ profile, assetContext, segment, attempts = [
   const modelAttempted = relevant.some((/** @type {any} */ attempt) => !isCache(attempt) && Boolean(attempt.requestMetadata));
   const glossaryEnabled = profile.useUploadedGlossary !== false;
   const snapshots = assetContext.assetSnapshots || [];
-  const languageApplicable = (/** @type {any} */ asset) => !asset.languagePairs?.length || asset.languagePairs.some((/** @type {string} */ pair) => {
+  const languageApplicable = (/** @type {any} */ asset) => !(asset.languageDirections || asset.languagePairs)?.length || (asset.languageDirections || asset.languagePairs).some((/** @type {string} */ pair) => {
     const [source, target] = pair.split('|');
     const requestedSource = segment.tbContext?.sourceLanguage;
     const requestedTarget = segment.tbContext?.targetLanguage;
     return (terminologyLanguageMatches(source, requestedSource) && terminologyLanguageMatches(target, requestedTarget))
-      || (terminologyLanguageMatches(target, requestedSource) && terminologyLanguageMatches(source, requestedTarget));
+      || (!asset.languageDirections && terminologyLanguageMatches(target, requestedSource) && terminologyLanguageMatches(source, requestedTarget));
   });
   const glossaryBound = snapshots.some((/** @type {any} */ asset) => asset.purpose === 'glossary');
-  const terminologyStatus = assetContext.assetError ? 'asset_error' : !glossaryEnabled ? 'disabled' : !glossaryBound ? 'unbound' : !snapshots.some((/** @type {any} */ asset) => asset.purpose === 'glossary' && languageApplicable(asset)) ? 'language_mismatch' : !hits.length ? 'no_match' : segment.qaSummary?.ok === false ? 'violated' : !hasResult ? 'not_checked' : segment.qaSummary?.ok === true ? 'compliant' : 'not_checked';
+  const terminologyStatus = assetContext.assetError ? 'asset_error' : !glossaryEnabled ? 'disabled' : !glossaryBound ? 'unbound' : snapshots.some((/** @type {any} */ asset) => asset.ruleDirectionRequired) ? 'configuration_required' : !snapshots.some((/** @type {any} */ asset) => asset.purpose === 'glossary' && languageApplicable(asset)) ? 'language_mismatch' : !hits.length ? 'no_match' : segment.qaSummary?.ok === false ? 'violated' : !hasResult ? 'not_checked' : segment.qaSummary?.ok === true ? 'compliant' : 'not_checked';
   return {
     version: 1,
     profile: { id: profile.id, name: profile.name, fingerprint: crypto.createHash('sha256').update(JSON.stringify(profile)).digest('hex'), terminologyMode: profile.terminologyMode || 'advisory', terminologyRepairEnabled: profile.terminologyRepairEnabled === true, useUploadedGlossary: glossaryEnabled, useCustomTm: profile.useCustomTm !== false, useBrief: profile.useBrief !== false },

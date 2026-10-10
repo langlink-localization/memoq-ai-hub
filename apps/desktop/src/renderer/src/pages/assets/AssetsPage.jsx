@@ -109,6 +109,7 @@ export default function AssetsPage({
                             <Tag>{t(`context.assetType.${asset.type}`)}</Tag>
                             {usageProfiles.length > 0 && <Tag color="blue">{usageProfiles.length}</Tag>}
                           </Space>
+                          {asset.type === 'glossary' ? <Text type="secondary">{t(asset.tbDirectionMode === 'automatic' ? 'context.assetAutomaticDirection' : 'context.assetLegacyDirection')}</Text> : null}
                           {languages.length ? (
                             <Space wrap size={[8, 8]} aria-label={t('context.assetConfiguredLanguages')}>
                               {languages.map((language) => <Tag key={language}>{languageOptions.get(language)?.label || language}</Tag>)}

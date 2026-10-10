@@ -174,3 +174,35 @@ test('update actions keep browser download available during checks, downloads an
   }
   assert.equal(canDownloadUpdate({ updateStatus: 'error', currentVersion: '1.0.2', latestVersion: '1.0.1', availableAssets: { portable: { url: 'https://example.com', sha256: 'x' } } }), false);
 });
+
+test('asset preview separates language columns from scoped rules and blocks incomplete rule saves', async () => {
+  const { default: AssetPreviewDrawer } = await loadRendererComponent('/src/components/AssetPreviewDrawer.jsx');
+  // The drawer has only useContext; render a wrapper to collect its real elements and handlers.
+  let drawer;
+  function Capture({ controller }) { drawer = AssetPreviewDrawer({ controller }); return null; }
+  const controls = (node, result = []) => {
+    if (!node || typeof node !== 'object') return result;
+    if (node.props?.onChange || node.props?.onClick) result.push(node);
+    for (const child of [node.props?.children].flat(Infinity)) controls(child, result);
+    return result;
+  };
+  let draft = { directionMode: 'automatic', hasHeader: true, languageColumns: [{ columnIndex: 0, language: 'en' }, { columnIndex: 1, language: 'ja' }], ruleLanguagePair: { source: '', target: '' } };
+  const controller = {
+    assetPreviewOpen: true, assetPreviewRecord: { type: 'glossary', name: 'Terms' },
+    assetPreviewData: { availableColumnDetails: [{ columnIndex: 0, columnName: 'en', samples: ['Furnace'] }, { columnIndex: 1, columnName: 'ja', samples: ['大炉'] }], hasDirectionalRules: true, directionalRuleColumns: [{ index: 2, role: 'forbidden' }] },
+    setAssetPreviewManualDraft: (update) => { draft = update(draft); }
+  };
+  function render() { renderToString(createElement(Capture, { controller: { ...controller, assetPreviewManualDraft: draft } })); return controls(drawer); }
+  let items = render();
+  const save = () => items.find((node) => node.props.children === 'context.assetPreviewManualSave');
+  assert.equal(save().props.disabled, true);
+  items.find((node) => node.props['aria-label'] === 'context.assetRuleLanguage.source').props.onChange('en');
+  items = render();
+  items.find((node) => node.props['aria-label'] === 'context.assetRuleLanguage.target').props.onChange('ja');
+  items = render();
+  assert.equal(save().props.disabled, false);
+  items.find((node) => node.props.children === 'context.assetAutomaticDirection').props.onChange({ target: { checked: false } });
+  items = render();
+  assert.equal(draft.directionMode, 'legacy');
+  assert.equal(items.some((node) => node.props['aria-label'] === 'context.assetRuleLanguage.source'), false);
+});

@@ -181,6 +181,7 @@ function normalizeTbEntry(entry = {}, index = 0) {
     id: String(entry.id || `tb-${index + 1}`).trim() || `tb-${index + 1}`,
     assetId: String(entry.assetId || '').trim(),
     assetName: String(entry.assetName || '').trim(),
+    allowReverse: entry.allowReverse !== false,
     sourceTerm: normalizeWhitespace(entry.sourceTerm),
     targetTerm: normalizeWhitespace(entry.targetTerm),
     srcLang: normalizeWhitespace(entry.srcLang),
@@ -336,7 +337,7 @@ function createTerminologyMatcher(entries = []) {
   for (const [key, bucketEntries] of buckets.entries()) {
     const defaultEntries = bucketEntries.filter((entry) => entry.matchMode !== 'normalized');
     const normalizedEntries = bucketEntries.filter((entry) => entry.matchMode === 'normalized');
-    const reverseEntries = bucketEntries.map((entry) => createReverseTerminologyEntry(entry));
+    const reverseEntries = bucketEntries.filter((entry) => entry.allowReverse !== false).map((entry) => createReverseTerminologyEntry(entry));
     const reverseDefaultEntries = reverseEntries.filter((entry) => entry.matchMode !== 'normalized');
     const reverseNormalizedEntries = reverseEntries.filter((entry) => entry.matchMode === 'normalized');
     compiledBuckets.set(key, {
@@ -714,7 +715,20 @@ function evaluateTerminologyQa({ translatedText, matches = [] } = {}) {
   };
 }
 
+/** Whether a row contains an effective source/target-specific rule.
+ * @param {Record<string, any>} entry
+ */
+function hasEffectiveDirectionalRule(entry) {
+  const variants = Array.isArray(entry.allowedVariants) ? entry.allowedVariants : String(entry.allowedVariants || '').split(/[|;,\n]+/);
+  return normalizeBoolean(entry.forbidden) || normalizeBoolean(entry.caseSensitive)
+    || variants.some((value) => normalizeWhitespace(value))
+    || normalizeMatchMode(entry.matchMode) !== 'phrase'
+    || (Number.isFinite(Number(entry.priority)) && Number(entry.priority) !== 0)
+    || Boolean(normalizeWhitespace(entry.partOfSpeech));
+}
+
 module.exports = {
+  hasEffectiveDirectionalRule,
   terminologyLanguageMatches,
   NORMALIZED_MATCHER_VERSION,
   createTbFingerprint,

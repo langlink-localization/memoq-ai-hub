@@ -199,3 +199,98 @@ test('CSV tabs inside a quoted term do not change the delimiter', (t) => {
   assert.equal(parsed.entries.length, 3);
   assert.equal(parsed.entries[0].sourceTerm, 'save\tnow');
 });
+
+test('automatic bilingual assets are concepts and preserve both translation directions', (t) => {
+  const asset = fixture(t, 'en,ja\nFurnace,大熔炉\n', { tbDirectionMode: 'automatic' });
+  const parsed = parseGlossaryAsset(asset);
+  assert.equal(parsed.parseInfo.tbStructure.kind, 'multilingual');
+  assert.deepEqual(matches(parsed, 'Furnace', 'en', 'ja'), ['大熔炉']);
+  assert.deepEqual(matches(parsed, '大熔炉', 'ja', 'en'), ['Furnace']);
+  const preview = buildAssetPreview(asset, parsed);
+  assert.equal(preview.previewLayout, 'concepts');
+  assert.equal(preview.rowCount, 1);
+  assert.deepEqual(preview.rows, [{ language_0: 'Furnace', language_1: '大熔炉' }]);
+});
+
+test('automatic multi-language rules only match the chosen direction while plain rows remain reusable', (t) => {
+  const asset = fixture(t, 'en,zh,ja,forbidden,allowedVariants\nFurnace,大熔炉,大炉,true,\nsave,保存,保存する,,\n', {
+    tbDirectionMode: 'automatic', tbRuleLanguagePair: { source: 'zh', target: 'ja' }
+  });
+  const parsed = parseGlossaryAsset(asset);
+  const rules = matchTbEntries({ matcher: parsed.matcher, text: '大熔炉3级', srcLang: 'zh', tgtLang: 'ja' });
+  assert.equal(rules.length, 1);
+  assert.equal(rules[0].entry.forbidden, true);
+  assert.equal(rules[0].entry.allowReverse, false);
+  assert.deepEqual(matches(parsed, '大炉', 'ja', 'zh'), []);
+  assert.deepEqual(matches(parsed, 'Furnace', 'en', 'ja'), []);
+  for (const [source, text] of [['en', 'save'], ['zh', '保存'], ['ja', '保存する']]) {
+    for (const [target, expected] of [['en', 'save'], ['zh', '保存'], ['ja', '保存する']]) {
+      if (source !== target) assert.deepEqual(matches(parsed, text, source, target), [expected]);
+    }
+  }
+});
+
+test('unscoped directional rows fail closed and a validated save restores only their chosen direction', (t) => {
+  const asset = fixture(t, 'en,zh,ja,allowedVariants\nFurnace,大熔炉,大熔炉,大熔炉Lv\n', { tbDirectionMode: 'automatic' });
+  const parsed = parseGlossaryAsset(asset);
+  assert.equal(parsed.parseInfo.ruleDirectionRequired, true);
+  assert.equal(parsed.entries.length, 0);
+  let saves = 0;
+  const cache = new Map();
+  const service = createRuntimeAssetTbService({ loadState: () => ({ assets: [asset] }), saveState: () => { saves++; }, parsedAssetCache: cache });
+  const languageColumns = [{ columnIndex: 0, language: 'en' }, { columnIndex: 1, language: 'zh' }, { columnIndex: 2, language: 'ja' }];
+  assert.throws(() => service.saveAssetTbConfig(asset.id, { languageColumns }), /Choose the original/);
+  assert.equal(saves, 0);
+  getParsedAsset(asset, cache);
+  service.saveAssetTbConfig(asset.id, { languageColumns, ruleLanguagePair: { source: 'zh', target: 'ja' } });
+  assert.equal(cache.size, 0);
+  const reloaded = ensureAsset(JSON.parse(JSON.stringify(asset)));
+  assert.equal(reloaded.tbDirectionMode, 'automatic');
+  const updated = getParsedAsset(reloaded, cache);
+  assert.deepEqual(updated.entries[0].allowedVariants, ['大熔炉Lv']);
+  assert.deepEqual(matches(updated, '大熔炉', 'ja', 'zh'), []);
+  assert.deepEqual(matches(updated, '大熔炉', 'zh', 'ja'), ['大熔炉']);
+});
+
+test('legacy rules retain their published reverse behavior until explicitly changed', (t) => {
+  const legacy = fixture(t, 'sourceTerm,targetTerm,srcLang,tgtLang,forbidden,allowedVariants\nFurnace,大炉,en,ja,true,炉\n');
+  assert.equal(ensureAsset(legacy).tbDirectionMode, 'legacy');
+  const before = parseGlossaryAsset(legacy);
+  assert.deepEqual(matches(before, '大炉', 'ja', 'en'), ['Furnace']);
+  const after = parseGlossaryAsset({ ...legacy, tbDirectionMode: 'automatic' });
+  assert.deepEqual(matches(after, '大炉', 'ja', 'en'), []);
+  assert.deepEqual(matches(after, 'Furnace', 'en', 'ja'), ['大炉']);
+  assert.deepEqual(after.entries[0].allowedVariants, ['炉']);
+});
+
+test('existing explicit mapping survives reload and requires opt-in for language-neutral preview', (t) => {
+  const asset = fixture(t, 'en,ja\nFurnace,大熔炉\n');
+  const initial = parseGlossaryAsset(asset);
+  asset.tbStructure = initial.parseInfo.tbStructure;
+  const cache = new Map();
+  const legacy = getParsedAsset(asset, cache);
+  const auto = getParsedAsset({ ...asset, tbDirectionMode: 'automatic' }, cache);
+  assert.equal(legacy.parseInfo.tbStructure.kind, 'bilingual');
+  assert.equal(auto.parseInfo.tbStructure.kind, 'bilingual'); // persisted mapping retains priority
+  const service = createRuntimeAssetTbService({ loadState: () => ({ assets: [asset] }), saveState: () => {}, parsedAssetCache: cache });
+  service.saveAssetTbConfig(asset.id, { directionMode: 'automatic', languageColumns: [{ columnIndex: 0, language: 'en' }, { columnIndex: 1, language: 'ja' }] });
+  assert.equal(parseGlossaryAsset(ensureAsset(asset)).parseInfo.tbStructure.kind, 'multilingual');
+});
+
+test('empty and ineffective rule cells do not restrict ordinary multilingual concepts', (t) => {
+  const asset = fixture(t, 'en,zh,ja,forbidden,caseSensitive,priority,matchMode,allowedVariants\nsave,保存,保存する,false,false,0,phrase,\n', { tbDirectionMode: 'automatic' });
+  const parsed = parseGlossaryAsset(asset);
+  assert.equal(parsed.parseInfo.ruleDirectionRequired, false);
+  assert.equal(parsed.parseInfo.hasDirectionalRules, false);
+  assert.equal(parsed.entries.length, 3);
+  assert.deepEqual(matches(parsed, '保存する', 'ja', 'en'), ['save']);
+  const service = createRuntimeAssetTbService({ loadState: () => ({ assets: [asset] }), saveState: () => {}, parsedAssetCache: new Map() });
+  assert.doesNotThrow(() => service.saveAssetTbConfig(asset.id, { languageColumns: [{ columnIndex: 0, language: 'en' }, { columnIndex: 1, language: 'zh' }, { columnIndex: 2, language: 'ja' }] }));
+});
+
+test('directional rows with missing target cells do not produce empty translation rules', (t) => {
+  const parsed = parseGlossaryAsset(fixture(t, 'en,ja,forbidden\nFurnace,,true\n', {
+    tbDirectionMode: 'automatic', tbRuleLanguagePair: { source: 'en', target: 'ja' }
+  }));
+  assert.deepEqual(parsed.entries, []);
+});

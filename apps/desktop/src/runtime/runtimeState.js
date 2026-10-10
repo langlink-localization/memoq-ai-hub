@@ -557,6 +557,9 @@ function ensureAsset(asset = {}) {
     sha256: String(normalized.sha256 || '').trim(),
     createdAt: String(normalized.createdAt || '').trim(),
     tbStructure,
+    tbDirectionMode: normalized.tbDirectionMode === 'automatic' ? 'automatic' : 'legacy',
+    tbRuleLanguagePair: normalized.tbRuleLanguagePair && typeof normalized.tbRuleLanguagePair === 'object'
+      ? { source: String(normalized.tbRuleLanguagePair.source || '').trim(), target: String(normalized.tbRuleLanguagePair.target || '').trim() } : null,
     tbManualMapping,
     tbHasHeader: normalized.tbHasHeader !== false,
     tbLanguageColumns: Array.isArray(normalized.tbLanguageColumns) ? normalized.tbLanguageColumns.map((column) => ({ columnIndex: column.columnIndex, language: String(column.language || '') })) : [],

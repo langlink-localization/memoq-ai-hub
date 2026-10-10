@@ -103,7 +103,20 @@ function buildAssetContext({
       const parsed = getParsedAsset(entry.asset, cache, {
         smartParsingAvailable: profile?.smartTbParsingAvailable === true
       });
-      assetSnapshots.push({ id: entry.asset.id, name: entry.asset.name, purpose, fingerprint: hashObject({ sha256: entry.asset.sha256, columns: entry.asset.tbLanguageColumns, hasHeader: entry.asset.tbHasHeader, entries: parsed.entries }), languagePairs: [...new Set((parsed.entries || []).map((/** @type {any} */ item) => `${item.srcLang || "*"}|${item.tgtLang || "*"}`))], entryCount: parsed.entries?.length || 0, hasContent: Boolean(parsed.text || parsed.entries?.length) });
+      const languageDirections = [...new Set((parsed.entries || []).flatMap((/** @type {any} */ item) => {
+        const source = item.srcLang || item.sourceLang || '*';
+        const target = item.tgtLang || item.targetLang || '*';
+        return [`${source}|${target}`, ...(item.allowReverse !== false ? [`${target}|${source}`] : [])];
+      }))];
+      assetSnapshots.push({
+        id: entry.asset.id, name: entry.asset.name, purpose,
+        fingerprint: hashObject({ sha256: entry.asset.sha256, columns: entry.asset.tbLanguageColumns, hasHeader: entry.asset.tbHasHeader, entries: parsed.entries }),
+        directionMode: parsed.parseInfo?.directionMode || 'legacy',
+        ruleDirectionRequired: parsed.parseInfo?.ruleDirectionRequired === true,
+        languageDirections,
+        languagePairs: [...new Set((parsed.entries || []).map((/** @type {any} */ item) => `${item.srcLang || "*"}|${item.tgtLang || "*"}`))],
+        entryCount: parsed.entries?.length || 0, hasContent: Boolean(parsed.text || parsed.entries?.length)
+      });
       if (purpose === ASSET_PURPOSES.glossary) {
         glossaryEntries.push({
           ...parsed,

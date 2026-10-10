@@ -1,5 +1,7 @@
 const zhCN = {
   evidence: {
+    configuration_required: '术语规则需要配置方向',
+    configuration_requiredHint: '普通术语仍可匹配。请在资产预览中设置并保存带规则行的适用方向。',
     deliveryUnknown: '发送未确认（请求失败）',
     currentProfile: '当前保存的配置',
     language_mismatch: '资产不包含当前语言对',
@@ -477,6 +479,14 @@ const zhCN = {
     assetFirstRowHeader: '第一行是表头（取消勾选可保留第一行术语）',
     assetSelectedLanguages: '已选择 {{count}} 个语言栏位，至少需要 2 个。',
     assetConfiguredLanguages: '已配置的语言',
+    assetRuleScope: '方向性规则',
+    assetAutomaticDirection: '使用时按翻译方向自动匹配语言',
+    assetAutomaticDirectionHint: '只需确认每栏的语言。普通术语可双向使用，实际语言方向由翻译请求决定。',
+    assetLegacyDirection: '保留原有匹配行为',
+    assetLegacyDirectionHint: '此资产继续沿用原有匹配行为。启用自动匹配后，将采用新的方向性规则处理方式。',
+    assetRuleDirectionHint: '禁用译法、允许变体和匹配规则仅用于下方方向。包含这些规则的行不会反向使用，也不会用于其他语言对。',
+    assetRuleDirectionRequired: '请设置并保存规则适用的方向，带规则的行才会生效。普通术语行仍可使用。',
+    assetRuleLanguage: { source: '规则的原文语言', target: '规则的译文语言' },
     assetLanguageColumnsTitle: "确认术语表的语言栏位",
     assetLanguageColumnsHint: "确认是否有表头，再为每个术语栏位选择语言，备注等栏位留空。至少选择两种语言；同一文件可用于这些语言之间的翻译，无需重复上传。",
     assetColumnLanguage: "栏位语言",
@@ -537,6 +547,7 @@ const zhCN = {
       brief: '说明'
     },
     assetPreviewColumn: {
+      rules: '规则',
       source: '源文',
       target: '目标',
       sourceTerm: '源术语',

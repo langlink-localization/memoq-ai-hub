@@ -7,6 +7,7 @@ const {
   normalizeAssetPurpose
 } = require('./assetRules');
 const {
+  hasEffectiveDirectionalRule,
   createTbFingerprint,
   createTbMatcher,
   normalizeTbEntry
@@ -16,6 +17,8 @@ const {
   normalizeCustomTmEntry
 } = require('./assetTmMatcher');
 const {
+  tableHasDirectionalRules,
+  detectTbRuleColumns,
   prepareTbTableRows,
   buildDetectedMapping,
   buildEntriesFromTbStructure,
@@ -168,6 +171,7 @@ function parseAllowedVariants(value) {
 function mapEntryRow(raw = {}, index = 0) {
   return normalizeTbEntry({
     id: raw.id || `tb-${index + 1}`,
+    allowReverse: raw.allowReverse,
     sourceTerm: raw.sourceTerm,
     targetTerm: raw.targetTerm,
     srcLang: raw.srcLang,
@@ -284,7 +288,7 @@ function finalizeParsedTable({ entries = [], rows = [], assignments = {}, warnin
   const headerCells = Array.isArray(rows[0]) ? rows[0].map((cell) => normalizeWhitespace(cell)) : [];
   const unmappedColumns = headerCells
     .map((name, index) => ({ columnIndex: index, columnName: name || `Column ${index + 1}` }))
-    .filter((column) => !assignedIndexes.has(column.columnIndex));
+    .filter((/** @type {any} */ column) => !assignedIndexes.has(column.columnIndex));
 
   return {
     entries: entries.filter(Boolean).slice(0, tbStructure?.kind === 'multilingual' ? 50000 : MAX_GLOSSARY_ROWS).map((/** @type {any} */ entry, /** @type {any} */ index) => mapEntryRow(entry, index)),
@@ -435,7 +439,7 @@ function parseTableRowsSmart(rows = []) {
     normalizedName: normalizeHeader(name),
     profile: summarizeColumnSamples(rows.slice(1), index)
   }));
-  const strongHeaderCount = columns.filter((column) =>
+  const strongHeaderCount = columns.filter((/** @type {any} */ column) =>
     [...SMART_REQUIRED_ROLES, 'domain', 'client', 'project', 'forbidden', 'note', 'id']
       .some((role) => scoreSmartRole(role, column, columns) >= 82)
   ).length;
@@ -452,7 +456,7 @@ function parseTableRowsSmart(rows = []) {
 
   for (const role of rolePriority) {
     const candidates = columns
-      .filter((column) => !usedColumns.has(column.index))
+      .filter((/** @type {any} */ column) => !usedColumns.has(column.index))
       .map((column) => ({ column, score: scoreSmartRole(role, column, columns) }))
       .sort((left, right) => right.score - left.score);
 
@@ -911,8 +915,7 @@ function parseGlossaryAsset(asset, options = {}) {
   }
 
   const activeStructure = manualStructure
-    || explicitStructure
-    || persistedStructure
+    || (asset.tbDirectionMode === 'automatic' ? persistedStructure || explicitStructure : explicitStructure || persistedStructure)
     || ((parsed?.parseInfo?.parsingMode === 'fallback' || parsed?.parseInfo?.usedFallbackMapping === true) ? derivedStructure : null);
   if (tableLike && activeStructure && rawRows.length > 1) {
     const structuredEntries = buildEntriesFromTbStructure(rawRows, activeStructure);
@@ -998,6 +1001,19 @@ function parseGlossaryAsset(asset, options = {}) {
     parsed.parseInfo.languageColumns = activeStructure?.languageColumns || (activeStructure?.languagePair?.source && activeStructure?.languagePair?.target
       ? [{ columnIndex: activeStructure.matchColumnIndex, language: activeStructure.languagePair.source },
         { columnIndex: activeStructure.targetColumnIndex, language: activeStructure.languagePair.target }] : []);
+  }
+  if (asset.tbDirectionMode === 'automatic') {
+    parsed.entries = (parsed.entries || []).map((/** @type {any} */ entry) => ({ ...entry, allowReverse: entry.allowReverse !== false && !hasEffectiveDirectionalRule(entry) }));
+  }
+  parsed.parseInfo.directionMode = asset.tbDirectionMode === 'automatic' ? 'automatic' : 'legacy';
+  parsed.parseInfo.ruleLanguagePair = activeStructure?.ruleLanguagePair || asset.tbRuleLanguagePair || activeStructure?.languagePair || asset.tbLanguagePair || { source: '', target: '' };
+  parsed.parseInfo.directionalRuleColumns = (tableLike ? detectTbRuleColumns(rawRows[0] || [], (parsed.parseInfo.languageColumns || []).map((/** @type {any} */ column) => column.columnIndex)) : []).filter((/** @type {any} */ column) => ['forbidden', 'allowedVariants', 'caseSensitive', 'matchMode', 'priority', 'partOfSpeech'].includes(column.role));
+  parsed.parseInfo.hasDirectionalRules = tableLike && tableHasDirectionalRules(rawRows, parsed.parseInfo.directionalRuleColumns);
+  const rulePair = parsed.parseInfo.ruleLanguagePair;
+  parsed.parseInfo.ruleDirectionRequired = parsed.parseInfo.directionMode === 'automatic' && parsed.parseInfo.languageColumns?.length >= 2 && parsed.parseInfo.hasDirectionalRules && (!parsed.parseInfo.languageColumns?.some((/** @type {any} */ column) => column.language === rulePair.source) || !parsed.parseInfo.languageColumns?.some((/** @type {any} */ column) => column.language === rulePair.target) || rulePair.source === rulePair.target);
+  if (tableLike) {
+    parsed.parseInfo.conceptRows = rawRows.slice(1, 51);
+    parsed.parseInfo.conceptCount = Math.max(0, rawRows.length - 1);
   }
   const limitedEntries = (parsed.entries || []).filter(Boolean).slice(0, activeStructure?.kind === 'multilingual' ? 50000 : MAX_GLOSSARY_ROWS);
   const renderedText = truncateText(createRenderedTb(limitedEntries), MAX_GLOSSARY_CHARACTERS);

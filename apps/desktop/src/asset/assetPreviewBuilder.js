@@ -77,6 +77,20 @@ function buildAssetPreview(asset, parsed, options = {}, helpers = /** @type {Ass
     }
   }
 
+  if (assetType === ASSET_PURPOSES.glossary && parsed.parseInfo?.directionMode === 'automatic' && parsed.parseInfo?.languageColumns?.length >= 2) {
+    const info = parsed.parseInfo;
+    const ruleColumns = info.directionalRuleColumns || [];
+    return {
+      ...info, type: assetType, previewLayout: 'concepts', rowCount: info.conceptCount,
+      columns: [...info.languageColumns.map((/** @type {any} */ column) => `language_${column.columnIndex}`), ...(ruleColumns.length ? ['rules'] : [])],
+      columnLanguages: Object.fromEntries(info.languageColumns.map((/** @type {any} */ column) => [`language_${column.columnIndex}`, column.language])),
+      rows: (info.conceptRows || []).slice(0, maxRows).map((/** @type {any[]} */ cells) => ({
+        ...Object.fromEntries(info.languageColumns.map((/** @type {any} */ column) => [`language_${column.columnIndex}`, cells[column.columnIndex] || ''])),
+        ...(ruleColumns.length ? { rules: ruleColumns.map((/** @type {any} */ column) => ({ role: column.role, value: cells[column.index] || '' })).filter((/** @type {any} */ rule) => rule.value) } : {})
+      })),
+      truncated: info.conceptCount > Math.min(maxRows, (info.conceptRows || []).length)
+    };
+  }
   if (assetType === ASSET_PURPOSES.glossary) {
     return {
       type: assetType,

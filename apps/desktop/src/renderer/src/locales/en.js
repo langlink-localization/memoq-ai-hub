@@ -1,5 +1,7 @@
 const en = {
   evidence: {
+    configuration_required: 'Rule direction needs configuration',
+    configuration_requiredHint: 'Ordinary terms can still match. Choose and save the direction for rule-bearing rows in the asset preview.',
     deliveryUnknown: 'Delivery unconfirmed (request failed)',
     currentProfile: 'Current saved profile',
     language_mismatch: 'Language pair not available',
@@ -477,6 +479,14 @@ const en = {
     assetFirstRowHeader: 'First row is a header (uncheck to keep the first term row)',
     assetSelectedLanguages: '{{count}} language columns selected; at least 2 are required.',
     assetConfiguredLanguages: 'Configured languages',
+    assetRuleScope: 'Directional rule',
+    assetAutomaticDirection: 'Match languages automatically for each translation',
+    assetAutomaticDirectionHint: 'Assign languages to columns once. Ordinary terms work in either direction; the translation request selects the languages.',
+    assetLegacyDirection: 'Existing matching behavior',
+    assetLegacyDirectionHint: 'This asset keeps its existing matching behavior. Enable automatic language matching to adopt the new handling of directional rules.',
+    assetRuleDirectionHint: 'Forbidden terms, allowed variants and matching rules apply only in the direction below. Rows containing these rules are not reversed or reused for other language pairs.',
+    assetRuleDirectionRequired: 'Choose and save the direction for rule-bearing rows before they can be used. Ordinary rows remain available.',
+    assetRuleLanguage: { source: 'Original language for rules', target: 'Translation language for rules' },
     assetLanguageColumnsTitle: "Confirm terminology language columns",
     assetLanguageColumnsHint: "Confirm whether the table has a header, then choose a language for each term column; leave notes and other columns unset. Select at least two languages. Reuse this file for translation between these languages without uploading it again.",
     assetColumnLanguage: "Column language",
@@ -537,6 +547,7 @@ const en = {
       brief: 'Brief'
     },
     assetPreviewColumn: {
+      rules: 'Rules',
       source: 'Source',
       target: 'Target',
       sourceTerm: 'Source term',

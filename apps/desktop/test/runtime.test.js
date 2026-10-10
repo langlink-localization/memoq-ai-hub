@@ -5306,7 +5306,7 @@ test('runtime applies detected tb structure explicitly after preview and persist
   }
 });
 
-test('runtime infers explicit bilingual tb structure, language pair, and tb metadata text for prompt rendering', async () => {
+test('runtime imports language-neutral bilingual assets and renders metadata for the requested direction', async () => {
   const tempRoot = createTempAppRoot();
   const providerCalls = [];
   try {
@@ -5341,9 +5341,12 @@ test('runtime infers explicit bilingual tb structure, language pair, and tb meta
     });
 
     const glossaryAsset = runtime.importAssetFromPath('glossary', glossarySourcePath);
+    assert.equal(glossaryAsset.tbDirectionMode, 'automatic');
     const preview = runtime.getAssetPreview(glossaryAsset.id);
     assert.equal(preview.tbStructuringMode, 'explicitly_inferred');
-    assert.deepEqual(preview.languagePair, { source: 'en-US', target: 'zh-CN' });
+    assert.deepEqual(preview.languagePair, { source: '', target: '' });
+    assert.equal(preview.previewLayout, 'concepts');
+    assert.deepEqual(preview.languageColumns.map((column) => column.language), ['en-US', 'zh-CN']);
 
     const profile = await runtime.saveProfile({
       name: 'Structured TB Metadata Profile',
