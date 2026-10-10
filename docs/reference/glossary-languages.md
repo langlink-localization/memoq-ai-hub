@@ -32,6 +32,29 @@ Regression coverage includes all six directions of a three-language glossary, or
 
 The Note column shows actual comments rather than flattened entry and term metadata. Expand **Details** for labelled IDs, categories, definitions, scope and parsed rules; values can be copied. Multilingual previews retain non-language columns and identify repeated headers by their file column number. Custom TM previews also expose available metadata and context.
 
-Imported metadata such as memoQ `Term_Info` is reference information, not proof that the Hub applies that matching rule. Use **Test assets** to verify the production matcher for a sample segment and language pair.
+Metadata alone does not prove that a rule ran. The rule summaries below distinguish executable memoQ rules from reference metadata. Use **Test assets** with a source segment and optional target to verify actual behavior locally.
 
 Regional export headers such as `English_United_States` and `Portuguese_Brazil` are normalized to `en-US` and `pt-BR`. Existing mappings receive the same normalization in the preview and when saved. Unrecognized or duplicate languages name the affected columns so they can be corrected or left unassigned.
+
+
+## memoQ term rules
+
+Starting in v1.0.57, language-associated `Term_Info` and QTerm `Term_CaseSensitivity`, `Term_PrefixMatching`, and `Term_Forbidden` columns feed a shared deterministic source matcher and target checker. Rules are associated with the preceding language column, including repeated headers. Notes are never interpreted as rules.
+
+| Export rule | Hub behavior |
+| --- | --- |
+| `CaseSense` / `CaseSensitive` | Case-sensitive term occurrence |
+| `CasePermissive` | Uppercase letters in the registered term must match; lowercase letters are flexible (`memoQ` matches `MEMOQ`, not `memoq`) |
+| `CaseInsense` / `CaseInsensitive` | Case-insensitive occurrence |
+| `NoPrefix` / `Exact` | Complete word edges; no suffix extension |
+| `HalfPrefix` | Each word may acquire a letter suffix no longer than that word (`reviewing` matches `review`; `reviewability` does not) |
+| `NonTerm` | A forbidden source term is not suggested; a forbidden target term is checked as a prohibited translation |
+| `Prefix` / `Fuzzy`, `Custom`, wildcard markers, unknown or conflicting rules | Shown as unsupported; affected entries are excluded from matching and target checks |
+
+An existing but empty rule field uses memoQ's defaults: CasePermissive and HalfPrefix. Grammar tokens remain reference metadata. A missing rule field retains the existing Hub matcher. Literal CJK terms retain contiguous-text lookup; suffix matching handles Latin, Cyrillic and Greek letters, not morphological stemming or fuzzy edits. Hyphenated word extensions do not match a base word. This is deterministic compatibility, not memoQ's proprietary fuzzy engine.
+
+Source and target rules travel with their language terms when the direction changes. They do not make an ordinary multilingual asset directional. Existing row-level forbidden flags, variants, scope and directional configuration remain in force; an explicit row-level case-sensitive flag also constrains matching. Unsupported entries produce a warning even when no term is matched, so the result does not claim full rule compliance.
+
+Expand a preview row to inspect raw rules, effective case/matching behavior, defaults and unsupported tokens. **Test assets** uses the production source matcher and, when an optional target is supplied, the same terminology QA as translation. It does not invoke AI. Result evidence shows the actual source span, language-side rules and target check outcome; it records facts at generation time without rewriting old history. Matcher fingerprints invalidate exact translation cache keys after the rule upgrade.
+
+Reference: [memoQ CSV fields](https://docs.memoq.com/current/api-docs/wsapi/memoqservices/tbservice.importexport.csv.html) and [term matching settings](https://docs.memoq.com/current/en/Workspace/edit-term-base-entry.html).

@@ -111,6 +111,7 @@ function buildAssetContext({
       assetSnapshots.push({
         id: entry.asset.id, name: entry.asset.name, purpose,
         fingerprint: hashObject({ sha256: entry.asset.sha256, columns: entry.asset.tbLanguageColumns, hasHeader: entry.asset.tbHasHeader, entries: parsed.entries }),
+        memoqRules: parsed.parseInfo?.memoqRules || null,
         directionMode: parsed.parseInfo?.directionMode || 'legacy',
         ruleDirectionRequired: parsed.parseInfo?.ruleDirectionRequired === true,
         languageDirections,

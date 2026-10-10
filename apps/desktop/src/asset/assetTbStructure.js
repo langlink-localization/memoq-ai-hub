@@ -1,3 +1,4 @@
+const { rulesFromColumns } = require('./memoqTermRules');
 const crypto = require('crypto');
 const { hasEffectiveDirectionalRule } = require('./assetTerminology');
 const { normalizeCanonicalLanguageTag, resolveAssetLanguage } = require('../shared/languageNormalization');
@@ -26,7 +27,7 @@ const TB_STRUCTURE_MATCH_HINTS = ['sourceterm', 'source', 'term', 'subject', 'en
 const TB_STRUCTURE_TARGET_HINTS = ['targetterm', 'target', 'translation', 'translated', 'chinese', 'prc', 'zh', 'cn', 'def'];
 const TB_STRUCTURE_NOTE_HINTS = ['note', 'info', 'example', 'definition', 'remark', 'comment'];
 const TB_SIDE_META_SUFFIXES = ['def', 'definition'];
-const TB_SIDE_META_GENERIC_HEADERS = ['terminfo', 'termexample'];
+const TB_SIDE_META_GENERIC_HEADERS = ['terminfo', 'termexample', 'termcasesensitivity', 'termprefixmatching', 'termforbidden'];
 
 /** @typedef {Record<string, any>} TbStructureEntry */
 
@@ -719,6 +720,8 @@ function buildEntriesFromTbStructure(rows = [], structure = {}) {
       return {
         sourceTerm,
         targetTerm,
+        sourceRules: rulesFromColumns(structure.sourceMetaColumns, cells, sourceTerm),
+        targetRules: rulesFromColumns(structure.targetMetaColumns, cells, targetTerm),
         srcLang: structure.languagePair?.source || '',
         tgtLang: structure.languagePair?.target || '',
         domain: '',

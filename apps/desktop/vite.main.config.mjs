@@ -14,6 +14,7 @@ export default defineConfig({
     rolldownOptions: {
       preserveEntrySignatures: 'strict',
       input: {
+        'asset/memoqTermRules': path.resolve(__dirname, 'src/asset/memoqTermRules.js'),
         'asset/assetBriefParser': path.resolve(__dirname, 'src/asset/assetBriefParser.js'),
         'asset/assetContext': path.resolve(__dirname, 'src/asset/assetContext.js'),
         'asset/assetContextAssembler': path.resolve(__dirname, 'src/asset/assetContextAssembler.js'),

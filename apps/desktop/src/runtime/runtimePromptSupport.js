@@ -93,6 +93,8 @@ function buildSegmentTbContext({
     targetLanguage: String(match.entry?.tgtLang || payload?.targetLanguage || ''),
     direction: match.entry?.matchDirection || 'forward',
     directionalRule: match.entry?.allowReverse === false,
+    sourceRules: match.entry?.sourceRules || null,
+    targetRules: match.entry?.targetRules || null,
     forbidden: Boolean(match.forbidden ?? match?.entry?.forbidden),
     note: String(match.note || match?.entry?.note || ''),
     priority: Number(match.priority ?? match?.entry?.priority ?? 0),

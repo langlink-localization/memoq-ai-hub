@@ -1,3 +1,4 @@
+const { MEMOQ_RULE_VERSION } = require('./memoqTermRules');
 const fs = require('fs');
 
 const { ASSET_PURPOSES, normalizeAssetPurpose } = require('./assetRules');
@@ -46,7 +47,7 @@ function parseAsset(asset, options = {}, helpers = {}) {
 function getParsedAsset(asset, cache, options = {}, helpers = {}) {
   const parsingModeKey = options.smartParsingAvailable === true ? 'smart' : 'fallback';
   const configKey = JSON.stringify([asset.tbDirectionMode, asset.tbRuleLanguagePair, asset.tbHasHeader, asset.tbLanguageColumns, asset.tbManualMapping, asset.tbLanguagePair, asset.tbStructure?.fingerprint]);
-  const cacheKey = `${asset.id}:${asset.sha256 || ''}:${parsingModeKey}:${configKey}`;
+  const cacheKey = `${asset.id}:${MEMOQ_RULE_VERSION}:${asset.sha256 || ''}:${parsingModeKey}:${configKey}`;
   if (cache?.has(cacheKey)) {
     return cache.get(cacheKey);
   }

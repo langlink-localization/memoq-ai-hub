@@ -215,6 +215,10 @@ test('asset glossary parser preserves inferred tb structure metadata for explici
     assert.deepEqual(parsed.parseInfo.languagePair, { source: 'en-US', target: 'zh-CN' });
     assert.equal(parsed.entries[0].sourceTerm, 'hero');
     assert.equal(parsed.entries[0].targetTerm, '英雄');
+    assert.equal(parsed.entries[0].sourceRules.caseMode, 'permissive');
+    assert.equal(parsed.entries[0].sourceRules.matching, 'half_prefix');
+    assert.equal(parsed.entries[0].targetRules.defaults.caseMode, true);
+    assert.equal(parsed.parseInfo.memoqRules.entries, 2);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

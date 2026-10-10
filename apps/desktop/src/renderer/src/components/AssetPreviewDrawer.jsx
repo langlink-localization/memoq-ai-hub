@@ -1,3 +1,4 @@
+import TermRuleSummary from './TermRuleSummary.jsx';
 import { EmptyState } from '@langlink-tech/antd-kit/feedback';
 import { DataTable } from '@langlink-tech/antd-kit/table';
 import { Alert, Button, Card, Checkbox, Collapse, Descriptions, Drawer, Empty, Form, Select, Space, Typography } from 'antd';
@@ -11,6 +12,7 @@ const WIDE_SIDE_DRAWER_WIDTH = 'min(920px, calc(100vw - 32px))';
 export function AssetRowDetails({ row, t }) {
   const groups = [...new Set((row.details || []).map((item) => item.group))];
   return <Space orientation="vertical" size={12} className="app-block-space asset-preview-details">
+    {(row.termRules || []).map((item, index) => <TermRuleSummary key={index} rule={item.rule} label={item.language} t={t} />)}
     <Text type="secondary">{t('context.assetMetadataHint')}</Text>
     {groups.map((group) => <Descriptions key={group} title={group.startsWith('language:') ? `${t('context.assetDetailGroup.language')} · ${group.slice(9)}` : t(`context.assetDetailGroup.${group}`)} bordered column={1} size="small"
       items={row.details.filter((item) => item.group === group).map((item, index) => ({
@@ -95,6 +97,7 @@ export default function AssetPreviewDrawer({ controller }) {
           </Card>
         ) : null}
         {ready && data?.ruleDirectionRequired ? <Alert type="warning" showIcon title={t('context.assetRuleDirectionRequired')} /> : null}
+        {ready && data?.memoqRules?.unsupportedEntries > 0 ? <Alert type="warning" showIcon title={t('evidence.rules_unsupported')} description={t('evidence.rules_unsupportedHint')} /> : null}
         {ready && warnings.length ? <Alert type="warning" showIcon title={t('context.assetPreviewWarnings')} description={warnings.join(' ')} /> : null}
         {ready && Array.isArray(data?.rows) && data.rows.length ? (
           <Card size="small" title={t('context.assetPreviewTitle')} extra={<Text type="secondary">{t('context.assetPreviewRowCount')}: {data.rowCount}</Text>}>
@@ -103,7 +106,7 @@ export default function AssetPreviewDrawer({ controller }) {
                 dataSource={buildAssetPreviewRows(data)}
                 expandable={{
                   columnTitle: t('context.assetRowDetails'), columnWidth: 72,
-                  rowExpandable: (row) => Boolean(row.details?.length),
+                  rowExpandable: (row) => Boolean(row.details?.length || row.termRules?.length),
                   expandedRowRender: (row) => <AssetRowDetails row={row} t={t} />
                 }}
                 columns={(data.columns || Object.keys(data.rows[0] || {})).map((columnKey) => ({

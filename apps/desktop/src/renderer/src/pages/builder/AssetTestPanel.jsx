@@ -11,6 +11,7 @@ export default function AssetTestPanel({ profile, isDirty }) {
   const [sourceLanguage, setSourceLanguage] = useState('zh');
   const [targetLanguage, setTargetLanguage] = useState('ja');
   const [sourceText, setSourceText] = useState('');
+  const [targetText, setTargetText] = useState('');
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
@@ -21,7 +22,7 @@ export default function AssetTestPanel({ profile, isDirty }) {
     if (pending) return;
     setPending(true); setError(''); setResult(null);
     await runLatestRequest(lifecycle, {
-      load: () => window.memoqDesktop.testAssets({ profileId: profile.id, sourceLanguage, targetLanguage, sourceText }),
+      load: () => window.memoqDesktop.testAssets({ profileId: profile.id, sourceLanguage, targetLanguage, sourceText, targetText }),
       resolve: setResult, reject: (failure) => setError(failure.message), settle: () => setPending(false)
     });
   }
@@ -31,6 +32,7 @@ export default function AssetTestPanel({ profile, isDirty }) {
       <Form.Item label={t('evidence.sourceLanguage')}><Select aria-label={t('evidence.sourceLanguage')} value={sourceLanguage} options={options} showSearch={{ optionFilterProp: 'searchLabel' }} onChange={(value) => { invalidate(); setSourceLanguage(value); }} /></Form.Item>
       <Form.Item label={t('evidence.targetLanguage')}><Select aria-label={t('evidence.targetLanguage')} value={targetLanguage} options={options} showSearch={{ optionFilterProp: 'searchLabel' }} onChange={(value) => { invalidate(); setTargetLanguage(value); }} /></Form.Item>
       <Form.Item label={t('history.source')}><Input.TextArea aria-label={t('history.source')} value={sourceText} maxLength={20000} autoSize={{ minRows: 3, maxRows: 8 }} onChange={(event) => { invalidate(); setSourceText(event.target.value); }} /></Form.Item>
+      <Form.Item label={t('evidence.optionalTarget')}><Input.TextArea aria-label={t('evidence.optionalTarget')} value={targetText} maxLength={20000} autoSize={{ minRows: 3, maxRows: 8 }} onChange={(event) => { invalidate(); setTargetText(event.target.value); }} /></Form.Item>
       <Button onClick={test} loading={pending} disabled={isDirty || !sourceText.trim()}>{t('evidence.testAssets')}</Button>
     </Form>
     {error ? <Alert type="error" showIcon title={error} /> : null}

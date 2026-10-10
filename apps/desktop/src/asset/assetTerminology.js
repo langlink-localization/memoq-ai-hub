@@ -1,3 +1,4 @@
+const { matchMemoqAt, containsMemoqTerm, hasUnsupportedMemoqRules, normalizedRuleText, parseMemoqTermRules } = require('./memoqTermRules');
 const crypto = require('crypto');
 const {
   getBaseLanguage,
@@ -5,7 +6,7 @@ const {
   normalizeCanonicalLanguageTag
 } = require('../shared/languageNormalization');
 
-const NORMALIZED_MATCHER_VERSION = 'normalized-ac-v2';
+const NORMALIZED_MATCHER_VERSION = 'normalized-ac-v3-memoq-rules';
 
 /** @typedef {Record<string, any>} TbEntry */
 
@@ -182,6 +183,8 @@ function normalizeTbEntry(entry = {}, index = 0) {
     assetId: String(entry.assetId || '').trim(),
     assetName: String(entry.assetName || '').trim(),
     allowReverse: entry.allowReverse !== false,
+    sourceRules: entry.sourceRules || parseMemoqTermRules(/** @type {any} */ (entry.metadata)?.source, entry.sourceTerm),
+    targetRules: entry.targetRules || parseMemoqTermRules(/** @type {any} */ (entry.metadata)?.target, entry.targetTerm),
     sourceTerm: normalizeWhitespace(entry.sourceTerm),
     targetTerm: normalizeWhitespace(entry.targetTerm),
     srcLang: normalizeWhitespace(entry.srcLang),
@@ -199,8 +202,8 @@ function normalizeTbEntry(entry = {}, index = 0) {
     metadata: entry?.metadata && typeof entry.metadata === 'object' ? entry.metadata : {},
     tbMetadataText: normalizeWhitespace(entry.tbMetadataText)
   };
-  normalized.normalizedSourceTerm = normalizeForMatch(normalized.sourceTerm, normalized);
-  normalized.normalizedTargetTerm = normalizeForMatch(normalized.targetTerm, normalized);
+  normalized.normalizedSourceTerm = normalizeForMatch(normalized.sourceTerm, { ...normalized, caseSensitive: false });
+  normalized.normalizedTargetTerm = normalizeForMatch(normalized.targetTerm, { ...normalized, caseSensitive: false });
   normalized.scopeRank = (normalized.project ? 4 : 0) + (normalized.client ? 2 : 0) + (normalized.domain ? 1 : 0);
   normalized.matchRank = normalized.matchMode === 'exact'
     ? 4
@@ -219,6 +222,8 @@ function normalizeTbEntry(entry = {}, index = 0) {
 function createReverseTerminologyEntry(entry = {}) {
   return {
     ...entry,
+    sourceRules: entry.targetRules,
+    targetRules: entry.sourceRules,
     sourceTerm: entry.targetTerm,
     targetTerm: entry.sourceTerm,
     srcLang: entry.tgtLang,
@@ -235,7 +240,7 @@ function createReverseTerminologyEntry(entry = {}) {
  * @returns {string}
  */
 function createTbFingerprint(entries = []) {
-  return crypto.createHash('sha256').update(JSON.stringify(entries)).digest('hex');
+  return crypto.createHash('sha256').update(JSON.stringify({ version: NORMALIZED_MATCHER_VERSION, entries })).digest('hex');
 }
 
 /**
@@ -269,7 +274,8 @@ function createAutomaton(entries = []) {
     }
 
     let nodeIndex = 0;
-    for (const char of entry.normalizedSourceTerm) {
+    const anchor = entry.sourceRules ? normalizedRuleText(entry.sourceTerm).split(' ')[0].toLowerCase() : entry.normalizedSourceTerm;
+    for (const char of anchor) {
       nodeIndex = ensureNode(nodeIndex, char);
     }
     nodes[nodeIndex].outputs.push(entry);
@@ -443,10 +449,11 @@ function getCandidateBuckets(matcher, srcLang, tgtLang) {
  * @param {{ text: string, map: number[], source: string }} surface
  * @param {number} normalizedStart
  * @param {TbEntry} entry
+ * @param {number=} matchedEnd
  * @returns {Record<string, any> | null}
  */
-function createStructuredHit(surface, normalizedStart, entry) {
-  const normalizedEnd = normalizedStart + entry.normalizedSourceTerm.length;
+function createStructuredHit(surface, normalizedStart, entry, matchedEnd) {
+  const normalizedEnd = matchedEnd ?? normalizedStart + entry.normalizedSourceTerm.length;
   if (normalizedStart < 0 || normalizedEnd > surface.text.length) {
     return null;
   }
@@ -458,6 +465,7 @@ function createStructuredHit(surface, normalizedStart, entry) {
   const matchedText = surface.source.slice(start, end);
   const normalizedMatchText = surface.text.slice(normalizedStart, normalizedEnd);
 
+  entry = { ...entry, forbidden: entry.forbidden === true || entry.targetRules?.forbidden === true };
   return {
     start,
     end,
@@ -478,9 +486,10 @@ function createStructuredHit(surface, normalizedStart, entry) {
 /**
  * @param {{ nodes: any[] }} automaton
  * @param {{ text: string, map: number[], source: string }} surface
+ * @param {{ text: string, map: number[], source: string }} sensitiveSurface
  * @returns {any[]}
  */
-function matchAutomaton(automaton, surface) {
+function matchAutomaton(automaton, surface, sensitiveSurface) {
   const hits = [];
   let nodeIndex = 0;
 
@@ -501,14 +510,25 @@ function matchAutomaton(automaton, surface) {
     }
 
     for (const entry of node.outputs) {
-      const normalizedStart = index - entry.normalizedSourceTerm.length + 1;
-      const normalizedEnd = index + 1;
-      if (!passesBoundary(surface.text, normalizedStart, normalizedEnd, entry)) {
+      const anchor = entry.sourceRules ? normalizedRuleText(entry.sourceTerm).split(' ')[0].toLowerCase() : entry.normalizedSourceTerm;
+      const normalizedStart = index - anchor.length + 1;
+      let normalizedEnd = index + 1;
+      if (hasUnsupportedMemoqRules(entry) || entry.sourceRules?.forbidden === true) continue;
+      if (entry.sourceRules) {
+        const rawStart = surface.map[normalizedStart];
+        const caseStart = sensitiveSurface.map.indexOf(rawStart);
+        const caseEnd = matchMemoqAt(sensitiveSurface.text, caseStart, entry.sourceTerm, entry.sourceRules);
+        if (caseStart < 0 || caseEnd < 0) continue;
+        if (entry.caseSensitive && matchMemoqAt(sensitiveSurface.text, caseStart, entry.sourceTerm, { ...entry.sourceRules, caseMode: 'sensitive' }) < 0) continue;
+        const rawEnd = sensitiveSurface.map[caseEnd - 1] + 1;
+        normalizedEnd = normalizedStart;
+        while (normalizedEnd < surface.map.length && surface.map[normalizedEnd] < rawEnd) normalizedEnd += 1;
+      } else if (!passesBoundary(surface.text, normalizedStart, normalizedEnd, entry)) {
         continue;
       }
-
-      const hit = createStructuredHit(surface, normalizedStart, entry);
+      const hit = createStructuredHit(surface, normalizedStart, entry, normalizedEnd);
       if (hit) {
+        if (!entry.sourceRules && entry.caseSensitive && normalizeForMatch(hit.matchedText, entry) !== normalizeForMatch(entry.sourceTerm, entry)) continue;
         hits.push(hit);
       }
     }
@@ -522,11 +542,14 @@ function matchAutomaton(automaton, surface) {
  * @returns {any[]}
  */
 function dedupeMatches(hits = []) {
+  /** @type {any[]} */
   const selected = [];
   let cursor = -1;
 
   for (const hit of hits) {
     if (hit.normalizedStart < cursor) {
+      const sameSpan = selected.find((item) => item.normalizedStart === hit.normalizedStart && item.normalizedEnd === hit.normalizedEnd);
+      if (sameSpan && (hit.forbidden || sameSpan.forbidden) && !selected.some((item) => item.entryId === hit.entryId && item.entry.assetId === hit.entry.assetId && item.normalizedStart === hit.normalizedStart)) selected.push(hit);
       continue;
     }
     selected.push(hit);
@@ -563,6 +586,7 @@ function terminologyLanguageMatches(entryLanguage, requestLanguage) {
 function matchTbEntries({ matcher, text, srcLang, tgtLang, metadata = {} }) {
   if (!matcher || !text) return [];
 
+  const sensitiveSurface = createNormalizedMatchSurface(text, { caseSensitive: true });
   const surfaces = {
     default: createNormalizedMatchSurface(text, { matchMode: 'phrase' }),
     normalized: createNormalizedMatchSurface(text, { matchMode: 'normalized' })
@@ -572,12 +596,12 @@ function matchTbEntries({ matcher, text, srcLang, tgtLang, metadata = {} }) {
   }
 
   const forwardHits = getCandidateBuckets(matcher, srcLang, tgtLang).flatMap((bucket) => ([
-    ...(surfaces.default.text ? matchAutomaton(bucket.automaton, surfaces.default) : []),
-    ...(surfaces.normalized.text ? matchAutomaton(bucket.normalizedAutomaton, surfaces.normalized) : [])
+    ...(surfaces.default.text ? matchAutomaton(bucket.automaton, surfaces.default, sensitiveSurface) : []),
+    ...(surfaces.normalized.text ? matchAutomaton(bucket.normalizedAutomaton, surfaces.normalized, sensitiveSurface) : [])
   ]));
   const reverseHits = getCandidateBuckets(matcher, tgtLang, srcLang).flatMap((bucket) => ([
-    ...(surfaces.default.text ? matchAutomaton(bucket.reverseAutomaton, surfaces.default) : []),
-    ...(surfaces.normalized.text ? matchAutomaton(bucket.reverseNormalizedAutomaton, surfaces.normalized) : [])
+    ...(surfaces.default.text ? matchAutomaton(bucket.reverseAutomaton, surfaces.default, sensitiveSurface) : []),
+    ...(surfaces.normalized.text ? matchAutomaton(bucket.reverseNormalizedAutomaton, surfaces.normalized, sensitiveSurface) : [])
   ]));
   const hits = [...forwardHits, ...reverseHits].filter((hit) => terminologyLanguageMatches(hit.entry.srcLang, srcLang) && terminologyLanguageMatches(hit.entry.tgtLang, tgtLang));
 
@@ -671,6 +695,7 @@ function renderMatchedTbMetadataBlock(matches = [], tb = {}) {
  * @returns {boolean}
  */
 function includesVariant(haystack, variants = [], entry) {
+  if (entry?.targetRules) return variants.some((variant) => containsMemoqTerm(stripMarkup(haystack), variant, entry.caseSensitive ? { ...entry.targetRules, caseMode: 'sensitive' } : entry.targetRules));
   const normalizedHaystack = normalizeForMatch(haystack, entry);
   return variants.some((variant) => normalizedHaystack.includes(normalizeForMatch(variant, entry)));
 }
@@ -686,7 +711,7 @@ function evaluateTerminologyQa({ translatedText, matches = [] } = {}) {
     const entry = match.entry || match;
     const requiredVariants = [entry.targetTerm, ...(entry.allowedVariants || [])].filter(Boolean);
 
-    if (entry.forbidden) {
+    if (entry.forbidden || entry.targetRules?.forbidden) {
       if (includesVariant(/** @type {string} */ (translatedText), [entry.targetTerm], entry)) {
         issues.push({
           type: 'forbidden_term_present',

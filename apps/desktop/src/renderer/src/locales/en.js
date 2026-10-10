@@ -1,5 +1,16 @@
 const en = {
   evidence: {
+    rules_unsupported: "Some memoQ rules are not supported",
+    rules_unsupportedHint: "Affected terms are excluded from matching and target checks. Review the term details; Custom, Fuzzy and unknown rules require manual review.",
+    ruleDefaults: "memoQ defaults applied",
+    ruleCase_sensitive: "Case-sensitive",
+    ruleCase_permissive: "Uppercase letters must match",
+    ruleCase_insensitive: "Case-insensitive",
+    ruleMatch_exact: "Exact term",
+    ruleMatch_half_prefix: "Suffix up to the base word length",
+    sourceMatch: "Matched source text",
+    optionalTarget: "Target text (optional, checked locally without AI)",
+
     configuration_required: 'Rule direction needs configuration',
     configuration_requiredHint: 'Ordinary terms can still match. Choose and save the direction for rule-bearing rows in the asset preview.',
     deliveryUnknown: 'Delivery unconfirmed (request failed)',

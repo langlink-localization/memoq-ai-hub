@@ -1,5 +1,6 @@
 'use strict';
 
+const { evaluateTerminologyQa } = require('../asset/assetTerminology');
 const { normalizeFinding } = require('./qaContracts');
 
 /** @typedef {Record<string, unknown>} QaFindingInput */
@@ -144,17 +145,21 @@ function runDeterministicChecks(snapshot, options = {}) {
     const variants = [entry.targetTerm, ...(entry.allowedVariants || [])].filter(Boolean);
     const normalizedTarget = target.toLocaleLowerCase();
     const present = variants.some((variant) => normalizedTarget.includes(String(variant).toLocaleLowerCase()));
-    if ((!entry.forbidden && !present) || (entry.forbidden && present)) {
+    const forbidden = entry.forbidden || entry.targetRules?.forbidden;
+    const violated = entry.targetRules
+      ? !evaluateTerminologyQa({ translatedText: target, matches: [match] }).ok
+      : ((!forbidden && !present) || (forbidden && present));
+    if (violated) {
       findings.push({
         category: 'terminology',
         severity: 'major',
-        title: entry.forbidden ? 'Forbidden terminology' : 'Required terminology missing',
-        message: entry.forbidden
+        title: forbidden ? 'Forbidden terminology' : 'Required terminology missing',
+        message: forbidden
           ? `Do not use “${entry.targetTerm}” for “${entry.sourceTerm}”.`
           : `Use “${entry.targetTerm}” for “${entry.sourceTerm}”.`,
         sourceEvidence: String(entry.sourceTerm || ''),
         suggestedTranslation: '',
-        ruleId: entry.forbidden ? 'forbidden-term' : 'required-term',
+        ruleId: forbidden ? 'forbidden-term' : 'required-term',
         termId: String(entry.id || ''),
         confidence: 1
       });

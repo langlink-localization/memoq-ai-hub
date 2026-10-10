@@ -1,5 +1,16 @@
 const zhCN = {
   evidence: {
+    rules_unsupported: "部分 memoQ 规则尚未支持",
+    rules_unsupportedHint: "受影响的术语不参与匹配和译文检查。请查看术语详情；Custom、Fuzzy 和未知规则需要人工确认。",
+    ruleDefaults: "使用 memoQ 默认规则",
+    ruleCase_sensitive: "区分大小写",
+    ruleCase_permissive: "术语中的大写字母必须一致",
+    ruleCase_insensitive: "不区分大小写",
+    ruleMatch_exact: "完整词匹配",
+    ruleMatch_half_prefix: "词尾增量不超过原词长度",
+    sourceMatch: "实际命中的原文",
+    optionalTarget: "译文（可选，仅本地检查，不调用 AI）",
+
     configuration_required: '术语规则需要配置方向',
     configuration_requiredHint: '普通术语仍可匹配。请在资产预览中设置并保存带规则行的适用方向。',
     deliveryUnknown: '发送未确认（请求失败）',

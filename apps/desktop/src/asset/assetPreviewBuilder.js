@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { rulesFromColumns } = require('./memoqTermRules');
 
 const { ASSET_PURPOSES, normalizeAssetPurpose } = require('./assetRules');
 
@@ -42,7 +43,7 @@ function glossaryDetails(entry) {
   }
   details.push(...detailGroup('scope', Object.fromEntries(['domain', 'client', 'project'].filter((key) => entry[key]).map((key) => [key, entry[key]]))));
   details.push(...detailGroup('rules', Object.fromEntries(['caseSensitive', 'matchMode', 'priority', 'allowedVariants', 'partOfSpeech'].filter((key) => entry[key] && entry[key] !== 'phrase' && (!Array.isArray(entry[key]) || entry[key].length)).map((key) => [key, entry[key]]))));
-  return { note, details: details.filter((item) => !isNoteColumn(item.label) || item.value !== note) };
+  return { termRules: [{ language: entry.srcLang, rule: entry.sourceRules }, { language: entry.tgtLang, rule: entry.targetRules }].filter((item) => item.rule), note, details: details.filter((item) => !isNoteColumn(item.label) || item.value !== note) };
 }
 
 /** @param {any} info @param {any[]} cells */
@@ -146,6 +147,7 @@ function buildAssetPreview(asset, parsed, options = {}, helpers = /** @type {Ass
       columnLanguages: Object.fromEntries(info.languageColumns.map((/** @type {any} */ column) => [`language_${column.columnIndex}`, column.language])),
       rows: (info.conceptRows || []).slice(0, maxRows).map((/** @type {any[]} */ cells) => ({
         ...conceptDetails(info, cells),
+        termRules: info.languageColumns.map((/** @type {any} */ column) => ({ language: column.language, rule: rulesFromColumns(column.metaColumns, cells, cells[column.columnIndex]) })).filter((/** @type {any} */ item) => item.rule),
         ...Object.fromEntries(info.languageColumns.map((/** @type {any} */ column) => [`language_${column.columnIndex}`, cells[column.columnIndex] || ''])),
         ...(ruleColumns.length ? { rules: ruleColumns.map((/** @type {any} */ column) => ({ role: column.role, value: cells[column.index] || '' })).filter((/** @type {any} */ rule) => rule.value) } : {})
       })),
@@ -162,7 +164,7 @@ function buildAssetPreview(asset, parsed, options = {}, helpers = /** @type {Ass
         targetTerm: entry.targetTerm,
         srcLang: entry.srcLang || '',
         tgtLang: entry.tgtLang || '',
-        forbidden: entry.forbidden === true,
+        forbidden: entry.forbidden === true || entry.targetRules?.forbidden === true,
         ...glossaryDetails(entry)
       })),
       truncated: entries.length > rows.length,

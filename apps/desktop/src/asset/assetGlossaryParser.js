@@ -1,3 +1,4 @@
+const { MEMOQ_RULE_VERSION, hasUnsupportedMemoqRules } = require('./memoqTermRules');
 const { resolveAssetLanguage } = require('../shared/languageNormalization');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -173,6 +174,8 @@ function mapEntryRow(raw = {}, index = 0) {
   return normalizeTbEntry({
     id: raw.id || `tb-${index + 1}`,
     allowReverse: raw.allowReverse,
+    sourceRules: raw.sourceRules,
+    targetRules: raw.targetRules,
     sourceTerm: raw.sourceTerm,
     targetTerm: raw.targetTerm,
     srcLang: resolveAssetLanguage(raw.srcLang) || raw.srcLang,
@@ -1024,6 +1027,7 @@ function parseGlossaryAsset(asset, options = {}) {
     parsed.parseInfo.conceptCount = Math.max(0, rawRows.length - 1);
   }
   const limitedEntries = (parsed.entries || []).filter(Boolean).slice(0, activeStructure?.kind === 'multilingual' ? 50000 : MAX_GLOSSARY_ROWS);
+  parsed.parseInfo.memoqRules = { version: MEMOQ_RULE_VERSION, entries: limitedEntries.filter((/** @type {any} */ entry) => entry.sourceRules || entry.targetRules).length, unsupportedEntries: limitedEntries.filter(hasUnsupportedMemoqRules).length };
   const renderedText = truncateText(createRenderedTb(limitedEntries), MAX_GLOSSARY_CHARACTERS);
   const fingerprint = createTbFingerprint(limitedEntries);
   const matcher = createTbMatcher(limitedEntries);

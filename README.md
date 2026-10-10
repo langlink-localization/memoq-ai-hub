@@ -30,7 +30,7 @@ The repository contains runtime code for more advanced capabilities, but not eve
 
 ## Current Release Highlights
 
-**v1.0.56** fixes saving automatically detected regional language columns, including memoQ exports using `Portuguese_Brazil`. Asset previews separate actual notes from expandable, labelled metadata; multilingual concepts retain notes and extra columns, and Custom TM previews expose parsed metadata and context. See [release notes](docs/release-notes/v1.0.56.md).
+**v1.0.57** applies deterministic memoQ term rules to source matching and target checks: case sensitivity, permissive capitalization, exact matching, bounded HalfPrefix and language-specific NonTerm. Asset previews and result evidence show imported rules and unsupported cases; **Test assets** accepts an optional target for local validation without AI. See [release notes](docs/release-notes/v1.0.57.md) and [rule compatibility](docs/reference/glossary-languages.md#memoq-term-rules).
 
 **v1.0.55** separates glossary languages from translation direction. New imports automatically match ordinary terms in either direction, while rule-bearing rows use an explicit direction. Concept previews and translation evidence show how the asset is used; existing assets retain their previous behavior. See [release notes](docs/release-notes/v1.0.55.md) and [glossary language guide](docs/reference/glossary-languages.md).
 

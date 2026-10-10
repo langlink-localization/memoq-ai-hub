@@ -1,4 +1,5 @@
 'use strict';
+const { evaluateTerminologyQa } = require('../asset/assetTerminology');
 const { buildAssetContext } = require('../asset/assetContext');
 const { buildSegmentTbContext, buildSegmentCustomTmContext } = require('./runtimePromptSupport');
 const { buildTranslationEvidence } = require('./translationEvidence');
@@ -15,6 +16,8 @@ function createRuntimeTranslationTools({ loadState, loadHistoryEntry, loadHistor
     if (!profile) throw new Error('Select an existing profile.');
     const sourceText = String(input.sourceText || '').trim();
     if (!sourceText || sourceText.length > 20000) throw new Error('Enter source text up to 20,000 characters.');
+    const targetText = String(input.targetText || '');
+    if (targetText.length > 20000) throw new Error('Enter target text up to 20,000 characters.');
     const payload = { sourceLanguage: String(input.sourceLanguage || '').trim(), targetLanguage: String(input.targetLanguage || '').trim() };
     if (!payload.sourceLanguage || !payload.targetLanguage) throw new Error('Select both languages.');
     const assetContext = buildAssetContext({ assets: state.assets, assetBindings: profile.assetBindings, profile: { ...profile, smartTbParsingAvailable: hasSmartTbParsingCapability(state) } });
@@ -22,7 +25,8 @@ function createRuntimeTranslationTools({ loadState, loadHistoryEntry, loadHistor
     const segment = { index: 0, sourceText, plainText: sourceText, tbContext: {}, customTmMatches: [] };
     segment.tbContext = buildSegmentTbContext({ assetContext, segment, payload, metadata: input.metadata || {} });
     segment.customTmMatches = buildSegmentCustomTmContext({ assetContext, segment, payload, profile }).matches;
-    return { sourceText, ...payload, evidence: buildTranslationEvidence({ profile, assetContext, segment, hasResult: false }) };
+    if (targetText.trim()) segment.qaSummary = evaluateTerminologyQa({ translatedText: targetText, matches: segment.tbContext.matches });
+    return { sourceText, targetText, ...payload, evidence: buildTranslationEvidence({ profile, assetContext, segment, hasResult: false }) };
   }
   /** @param {Record<string, any>} input */
   async function retranslateHistory(input = {}) {

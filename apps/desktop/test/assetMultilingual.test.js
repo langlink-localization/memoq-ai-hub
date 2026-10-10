@@ -209,7 +209,7 @@ test('automatic bilingual assets are concepts and preserve both translation dire
   const preview = buildAssetPreview(asset, parsed);
   assert.equal(preview.previewLayout, 'concepts');
   assert.equal(preview.rowCount, 1);
-  assert.deepEqual(preview.rows, [{ language_0: 'Furnace', language_1: '大熔炉', note: '', details: [] }]);
+  assert.deepEqual(preview.rows, [{ language_0: 'Furnace', language_1: '大熔炉', note: '', details: [], termRules: [] }]);
 });
 
 test('automatic multi-language rules only match the chosen direction while plain rows remain reusable', (t) => {
