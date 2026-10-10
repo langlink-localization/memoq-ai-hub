@@ -1,6 +1,7 @@
 import eslint from '@eslint/js';
 import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
+import { createConfig } from '@langlink-tech/antd-kit/eslint';
 
 const correctnessRules = {
   'no-undef': 'error',
@@ -78,5 +79,11 @@ export default [
   {
     files: ['**/*.mjs'],
     languageOptions: { sourceType: 'module' }
-  }
+  },
+  // Design-system rules from @langlink-tech/antd-kit. Existing violations are recorded in
+  // eslint-suppressions.json, which may only shrink.
+  ...createConfig({
+    files: ['apps/desktop/src/renderer/src/**/*.{js,mjs,jsx}'],
+    colorLiteralFiles: ['apps/desktop/src/renderer/src/theme.js']
+  })
 ];

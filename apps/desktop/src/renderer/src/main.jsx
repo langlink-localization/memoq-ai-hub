@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
-import { useReducedMotion } from './hooks/useReducedMotion.mjs';
+import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { App as AntdApp, Button, ConfigProvider, theme, Typography } from 'antd';
+import { Button, Typography } from 'antd';
 import { PageResult } from '@langlink-tech/antd-kit/feedback';
+import { LanglinkThemeProvider } from '@langlink-tech/antd-kit/provider';
 import enUS from 'antd/locale/en_US';
 import zhCN from 'antd/locale/zh_CN';
 import 'dayjs/locale/zh-cn';
@@ -10,38 +10,10 @@ import 'antd/dist/reset.css';
 import './index.css';
 import App from './App';
 import { I18nProvider, useI18n } from './i18n';
-import { SystemDisplayStyle, usePrefersContrastMore, usePrefersReducedTransparency, withSystemDisplayTheme } from '@langlink-tech/antd-kit/motion';
-import { withContrastFloorTheme } from '@langlink-tech/antd-kit/theme';
+import { appTheme, BRAND } from './theme.js';
 import AssistantWindow from './pages/quality/AssistantWindow.jsx';
 
 const { Paragraph, Text } = Typography;
-
-// Text slots below the WCAG 4.5:1 body floor (description, placeholder, link and
-// status text) are lifted by the shared kit; seeds and host tokens are unchanged.
-const appTheme = withContrastFloorTheme({
-  algorithm: theme.defaultAlgorithm,
-  cssVar: {
-    prefix: 'memoq',
-    key: 'memoq-ai-hub'
-  },
-  token: {
-    colorPrimary: '#0066ff',
-    colorSuccess: '#00a68b',
-    colorWarning: '#d48806',
-    colorError: '#cf294d',
-    borderRadius: 4,
-    fontFamily: "'Segoe UI', 'PingFang SC', sans-serif"
-  },
-  components: {
-    Layout: {
-      headerBg: '#ffffff',
-      headerHeight: 64,
-      headerPadding: '0 24px',
-      bodyBg: '#f5f5f5',
-      lightSiderBg: '#ffffff'
-    }
-  }
-});
 
 class RenderErrorBoundary extends React.Component {
   constructor(props) {
@@ -113,25 +85,24 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 function LocalizedAntdRoot() {
-  const reducedMotion = useReducedMotion();
-  const contrastMore = usePrefersContrastMore();
-  const reduceTransparency = usePrefersReducedTransparency();
-  const accessibleTheme = useMemo(
-    () => withSystemDisplayTheme({ ...appTheme, token: { ...appTheme.token, motion: !reducedMotion } }, { contrastMore, reduceTransparency }),
-    [reducedMotion, contrastMore, reduceTransparency]
-  );
   const { locale } = useI18n();
   const windowMode = new URLSearchParams(globalThis.location?.search || '').get('window');
   const compactAssistantWindow = windowMode === 'assistant-float' || windowMode === 'quality-float';
   return (
-    <ConfigProvider theme={accessibleTheme} locale={locale === 'zh-CN' ? zhCN : enUS}>
-      <SystemDisplayStyle />
-      <AntdApp>
-        <RenderErrorBoundary>
-          {compactAssistantWindow ? <AssistantWindow /> : <App />}
-        </RenderErrorBoundary>
-      </AntdApp>
-    </ConfigProvider>
+    // The kit owns the theme, ConfigProvider and AntD App. The app has no theme or density
+    // switch: it is always light and comfortable, and nothing is stored.
+    <LanglinkThemeProvider
+      brand={BRAND}
+      mode="light"
+      density="comfortable"
+      storageKey={false}
+      theme={appTheme}
+      locale={locale === 'zh-CN' ? zhCN : enUS}
+    >
+      <RenderErrorBoundary>
+        {compactAssistantWindow ? <AssistantWindow /> : <App />}
+      </RenderErrorBoundary>
+    </LanglinkThemeProvider>
   );
 }
 

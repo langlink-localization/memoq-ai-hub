@@ -1,12 +1,4 @@
-import {
-  CopyOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  ExperimentOutlined,
-  MoreOutlined,
-  PlusOutlined,
-  ReloadOutlined
-} from '@ant-design/icons';
+import { AddIcon, CopyIcon, DeleteIcon, EditIcon, ExperimentIcon, MoreVerticalIcon, RefreshIcon } from '@langlink-tech/antd-kit/icons';
 import {
   Alert,
   App,
@@ -295,21 +287,21 @@ export default function MappingRulesPage({
       fixed: 'right',
       render: (_, rule) => (
         <Space size={0}>
-          <Button type="link" icon={<EditOutlined />} onClick={() => openRuleEditor(rule)}>{t('common.edit')}</Button>
+          <Button type="link" icon={<EditIcon />} onClick={() => openRuleEditor(rule)}>{t('common.edit')}</Button>
           <Dropdown
             trigger={['click']}
             menu={{
               items: [
-                { key: 'copy', icon: <CopyOutlined />, label: t('common.duplicate') },
+                { key: 'copy', icon: <CopyIcon />, label: t('common.duplicate') },
                 { type: 'divider' },
-                { key: 'delete', danger: true, icon: <DeleteOutlined />, label: t('common.delete') }
+                { key: 'delete', danger: true, icon: <DeleteIcon />, label: t('common.delete') }
               ],
               onClick: ({ key }) => key === 'copy' ? openRuleEditor(rule, true) : confirmDeleteRule(rule)
             }}
           >
             <Button
               type="text"
-              icon={<MoreOutlined />}
+              icon={<MoreVerticalIcon />}
               aria-label={t('mapping.moreActions', { name: rule.ruleName })}
               disabled={pendingRuleId === rule.id}
             />
@@ -328,8 +320,8 @@ export default function MappingRulesPage({
         title={t('mapping.title')}
         extra={(
           <Space wrap>
-            <Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => void refreshRules()}>{t('app.refresh')}</Button>
-            <Button type="primary" icon={<PlusOutlined />} disabled={!profiles.length} onClick={() => openRuleEditor()}>{t('mapping.addRule')}</Button>
+            <Button icon={<RefreshIcon />} loading={refreshing} onClick={() => void refreshRules()}>{t('app.refresh')}</Button>
+            <Button type="primary" icon={<AddIcon />} disabled={!profiles.length} onClick={() => openRuleEditor()}>{t('mapping.addRule')}</Button>
           </Space>
         )}
       >
@@ -338,14 +330,14 @@ export default function MappingRulesPage({
         ) : !sortedRules.length ? (
           <EmptyState
             description={t('mapping.emptyDescription')}
-            action={<Button type="primary" icon={<PlusOutlined />} onClick={() => openRuleEditor()}>{t('mapping.addRule')}</Button>}
+            action={<Button type="primary" icon={<AddIcon />} onClick={() => openRuleEditor()}>{t('mapping.addRule')}</Button>}
           />
         ) : (
           <DataTable rowKey="id" dataSource={sortedRules} columns={columns} pagination={false} scroll={{ x: TABLE_SCROLL_X }} />
         )}
       </Card>
 
-      <Card className="page-card" title={t('mapping.testMatch')} extra={<ExperimentOutlined />}>
+      <Card className="page-card" title={t('mapping.testMatch')} extra={<ExperimentIcon />}>
         <Paragraph type="secondary">{t('mapping.testDescription')}</Paragraph>
         <Form layout="vertical" onFinish={() => void runTestMatch()}>
           <Row gutter={[16, 0]}>
@@ -360,7 +352,7 @@ export default function MappingRulesPage({
               </Col>
             ))}
           </Row>
-          <Button htmlType="submit" type="primary" icon={<ExperimentOutlined />} loading={testing}>{t('mapping.runTestMatch')}</Button>
+          <Button htmlType="submit" type="primary" icon={<ExperimentIcon />} loading={testing}>{t('mapping.runTestMatch')}</Button>
         </Form>
         {resultAlert ? <Alert className="mapping-test-result" showIcon {...resultAlert} /> : null}
       </Card>

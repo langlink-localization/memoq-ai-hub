@@ -1,4 +1,4 @@
-import { MoreOutlined, PlusOutlined, SaveOutlined, StarOutlined } from '@ant-design/icons';
+import { AddIcon, MoreVerticalIcon, SaveIcon, StarIcon } from '@langlink-tech/antd-kit/icons';
 import {
   Alert,
   Button,
@@ -185,12 +185,12 @@ function ProfileListPanel({
           menu={addProfileMenu}
           trigger={['click']}
         >
-          <Button icon={<PlusOutlined />} loading={Boolean(creatingProfileKind)}>{t('common.add')}</Button>
+          <Button icon={<AddIcon />} loading={Boolean(creatingProfileKind)}>{t('common.add')}</Button>
         </Dropdown>
       )}
       collapsedExtra={(
         <Dropdown menu={addProfileMenu} trigger={['click']}>
-          <Button icon={<PlusOutlined />} loading={Boolean(creatingProfileKind)} aria-label={t('common.add')} />
+          <Button icon={<AddIcon />} loading={Boolean(creatingProfileKind)} aria-label={t('common.add')} />
         </Dropdown>
       )}
     >
@@ -398,7 +398,7 @@ function BuilderEditor({
 
   const editorActionMenu = {
     items: [
-      { key: 'set-default', icon: <StarOutlined />, label: t('context.setAsDefaultProfile'), disabled: isDefaultProfile || saving },
+      { key: 'set-default', icon: <StarIcon />, label: t('context.setAsDefaultProfile'), disabled: isDefaultProfile || saving },
       { key: 'duplicate', label: t('common.duplicate'), disabled: saving || duplicating },
       { type: 'divider' },
       { key: 'discard', danger: true, label: t('context.discardChanges'), disabled: !isDirty || saving },
@@ -424,11 +424,11 @@ function BuilderEditor({
         )}
         extra={(
           <Space wrap className="responsive-action-bar">
-            <Button loading={saving} type="primary" icon={<SaveOutlined />} onClick={onSave}>
+            <Button loading={saving} type="primary" icon={<SaveIcon />} onClick={onSave}>
               {t('context.saveProfile')}
             </Button>
             <Dropdown menu={editorActionMenu} trigger={['click']}>
-              <Button icon={<MoreOutlined />}>{t('common.more')}</Button>
+              <Button icon={<MoreVerticalIcon />}>{t('common.more')}</Button>
             </Dropdown>
           </Space>
         )}

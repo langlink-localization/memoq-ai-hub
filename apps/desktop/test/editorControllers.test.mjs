@@ -101,26 +101,6 @@ test('editor departure waits for explicit discard and blocks departure during a 
   requestEditorDeparture({ ...options, dirty: false });
   assert.equal(departures, 2);
 });
-import { useReducedMotion } from '../src/renderer/src/hooks/useReducedMotion.mjs';
-
-test('reduced-motion follows the system setting and releases the change listener', (t) => {
-  const previous = Object.getOwnPropertyDescriptor(globalThis, 'matchMedia');
-  let listener, removed, renderer, reduced;
-  const query = { matches: true, addEventListener: (_, callback) => { listener = callback; },
-    removeEventListener: (_, callback) => { removed = callback; } };
-  Object.defineProperty(globalThis, 'matchMedia', { configurable: true, value: () => query });
-  t.after(() => {
-    if (previous) Object.defineProperty(globalThis, 'matchMedia', previous);
-    else delete globalThis.matchMedia;
-  });
-  function Harness() { reduced = useReducedMotion(); return null; }
-  act(() => { renderer = create(createElement(Harness)); });
-  assert.equal(reduced, true);
-  act(() => { query.matches = false; listener(); });
-  assert.equal(reduced, false);
-  act(() => renderer.unmount());
-  assert.equal(removed, listener);
-});
 import { useProviderController } from '../src/renderer/src/hooks/useProviderController.mjs';
 import { createPendingOperationRegistry } from '../src/renderer/src/uiBehavior.mjs';
 

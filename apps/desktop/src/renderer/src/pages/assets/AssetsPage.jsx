@@ -1,6 +1,6 @@
 import { EmptyState } from '@langlink-tech/antd-kit/feedback';
 import { LISTY_SMALL_ITEM_STYLE } from '../../tableLayout.mjs';
-import { DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
+import { AddIcon, DeleteIcon, EditIcon, ViewIcon } from '@langlink-tech/antd-kit/icons';
 import {
   Button,
   Card,
@@ -55,7 +55,7 @@ export default function AssetsPage({
   }));
   const importActions = (
     <Space wrap>
-      <Button type="primary" icon={<PlusOutlined />} disabled={Boolean(importingAssetType)} loading={importingAssetType === 'glossary'} onClick={() => onImportAsset?.('glossary')}>{t('context.assetImportGlossary')}</Button>
+      <Button type="primary" icon={<AddIcon />} disabled={Boolean(importingAssetType)} loading={importingAssetType === 'glossary'} onClick={() => onImportAsset?.('glossary')}>{t('context.assetImportGlossary')}</Button>
       <Button disabled={Boolean(importingAssetType)} loading={importingAssetType === 'custom_tm'} onClick={() => onImportAsset?.('custom_tm')}>{t('context.assetImportTm')}</Button>
     </Space>
   );
@@ -128,12 +128,12 @@ export default function AssetsPage({
                         </Space>
                         <Space wrap size={8}>
 
-                          <Button key={`preview-${asset.id}`} type="text" icon={<EyeOutlined />} onClick={() => onPreviewAsset?.(asset.id)}>
+                          <Button key={`preview-${asset.id}`} type="text" icon={<ViewIcon />} onClick={() => onPreviewAsset?.(asset.id)}>
                             {t('context.previewAsset')}
                           </Button>
-                          <Button key={`manage-${asset.id}`} type="text" icon={<EditOutlined />} onClick={() => setEditingAsset(asset)}>{t('context.assetManage')}</Button>
+                          <Button key={`manage-${asset.id}`} type="text" icon={<EditIcon />} onClick={() => setEditingAsset(asset)}>{t('context.assetManage')}</Button>
                           <Tooltip key={`delete-${asset.id}`} title={usageProfiles.length ? t('context.assetUnbindBeforeDelete', { names: usageProfiles.join(', ') }) : ''}>
-                            <span><Button disabled={usageProfiles.length > 0} danger type="text" icon={<DeleteOutlined />} onClick={() => onDeleteAsset(asset.id)}>{t('common.delete')}</Button></span>
+                            <span><Button disabled={usageProfiles.length > 0} danger type="text" icon={<DeleteIcon />} onClick={() => onDeleteAsset(asset.id)}>{t('common.delete')}</Button></span>
                           </Tooltip>
                         </Space>
                       </Flex>

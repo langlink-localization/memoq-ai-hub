@@ -1,4 +1,4 @@
-import { MoreOutlined, PlusOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
+import { AddIcon, MoreVerticalIcon, RefreshIcon, SaveIcon } from '@langlink-tech/antd-kit/icons';
 import {
   Alert,
   Button,
@@ -109,12 +109,12 @@ function ProviderCatalog({
           menu={addProviderMenu}
           trigger={['click']}
         >
-          <Button size="small" icon={<PlusOutlined />}>{t('common.add')}</Button>
+          <Button size="small" icon={<AddIcon />}>{t('common.add')}</Button>
         </Dropdown>
       )}
       collapsedExtra={(
         <Dropdown menu={addProviderMenu} trigger={['click']}>
-          <Button size="small" icon={<PlusOutlined />} aria-label={t('common.add')} />
+          <Button size="small" icon={<AddIcon />} aria-label={t('common.add')} />
         </Dropdown>
       )}
     >
@@ -240,14 +240,14 @@ function ProviderHeader({
           <Button
             loading={savingProvider}
             type="primary"
-            icon={<SaveOutlined />}
+            icon={<SaveIcon />}
             onClick={onSaveProvider}
             disabled={currentProviderConnectionMeta.color !== 'green'}
           >
             {t('common.save')}
           </Button>
           <Dropdown menu={editorActionMenu} trigger={['click']}>
-            <Button icon={<MoreOutlined />}>{t('common.more')}</Button>
+            <Button icon={<MoreVerticalIcon />}>{t('common.more')}</Button>
           </Dropdown>
         </Space>
       )}
@@ -297,7 +297,7 @@ function ProviderModelTable({
           <div><Text type="secondary">{t('providers.modelsHint')}</Text></div>
         </div>
         <Space wrap size={[10, 10]} className="responsive-action-bar">
-          <Button icon={<PlusOutlined />} onClick={onOpenProviderModelManager}>{t('providers.addModel')}</Button>
+          <Button icon={<AddIcon />} onClick={onOpenProviderModelManager}>{t('providers.addModel')}</Button>
           <Button
             danger
             disabled={!providerModelSelection.length}
@@ -398,7 +398,7 @@ function ProviderModelLibraryModal({
             onChange={(event) => onProviderModelSearchChange?.(event.target.value)}
             placeholder={t('providers.modelLibrarySearchPlaceholder')}
           />
-          <Button icon={<ReloadOutlined />} loading={discoveringProviderModels} onClick={onDiscoverProviderModels}>
+          <Button icon={<RefreshIcon />} loading={discoveringProviderModels} onClick={onDiscoverProviderModels}>
             {t('providers.discoverModels')}
           </Button>
         </div>
@@ -724,7 +724,7 @@ export function ProvidersPage(props) {
               description={t('providers.createProviderFirst')}
               action={(
                 <Dropdown menu={addProviderMenu} trigger={['click']}>
-                  <Button type="primary" icon={<PlusOutlined />}>{t('common.add')}</Button>
+                  <Button type="primary" icon={<AddIcon />}>{t('common.add')}</Button>
                 </Dropdown>
               )}
             />

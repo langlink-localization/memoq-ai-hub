@@ -141,7 +141,7 @@ test('dashboard keeps refresh controls icon-first and guards stale available upd
   assert.match(dashboardSource, /const latestVersionDisplay = updateCenter\.latestVersion/);
   assert.match(dashboardSource, /getUpdateErrorDisplay\(result, t\)/);
   assert.match(dashboardSource, /canDownloadUpdate\(updateCenter, checkingUpdates\)/);
-  assert.match(dashboardSource, /icon=\{<ReloadOutlined \/>}/);
+  assert.match(dashboardSource, /icon=\{<RefreshIcon \/>}/);
   assert.match(en.dashboard.updateCheckingLatestVersion, /Checking/);
   assert.equal(zhCN.dashboard.updateCheckingLatestVersion, '检查中...');
   assert.match(en.dashboard.updateCheckTimeoutError, /timed out/i);
@@ -224,7 +224,9 @@ test('renderer feedback uses the themed Ant Design app context and recoverable s
   const mainSource = readRendererSource('main.jsx');
   const appSource = readRendererSource('App.jsx');
 
-  assert.match(mainSource, /<AntdApp>/);
+  // LanglinkThemeProvider renders ConfigProvider and AntD App.
+  assert.match(mainSource, /<LanglinkThemeProvider/);
+  assert.doesNotMatch(mainSource, /<ConfigProvider/);
   assert.match(appSource, /const \{ message, modal \} = AntdApp\.useApp\(\);/);
   assert.doesNotMatch(appSource, /\n\s*message,\s*\n/);
   assert.doesNotMatch(appSource, /Modal\.confirm\(/);
@@ -267,11 +269,15 @@ test('high-risk actions and async mutations expose confirmation and pending cont
 
 test('renderer theme uses one Ant Design token contract without internal selector overrides', () => {
   const mainSource = readRendererSource('main.jsx');
+  const themeSource = readRendererSource('theme.js');
   const appSource = readRendererSource('App.jsx');
   const cssSource = readRendererSource('index.css');
 
-  assert.match(mainSource, /cssVar:\s*\{[\s\S]*prefix: 'memoq'/);
-  assert.match(mainSource, /colorPrimary: '#0066ff'/);
+  // The brand seed comes from the kit's memoq preset; the host keeps the CSS variable prefix.
+  assert.match(mainSource, /brand=\{BRAND\}[\s\S]*theme=\{appTheme\}/);
+  assert.match(themeSource, /BRAND = 'memoq'/);
+  assert.match(themeSource, /cssVar:\s*\{[\s\S]*prefix: 'memoq'/);
+  assert.doesNotMatch(themeSource, /colorPrimary/);
   assert.doesNotMatch(cssSource, /--app-/);
   assert.doesNotMatch(cssSource, /\.ant-/);
   assert.doesNotMatch(cssSource, /!important/);
