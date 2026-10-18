@@ -33,3 +33,5 @@ jobs:
         run: npm install --global @ant-design/cli@6.5.4 --before=2026-08-15T23:59:59Z
       - name: Run fail-closed Ant Design audit
         run: antd lint apps/desktop/src/renderer/src --format json | node tooling/scripts/validate-antd-lint.mjs
+      - name: Run Ant Design lint validator self-test
+        run: node tooling/scripts/validate-antd-lint.mjs --selftest
