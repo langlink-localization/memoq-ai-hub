@@ -62,6 +62,10 @@ jobs:
         working-directory: apps/desktop
         run: pnpm test
 
+      - name: Run desktop accessibility tests
+        working-directory: apps/desktop
+        run: pnpm run test:a11y
+
       - name: Smoke test desktop gateway health endpoint
         working-directory: apps/desktop
         shell: pwsh

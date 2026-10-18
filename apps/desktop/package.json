@@ -20,6 +20,7 @@
     "start:server": "node src/serverStandalone.js",
     "smoke:health": "node src/smokeHealthCheck.js",
     "test": "node --test \"test/*.test.js\" \"test/*.test.mjs\"",
+    "test:a11y": "node --import ./test/a11y/register-jsx.mjs --test \"test/a11y/*.test.jsx\"",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "make:squirrel": "electron-forge make --platform win32 --targets @electron-forge/maker-squirrel",
@@ -47,6 +48,9 @@
     "@vitejs/plugin-react": "6.0.5",
     "concurrently": "^9.2.1",
     "electron": "44.4.5",
+    "esbuild": "0.28.1",
+    "jest-axe": "11.0.0",
+    "jsdom": "30.1.1",
     "react-test-renderer": "19.2.4",
     "vite": "8.2.0"
   }
