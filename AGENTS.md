@@ -9,7 +9,7 @@
 
 ## Canonical commands
 - Install with `pnpm install` and `pnpm run install:desktop`.
-- Verify with `pnpm run typecheck`, `pnpm run test:desktop`, `pnpm run test:repo`, and `pnpm run build:plugin`.
+- Verify with `pnpm run typecheck`, `pnpm run test:desktop`, `pnpm run test:a11y`, `pnpm run test:repo`, and `pnpm run build:plugin`.
 - Prepare or package releases only through the existing `prepare:release`, `package:desktop`, `zip:desktop`, or `package:windows` scripts.
 
 ## Working rules
