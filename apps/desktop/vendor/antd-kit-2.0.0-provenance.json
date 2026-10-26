@@ -1,0 +1,11 @@
+{
+  "version": "2.0.0",
+  "sourceRepository": "https://github.com/langlink-tech/antd-kit",
+  "sourceCommit": "9f9ad210939d46ca88cf8a02443e4d4c34a2afc1",
+  "build": "Published by CI from merge commit 9f9ad210 (antd-kit#50)",
+  "sha256": "75b77b659cb5aa13463c6c0f63641712207b605a600f80b3ce42d2e7dbb8f3a5",
+  "integrity": "sha512-K/k0HH1QSP1ol3v2CaUyhGWGpm33wDnUuhzPdYBYD6vSdJQOD7gQ8D+vheBKSRbFvYj3F0gseBtL7nQiPP3ehA==",
+  "sourceReleaseEvidence": "https://github.com/langlink-tech/antd-kit/pull/50",
+  "registryDirectRead": "Registry tarball downloaded directly from npm.pkg.github.com (shasum 96a124ac785b66dd33102b8d8ee83d4cc4250eb6); sha512 and shasum match the registry metadata.",
+  "whyVendored": "This repository is in the langlink-localization organization and cannot read the langlink-tech package registry, so it keeps the published tarball. Every other host installs the same version from the registry."
+}

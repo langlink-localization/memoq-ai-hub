@@ -27,7 +27,7 @@
     "zip:win-unpacked": "powershell -ExecutionPolicy Bypass -File ..\\..\\tooling\\build\\zip-win-unpacked.ps1"
   },
   "dependencies": {
-    "@langlink-tech/antd-kit": "file:vendor/langlink-tech-antd-kit-1.0.0-d586147.tgz",
+    "@langlink-tech/antd-kit": "file:vendor/langlink-tech-antd-kit-2.0.0-9f9ad210.tgz",
     "antd": "6.6.5",
     "body-parser": "1.20.6",
     "dayjs": "^1.11.20",

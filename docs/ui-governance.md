@@ -59,7 +59,7 @@ Navigation, onboarding, documentation, and empty-state actions must use this ord
 ## Visual System
 
 - Use Ant Design 6 components and repository theme tokens before adding custom controls.
-- `@langlink-tech/antd-kit` 1.0.0 is the design system (vendored under `apps/desktop/vendor/` because this repository cannot read the package registry). The root is `LanglinkThemeProvider` with the `memoq` brand preset: it owns the theme, the WCAG 4.5:1 text floor, the system contrast, transparency, reduced-motion and forced-colors preferences, `ConfigProvider` and the Ant Design `App` context. Those kit-owned media-query rules are the only `!important` styles allowed.
+- `@langlink-tech/antd-kit` 2.0.0 is the design system (vendored under `apps/desktop/vendor/` because this repository cannot read the package registry). The root is `LanglinkThemeProvider` with the `memoq` brand preset: it owns the theme, the WCAG 4.5:1 text floor, the system contrast, transparency, reduced-motion and forced-colors preferences, `ConfigProvider` and the Ant Design `App` context. Those kit-owned media-query rules are the only `!important` styles allowed.
 - `src/renderer/src/theme.js` holds only what is specific to this app: the brand preset name, the `memoq` CSS variable prefix, memoQ's status colours, radius and font, and the shell metrics.
 - Icons come from `@langlink-tech/antd-kit/icons`. The kit's ESLint rules run inside `pnpm run lint`; existing violations are recorded in `eslint-suppressions.json`, which may only shrink.
 - Use the current Ant Design 6 prop names (`Space orientation`, `Alert title`, `closable={{ onClose }}`, `Drawer size`, `destroyOnHidden`, `mask={{ closable }}`); `pnpm run test:antd` must report zero deprecated findings.
