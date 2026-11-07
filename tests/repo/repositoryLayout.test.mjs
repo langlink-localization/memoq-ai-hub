@@ -226,7 +226,7 @@ test('dependency and CI governance is reproducible', () => {
   assert.match(workspaceSettings, /^  ip-address: 10\.7\.2$/m);
   assert.match(workspaceSettings, /^  undici: 7\.30\.1$/m);
   assert.match(workspaceSettings, /^  browserslist: \^4\.28\.7$/m);
-  assert.match(workspaceSettings, /^  qs: \^6\.16\.0$/m);
+  assert.match(workspaceSettings, /^  qs: 6\.16\.1$/m);
   assert.match(workspaceSettings, /^  '@xmldom\/xmldom': \^0\.8\.15$/m);
   assert.match(workspaceSettings, /^  fast-uri: \^3\.1\.8$/m);
   assert.match(lockfile, /^lockfileVersion: '9\.0'$/m);
