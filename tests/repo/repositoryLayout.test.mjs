@@ -184,7 +184,7 @@ test('dependency and CI governance is reproducible', () => {
   assert.match(eslintConfig, /react-hooks\/rules-of-hooks/);
   assert.equal(desktopPackage.engines?.node, '>=22.13.0');
   assert.match(packageWindowsScript, /Ensure-NodeVersion \$nodeExecutable \(\[version\]"22\.13\.0"\)/);
-  assert.equal(desktopPackage.dependencies?.['body-parser'], '1.20.6');
+  assert.equal(desktopPackage.dependencies?.['body-parser'], '1.20.9');
   assert.equal(
     desktopPackage.dependencies?.xlsx,
     'https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz'
@@ -209,7 +209,7 @@ test('dependency and CI governance is reproducible', () => {
       vite: '8.2.4',
     }
   );
-  assert.match(workspaceSettings, /^  body-parser: 1\.20\.6$/m);
+  assert.match(workspaceSettings, /^  body-parser: 1\.20\.9$/m);
   assert.match(workspaceSettings, /^  '@tootallnate\/once': 2\.0\.1$/m);
   assert.match(workspaceSettings, /^  esbuild: 0\.28\.1$/m);
   assert.match(workspaceSettings, /^  '@electron\/packager': 20\.3\.0$/m);
@@ -235,6 +235,7 @@ test('dependency and CI governance is reproducible', () => {
     '@babel/core@7.29.0',
     '@tootallnate/once@2.0.0',
     'body-parser@1.20.4',
+    'body-parser@1.20.6',
     'electron@30.5.1',
     'electron@43.2.0',
     'ip-address@10.5.0',
