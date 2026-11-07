@@ -200,13 +200,13 @@ test('dependency and CI governance is reproducible', () => {
       vite: desktopPackage.devDependencies?.vite,
     },
     {
-      electron: '44.4.5',
+      electron: '44.9.1',
       forgeCli: '8.0.1',
       forgeSquirrel: '8.0.1',
       forgeVite: '8.0.1',
       forgeZip: '8.0.1',
       pluginReact: '6.0.5',
-      vite: '8.2.0',
+      vite: '8.2.4',
     }
   );
   assert.match(workspaceSettings, /^  body-parser: 1\.20\.6$/m);
@@ -224,7 +224,7 @@ test('dependency and CI governance is reproducible', () => {
   assert.match(workspaceSettings, /^  source-map-js: \^1\.2\.2$/m);
   // Patched floors for audited advisories must not regress.
   assert.match(workspaceSettings, /^  ip-address: 10\.7\.2$/m);
-  assert.match(workspaceSettings, /^  undici: \^7\.29\.1$/m);
+  assert.match(workspaceSettings, /^  undici: 7\.30\.1$/m);
   assert.match(workspaceSettings, /^  browserslist: \^4\.28\.7$/m);
   assert.match(workspaceSettings, /^  qs: \^6\.16\.0$/m);
   assert.match(workspaceSettings, /^  '@xmldom\/xmldom': \^0\.8\.15$/m);
@@ -239,6 +239,7 @@ test('dependency and CI governance is reproducible', () => {
     'electron@43.2.0',
     'ip-address@10.5.0',
     'undici@7.29.0',
+    'undici@7.30.0',
     'fast-uri@3.1.6',
     'brace-expansion@1.1.18',
     'brace-expansion@2.1.4',
