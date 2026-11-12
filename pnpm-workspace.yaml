@@ -32,6 +32,9 @@ overrides:
   js-yaml@^4: 4.3.2
   proxy-addr: ^2.0.8
   source-map-js: ^1.2.2
+  # GHSA-g3hv-75wg-m249 and GHSA glob <=14.0.1. Leaves minimatch 3/5 alone.
+  'minimatch@>=7.0.0 <11.0.1': 11.0.1
+  'glob@>=9.0.0 <=14.0.1': 14.0.2
 
   'electron@>=44.0.0 <44.9.1': 44.9.1
 onlyBuiltDependencies:
