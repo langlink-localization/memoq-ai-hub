@@ -201,7 +201,7 @@ export default function QaHistoryPanel({ api, profiles = [], onProfileSaved, ref
     <Space orientation="vertical" size="large" className="quality-page">
       {error ? <Alert type="error" showIcon title={error} action={<Button size="small" onClick={loadHistory}>{t('common.retry')}</Button>} /> : null}
       <Card>
-        <Space orientation="vertical" size="middle" className="quality-controls">
+        <Space orientation="vertical" size="medium" className="quality-controls">
           <Space wrap>
             <Select allowClear value={documentId || undefined} onChange={(value) => setDocumentId(value || '')} placeholder={t('quality.history.allDocuments')} options={documentOptions} className="quality-select" />
             <Select allowClear value={trigger || undefined} onChange={(value) => setTrigger(value || '')} placeholder={t('quality.history.allSources')} options={['manual', 'batch', 'import', AUTOMATIC_TRIGGER].map((value) => ({ value, label: triggerLabel(value, t) }))} className="quality-select" />

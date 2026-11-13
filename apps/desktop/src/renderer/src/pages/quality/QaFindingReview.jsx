@@ -166,7 +166,7 @@ export default function QaFindingReview({
   ];
 
   return (
-    <Space orientation="vertical" size="middle" className="qa-finding-review">
+    <Space orientation="vertical" size="medium" className="qa-finding-review">
       {error ? <Alert type="error" showIcon closable={{ onClose: () => setError('') }} title={error} /> : null}
       {!compact ? (
         <Space wrap>

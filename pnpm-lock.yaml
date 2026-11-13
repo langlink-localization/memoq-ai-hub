@@ -60,8 +60,8 @@ importers:
   apps/desktop:
     dependencies:
       '@langlink-tech/antd-kit':
-        specifier: file:vendor/langlink-tech-antd-kit-1.0.0-d586147.tgz
-        version: file:apps/desktop/vendor/langlink-tech-antd-kit-1.0.0-d586147.tgz(antd@6.6.5(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: file:vendor/langlink-tech-antd-kit-2.0.0-9f9ad210.tgz
+        version: file:apps/desktop/vendor/langlink-tech-antd-kit-2.0.0-9f9ad210.tgz(antd@6.6.5(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       antd:
         specifier: 6.6.5
         version: 6.6.5(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -668,9 +668,9 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@langlink-tech/antd-kit@file:apps/desktop/vendor/langlink-tech-antd-kit-1.0.0-d586147.tgz':
-    resolution: {integrity: sha512-uhReeqUdkweZQYl+DS/UrLHY/a42html7yOA/3xyttIjC6ZDCy77hohGLvvyutZvdbzCIPY3kN7PYIoQW+sFAQ==, tarball: file:apps/desktop/vendor/langlink-tech-antd-kit-1.0.0-d586147.tgz}
-    version: 1.0.0
+  '@langlink-tech/antd-kit@file:apps/desktop/vendor/langlink-tech-antd-kit-2.0.0-9f9ad210.tgz':
+    resolution: {integrity: sha512-K/k0HH1QSP1ol3v2CaUyhGWGpm33wDnUuhzPdYBYD6vSdJQOD7gQ8D+vheBKSRbFvYj3F0gseBtL7nQiPP3ehA==, tarball: file:apps/desktop/vendor/langlink-tech-antd-kit-2.0.0-9f9ad210.tgz}
+    version: 2.0.0
     engines: {node: ^22.0.0 || ^24.0.0}
     peerDependencies:
       antd: ^6.6.5
@@ -3398,7 +3398,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@langlink-tech/antd-kit@file:apps/desktop/vendor/langlink-tech-antd-kit-1.0.0-d586147.tgz(antd@6.6.5(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@langlink-tech/antd-kit@file:apps/desktop/vendor/langlink-tech-antd-kit-2.0.0-9f9ad210.tgz(antd@6.6.5(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
       antd: 6.6.5(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       lucide-react: 1.49.0(react@19.2.4)

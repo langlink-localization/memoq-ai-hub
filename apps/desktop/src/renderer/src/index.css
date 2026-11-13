@@ -200,7 +200,7 @@ body,
 
 .app-nav-label {
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .app-sider-collapsed .app-nav-menu {
@@ -353,7 +353,7 @@ body,
 .section-title {
   margin: 0 0 16px;
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .history-insights-panel {
@@ -472,7 +472,7 @@ body,
 .side-panel-row-active {
   background: var(--memoq-color-primary-bg);
   color: var(--memoq-color-primary);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .side-panel-row:focus-visible,
@@ -698,13 +698,13 @@ body,
   background: var(--memoq-color-primary-bg);
   color: var(--memoq-color-primary);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.08em;
 }
 
 .builder-step-title {
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--memoq-color-text);
 }
 
