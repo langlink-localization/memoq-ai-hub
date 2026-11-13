@@ -30,7 +30,7 @@ The repository contains runtime code for more advanced capabilities, but not eve
 
 ## Current Release Highlights
 
-**v1.0.58** adopts the shared LangLink UI kit 1.0 theme provider and icons across the desktop app. See [release notes](docs/release-notes/v1.0.58.md).
+**v1.0.59** upgrades the shared LangLink UI kit to 2.0, aligns SizeType and typography roles, and verifies the vendored package's source and lockfile integrity. See [release notes](docs/release-notes/v1.0.59.md).
 
 **v1.0.57** applies deterministic memoQ term rules to source matching and target checks: case sensitivity, permissive capitalization, exact matching, bounded HalfPrefix and language-specific NonTerm. Asset previews and result evidence show imported rules and unsupported cases; **Test assets** accepts an optional target for local validation without AI. See [release notes](docs/release-notes/v1.0.57.md) and [rule compatibility](docs/reference/glossary-languages.md#memoq-term-rules).
 
