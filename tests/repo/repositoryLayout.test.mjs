@@ -184,7 +184,7 @@ test('dependency and CI governance is reproducible', () => {
   assert.match(eslintConfig, /react-hooks\/rules-of-hooks/);
   assert.equal(desktopPackage.engines?.node, '>=22.13.0');
   assert.match(packageWindowsScript, /Ensure-NodeVersion \$nodeExecutable \(\[version\]"22\.13\.0"\)/);
-  assert.equal(desktopPackage.dependencies?.['body-parser'], '1.20.6');
+  assert.equal(desktopPackage.dependencies?.['body-parser'], '1.20.9');
   assert.equal(
     desktopPackage.dependencies?.xlsx,
     'https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz'
@@ -200,16 +200,16 @@ test('dependency and CI governance is reproducible', () => {
       vite: desktopPackage.devDependencies?.vite,
     },
     {
-      electron: '44.4.5',
+      electron: '44.9.1',
       forgeCli: '8.0.1',
       forgeSquirrel: '8.0.1',
       forgeVite: '8.0.1',
       forgeZip: '8.0.1',
       pluginReact: '6.0.5',
-      vite: '8.2.0',
+      vite: '8.2.4',
     }
   );
-  assert.match(workspaceSettings, /^  body-parser: 1\.20\.6$/m);
+  assert.match(workspaceSettings, /^  body-parser: 1\.20\.9$/m);
   assert.match(workspaceSettings, /^  '@tootallnate\/once': 2\.0\.1$/m);
   assert.match(workspaceSettings, /^  esbuild: 0\.28\.1$/m);
   assert.match(workspaceSettings, /^  '@electron\/packager': 20\.3\.0$/m);
@@ -224,9 +224,9 @@ test('dependency and CI governance is reproducible', () => {
   assert.match(workspaceSettings, /^  source-map-js: \^1\.2\.2$/m);
   // Patched floors for audited advisories must not regress.
   assert.match(workspaceSettings, /^  ip-address: 10\.7\.2$/m);
-  assert.match(workspaceSettings, /^  undici: \^7\.29\.1$/m);
+  assert.match(workspaceSettings, /^  undici: 7\.30\.1$/m);
   assert.match(workspaceSettings, /^  browserslist: \^4\.28\.7$/m);
-  assert.match(workspaceSettings, /^  qs: \^6\.16\.0$/m);
+  assert.match(workspaceSettings, /^  qs: 6\.16\.1$/m);
   assert.match(workspaceSettings, /^  '@xmldom\/xmldom': \^0\.8\.15$/m);
   assert.match(workspaceSettings, /^  fast-uri: \^3\.1\.8$/m);
   assert.match(lockfile, /^lockfileVersion: '9\.0'$/m);
@@ -235,10 +235,12 @@ test('dependency and CI governance is reproducible', () => {
     '@babel/core@7.29.0',
     '@tootallnate/once@2.0.0',
     'body-parser@1.20.4',
+    'body-parser@1.20.6',
     'electron@30.5.1',
     'electron@43.2.0',
     'ip-address@10.5.0',
     'undici@7.29.0',
+    'undici@7.30.0',
     'fast-uri@3.1.6',
     'brace-expansion@1.1.18',
     'brace-expansion@2.1.4',
