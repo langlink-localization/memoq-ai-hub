@@ -231,7 +231,7 @@ export default function AssistantWindow({ api = window.memoqDesktop }) {
   const aiStatus = qaResult?.execution?.ai?.status || '';
   const aiUnavailable = ['failed', 'circuit-open', 'cancelled'].includes(aiStatus);
   return (
-    <Space orientation="vertical" size="middle" className="assistant-window">
+    <Space orientation="vertical" size="medium" className="assistant-window">
       <Title level={4}>{t('assistant.title')}</Title>
       <Segmented block value={mode} onChange={setMode} options={[
         { value: 'translate', label: t('assistant.translatePolish') },

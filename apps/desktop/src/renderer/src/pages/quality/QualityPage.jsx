@@ -297,7 +297,7 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
 
       {!compact ? (
         <Card>
-          <Space orientation="vertical" size="middle" className="quality-controls">
+          <Space orientation="vertical" size="medium" className="quality-controls">
             <Segmented value={mode} onChange={setMode} options={[{ value: 'current', label: t('quality.currentSegment') }, { value: 'batch', label: t('quality.batchFile') }]} />
             <Space wrap>
               <Select value={selectedProfileId} onChange={setSelectedProfileId} placeholder={t('quality.profile')} options={profiles.map((item) => ({ value: item.id, label: item.name }))} className="quality-select" />
@@ -361,7 +361,7 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
         <Collapse items={[
           {
             key: 'prompt', label: t('quality.qaPromptTemplates'), children: (
-              <Space orientation="vertical" className="quality-rules" size="middle">
+              <Space orientation="vertical" className="quality-rules" size="medium">
                 <Alert type="info" showIcon title={t('quality.qaPromptGuardrails')} />
                 <Form layout="vertical">
                   <Form.Item label={t('quality.qaSystemPrompt')}><Input.TextArea rows={5} value={qaSystemPrompt} onChange={(event) => setQaSystemPrompt(event.target.value)} /></Form.Item>
@@ -373,7 +373,7 @@ export default function QualityPage({ api = window.memoqDesktop, profiles = [], 
           },
           {
           key: 'rules', label: t('quality.projectRules'), children: (
-            <Space orientation="vertical" className="quality-rules" size="middle">
+            <Space orientation="vertical" className="quality-rules" size="medium">
               <Form form={ruleForm} layout="vertical" onFinish={addRule} initialValues={{ type: 'contains', scope: 'target', category: 'style', severity: 'minor' }}>
                 <Form.Item name="name" label={t('quality.ruleName')} rules={[{ required: true }]}><Input /></Form.Item>
                 <Space wrap align="start">
