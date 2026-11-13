@@ -30,7 +30,7 @@
 
 ## 当前版本亮点
 
-**v1.0.58** 桌面界面统一使用 LangLink UI kit 1.0 的主题 Provider 和图标。参见 [发布说明](docs/release-notes/v1.0.58.md)。
+**v1.0.59** 将共享 LangLink UI kit 升级到 2.0，统一 SizeType 和字体字重角色，并校验 vendored 包的来源与 lockfile 完整性。参见 [发布说明](docs/release-notes/v1.0.59.md)。
 
 **v1.0.57** 将 memoQ 的确定性术语规则用于源文匹配和译文检查，支持大小写约束、完整词匹配、有限词尾 HalfPrefix，以及按语言侧生效的 NonTerm。资产预览和翻译记录展示已解析规则及未支持情况；**测试资产**可输入译文，在本地验证而无需调用 AI。参见 [发布说明](docs/release-notes/v1.0.57.md) 和 [规则兼容范围](docs/reference/glossary-languages.md#memoq-term-rules)。
 
